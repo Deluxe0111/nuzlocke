@@ -1,3 +1,744 @@
+# 2.7.0 — Release promotion
+
+- Promotes exact runtime-confirmed 2.6.98 to release as a strict child of `4b5834bb54ff2cc4564ed62057210185c7619ceea1735ff50f1aa4cb97419cd0`.
+- Release notes summarize the full development delta since the previous release build, 2.6.0.
+- Carries forward 2.6.97 Release Safety Runtime PASS and the user-confirmed 2.6.98 Setup/NUZ RULES constructor repair.
+- No gameplay, rule-default, Randomizer mapping, Save Schema, compatibility-provider, or package-inventory behavior changes from 2.6.98.
+
+# 2.6.98 — Setup / NUZ RULES constructor repair
+
+- Fixed the shared `NuzlockeConfigScreen` constructor used by fresh New Game Setup and in-save NUZ RULES. `rebuildVisibleItems()` iterates `candidate` rows but one Random Starter reroll visibility condition mistakenly dereferenced `item.isStarterRerollControl`, which can resolve nil during initial screen construction.
+- The condition now uses `candidate.isStarterRerollControl`; no rule defaults, legality, Randomizer mappings, provider ownership, save schema, or Release Safety semantics changed.
+- 2.6.97 runtime evidence is retained: DEV REPORT showed NO ACTIONABLE PROBLEMS / ALL ACTIONABLE CHECKS PASS before the config-screen factory failure was isolated.
+
+# 2.6.97 — Build provenance release-gate repair
+
+- Fixes the runtime-confirmed final Release Safety blocker in 2.6.96: executable provenance still named 2.6.93 while the independent Release Safety expected-parent fields still named 2.6.72.
+- Both provenance surfaces now identify exact canonical parent 2.6.96 (`117d7bdcf1219918af6d957025b486a4f4b6085de2ee25f488d7406fd64ba374`).
+- Adds an explicit lineage-consistency Release Safety check so executable/audit parent disagreement is named directly.
+- No gameplay, Randomizer mapping, rule, save-schema, compatibility-provider, or package-inventory behavior changes.
+
+# 2.6.96 — Documentation header packaging repair
+
+- Fixes the runtime-confirmed Release Safety package-drift failure in 2.6.95: current release notes had been prepended as secondary `##` headings above the role-specific canonical document headers.
+- Restores each required first-line current-build header without weakening Release Safety.
+- Restores exactly one canonical current-version changelog heading, so `changelog_current_version_unique` resolves to 1 instead of 0.
+- No gameplay, Randomizer mapping, save schema, compatibility API, rule catalog, or package inventory behavior changes.
+
+## 2.6.95 — Randomizer rival-sync diagnostic runtime repair
+
+- Fixed `randomizerRivalSyncAudit()` being defined before its local `canonicalRivalClass()` dependency, which made Lua resolve the helper as a nil global when NUZ RULES ran diagnostics.
+- Preserved the existing rival-class semantics and Randomizer mappings; only declaration/closure ordering changed.
+- This single defect had two visible consequences: `stored_state_validation:randomizer_rival_sync` warning and the enclosing Release Safety failure.
+- Runtime retest required before marking the NUZ RULES path PASS.
+
+## 2.6.94 — Lua unpack audit scope hardening
+
+Strict child of exact 2.6.93 (`8aeafd1f10c236f19164a1abf24a7c8d6de96c2f1a34b630a1d1e8af22fb6ddb`). Fixes the confirmed Release Safety coverage defect where `luaUnpackCompatibilityAudit()` scanned only four historical files even though the player package ships 20 Lua modules. The audit now iterates the authoritative `packagePaths` inventory, filters every shipped `.lua` module, and includes self-tests for direct `table.unpack(...)`, bare `unpack(...)`, and the allowed `table.unpack or unpack` compatibility fallback. No gameplay rule, save schema, compatibility provider, randomizer mapping, or package inventory changes. Runtime confirmation remains required.
+
+## 2.6.93 — World Building catalog snapshot repair
+
+Strict child of exact 2.6.92 (`0d33e210ab13f921fd972284c75fd9d577283c51007e5cfa73f636b1b497f128`). Repairs the runtime-blocking MOD MANAGER startup assertion caused by a stale World Building semantic golden snapshot. The live catalog intentionally contains 104 presentation keys; seven Randomizer presentation rows added after the former 97-key golden were legitimate but the protected snapshot had not been refreshed. The corrected golden is **104 keys / 1560 exact-edition-tier surfaces / checksum 926265119**.
+
+The audit is also hardened: the approved key identities are now explicit, key-count and resolved-surface totals derive from that set, and future drift reports the specific missing/unexpected key before the checksum check. No rule defaults, enforcement, Randomizer algorithm/mappings, Save Schema, Compatibility API, Diagnostics API, or package inventory change. The reported 2.6.92 MOD MANAGER failure is Runtime FAIL evidence; 2.6.93 startup/runtime confirmation remains required.
+
+## 2.6.92 — Legacy mod_Compat Beta_26 interoperability
+
+- Publishes an explicit read-only `mod.exports.mod_Compat.Beta_26` alias and `nuzlocke_compat.legacy_compat` metadata for older cooperating mods that identify the historical `mod_Compat Beta_26` wording/namespace.
+- Keeps `nuzlocke_compat` API 32 and explicit capability/provider contracts authoritative for modern integrations; the alias does not grant ownership or delegate mechanics merely because another mod is installed.
+- Runtime interoperability confirmation remains TEST REQUIRED.
+# 2.6.91 — Learnset projection and Rare Candy transaction safety
+
+- Added explicit compatibility recognition for Stadium Overworld Models, Stadium UI Model Viewer, Stadium 2 Overworld Models, and Crystal 251 Stadium bridge surfaces, including exact-edition-preserving `stadium_compat` DEV REPORT diagnostics.
+- Upgraded `nuzlocke_acquisition_provenance` to v2 with explicit `markImported()` provider/edition metadata. Stadium model/ROM import remains presentation-only and never auto-labels ordinary Pokémon as Stadium prizes; only actual transfer/import paths may mark created Pokémon.
+- Reviewed the Aghanim-3C Crystal-251-compatible Stadium Overworld/UI fork as a presentation/importer compatibility target; combination runtime smoke remains required.
+
+Strict child of exact 2.6.90 (`9871ee43bb39be1cdf18f99c7cc05bb0c6ca0bacfefda273d4b6b5a3ddac2f9c`). Fixes the three defects confirmed during the 2.6.90 focused review and makes no unrelated Randomizer phase changes.
+
+**Learnset ownership projection:** Randomizer learnset snapshot, applied-state capture, and drift comparison now share one projection containing only `level1Moves`, `learnset`, and `levelMoves`. Unrelated provider changes to Pokémon stats, types, or metadata no longer transfer learnset ownership or contaminate the restoration baseline.
+
+**Rare Candy recovery causality:** the gameplay transaction coordinator now supports durable transaction-payload checkpoints. A Rare Candy step checkpoints `native_effect_returned=true` after the native candy effect returns and before bag removal. Recovery may finish inventory-only only when that exact pending transaction contains the checkpoint; a coincidental `level=before+1` / unchanged-candy state without the checkpoint is ambiguous and fails closed instead of guessing.
+
+**Rare Candy attempt identity:** transaction IDs move to the `rare_candy_to_cap:v2:` namespace and use a durable monotonic sequence stored with gameplay-transaction receipts, outside Pokémon records. Each user attempt gets a fresh sequence before journal begin, so an externally rolled-back level cannot recreate an old receipt ID. Sequence gaps after interruption are intentionally harmless; reuse is not. Release Safety now includes a same-Pokémon/same-level identity self-test, while the generic gameplay-transaction self-test covers durable checkpoints and monotonic sequence allocation.
+
+Randomizer algorithm v1, all five named streams, mappings, rule defaults, Save Schema 4, Compatibility API 32, Diagnostics API 1, and the approved 30-file/20-Lua package tree are unchanged. Runtime testing remains required before Runtime PASS.
+
+# 2.6.90 — Randomizer compatibility hardening
+
+Strict child of exact 2.6.89 (`a6a6b25a20588b0640b96f1a03761fc79bee7f60e58c6366406f4c70cacf4ebf`). Keeps the Randomizer feature roadmap paused and performs a narrow coexistence hardening pass instead.
+
+Adds source-confirmed active-feature detection for the external `item_randomizer` mod. Nuzlocke now delegates `Random Field Items`, `Field Item Balance`, and `Field Item Repeats` only when the overlapping visible-pickup feature is actually enabled: `overworld_items` on R/B/Y or `gold_ball_items` on Gold/Silver. Merely installing Item Randomizer does not disable Nuzlocke controls. Item Randomizer's hidden finds, shops, gifts, berries, held-item, and PC-item features do not claim Nuzlocke's visible Field Item control.
+
+Adds the generic `field_item_randomizer_provider` interop capability alongside the existing starter, encounter, and learnset randomizer provider seams. Compatible mods can therefore claim visible Field Item randomization without requiring another hard-coded adapter. The two dependent Field Item policy controls delegate with the same owner so their stored Nuzlocke values remain dormant rather than appearing active underneath an externally owned field-item pass.
+
+Preserves the existing active-run adapters for PokemonRecompRandomizer, Gen 2 Randomizer+, and Kanto Reforged. Adds a read-only four-mechanic randomizer compatibility snapshot and a compact DEV REPORT line showing current starter / encounter / field-item / learnset ownership. Absent or installed-but-inactive randomizers remain N/A/Nuzlocke-owned rather than FAIL or delegated. No Randomizer algorithm, stream, mapping, rule default, Save Schema, Compatibility API, Diagnostics API, package-tree, or gameplay-randomization behavior changes. Runtime coexistence smoke remains recommended.
+
+# 2.6.89 — Gen1/Gen2 Field Item normalization and Randomizer Info
+
+Strict child of exact 2.6.88 (`301195543f161a6876cda8943ee01f74b9f7b36563029addf9cebb9d341c3bb6`). Completes Phase D implementation items 10–11 and establishes a clean pause point for the current randomizer-development sequence.
+
+**Explicit Gen1/Gen2 item-table handling:** the randomizer continues to consume the engine's one merged `game.data.items` registry, but now records the edition-specific representation explicitly. R/B/Y uses the `GEN1_FLAT` model and recognizes flat-record ball capability plus canonical TM/HM identifiers/provider machine metadata; Gold/Silver uses the `GEN2_POCKETS` model and treats BALL, KEY ITEM, and TM/HM pocket semantics as authoritative where present. The live edition profile also records the exact edition, merged registry owner, native visible pickup seam, and hidden-item ownership state. A pure nine-case cross-generation audit covers Gen1 Ball/TM/HM/item and Gen2 Ball/TM/HM/key/item classification without depending on the currently running edition.
+
+**Field Item Randomizer Info:** adds read-only `randomizerFieldItemInfo(game, reveal)` and public `Registry.fieldItemDiagnostics(context)`. It reports Randomizer algorithm/source versions, seed, Field Item Balance, Field Item Repeats, exact edition/table model, visible/hidden ownership, total/hard-safe/protected item counts, semantic-category counts, edition-table-class counts, canonical persisted mapping count, legacy mapping count, canonical source keys, and recorded FIELD_ITEMS fallback diagnostics. OPEN INFO may reveal persisted randomized item choices plus their category/table class. BLIND INFO exposes structural/count/diagnostic metadata but omits randomized item choices and their derived category/table-class data. The dedicated audit verifies repeated OPEN/BLIND reads do not change diagnostic-ledger length or field-item mapping count and that BLIND does not leak item choices.
+
+`Registry.describe()` now reports Random Field Item ownership/info policy, and Randomizer Info remains visible when Field Items are the only active supported information surface. Compatibility API advances **31 → 32** for the additive public Field Item diagnostics contract. Global Randomizer algorithm version 1, all five named RNG streams, Save Schema 4, Diagnostics API 1, the 138-rule catalog, and the 30-file player package remain unchanged.
+
+Phase D implementation is now complete through item 11. Phase D item 12 runtime/progression certification, Phase B item 12 runtime certification, and Phase C item 12 runtime certification remain explicit deferred debt. Further randomizer implementation phases are intentionally paused after this release and should resume from exact 2.6.89 (or its strict future release descendants), not from an older randomizer branch.
+
+# 2.6.88 — Field Item repetition control, deterministic placement, and visible-item ownership
+
+Strict child of exact 2.6.87 (`366a964eed57ac25dc67485fc0d95b5360c5b5298e5c3090d6d6f6a448caa23f`). Continues Phase D items 7–9.
+
+Adds **Field Item Repeats** with `ALLOW` (default), `DIVERSE`, and `UNIQUE`. ALLOW preserves the exact 2.6.87 independent deterministic pickup behavior and mapping namespace. DIVERSE uses a deterministic physical-source placement lane on 3/4 of source/seed combinations while retaining the historical independent lane on the remaining quarter, reducing duplicate pressure without making any hard-safe candidate unreachable. UNIQUE uses a stable source-ordinal permutation over the exact semantic hard-safe pool. Native R/B/Y and Gold/Silver visible item-ball wrappers provide numeric object/source ordinals, so sibling sources using the same pool receive distinct placement indices until the candidate pool wraps/exhausts. Provider-defined nonnumeric source ids fall back deterministically and emit a `DEGRADED_SOURCE_ORDINAL` FIELD_ITEMS diagnostic rather than claiming full uniqueness.
+
+DIVERSE/UNIQUE retain the authored item in the pool so all same-policy sources with the same semantic pool actually share an identical permutation domain; ALLOW keeps the historical “avoid the original when another candidate exists” behavior. New repeat modes use `:repeat1` / `:repeat2` permanent mapping rows and deliberately do not adopt legacy ALLOW rows. Randomizer algorithm v1 and the historical `<semantic source>:<original item>` FIELD_ITEMS RNG identity remain unchanged.
+
+Field Item ownership is now explicit. Native item-ball wrappers tag their seam as `VISIBLE`; `randomFieldItemOwnership` treats visible/item-ball sources as owned and hidden/BG-event sources as not owned. Passing a hidden source to the field-item randomizer returns the authored item unchanged. This formalizes the existing scope boundary: hidden items, gifts, shops, fruit/apricorn trees, and scripted rewards remain outside visible Field Item randomization until a later feature explicitly claims them. Adds a five-case placement/ownership audit covering visible/hidden ownership, native source-ordinal permutation uniqueness, deterministic repeatability, nonnumeric-provider degradation, and repetition-range safety. Runtime confirmation remains deferred.
+
+# 2.6.87 — Semantic Field Item pools and category balancing
+
+Strict child of exact 2.6.86 (`c790432efd165791511200795d4ecc8e2d3f8c5c093cf1ccafbbfd4ea63e5eb5`). Continues Phase D items 4–6. Adds semantic Field Item categories (`BALL`, `HEAL`, `STATUS`, `REPEL`, `ESCAPE`, `BATTLE`, `PP`, `GROWTH`, `EVOLUTION`, `MACHINE`, `GENERAL`) and broad utility tiers. Adds source-level hard category constraints through `allowedCategories` / `fieldItemCategories` and `forbiddenCategories` / `fieldItemForbiddenCategories`; these operate below balancing and can never admit key/HM/progression/provider-protected items. Adds **Field Item Balance** with `CHAOS` (default, exact 2.6.86 behavior), `CATEGORY` (prefer original semantic category), and `BALANCED` (prefer category + utility tier, then category, then utility tier, then hard-safe fallback). Non-CHAOS modes use balance-specific permanent mapping rows while preserving the historical Randomizer-v1 FIELD_ITEMS RNG semantic input. R/B/Y item-ball definitions can pass provider-authored category constraints through the existing collection wrapper; Gold/Silver retain the same physical source identity/context and can consume constraints when supplied by compatible callers/providers. Adds an 11-case semantic/category audit. Runtime confirmation remains deferred.
+
+# 2.6.86 — Field Item candidate engine, permanent source identity, and progression safety
+
+Strict child of exact 2.6.85 (`c99cb88f7fc5b2b7d67fe620227fd0a43169e20c9f7ac5721e1d12e1f008b509`). Begins Phase D with Field Item Randomizer foundation work.
+
+**Shared candidate engine:** visible overworld/item-ball candidates now pass through the same hard-safety candidate-policy engine used by the other randomizer subsystems. Field Items currently request the complete hard-safe pool with no semantic soft stages yet; semantic item-pool preferences remain reserved for the next Phase D work. The hard-safe resolver records FIELD_ITEMS diagnostics for real selection and uses `record=false` for the dedicated audit path.
+
+**Permanent field-item source identity:** persistence is now keyed by `FIELD_ITEM:v1:<edition>:<semantic source slot>` and no longer includes the authored item occupying that pickup. The previous RNG semantic input `<semanticSlot>:<originalItem>` remains unchanged for Randomizer algorithm v1, so Phase D source-ownership migration does not intentionally reshuffle existing seeded field-item results. Existing pre-D seed-scoped rows are adopted into the canonical source row when still legal. R/B/Y and Gold/Silver continue to supply map/object-based semantic slots through their existing acquisition-time wrappers, so native pickup disappearance, bag limits, text, sound, and retry behavior remain engine-owned.
+
+**Progression/key-item classification:** one authoritative field-item classifier now separates ordinary randomizable items from protected KEY_ITEM, PROGRESSION, PROTECTED, and INVALID categories. Hard protection covers explicit key-item flags/pockets, HMs, badge/placeholder identifiers, missing/placeholder definitions, provider opt-out/preservation policy, and explicit progression/story/quest/required metadata. Protected authored pickups are returned unchanged and protected candidates can never enter the replacement pool. This is fail-closed: later semantic pool work may narrow ordinary choices but cannot relax progression protection.
+
+Adds a seven-case Field Item foundation diagnostic covering key/HM/progression/ordinary classification, permanent source identity, live hard-safe candidate-pool cleanliness, and source-identity versioning. Global Randomizer algorithm version 1, all five named RNG streams, Save Schema 4, Compatibility API 31, Diagnostics API 1, the 136-rule catalog, and the 30-file player package remain unchanged. Runtime confirmation is deferred.
+
+# 2.6.85 — Area Split identity hardening and encounter Randomizer Info
+
+Strict child of exact 2.6.84 (`7c793d05aa515a09c02efba5f7b3ba3bf5e7009411581d4b686471534dba7270`). Completes Phase C implementation items 10–11.
+
+**Area Splits × Random Encounters:** Randomized encounter-table persistence remains keyed to immutable physical encounter-source identity and the historical Randomizer v1 RNG semantic slot. Route 2/10/20, Mt. Moon, Safari Zone, Gold Time Split, and Gold Headbutt Split now explicitly reproject tracker/logical encounter ownership without calling `Randomizer.applyEncounters`, so changing a catch-area split cannot itself reroll or remap the underlying randomized wild table. Gold Time/Headbutt split changes now participate in the same live encounter-area reprojection/invalidation path as the Kanto split controls. The public split-mode report now includes Gold time/headbutt state. A dedicated split contract audit verifies that split state does not alter canonical randomizer source/RNG identity.
+
+**Encounter Randomizer Info:** Adds read-only `randomizerEncounterInfo` diagnostics and public `Registry.encounterDiagnostics(context)`. The surface reports Randomizer algorithm version, encounter policy version, seed, Encounter Balance, Encounter Repeats, Diversity Strength, species-generation mode, source/protected/mapping counts, active area-split state, canonical source identity, legacy RNG slot, normalized encounter class/time bucket/group identity, candidate counts, preference/relaxation state, protected-source reasons, and recorded ENCOUNTERS fallback diagnostics. OPEN INFO may reveal the live randomized species for each source. BLIND INFO keeps species absent while retaining safe structural/diagnostic metadata. Candidate resolution explicitly uses `record=false`, and the diagnostic audit verifies no fallback-ledger or mapping-count mutation from repeated reads.
+
+The existing `Registry.encounterInformation(context)` now carries the same spoiler-aware diagnostics alongside its reveal decision; under BLIND it no longer returns the whole randomized registry merely because one encounter is marked discovered, and Compatibility API advances **30 → 31** for the additive public encounter-diagnostics surface. A live-control repair also adds `random_encounter_repetition` and `random_encounter_diversity_strength` to the encounter randomizer reapply list; before this build those settings persisted but were omitted from that live refresh list. Global Randomizer algorithm version 1, all five named streams, encounter source/RNG identities, Save Schema 4, and Diagnostics API 1 remain unchanged. Phase C implementation is now complete through item 11; item 12 exact-edition runtime/regression certification remains explicitly deferred.
+
+# 2.6.84 — Encounter diversity strength, Gen 2 table classes, and protected-source isolation
+
+Strict child of exact 2.6.83 (`62e7ca3698af965e2209b697052a470a6b17d6f8296d0e4fb13e00d5b325fcb6`). Continues Phase C with **Diversity Strength** for `Encounter Repeats = DIVERSE`: `LIGHT` uses a 0.70-per-use multiplier, `STANDARD` (default) preserves 2.6.83's 0.45 factor, and `STRONG` uses 0.25. All three remain soft weighting only; every hard-safe candidate remains reachable. The STANDARD setting deliberately retains the existing 2.6.83 DIVERSE mapping namespace, while LIGHT/STRONG append only a diversity-strength suffix inside the encounter policy namespace.
+
+Encounter sources now receive an explicit normalized table class and time bucket without changing canonical persistence identity or the historical Randomizer v1 RNG slot. The classifier distinguishes land/grass, cave, Surf/water, fishing/rod, Headbutt/tree, Bug Contest, roamer, and provider-defined/other methods; Gen 2 morning/day/night semantics normalize to `MORN`, `DAY`, and `NITE`. Repetition grouping now uses map + normalized class + time bucket + table id + structural parent path, keeping grass/cave, water, fishing, tree, contest, and time-of-day pools independent even when provider metadata uses different raw method spellings.
+
+Wild-table randomization now fails closed away from explicit protected content before provider composition or candidate selection. Records marked non-randomizable, static, fixed, story, progression, quest, gift, trainer, roamer/roaming, deny/provider/preserve/story/external/owned policy, or a corresponding protected structural path are left untouched. The public encounter provider context receives the normalized class/time bucket only after this local protection gate passes. Adds a 17+ case class/protection/diversity audit covering land, morning land, Surf, fishing, Headbutt, Bug Contest, roamer classification; explicit protected flags/kinds/policies; and monotonic diversity-strength factors. Global Randomizer algorithm version 1, encounter source/RNG identity, Save Schema 4, Compatibility API 30, and Diagnostics API 1 remain unchanged. Runtime confirmation remains deferred.
+
+# 2.6.83 — Encounter repetition control and progression-aware balancing
+
+Strict child of exact 2.6.82 (`39de659ca36a4829e4122baaa751893473d7fecb59e4bb77f071c9bb68a7e7d2`). Continues Phase C with a new **Encounter Repeats** control: `ALLOW` (default) preserves independent slot rolls, `DIVERSE` uses deterministic soft diversity weighting within each canonical encounter source group, and `UNIQUE` uses without-replacement selection within that group until the legal candidate pool is exhausted. UNIQUE relaxation is explicit and recorded in randomizer constraint diagnostics; DIVERSE never makes a legal species unreachable. Group identity uses map/method/table plus the structural parent path, so repetition control is local to the relevant wild table/time/method group rather than global across the run.
+
+Hardens all four existing Encounter Balance modes. CHAOS remains the full hard-safe pool. SIM BST now tries the historical ~15% band first, then deterministic ~25% and ~40% bands before relaxing to the hard-safe pool. EVO now prefers the same broad stage plus similar evolution-family depth/remaining evolution count, then stage alone, then progression-adjusted strength. BALANCED first combines progression shape with similar BST, then relaxes through stage/progression matching and wider BST bands. The progression score uses the slot's native level, current BST, and a bounded contribution from the strongest reachable evolutionary ceiling; no level/rate/table structure is changed.
+
+The strengthened balance modes and active DIVERSE/UNIQUE mappings use an encounter-only policy namespace `ep2`; established 2.6.82 balance-mode mappings are adopted forward when repetition remains ALLOW and the stored result is still legal under the new candidate set. `CHAOS + ALLOW` deliberately keeps the exact 2.6.82 mapping scope/hash path. Global Randomizer algorithm version 1 and the historical encounter RNG semantic slot remain unchanged. Adds a policy audit covering without-replacement filtering/exhaustion, diversity weighting, group identity, policy versioning, and live evolution-profile structure. Runtime confirmation remains deferred.
+
+# 2.6.82 — Encounter candidate engine, source identity, and order-independent generation
+
+Strict child of exact 2.6.81 (`de2702495f148be2f912bc99ed6828e51da81b79dfd78479cd703a681b91e035`). Begins Phase C by migrating Random Encounters onto the shared Phase A candidate-policy foundation. Encounter species now pass through one hard-safety candidate layer for reserved/missing species, glitch exclusion, selected Species Pool generation, runtime construction safety, and acquisition restrictions. Existing encounter balance modes remain behaviorally equivalent but are expressed as ordered soft preferences through the shared resolver: CHAOS uses the full hard-safe pool; SIM BST prefers the historical ±15%/minimum-25 BST band; EVO prefers the original evolution-shape match; BALANCED prefers BST+stage, then stage, then BST, then the hard-safe pool. Hard safety can never be relaxed.
+
+Formal encounter source identity is now separate from RNG identity. Every randomized encounter leaf receives a canonical identity containing available map/source/method/table/slot metadata plus its structural path as a collision-proof fallback. Persistence uses that canonical source identity, while RNG hashing deliberately continues to use the exact historical 2.6.81 structural `.species` slot. Existing seed-scoped rows are adopted into the canonical storage namespace when present, so the identity migration does not intentionally reshuffle established or fresh Randomizer algorithm v1 encounter results.
+
+Encounter application now materializes the complete encounter-leaf work plan, sorts it by canonical source identity, and only then performs replacements. Results therefore do not depend on provider table insertion order, map visit order, or which encounter table a consumer inspects first. Adds a read-only encounter-plan surface and a three-case source-identity/order audit covering metadata-order stability, synthetic table insertion-order invariance, and duplicate/empty canonical identity detection against the live registry. Global Randomizer algorithm version 1, all five named RNG streams, rule catalog/defaults, Save Schema 4, Compatibility API 30, and Diagnostics API 1 remain unchanged. Runtime confirmation is deferred.
+
+# 2.6.81 — Starter rerolls, Randomizer Info, and Yellow starter progression hardening
+
+Strict child of exact 2.6.80 (`6a04a3ebfcd213ae86a3921f602398b0d804b16efcf660e7190241bfbb0250a5`). Adds **Starter Rerolls** (`OFF` default / `ON`) plus a separate **Reroll Starter** action that exists only before starter acceptance. Rerolls retain the run seed and advance only a starter reroll index; index 0 preserves the existing initial-slate namespace, while reroll indices use the starter-only v3 namespace and never consume encounter, field-item, or learnset streams. When a prior positional slate exists, generation rejects an identical full reroll whenever another legal distinct slate can be constructed. Committing the starter permanently locks rerolls for that save. Adds a read-only `randomizerStarterInfo` diagnostic surface exposing algorithm/slate versions, seed, Starter Style, Balance, Trio Typing, candidate counts, reroll state, and STARTER fallback diagnostics; actual persisted slate species are exposed only under OPEN INFO. The public Registry gains `starterInformationPolicy` / `starterInformation`, so Compatibility API advances from 29 to 30. BLIND INFO hides the generated starter slate while retaining non-spoiler diagnostic metadata. Completes a static Yellow starter-dependency audit: the existing post-lab follower/cry/Pikachu-text suppression remains, opening-starter provenance/nickname paths already use the committed randomized starter, and the confirmed Cerulean Bulbasaur gift dependency is hardened by setting Yellow's otherwise-orphaned starter-Pikachu happiness field to the native 147 gift threshold only when the accepted randomized opening starter is not Pikachu. Normal Pikachu runs are unchanged. Adds DEV diagnostics for read-only starter info and Yellow dependency contracts. Global Randomizer algorithm version 1 remains unchanged.
+
+# 2.6.80 — Starter Balance and Trio Typing
+
+Strict child of exact 2.6.79 (`f2202fdd68cd4c891e162de8e7cfae86541532ac7dde50a6010469ff216ecf47`). Adds two Random Starter child settings. **Starter Balance** defaults to INDEPENDENT and adds BALANCED, which prefers three-choice starter slates with comparable current BST plus a partial evolutionary-ceiling contribution; deterministic tolerance widens through 55/85/125/180 score points before the preference relaxes. **Trio Typing** defaults OFF and adds AUTO, which prefers a three-way offensive type cycle using every candidate's full dual typing and the correct Gen 1/Gen 2 effectiveness differences; unknown/provider types simply do not manufacture an advantage. When both are active, the generator first seeks a balanced type-cycle slate, then preserves BALANCED while relaxing AUTO typing, then falls back to the ordinary legal distinct slate. Both are soft preferences only: hard starter legality, Starter Style safety, active challenge restrictions, and the complete distinct-assignment guarantee remain authoritative. Preference search is deterministically bounded to the first 80 ranked legal candidates per native slot so provider-expanded registries cannot create cubic startup work; the existing full candidate pools remain available to the exhaustive distinctness fallback. Red/Blue and Gold/Silver consume both settings; Yellow's two-position Pikachu/Eevee transaction intentionally stays on the established starter path. Default INDEPENDENT/OFF runs remain on the exact 2.6.79 starter-slate v2 namespace, preserving established/default seeded starter results. Only active new preferences use starter-slate v3. Randomizer algorithm version 1 and all unrelated RNG namespaces remain unchanged. Rival starter-family synchronization now consumes the already-persisted positional slate before consulting live setup values, so later edits to Starter Style/Balance/Trio Typing cannot rewrite an established rival family. Adds preference-state diagnostics and exact UI/status/world-building labels for both settings.
+
+# 2.6.79 — Random Starter original lineage, positional identity, and rival synchronization
+
+Strict child of exact 2.6.78 (`1c094b3c066ad0d3da7570bee5f82d5a33a7c659cfbb6e7a3bcf00844dc796ed`). Hardens Starter Style classification around one captured original merged evolution lineage: BASE/3-STAGE classification and rival-family depth projection no longer depend on any later evolution projection, self-links/missing targets are ignored, split children are ordered deterministically, and malformed/cyclic ancestry is bounded instead of recursing indefinitely. Persists the exact starter transaction identity separately from the choice cache with edition tag, slate version, seed, style, canonical slot order, and slot-to-species mapping; reopening previews or reloading the save therefore resolves the same positional slate. Yellow now persists a two-position native transaction (`PIKACHU` player slot and `EEVEE` rival slot), while Red/Blue and Gold/Silver retain their three physical Oak/Elm positions. Rival starter-family synchronization is composed through `trainer.party`: canonical rival classes map only their native starter-family members to the corresponding stored randomized slate position, preserving the original member's evolution depth when the randomized family supports it and leaving levels, moves, party size, non-starter rival species, and non-rival trainers untouched. Rival species are never independently rerolled. Adds lineage, position-state, and rival-sync diagnostics. Randomizer algorithm version 1 and unrelated RNG namespaces remain unchanged.
+
+# 2.6.78 — Random Starter candidate engine and atomic distinct slates
+
+Strict child of exact 2.6.77 (`a80b91b4844121dcc641f2f9dc5a478703e65b85c76437b684591e441707e1b3`). Begins Phase B by migrating Random Starter candidate construction onto the shared Phase A policy engine: existing runtime/species-pool, glitch, Type Locke, acquisition, and construction checks are hard-safety predicates that can never be relaxed, while 3-STAGE, BASE, and SIM BST are soft Starter Style preferences that fall back only to the hard-safe pool when empty. Canonical starter transactions now generate and persist one atomic slate on first access: Red/Blue resolve the three Oak choices together, Gold/Silver resolve the three Elm choices together, and Yellow uses the same transaction path for its player starter without changing rival behavior yet. Fresh multi-choice slates use a deterministic complete matching search, guaranteeing distinct starter species whenever a legal distinct assignment exists; duplicate fallback is permitted only after the full matching search proves uniqueness impossible and is recorded through the randomizer constraint diagnostics. Existing valid saved starter choices from the same seed and Starter Style namespace are adopted before filling missing slate positions, protecting established runs from unnecessary regeneration. The shared randomizer algorithm remains version 1; the new starter-slate namespace is independently versioned as v2 so encounter, field-item, and learnset seed namespaces remain unchanged.
+
+# 2.6.77 — Randomizer uniqueness, projection ownership, and fallback diagnostics
+
+Strict child of exact 2.6.76 (`2b7f786dc996cb9cefd2761bd69f5f2fdcad2a8af45fd795b1ee3781b13a5663`). Adds deterministic without-replacement candidate primitives that exclude already-used legal candidates when possible and degrade back to the full legal pool only when uniqueness is mathematically exhausted. Formalizes the two shipped temporary live-registry projections—encounters and learnsets—under explicit owner/domain/rule contracts with tracked states for snapshot, apply, restore, provider adoption, and external delegation while preserving the existing same-table provider-drift behavior. Adds a bounded 24-row per-run randomizer constraint/fallback diagnostic ledger plus a governed resolver that records requested policy, candidate counts, relaxation stage, fallback status, and reason without consuming RNG. Candidate-policy diagnostics now cover eight cases, and new projection/constraint audits verify the ownership and diagnostic contracts. Existing gameplay randomizers do not yet migrate onto the new uniqueness/resolver helpers, so algorithm version 1, existing stream identifiers/hash inputs, established seeded outputs, and randomized gameplay scope remain unchanged.
+
+# 2.6.76 — Randomizer candidate-policy foundation
+
+Strict child of exact 2.6.75 (`15a0f6b8b486e2a9f89ceb561eb6071f88c8728d242894643636e51d890dbafc`). Adds shared pure candidate-policy primitives for semantic hard-safety filtering, ordered progressive relaxation of soft preferences, and deterministic soft diversity weighting. Hard-safety predicates can never be relaxed; an exhausted preference ladder falls back only to the hard-safe pool. Diversity weighting keeps every legal candidate reachable instead of turning repetition control into a hidden ban. A five-case diagnostic audit verifies hard-safety retention, progressive relaxation, safe-pool fallback, positive diversity weights, and deterministic weighted selection. Existing randomizer features do not consume the new policy engine yet, so algorithm version 1, existing stream identifiers, existing seeded outputs, rule defaults, and randomized gameplay scope remain unchanged.
+
+# 2.6.75 — Randomizer stream isolation and persistent source mappings
+
+Strict child of exact 2.6.74 (`9f2e2dbf56d5552677f9c618e553d8aa8af34515a8ded7196337d58703cf34df`). Completes authoritative ownership of the five shipped named randomizer streams and adds a pure 45-case isolation audit proving deterministic outputs do not change when other streams are interleaved. Centralizes persistent source-map ownership for starters, starter slates, encounters, field items, and learnsets. Random Field Items now persist the first generated result per seed/source identity while preserving the exact historical 2.6.74 seeded choice on first materialization, so later candidate-pool growth cannot silently reshuffle an established pickup.
+
+# 2.6.74 — Randomizer run snapshot and stream registry foundation
+
+Strict child of exact 2.6.73 (`fc9fc32934b7e7125db05c9a8fc4b60eda84763298de21f2f5522382d16b8980`). Adds an immutable per-run randomizer configuration snapshot containing algorithm version, resolved run seed, exact edition, and the ten shipped randomizer settings. Establishes one authoritative registry for the five existing named RNG streams—STARTER, STARTER_SLATE, ENCOUNTERS, FIELD_ITEMS, and LEARNSETS—without renaming any stream or bumping algorithm version 1, preserving existing seeded outputs. Adds stream-registry and run-snapshot diagnostics while leaving existing runtime randomizer setting reads unchanged for compatibility.
+
+# 2.6.73 — Rule-section taxonomy and Release Safety hardening
+
+Strict child of exact 2.6.72 (`02f9f53f0f860fd6d50c119422ccdaf5746535d58dfb20faa37fa629741e4414`). Reorganizes the 131-rule catalog into 21 clearer player-facing sections without changing rule keys, defaults, save schema, enforcement semantics, provider ownership, presets, or package inventory. CORE is followed by CLAUSES, HARDCORE, GAME DIFFICULTY, BATTLE MECHANICS, RUN / PARTY, and LEVELS; acquisition restrictions move to CATCH RULES; OHKO/Flinch/Trap plus stat-stage restrictions move to BATTLE CLAUSES; healing/services and commerce combine under SERVICES & ECONOMY; Stat EXP/DV controls move to POKEMON STATS; QOL is split from QOL SETUP ONLY; Dev Mode remains in UI. Save Rules and encounter recovery/assignment utilities remain non-catalog controls and are not moved into rule sections.
+
+Release Safety's `save_pause_helper_scope` audit now derives coverage from the authoritative shipped package inventory and scans every `.lua` file, rather than only `main.lua`. A detector self-test proves the historical bare cross-module `saveWritePauseReason()` form is rejected while the required `mod.exports.__beta26.saveWritePauseReason()` form is accepted. No current bare call existed in the 2.6.72 parent; this closes the false-negative regression-guard gap.
+
+# 2.6.72 — Runtime UI readability and navigation polish
+
+Strict child of exact 2.6.71. Removes DEV page underlines in favor of centered tracked-bold titles, restores a true upward scroll arrow, reflows DEV TOOLS LAST/SNAP status, and gives DEV REPORT HOOKS/RULES compact two-column wrapping. NUZ STATUS drops the redundant edition suffix, centers/bolds RUN STATUS and rule-section headers, groups active rules by the same catalog sections used by Setup/NUZ RULES, adds a SETUP ONLY section, clarifies current-area/last-event labels, and moves RUN HISTORY help to the footer. RUN HISTORY receives the same emphasized title treatment. NUZ RULES removes the redundant R/B/Y edition/revision subline and moves its blinking lower-help arrow to a reserved bottom-right gutter. Nuz Info compacts move P/A/PP spacing, explains D/DV and E/Stat EXP on the stat page, and keeps scroll arrows out of move data. MOD COMPAT removes build/engine identity from the ordinary ownership screen and uses the recovered space for an additional row. Also repairs inherited executable release identity so main.lua/manifest/provenance agree on 2.6.72.
+
+# 2.6.71 — Dev storage contract and diagnostic UX repair
+
+Strict child of exact 2.6.70. Repairs DEV snapshot persistence by calling Gen1Recomp `mod.storage` methods with their required receiver and live game arguments, including context/read/write/list/delete/history operations. DEV TOOLS is reorganized into clearer primary/diagnostic/advanced actions, renames RELOAD SAVED to LOAD SNAPSHOT and LOG SNAP to WRITE LOG SNAP, adds contextual action help plus separate LAST/SNAP status, and gives DEV TOOLS, DEV REPORT, STORAGE INFO, and KNOWN ISSUES a shared emphasized single-pass title treatment. Classic R/B/Y report pages now use a real upward indicator instead of the right-facing menu cursor glyph. STORAGE INFO uses state-aware WRITE/READBACK/VERIFIED output, and lifecycle-pending hooks are informational in KNOWN ISSUES. Existing 2.6.70 NUZ STATUS Run History and ACTIVE RULES repairs are preserved.
+
+# 2.6.70 — Runtime presentation and Dev Tools follow-up repair
+
+Strict child of exact 2.6.69. Fixes the remaining Release Safety changelog-heading UTF-8 comparison, shortens DEV TOOLS run status to fit the native viewport, de-duplicates Release Safety problem counting, centers STORAGE INFO and KNOWN ISSUES, gives STORAGE INFO live engine/game fallbacks when optional snapshot storage is unavailable, and makes KNOWN ISSUES derive from the live report plus only runtime-only manual items. NUZ STATUS now opens RUN HISTORY correctly through ListMenu's `onChoose` contract, cleans up `A: OPEN` spacing, and removes the fake-bold ACTIVE RULES overdraw. The encounter-spend badge is suppressed on battle-owned screens so AREA:SPENT/AREA:COUNT no longer overlays battle sprites/UI.
+
+# 2.6.69 — DEV TOOLS runtime UX and diagnostic-state repair
+
+Strict child of exact 2.6.68. DEV TOOLS now labels its first action `RUN TESTS`, reports diagnostic execution separately from optional snapshot persistence, and distinguishes installer `N/A`/`PENDING` from genuine failures. Optional QOL compatibility guards no longer inflate Install Health when their external mods are absent. Release Safety parent expectations now match exact 2.6.68 provenance, and package-drift header checks accept the canonical descriptive changelog heading. No gameplay-rule behavior changes.
+
+# 2.6.68 — Dev diagnostics follow-up repair
+
+- Fixes the remaining CHANGELOG Release Safety false positive by accepting the canonical current-build heading with an em-dash descriptive suffix.
+- Treats the Gold/Silver-only `pc.whiteout_recovery` installer as a clean not-applicable no-op on Red/Blue/Yellow instead of recording an installer failure.
+- Improves DEV REPORT > PROBLEMS readability with short labels, separated problem/detail rows, deterministic installer ordering, and compact human-readable failure text.
+- Preserves the 2.6.67 dashboard, storage diagnostic repair, preset-diff diagnostic repair, randomizer integrity audit, and complete RAW report.
+- Strict child of exact 2.6.67 package SHA-256 `8b9e4b9e55b0e465170a009047808c5566c3b2d2724fbe277c7803e901850a04`.
+
+# 2.6.66 — Save migration helper-scope recovery
+
+Recovery child of exact 2.6.57. Yellow 2.6.65 runtime diagnostics identified the migration safe-stop cause: semantic/permanent rule-lock reconciliation called bare global `saveWritePauseReason`, which is nil because the helper is exported as `mod.exports.__beta26.saveWritePauseReason`. All three remaining bare runtime call sites were corrected to the qualified export, including Randomizer Runtime, Classic UI, and Late Runtime dependency injection. Release Safety now rejects reintroduction of a bare save-pause helper call. The safe-stop itself is unchanged.
+
+# 2.6.65 — Lua unpack runtime compatibility recovery
+
+Recovery child of exact 2.6.57. 2.6.64 is quarantined after Yellow runtime reached `main.lua:186` and confirmed that this engine exposes legacy global `unpack` but not `table.unpack`. The full shipped Lua surface was audited. All executable direct `table.unpack(...)` and bare `unpack(...)` calls in main.lua, late_runtime.lua, classic_ui.lua, and battle_clauses.lua now route through a module-local `unpackValues = table.unpack or unpack` resolver with an explicit capability assertion. Release Safety now rejects reintroduction of direct/bare unpack calls in those modules. The previously confirmed pre-init Dev harness repair is retained by reviewed port.
+
+# 2.6.64 — Runtime initialization recovery
+
+Recovery child of exact 2.6.57 (`7dcfcefb53713c8d27369c013e2518cacf49797a8af64b1427bafa6901660eb5`). Builds 2.6.58–2.6.63 are quarantined after Yellow exposed an initialization-time nil-index failure. Comparison traced the defect to `wrapperInterpositionHarness` being assigned through `mod.exports.__beta26.Dev` thousands of lines before the Dev table is initialized. 2.6.64 ports the reviewed 2.6.58–2.6.63 deltas onto 2.6.57 and moves only that diagnostic harness registration to immediately after Dev initialization. No harness behavior or gameplay policy is changed.
+
+# 2.6.63 — World Building dialogue rotation
+
+Strict child of 2.6.62. Raises the World Building catalogue quality floor to at least three preset choices for every rule at T1, T2, Kanto T3, and Johto T3; exact-edition rotation state is independent for Red, Blue, Yellow, Gold, and Silver. Dialogue cycles persist per run and never repeat the same option back-to-back without consuming gameplay RNG. T3 appends read-only run context. The Pallet home TV now has three-choice T1/T2 rotations, retains compatible vanilla TV dialogue in those rotations, and T3 retains vanilla as an eligible report alongside live run reports and Pallet/Bryan broadcasts.
+
+# 2.6.62 — World Building hardening and dialogue variety
+
+Strict child of 2.6.61. Makes mandatory rule explanations an explicit presentation primitive separate from optional World Building flavor, adds a World Building delivery-coverage matrix and Release Safety audit for high-risk enforcement surfaces, and permits deterministic T3 regional dialogue pools without consuming gameplay RNG. Adds initial T3 variety for Mom Heal, Center Heal, Gym Lock-In, and Dungeon Lock-In. No legality, save-schema, compatibility-API, or rule-default change.
+
+# 2.6.61 — Saved Setup Presets
+
+Strict child of 2.6.60. Adds three persistent Saved Setup Preset slots per existing Setup profile scope using Gen1Recomp 0.2.19's public installation-scoped `mod.cache` API. Setup can select a slot, save the current configuration-only profile, and load it through the existing bulk-change preview/confirmation surface. Presets never serialize catches, deaths, badges, party state, Run History, or mutable gameplay balances.
+
+# 2.6.60 — Installer Health rollout completion
+
+Strict child of 2.6.59. Routes all remaining exported fail-soft `installX` lifecycle calls through `attemptInstall` using stable subsystem IDs, preserving every existing lifecycle boundary, retry point, ordering rule, and installer body. Adds a Release Safety audit that fails if a future exported installer is invoked through a bare `pcall`. No gameplay-policy, save-schema, compatibility-API, or package-tree change.
+
+# 2.6.59 — Rare Candy → current level cap
+
+Strict child of 2.6.58. Adds a QoL batch action for field Rare Candy use across R/B/Y and Gold/Silver. The action consumes the existing live level-cap resolver, rechecks it before every level, uses real candies only, preserves intermediate move/evolution flows, and adopts GameplayTransactions v1 for exactly-once level+inventory steps. No new rule toggle, save-schema change, compatibility-API change, or package-tree change. Runtime verification required.
+
+# 2.6.58 — wrapper interposition + Randomizer same-table provider hardening
+
+Strict child of 2.6.57. Adds an actual isolated direct-wrapper interposition harness and changes owner-aware wrapper re-entry so a later external top-level wrapper is never clobbered. Resolves the Randomizer same-table late-provider mutation investigation by detecting content drift from Nuzlocke's last applied registry image and adopting the live provider-mutated table as the new authoritative snapshot before any restore/reapply. No save-schema/API/tree change. Static/Harness/Integrity PASS; runtime/provider-combination testing remains required.
+
+# 2.6.57
+
+**Transaction interruption / exactly-once recovery + Hook/Feature Health foundation.** Strict child of exact reconstructed 2.6.56 (parent player ZIP SHA-256 `67746084fd34fbf7cb000e6f272e9a78175020088ff11bf7ac97259db005a5bf`).
+
+- **Gameplay transaction coordinator v1:** adds one durable `intent -> perform -> commit -> clear` journal for interruption-sensitive gameplay mutations, plus bounded committed receipts so a stable transaction id cannot replay after success.
+- **Reconciliation-first recovery:** every registered mutation kind must provide a probe that can distinguish `applied`, `not_applied`, and `unknown`. Recovery replays only when `not_applied`; ambiguous state fails closed rather than guessing.
+- **Interruption windows covered:** the coordinator recovers the dangerous case where the side effect completed but the journal still says `intent`, and the case where the durable receipt was written but journal cleanup was interrupted.
+- **Same-tick clobber protection:** only one pending gameplay transaction may own the durable journal at a time; a different transaction receives `busy` instead of overwriting pending intent.
+- **Generic exact-value mutation:** `save.set_exact` / `setExact()` provides a reusable recovery-safe primitive for future per-feature rollout without serializing Lua closures into saves.
+- **Release Safety:** a pure in-memory interruption harness verifies exactly-once recovery, replay suppression, receipt-finalization cleanup, and busy-journal protection without touching the live save.
+- **SafeInstall v2:** the previous Gen 2 `attemptInstall` recorder now routes through a central fail-soft installer service. Explicit installer `false` results are diagnostic failures instead of being misreported as successful `pcall`s.
+- **Hook Registry v1:** records stable hook ids with owner, previous/wrapper functions where available, priority, mode, feature owner, source, and live/interposed status. Existing owner-aware direct wrappers and Dev Hook Health feed this registry rather than creating a second wrapper system.
+- **Feature Health v1:** stable `ACTIVE` / `DEGRADED` / `UNAVAILABLE` states summarize installer and hook health. CHAINED/interposed wrappers are diagnostic degradation, not automatically a release-fatal compatibility error.
+- **Diagnostics:** Dev snapshots/report exports now include Hook Registry, Feature Health, and gameplay transaction status. Install failures use standardized `[Nuzlocke:Subsystem]` diagnostic prefixes.
+- **Save contract:** Save Schema remains **4**. The two new optional bookkeeping keys are described by the existing Save Schema descriptor; they do not change rule defaults or gameplay configuration semantics.
+- No Compatibility API, Diagnostics API, Mod API, engine range, supported-edition list, or player-file-count change.
+- Evidence: **STATIC/HARNESS PASS — RUNTIME REQUIRED**. Per-feature adoption of the transaction coordinator must be rolled out only at transaction boundaries whose reconciliation semantics are proven; 2.6.57 does not falsely claim that every historical gameplay mutation is already atomic.
+
+# 2.6.56
+
+2.6.56 is a strict compatibility-certification child of exact 2.6.55 (parent player ZIP SHA-256 `e9f4c899b6f8d85c42909822475db06a646575621b13197c144fc729182c8cb7`). It reviews the complete 17-commit Gen1Recomp v0.2.18→v0.2.19 delta and advances `recompCompatAudited` to **0.2.19** without changing Nuzlocke Save Schema 4, Compatibility API 29, Diagnostics API 1, Mod API 2, engine range `>=0.1.86 <2.0.0`, supported editions, rule defaults, or the 30-file player inventory.
+
+Material upstream changes include Gen 2 battle/EXP, Bill's PC BoxMenu, Pack/Item-PC UI, SaveData resilience, Gen2Compat/Loader facades, overworld/transitions, Bag/Stats, and Gold/Silver import data. The protected Bill's PC methods `doWithdraw`, `checkSpaceInDestination`, and `askRelease` retain compatible semantic roles, so Party Size and progression-catch PC wrappers remain unchanged. Gen 2 `battle.exp_award` now honors an explicit announce argument; Nuzlocke records the capability for future EXP-policy work but does not adopt that seam in this release.
+
+Static/source compatibility certification does not replace runtime evidence. Exact 0.2.19 smoke testing remains required across supported editions, with focused Gold/Silver PC withdraw/MOVE/release plus Party Size/progression-lock checks.
+
+# 2.6.55
+
+**Semantic enforcement coverage + behavior regression foundation.** Strict child of exact 2.6.54.
+
+- **Coverage matrix:** high-risk rule promises now map semantic operations to rule keys, edition/capability scope, enforcement seam, provider surface and evidence class.
+- **Behavior-level regression suite:** Release Safety now executes non-mutating assertions over acquisition-kind semantics, classifier precedence, randomizer policy aliases/canonical values and required coverage rows. These are release-gate failures, not informational diagnostics.
+- **Process:** extends the proven bug-specific-audit pattern into a reusable semantic contract so a known hook existing is no longer treated as proof that every equivalent operation reaches it.
+- No Save Schema, Compatibility API, Diagnostics API, Mod API, engine range, supported-edition list, rule default, or player-file-count change.
+
+# 2.6.54
+
+**Post-review correctness, diagnostics, and documentation consolidation.** Strict child of exact 2.6.53.
+
+- **Symptom — provider randomizer ownership could be ignored depending on entry point:** encounter registration, inline encounter context, encounter policy setters and learnset policy setters/readers did not share one alias/canonical vocabulary. In particular a canonical learnset `provider`/`deny` policy could fall through to randomization. **Repair:** one `normalizeRandomizerPolicy` now owns `allow`/`deny`/`provider` plus compatibility aliases (`preserve`/`story`, `external`/`owned`, booleans) across all equivalent entry points.
+- **Symptom — Release Safety could prefix-match or mis-handle future nonnumeric version text:** current-version checks partially escaped Lua patterns and treated every public document as if it were a version-history file. **Repair:** source/manifest versions are compared as exact values; public documents use role-specific exact headers; CHANGELOG uniqueness counts only the exact current heading.
+- **Symptom — Gen 2 installers could fail inside `G2.installAll()` with no durable session evidence:** bare `pcall` results were discarded. **Repair:** Gen 2 installer attempts now use a shared install-health registry surfaced by Dev self-test.
+- **Engineering hardening — storage fallbacks:** R/B/Y and Gold/Silver box count/capacity fallbacks now come from one generation-aware `engineBoxConstants` source consumed by PC Catches and Forgiveness storage paths.
+- **Documentation architecture:** README and USER_GUIDE now describe current truth; RELEASE_NOTES is current-release-only; CHANGELOG is the canonical release history; API/COMPATIBILITY/FEATURE_CONFIDENCE are current-contract documents. FEATURE_CONFIDENCE now separates player/runtime confidence from provider/API interoperability confidence.
+- No Save Schema, Compatibility API, Diagnostics API, Mod API, engine range, supported-edition list, rule default, or player-file-count change.
+
+# 2.6.53
+
+2.6.53 is a strict child of exact 2.6.52 and repairs public acquisition-kind dispatch. The public Acquisition API now uses one exhaustive semantic kind-policy matrix, so trainer-owned captures, theft, and owned_capture transactions deliberately participate in No Catching on actual capture attempts, canonical species legality, and configured Party Size without being misclassified as ordinary area acquisitions. Generic scripted/forced/editor sources remain deliberately neutral and Wonder Trade remains observe-only. Initialization asserts that every Acquisition.KINDS member has a complete policy row, preventing future vocabulary additions from silently bypassing enforcement. No save-schema, rule-default, engine-range, or Compatibility API revision is required. Static/semantic PASS; runtime/provider confirmation remains required.
+
+# 2.6.52
+
+2.6.52 is a strict child of exact 2.6.51 and advances the existing Kanto Reforged adapter from 1.2.0 to source-audited 1.3.0. It composes expanded species/moves/trainers/status mechanics, preserves stricter-of-two level-cap ownership, activates the capability-driven No Held Items rule on R/B/Y while KR supplies its held-item system, delegates KR Full/Pure spawn randomization while preserving curated-mode composition, recognizes KR fixed statics, and registers restored Gold Viridian Forest through the generic Dungeon Lock-In content contract. Mt. Moon/Seafoam already match native dungeon families; Safari Zone remains area-split territory and Cerulean Cave is deliberately not force-classified. Exact-edition combination runtime testing remains required.
+
+# 2.6.51
+
+2.6.51 is a strict child of exact 2.6.50. It source-maps Kanto Reforged 1.3.0 fixed legendary/mythical encounters as static, non-randomizable provenance without treating KR roamers as statics. KR Full Spawn Mix and Pure Random Spawn are recognized as authoritative encounter-randomizer ownership so Nuzlocke does not double-randomize those tables; curated KR encounter tables remain composable. No save-schema or public API version changes are required.
+
+# 2.6.50
+
+2.6.50 is a strict child of exact 2.6.49. No Held Items is now capability-driven instead of hard-coded to Gen2: native Gold/Silver remain supported, vanilla R/B/Y keeps the rule hidden, and compatible Gen1 held-item providers can expose the rule through a provider capability/profile. The generic Gen1 path removes player GIVE actions while preserving TAKE and transiently suppresses existing player-held item values during battle without deleting them. Runtime provider testing remains required.
+
+# 2.6.49
+
+2.6.49 is a strict child of exact 2.6.48. It preserves the already-correct vanilla R/B/Y story2 and native Gold/Silver No Day Care gates, and adds a reload-safe custom Day Care pick-only deposit guard so content mods that replace the R/B/Y Day Care talk flow cannot bypass No Day Care. Existing deposited Pokemon, parents, pending Eggs, and all withdrawal/recovery paths remain untouched. No save-schema or public API version changes are required.
+
+# 2.6.48
+
+2.6.48 is a strict compatibility-certification child of exact 2.6.47 (parent player ZIP SHA-256 `7e4d6cbc9aecbb17748e530cd5566657c7631d3002924c7bcd36630c7c770945`). It source-audits Gen1Recomp 0.2.17 and 0.2.18 and advances the audited-engine marker to **0.2.18** without changing gameplay rules, save data, Compatibility API 29, Diagnostics API 1, Mod API 2, Save Schema 4, the `>=0.1.86 <2.0.0` engine range, supported editions, or the 30-file player inventory.
+
+The 0.2.16 → 0.2.17 delta is confined to Skin Studio/UI presentation. The 0.2.17 → 0.2.18 delta is confined to touch-skin, launcher presentation, Playfield/Renderer, UI-kit viewport, and associated test changes. No Mod API, Loader, battle-engine, Gen 2 API, registry, hook, save, or required-import contract changes were found, so Nuzlocke needs no new gameplay adapter or manifest migration. The public `battle.charge_required` seam adopted into Nuzlocke compatibility metadata in 2.6.47 remains the latest relevant battle API addition.
+
+2.6.48 therefore changes compatibility certification/provenance and documentation only. The 2.6.47 source-header/compiler-budget repairs remain unchanged. Static/source audit does not replace an exact 0.2.18 runtime boot, NUZ RULES, DEV REPORT, save-load, and trainer-battle smoke test on each supported edition.
+
+# 2.6.47
+
+2.6.47 is a strict compatibility/integrity child of exact 2.6.46 (parent player ZIP SHA-256 `c59bb4ed687a99c3528d3a3ed125209106128d42907abf8a8e86defc426a41a5`). It source-audits Gen1Recomp 0.2.15 and 0.2.16, advances the audited-engine marker to **0.2.16**, and records both release profiles without changing Mod API 2, Save Schema 4, the `>=0.1.86 <2.0.0` engine range, supported editions, rule defaults, or the 30-file player inventory.
+
+Gen1Recomp 0.2.16 adds the shared guarded `battle.charge_required` hook to both battle engines. Nuzlocke does not currently need to override charge decisions and performs no private charge-state surgery, so 2.6.47 records this as an available/not-owned compatibility seam rather than adding a gameplay wrapper. The launcher also adds streamed required-import/install-cache infrastructure; Nuzlocke declares no `required_imports`, so no manifest migration is required.
+
+The audit also repairs stale source-header provenance inherited from 2.6.42-era text: `main.lua` now identifies the current build as 2.6.47. Static/semantic validation does not replace an exact 0.2.16 runtime boot/DEV REPORT smoke test.
+
+The full release gate also found an inherited compiler-budget violation in the classic R/B/Y configuration draw path: one nested function had reached 169 locals, above the project hard ceiling of 160. 2.6.47 scopes that unchanged draw branch into a nested helper, reducing that function to 57 locals and restoring package-wide nested-function maxima to 41 upvalues / 129 locals. Release Safety now also checks the readable `main.lua` source header against the executable build, preventing this provenance drift from recurring silently.
+
+# 2.6.46
+
+- Strict child of exact 2.6.45. Parent player ZIP SHA-256: `ec79f8e39ab60b6f1bb1835125550b5c39887cfa4ff35c5b8c7c4f5fdd0f45a8`.
+- Adds a descriptive compatibility profile for The World 5.10.0 across Red/Blue/Yellow/Gold without taking ownership of its simulation, weather, factions, maps, AI trainers, or save state.
+- The profile composes live trainer parties, boss-level observations, merged species metadata, encounters, held items/healing and acquisition policy; Wonder Trade remains observe-only.
+- The World detection accepts the known/likely manifest-id spellings and also the exact display name `The World` from the live mod graph, avoiding dependence on one packaged id spelling.
+- Dynamic Champion, Rocket Ball and WX semantics are consumed only when the runtime supplies semantic battle/acquisition/encounter metadata through the generic 2.6.43-2.6.45 contracts; Nuzlocke does not infer hidden package state.
+- Adds contextual warnings for Random Encounters and Physical/Special Split while The World is active.
+- No rule default/save schema/engine range/package-tree change. Full combination runtime testing required.
+
+# 2.6.45
+
+- Strict child of exact 2.6.44. Parent player ZIP SHA-256: `e725627b0b289ade0285eb17438ff8b45c2c707a9be7d7cd9a84e7ee23d4a77d`.
+- Extends the public acquisition classifier with semantic `theft` and `owned_capture` source kinds for mods that capture or steal already-owned Pokemon. These remain subject to capture legality/species restrictions but are not silently redefined as ordinary wild area encounters.
+- Generalizes encounter randomizer ownership to `allow`, `deny`, or `provider`; provider-owned encounters make Nuzlocke step aside instead of rewriting an authoritative external encounter.
+- Registered encounter metadata can preserve variant/form identity and randomization ownership through acquisition/randomizer evaluation.
+- Wonder Trade remains observe-only; no unsafe post-transaction interception was added.
+- No rule default/save schema/engine range/package-tree change. Runtime confirmation required.
+
+# 2.6.44
+
+- Strict child of exact 2.6.43. Parent player ZIP SHA-256: `ac44dc8ac80a104e8bd8cba34f832276b6d25f7abe15d51dea219fb793282405`.
+- Strengthens live merged species facts for expanded-content mods by exposing merged/provider generation metadata alongside existing live types/BST/category flags.
+- Adds metadata-availability telemetry so compatibility diagnostics can distinguish known external facts from unknown classification instead of silently assuming a vanilla schema.
+- Physical/Special Split now honors explicit provider/live move-category contracts before Nuzlocke's canonical Gen 1/2 fallback mapping; plain native old-era `move.category` remains recategorizable unless explicitly marked authoritative.
+- No rule default/save schema/engine range/package-tree change. Runtime confirmation required.
+
+# 2.6.43
+
+- Strict child of exact 2.6.42. Parent player ZIP SHA-256: `6fadf9ca7094d0acab8cb4fb9ce1b436b153ba0a7af1c17ff01f87b5c63e2b54`.
+- Hardens level-cap EXP composition: the authoritative clamp now runs at priority 1000000, marks blocked/trimmed EXP context semantically, and preserves zero after ordinary downstream multipliers.
+- Adds semantic battle-role metadata (`rival`, `gym_leader`, `elite_four`, `champion`, `progression_boss`) so dynamic trainer/League providers can identify battle meaning without trainer-ID hard-coding.
+- The World tournament-EXP concern was reviewed as a composition risk, not a reproduced 2.6.42 bug: Nuzlocke already ran outside the default-priority multiplier. 2.6.43 makes that ordering contract explicit and harder to upset.
+- No rule default/save schema/engine range/package-tree change. Runtime confirmation required.
+
+# 2.6.42
+
+- Strict child of exact 2.6.41. Parent player ZIP SHA-256: `4cfd5c1674968152b806c349581243c4a8fc6817088d5cc800ff044cc0b4b675`.
+- Fixes a 2.6.40 regression where the progression-only PC Catches gate required an eligible denial reason but accidentally omitted `no_catching` from that set.
+- Explicitly declared progression-required/exception-allowed captures can again use PC Catches when No Catching is the blocking rule, provided real Box storage has room.
+- Ordinary catches cannot bypass No Catching because the progression declaration requirement remains mandatory.
+- Refreshes Release Safety's independent expected-parent version/SHA from stale 2.6.38 values to exact 2.6.41 so parent-provenance drift is detected correctly.
+- No save schema/API/default/engine-range/edition/package-tree change. Runtime confirmation required.
+
+# 2.6.41
+
+- Strict child of exact 2.6.40. Parent player ZIP SHA-256: `03d1d1cca7a31996093a5aed7bf19811c9efe5bf26d8d17f8246843bf32bfbde`.
+- Adds an audited VanillaPlus 0.3.0 compatibility profile without taking ownership of its quests/maps/NPCs.
+- Recognizes exactly three mandatory VanillaPlus story catches (Bulbasaur Lv12 Viridian Forest; Squirtle Lv18 Route 25; Charmander Lv12 Rock Tunnel B1F) as progression-required fixed/non-randomizable sources.
+- Publishes those sources through the generic Content API and lets registered source metadata fill absent progression/randomizer context fields.
+- Adds an in-UI Random Starter compatibility warning for VanillaPlus's vanilla `EVENT_CHOSE_*` quest branching.
+- Optional cave ambushes and guardian Starmie are deliberately not progression exceptions.
+- No save schema/API version/rule default/engine-range/package-tree change. Runtime combination testing required.
+
+# 2.6.40
+
+- Strict child of exact 2.6.39. Parent player ZIP SHA-256: `d739db42ee299b4f73bffededf2ad01724b17df285580f727c316692a1ea79fa`.
+- Fixes PC Catches eligibility so every exception requires explicit progression-required plus exception-allowed metadata.
+- Makes Nuzlocke movement-speed assists preserve an already-accelerated downstream result instead of stacking another 2x multiplier.
+- Hardens Rival classification to explicit flags/canonical Rival identities rather than arbitrary substring matches.
+- Reasserts Permadeath's durable `nuzlockeDead` invariant at `battle.started` against external pre-battle HP restoration.
+- No mod-specific adapter, new rule, save/API/schema/engine-range/package-tree change. Runtime confirmation required.
+
+# 2.6.39
+
+- Strict child of exact 2.6.38. Parent player ZIP SHA-256: `841004812e3e4ea8939e1304d87afe5698a1ef1616a7b4efb92c7a5155fdfa77`.
+- Corrects executable build identity/provenance to 2.6.39 with exact parent 2.6.38 and the 30-file package contract.
+- Reorganizes the Late Runtime dependency-forwarding closure so the exact injected dependency surface is preserved while the closure no longer exceeds the 48-upvalue hard ceiling.
+- Hardens Release Safety to require one current-version top heading per public document, reject stale `Current build` banners, and verify exact parent SHA/version plus package-count provenance.
+- Consolidates duplicate 2.6.38 public-document sections, removes stale 2.6.33 current-build banners, and deduplicates the 2.6.38 `mod.card` known entry while preserving unique history.
+- No gameplay rule/default/save/API/engine-range/edition/package-tree behavior change. Existing 2.6.38 runtime-validation debt remains unchanged.
+
+# 2.6.38
+
+- Strict child of exact 2.6.37. Parent player ZIP SHA-256: `0328e50fb794daafb719415f26eb2de7a5b699757e66bee3534cf7446867f4aa`.
+- Fixes the five confirmed issues from the full 2.6.37 bug review without adding rules, changing defaults, or changing the package tree.
+- Gold/Silver **No Setup Moves** now blocks only self-boosts caused by the move user. Reactive **Rage** Attack boosts survive even though they occur inside the opponent's `useMove` call and are no longer attributed to the attacking side's SELF/ENEMY scope.
+- R/B/Y, Gold/Silver, and public/provider capture/acquisition boundaries now **fail closed** when the authoritative legality policy raises an error. The transaction is refused/refunded where applicable and diagnostic detail is recorded in `lastAcquisitionPolicyError` instead of silently legalizing the catch/acquisition.
+- Extracted Classic UI, Late Runtime, and Randomizer Runtime mutation guards now use the full authoritative save-block predicate, covering both **newer schema** and **migration error** safe-stop states.
+- **Sleep Clause** provenance is scoped to one sleep episode. Rest explicitly clears opponent-inflicted provenance in both generations, and awake party members clear stale provenance when scanned.
+- Restores the accidentally omitted **2.6.35 README** release-history section.
+- Retained-module cleanup peels the older Flinch/Trap wrapper above the 2.6.37 move-context owner before replacing that owner, then reinstalls Flinch/Trap.
+- Save Schema 4, Compatibility API 29, Diagnostics API 1, Randomizer API 1, engine range, supported editions, and package inventory are unchanged. Runtime confirmation required.
+
+# 2.6.37
+
+- Strict child of exact 2.6.36. Parent player ZIP SHA-256: `11e1eb443020ab25ce1f13dec4ef72bcf9a90b2e2538aab3fdbf3a8d25e7c818`.
+- Fixes four confirmed battle-rule/classification defects found by the Chat #21 full Gen 1/Gen 2 battle classifier audit.
+- R/B/Y **Burn Ban** now suppresses burn application without suppressing the native Fire-hit defrost branch carried by the same Gen 1 burn-side-effect record.
+- Gold/Silver **No Setup Moves** now applies only while a move is being resolved. X Items, Berserk Gene, Rage/passive boosts, and other non-move positive stage changes are no longer accidentally swallowed by the generic `changeStage` wrapper.
+- Gold/Silver **Other Stat Drops** now also covers move-origin self drops such as non-Ghost Curse's Speed -1, while ordinary foe-directed drops continue through the existing attacker-aware `changeStageAgainstMist` path.
+- Optional **Physical/Special Split** now classifies **Mirror Coat** as Special instead of letting the default canonical-move fallback mark it Physical.
+- Retained-module reload cleanup retires the old 2.6.36 generic Setup wrapper before composing current Gen 2 `changeStage` wrappers, preventing the stale over-broad behavior from surviving a hot reload.
+- Rule defaults, save keys, Save Schema, public API versions, engine range, supported editions, and package inventory are unchanged. Runtime confirmation required.
+
+# 2.6.36
+
+- Strict child of exact 2.6.35. Parent player ZIP SHA-256: `cd2009a7aef2d7bc24aa28b7198764d7c16d2b8435b4ba7f1cab5c66ade422e3`.
+- Fixes the remaining reviewed classic 2.6.31 layout bugs without changing gameplay, saves, APIs, or package inventory.
+- Classic R/B/Y **NEW GAME Setup** no longer lets the upper-right `current/total` position indicator collide with the longer `NUZLOCKE SETUP` header. The title keeps the full top row; the position indicator moves to the second header row on classic pre-game Setup only, and the `EDITION NEW GAME` subtitle now fits to the remaining safe width.
+- Classic R/B/Y lower help-pane text now stays fully inside the 12/6 split frame. Wrapped descriptions and section-help rows use the safe `104 / 116 / 128` baselines, and the blinking more-text arrow also uses the final safe baseline instead of intruding into the bottom border.
+- Gold/Silver native layout, in-game classic NUZ RULES header layout, four visible classic config rows, and all 2.6.35 Catch Info / Accuracy-wrapper repairs are preserved.
+- Runtime confirmation required.
+
+# 2.6.35
+
+- Fixed classic R/B/Y Catch Info's compact Pokemon label to use drawable `<PK><MN>` ligatures instead of the runtime-only `<PKMN>` substitution token.
+- Added explicit stale-wrapper retirement for Accuracy Drops on retained-module ModLoader reloads. R/B/Y retires the 2.6.34 Accuracy owner and legacy `__nuzlockeStatusScope2624_*` Accuracy owner before installing the 2.6.35 independent wrapper; Gen 2 performs the equivalent cleanup for `__nuzlockeStatDropScopesSession2634` and `__nuzlockeAccuracyScopeSession2624`.
+- Preserved 2.6.34 rule semantics, save keys, API versions, engine range, and package inventory.
+- Left the separately reviewed 2.6.31 classic Setup/header and help-pane geometry findings outstanding for the next repair pass.
+- Runtime confirmation required.
+
+# 2.6.34
+
+- Strict child of exact 2.6.33. Parent player ZIP SHA-256: `9527f33868abb9688b1cceafb9da10d71c816763d40b5d95234c263fd93e888f`.
+- Reorganizes battle restrictions into **STATUS BANS** and **SETUP & STAT BANS**, reducing the overloaded Clauses section.
+- Adds **Burn Ban** as a new `OFF / SELF / ENEMY / ALL` No Status Moves child. Secondary burn suppression preserves the damaging hit.
+- No Status Moves now synchronizes exactly six outright status bans: Paralysis, Confusion, Sleep Ban, Poison/Toxic, Burn, and Freeze.
+- Moves **Sleep Clause** into Status Bans for discoverability without changing its behavior or allowing No Status Moves to synchronize/hide it.
+- Moves **Accuracy Drops** out of the No Status Moves child family and into Setup & Stat Bans. Its persisted key/value is preserved; future No Status Moves changes no longer overwrite it.
+- Adds **Other Stat Drops** (`OFF / SELF / ENEMY / ALL`) for negative Attack/Defense/Speed/Special-family/Evasion stages while keeping Accuracy separate and preserving damaging hits whose secondary drop is blocked.
+- Keeps **No Setup Moves** and **Evasion Clause** in Setup & Stat Bans. OHKO, Flinch, and Trap remain standalone clauses.
+- Gold/Silver Setup and NUZ RULES now expose Sleep Clause, OHKO Clause, and Evasion Clause along with the reorganized/new battle rules.
+- Save Schema 4, Compatibility API 29, Diagnostics API 1, Randomizer API 1, engine range, and package inventory are unchanged. Exact-edition runtime confirmation is required.
+
+# 2.6.33
+
+- Strict child of exact 2.6.32. Parent player ZIP SHA-256: `5d7053ec61efd460409e84071ed94c1a09fade11cfcc93029c0cb8071dc2fed5`.
+- Polishes classic R/B/Y **NUZ INFO → CATCH INFO** only: `POKEMON` was changed to `<PKMN>` and `ENCOUNTER` to `ENC.`. A later 2.6.35 review found `<PKMN>` is runtime-only at this direct font boundary and corrects it to drawable `<PK><MN>`.
+- Replaces the fixed x=88 / 8-glyph Catch Info value column with label-aware placement starting at x=72, giving common rows up to two additional value glyphs while pushing longer-label rows right enough to avoid collisions.
+- STAT INFO, MOVE INFO, Gold/Silver NUZ INFO, gameplay, saves, providers, Randomizer behavior, compatibility contracts, and public APIs are unchanged.
+
+# 2.6.32
+
+- Strict child of exact 2.6.31. Parent player ZIP SHA-256: `37a7a483489c8ef73952011131dbbc3596e719515cd5e81be61b9e0f20769ae3`.
+- Removes the accidental Dev Mode `KEY <internal_rule_key> |` prefix from normal Setup/NUZ RULES description panes on classic R/B/Y and native Gold/Silver.
+- Internal rule keys remain available through developer diagnostics; the player-facing rule descriptions themselves are unchanged.
+- Preserves the 2.6.31 DEV REPORT text-encoding fix and four-row classic Setup/NUZ RULES layout.
+- No gameplay, save-schema, default, provider, Randomizer, compatibility, or public-API behavior changes.
+
+# 2.6.31
+
+- Strict child of exact 2.6.30. Parent player ZIP SHA-256: `4c058ddf993efc929c4ec20b46611f034a64881c24066ffaf10247103a919f55`.
+- Fixes the Yellow runtime DEV REPORT glyph corruption: classic R/B/Y `Font.draw` was receiving raw ASCII for dynamic report rows even though the renderer expects `Strings(...)` cartridge encoding.
+- Applies the same draw-boundary encoding to DEV REPORT body rows, storage-info rows, known-issue rows, and dynamic DEV error text; wrapping/report semantics remain unchanged.
+- Moves the classic R/B/Y live `current/total` position indicator from its dedicated strip into the upper-right header and increases the classic config page from three to four visible rows. The upper/lower frame split changes from 11/7 tiles to 12/6 so fourth-row collapsed summaries remain above the divider and the lower pane still fits three help lines.
+- Gold/Silver keep their native Gen 2 position strip and three-row config geometry. No rule/default/enforcement/save/provider/API/engine-range change.
+
+# 2.6.30
+
+- Stability hotfix built directly from the last runtime-valid 2.6.28 package. Parent player ZIP SHA-256: `1b7bf2f064d80e0ad36886c3f9db0fa5145ee90b9e88c6cdef7ed690a5d00083`. The runtime-failed 2.6.29 artifact is not used as a parent.
+- Fixes the Yellow initialization failure `forgiveness.lua:11: forgiveness requires getDisplayRoutes`. `getDisplayRoutes` is assigned only after `classic_ui.lua` initializes, so passing its earlier value into Forgiveness froze `nil`; Forgiveness now receives a live resolver that follows the later Classic UI owner.
+- Ports the reviewed 2.6.29 split-scope repairs surgically onto 2.6.28: module-owned Identity helpers, progression/default forward declarations, Classic UI text-fit ownership, Public Interop live policy wrappers/getters, and Late Runtime message-helper injection.
+- Adds registration-order validation for extracted-module asserted dependencies so a required helper cannot silently be handed nil merely because its owner initializes later.
+- No rule/default/enforcement/save/API/engine-range change. Save Schema 4, Compatibility API 29, Diagnostics API 1, Run History API/storage 1, Randomizer API/algorithm 1, and Mod API 2 remain unchanged.
+- Status Bans / Setup & Stat Bans reorganization remains deferred until runtime confirms this stability hotfix.
+
+# 2.6.28
+
+- Strict child of 2.6.27. Parent player ZIP SHA-256: `4052f7ea8ff4f028a9a6e9fb3be8f0a6bd82599aa284c72428cf26b0c0e23345`.
+- Extends **No Status Moves** from four to six child scopes by adding **Poison/Toxic** and **Freeze**, both using `OFF / SELF / ENEMY / ALL` and the existing parent synchronization/hiding behavior.
+- Poison/Toxic covers ordinary poison, Toxic/bad poison, and modeled damaging poison side effects; Freeze covers modeled freeze side effects. When a blocked effect belongs to a damaging move, the hit still deals its normal damage.
+- Adds **Flinch Clause: OFF / SELF / ENEMY / ALL**. It suppresses newly caused flinch effects by the selected side(s) while preserving move damage; on Gen 2 it also covers newly caused King's Rock flinches.
+- Adds **Trap Clause: OFF / SELF / ENEMY / ALL** for partial-trapping mechanics such as Wrap, Bind, Clamp, and Fire Spin. Initial move damage is preserved while the lock/continuation effect is suppressed.
+- Existing Sleep Clause, OHKO Clause, Evasion Clause, No Setup Moves, battle damage, save schema, provider ownership, APIs, engine range, and package inventory remain unchanged.
+- Static/semantic harness validation is PASS; exact-edition battle runtime confirmation remains required.
+
+# 2.6.27
+
+- Strict child of 2.6.26. Parent player ZIP SHA-256: `10e639ac18327ac7ec41cc0d525ca9f53461e2c6122e37cfba1aadd6d93fbeba`.
+- Audited the shared Gen 2 Setup/NUZ RULES description surface for exact-edition leakage. One stale shared description that named only SILVER now uses running-edition/counterpart-edition wording that is correct in both Gold and Silver.
+- Added a read-only `gen2DescriptionParityAudit()` so future shared Gen 2 descriptions fail diagnostics when they name Gold without Silver, Silver without Gold, or claim an exact-edition-only contract on the shared surface.
+- Added a Silver-focused `Dev.gen2EditionParityAudit()` that verifies exact edition, engine family, profile scope, semantic Gen 2 adapter IDs, the 251-row PKMN BAN selector, and Random Starter transaction-health identity without treating hook HEALTHY/MISSING state as parity evidence.
+- DEV snapshots/self-tests now carry exact `edition`, `engine_family`, and `profile_scope` fields plus the Gen 2 parity report. Text exports show semantic adapter IDs and a dedicated Gen 2 edition-parity section.
+- Gen 2 Random Starter transaction health now carries exact edition/profile metadata and semantic adapter ID `random_starter_transaction_gen2`; the historical health export remains available.
+- No gameplay rules, save semantics, defaults, provider ownership, Compatibility API, Save Schema, Diagnostics API, Run History API, Mod API, or engine range changed.
+- Static validation is PASS; exact Gold and Silver runtime evidence remains separate and Silver runtime smoke is still required before promoting runtime confidence.
+
+# 2.6.26
+
+- Strict child of 2.6.25. Parent player ZIP SHA-256: `10445c2dd4566679abde7544c9080c044f11dec2f6851a8827ffb9f991eb9e84`.
+- Canonicalized internal shared-engine terminology from historical Gold naming to Gen 2 naming: `runtimeIsGen2`, `gen2Only`, `gen2BetaRules`, and `gen2BetaDescriptions`.
+- Retained `runtimeIsGold`, `goldBetaRules`, and `goldBetaDescriptions` as compatibility aliases; persisted `gold_*` keys and edition-specific setup profile names are deliberately unchanged.
+- Rule Registry descriptors now identify current Gen 2-only rows as `generation=gen2`, expose `gen2_only=true`, and retain `legacy_generation=gold` as a read-only compatibility hint.
+- DEV hook-health diagnostics now report exact edition separately from shared engine family and expose semantic `adapter_id` values while keeping historical `id` values stable.
+- Native presentation and Route 29 diagnostic text now identifies Gold versus Silver exactly.
+- Updated the Cherrygrove World Building fallback from Gold-only to Gen 2-only; catalog snapshot remains 97 keys / 582 resolutions with checksum `1623887322`.
+- No gameplay, save, rule-default, provider, public Compatibility API, Diagnostics API revision, Randomizer algorithm, engine-range, or package-inventory changes.
+
+# 2.6.25
+
+- Strict child of 2.6.24.
+- Extended PKMN BAN to the shared Gold/Silver rule surface with National Dex #001-#251 while preserving R/B/Y #001-#151 behavior.
+- Generalized species-ban identity helpers around generation-correct National Dex limits; retained the older Gen 1 helper names for private compatibility.
+- Added a native Gen 2 PKMN BAN presenter using Chrome plus the engine's filled cursor, native up/down scroll glyphs, five-row paging, and live banned-count display.
+- Kept acquisition/Randomizer/Failed Encounter/mandatory-starter semantics unchanged while applying them to Gen 2's additional 100 species.
+- Corrected current player-facing shared-adapter wording from Gold-only to Gold/Silver or Gen 2 where appropriate.
+- No Save Schema, Compatibility API, Diagnostics API, Run History API, Randomizer algorithm, Mod API, engine-range, or package-inventory change.
+- Gold and Silver runtime validation remain separate evidence requirements.
+
+# 2.6.24
+
+- Strict child of 2.6.23. Parent player ZIP SHA-256: `2c1da0d1c6f9d7d522749b8b81af5d4bbc690138705df1923fad0782aca724ff`.
+- Adds **No Status Moves: OFF / SELF / ENEMY / ALL** as a bulk parent for four initial scoped status-effect restrictions: Accuracy Drops, Paralysis, Confusion, and Sleep Ban. Changing the parent synchronizes those four child values; while the parent is non-OFF the redundant child rows are hidden. Returning the parent to OFF exposes the children for mixed per-effect scopes.
+- Adds **No Setup Moves: OFF / SELF / ENEMY / ALL**. It suppresses positive in-battle stat-stage setup for the selected side(s) while leaving the damaging portion of moves intact when the boost is only a secondary effect.
+- Keeps the existing Sleep Clause, OHKO Clause, and Evasion Clause independent. Sleep Ban is an outright side-scoped infliction restriction; Sleep Clause keeps its existing one-opposing-sleeper semantics and Rest/self-sleep exemption.
+- Adds R/B/Y-only **PKMN BAN** beside the existing species restrictions. It opens a classic native-cursor list ordered by National Dex #001-#151; A toggles the hovered species, Up/Down scrolls, Left/Right pages by five, and B returns.
+- PKMN BAN blocks selected species from ordinary catches, optional gifts, trades, and Nuzlocke-owned Random Starter/Random Encounter candidate pools. Existing Pokemon are preserved. The mandatory opening starter retains the established progression-safety exemption, while Random Starter candidates honor the ban.
+- Banned wild encounters are rejected by the authoritative catch policy before Failed Encounter eligibility is armed, so they do not consume an area merely by being encountered.
+- The World Building rule-feedback catalog adds a PKMN BAN rejection row; current snapshot is **97 keys / 582 tier-region resolutions / checksum 210615434**.
+- No new player-package files. Save Schema remains **4**; Compatibility API **29**, Diagnostics API **1**, Run History API/storage **1**, Randomizer API/algorithm **1**, Mod API **2**, engine range `>=0.1.86 <2.0.0`, and exact game targets remain Red/Blue/Yellow/Gold/Silver.
+- Runtime confirmation is still required for the new battle scopes on Gen 1 and Gen 2 and for the R/B/Y PKMN BAN picker/enforcement flow.
+
+# 2.6.23
+
+- Strict child of 2.6.22. Parent player ZIP SHA-256: `3d26b60cac0fdfccebc730cdb8b939906216c78117be902dbd50b4c7bcbab2d5`.
+- Adds a compact **up / current-total / down** navigation strip to NEW GAME Setup and NUZ RULES on both classic R/B/Y and native Gold/Silver presenters.
+- The numeric position is the selected row within the live navigable `flatItemList`; collapsing sections and hiding dependent rows therefore updates both the current position and total without a parallel/static count.
+- Up/down indicators mean offscreen content exists above/below the current visible window, not merely that the cursor can move. They disappear at the corresponding list boundary.
+- Gold/Silver reuse the native ScrollingMenu arrow tiles (`$61` up and `$EE` down). Classic R/B/Y reuse the native `$EE` more-below tile and rotate that exact tile for the up indicator rather than depending on an unsupported text glyph.
+- Classic list rows are placed on a 16px cadence starting at Y=40 so the new 8px position strip fits between the existing two-line title and the first row while preserving the third row and the 2.6.22 collapsed-summary second line inside the upper panel.
+- Cursor movement, fold state, section reset, hidden-row logic, rule values/defaults, saves, gameplay enforcement, and provider ownership are unchanged.
+- Save Schema remains **4**; Compatibility API **29**, Diagnostics API **1**, Run History API/storage **1**, Randomizer API/algorithm **1**, Mod API **2**, engine range `>=0.1.86 <2.0.0`, and the 30-file package inventory remain unchanged.
+
+# 2.6.22
+
+- Strict child of 2.6.21. Parent player ZIP SHA-256: `e0149c35852c59069f9ebcf9c6b195e4f4e268172c4baeb7fe601d65a72c80ef`.
+- Adds compact summaries to collapsed NUZ RULES / NEW GAME Setup section headers on both the classic R/B/Y presenter and native Gen 2 presenter.
+- A collapsed section shows **DEFAULT** when all catalog-backed settings on that surface match their canonical defaults, or **N CHANGED** when N effective displayed settings differ from those defaults.
+- Summary counts exclude action-only rows such as Reroll Seed and use the same effective values shown by the menu, including provider delegation, so the header cannot disagree with the visible rule state.
+- Uses the existing unused second line inside each section-header row; list length, cursor/fold behavior, section reset, rule values, saves, enforcement, and provider ownership are unchanged.
+- Save Schema remains **4**; Compatibility API **29**, Diagnostics API **1**, Run History API/storage **1**, Mod API **2**, RNG algorithm **v1**, engine range, and 30-file package inventory are unchanged.
+
+# 2.6.21
+
+- Strict child of 2.6.20. Parent player ZIP SHA-256: `d6bcc8d4e432ca14c5628c9fcbf46806c587150e1693281a079d0c987751b668`.
+- Changes `randomizer_seed = 00000000` from "generate once and overwrite Setup" to a persistent **AUTO** configuration. AUTO now resolves a separate nonzero playthrough seed for each NEW GAME that enables Random Starter, Random Encounters, Random Field Items, or Random Learnsets.
+- Existing nonzero seeds are backward-compatible **FIXED** seeds; 2.6.20-and-earlier profiles/runs that already contain a nonzero seed keep that exact seed and deterministic behavior.
+- Adds a Setup-only **Reroll Seed** action directly below Rndm Seed. Reroll creates a new nonzero fixed seed immediately; returning the numeric seed to `00000000` restores AUTO mode.
+- Stores AUTO's resolved value under playthrough-local internal state rather than rewriting the canonical `randomizer_seed` rule, so the staged Setup profile remains AUTO across consecutive NEW GAME runs.
+- Fresh NEW GAME snapshot commit now resolves the run seed after the fresh mod.save bucket is authoritative and re-applies Random Encounters/Random Learnsets. This prevents the prior run's live randomized registries from being reused when starting another NEW GAME in the same process.
+- NUZ STATUS reads the effective resolved seed for its `RNG ######## v1` row; DEV SELF-TEST reports both `randomizer_seed_mode` and `randomizer_run_seed`. Stored-state diagnostics validate the optional resolved seed as an integer in `1..99999999`.
+- No RNG algorithm-version bump: stream hashing remains algorithm **v1**. Save Schema stays **4**; Compatibility API **29**, Diagnostics API **1**, Run History API/storage **1**, Mod API **2**, engine range and package inventory are unchanged.
+
+# 2.6.20
+
+- Strict child of 2.6.19. Parent player ZIP SHA-256: `317317fcb6b021b87a6a4818a2f455dd19b6e80acbdeb01efae7ae603bf77c23`.
+- Fixes fresh-save schema lifecycle on both generations: NEW GAME emits `save.created` rather than `save.loaded`, so a newly created current-build save now receives required Save Schema **4** immediately instead of waiting for its first later CONTINUE.
+- Fresh-save initialization now clears save-scoped `newer_schema` / `migration_error` pause state and warning/write-attempt diagnostics inherited from an abandoned prior save before writing into the newly adopted save namespace. This prevents a brand-new run from remaining paused after returning to the title from an unsupported newer-schema save.
+- Preserves the existing fresh-save Whiteout and movement-assist semantic markers and writes the schema marker last.
+- Adds `saveUpgrade.initializeFreshSave()` and requires it through the existing Save/Migration Integrity audit.
+- No rule-default, gameplay-enforcement, package-inventory, engine-range, or public-API revision. Save Schema remains **4**; Compatibility API remains **29**; Diagnostics API remains **1**; Run History API/storage remains **1**; Mod API remains **2**.
+
+# 2.6.19
+
+- Strict child of 2.6.18. Parent player ZIP SHA-256: `5b72598cb29e4d84bab4a43026c80975875b2f90300894bb5f0a904e53a70804`.
+- Fixes Maximum BST catch-rejection feedback so the World Building message now includes the rejected species' resolved BST and the configured Maximum BST limit instead of computing and discarding both values.
+- Preserves the existing World Building T1/T2/Kanto/Johto catalog wording by resolving `maximum_bst` through `worldRuleText()` first, then appending the live `BST / Limit` detail on a second line.
+- Adds a narrow source-level regression audit that fails if the Maximum BST rejection branch stops consuming the live BST/limit values or loses the dynamic detail line.
+- No rule-default, enforcement, save-schema, package-inventory, engine-range, or public-API changes. Save Schema remains 4; Compatibility API remains 29; Diagnostics API remains 1; Run History API remains 1; Mod API remains 2.
+
+# 2.6.18
+
+- Strict child of 2.6.17. Parent player ZIP SHA-256: `7d506fb6e32b8ac40bb47a862b51f4af0489c0d530c8aecc14bac7d419b3da54`.
+- Continues staged `main.lua` modularization by extracting Randomizer runtime, World Building/flavor, and F. TOKEN/Forgiveness into dedicated modules.
+- Reduces `main.lua` from 27,851 lines to 24,907 lines.
+- Release Safety now validates the 30-file player package and ownership markers for the three additional modules.
+- No intended gameplay, save, rule-default, encounter, battle, UI, or public-API behavior changes.
+
+# 2.6.17
+
+- Strict child of 2.6.16. Parent package SHA-256: `468b0e77367b023cf2c81f2e87822371cf23dd4286f19295cec56e687d4b5432`.
+- Extracts classic Nuzlocke UI/Encounter Tracker presentation into `classic_ui.lua`, competitive battle-clause wiring into `battle_clauses.lua`, and the late-runtime Gold/Silver plus compatibility/presentation phase into `late_runtime.lua`.
+- Reduces `main.lua` from 36,338 lines to 27,851 lines while keeping the extracted implementation at the same initialization points.
+- New modules receive explicit dependency tables; mutable runtime state such as the current game/save and schema write barrier is resolved at call time instead of being frozen during module load.
+- Release Safety now validates the 27-file player-package inventory and ownership markers for the three new modules.
+- No intended gameplay, rule, save-schema, public-API, encounter, battle, or UI behavior changes. Save Schema remains 4; Compatibility API remains 29; Diagnostics API remains 1; Run History API remains 1; Mod API remains 2.
+
+# 2.6.16
+
+- Strict child of 2.6.15. Parent package SHA-256: `d2126b518523147485ce9cbbf3ee360befc0b678e089af951c7fc65a3bd2da5e`.
+- Expands NUZ RULES dependency guidance across the catalog with bounded `N/A:`, `REDUNDANT:`, and `INTERACTION:` explanations.
+- Nuzlocke-OFF challenge rows now explain that they are inactive, while independent Randomizer, Difficulty, Battle Mechanics, Area Split, World Building, QoL, UI, and setup tuning remain unaffected.
+- Adds encounter, Type Locke, Randomizer, level-cap, F. TOKEN, item/service, party-size, World Building, and QoL dependency explanations without changing enforcement or saved values.
+- Provider-owned settings now use an explicit `LOCKED:` explanation while preserving the saved Nuzlocke choice for restoration when the provider is removed/disabled.
+- No gameplay, save-schema, public-API, or rule-default changes. Save Schema remains 4; Compatibility API remains 29; Diagnostics API remains 1; Run History API remains 1; Mod API remains 2.
+
+# 2.6.15
+
+- Strict child of 2.6.14. Parent package SHA-256: `56e991309a4aa76a69d0d7369e24dde121207537ba253045dbd4b70ba17afdd0`.
+- Adds **Sleep Clause**: either side is prevented from putting a second opposing living Pokemon to sleep while another living opposing Pokemon remains asleep from that side's move. Self-induced sleep such as Rest does not count. Default OFF.
+- Adds **OHKO Clause**: one-hit-KO move effects fail for both sides before damage is applied. Default OFF.
+- Adds **Evasion Clause**: positive evasion-stage boosts are blocked for both sides; accuracy-lowering moves are unchanged. Default OFF.
+- NUZ RULES section headers can reset their section to the active named preset (or canonical defaults for CUSTOM) after confirmation. Delegated/locked rows remain untouched.
+- Rule descriptions can report bounded `N/A:` reasons and warning-only interaction notes without changing enforcement.
+- Moves the shared Catch/Stat/Move Info footer slightly upward for safer border clearance.
+- Expands read-only persisted-state validation, pure-helper/property coverage, diagnostic-prefix checks, and Release Safety package/document/API/provider drift assertions.
+- Save Schema remains 4; Compatibility API remains 29; Diagnostics API remains 1; Run History API remains 1; Mod API remains 2.
+
+# 2.6.14
+
+- Strict child of 2.6.13. Parent package SHA-256: `a2ada354d132704956caac144f2245fedfef1952f982f3afb353e3ffd495cfc9`.
+- Refines the classic Encounter Tracker LOG/MAP layout after 2.6.13 runtime confirmation that the screen opens correctly on Yellow.
+- Unselected area/result rows stay stable and bounded; only the selected row may marquee. Selection changes reset marquee timing.
+- Classic Tracker columns are rebalanced to keep area labels, compact results, and source/context tags inside fixed row bounds without visual overlap.
+- No encounter legality, Tracker persistence, Run History, rule, save, or public API behavior changes.
+
+# 2.6.13
+
+- Strict child of 2.6.12. Parent package SHA-256: `1643184a68fdad8d7929cf4f5c134cbf3637d25ec13e3ee589eff170259163dc`.
+- Fixes the remaining Yellow/R/B/Y ENC TRACKER rendering failure caused by the Tracker screen calling the NUZ RULES-local `fitPixelText` helper outside its lexical scope.
+- ENC TRACKER now owns its own bounded pixel-fit helper for the summary row.
+- Runtime evidence from 2.6.12: DEV TOOLS opens correctly on Yellow; ENC TRACKER degrades safely and reports the exact nil-helper fault instead of crashing the process.
+- No encounter legality, Tracker persistence, Run History, rule, save, or public API behavior changes.
+
+# 2.6.12
+
+- Strict child of 2.6.11. Parent package SHA-256: `bdfdb65f6883f1ece4705ed3943c927afc99aba198e5c8b29c038e5b630bb3af`.
+- Fixes a Yellow/R/B/Y DEV TOOLS crash caused by the screen calling a text-fit helper outside that helper's lexical scope. DEV TOOLS now owns its bounded helper locally.
+- Cleans up NUZ STATUS area/state spacing so the area label cannot collide with OPEN/CAUGHT/FAILED.
+- Splits the classic NUZ RULES title/revision presentation into bounded rows (`NUZ RULES` / `YELLOW R1`) and moves the list down to preserve spacing.
+- Long classic NUZ RULES labels now marquee only while selected; unselected rows remain stable and bounded.
+- No gameplay, rule, save, Run History, encounter, or public API behavior changes.
+
+# 2.6.11
+
+- Strict child of 2.6.10. Parent package SHA-256: `ef629d53b7092a61e8d9b339779f8084adc210b68233631a1945d696c2d8e609`.
+- Hardened ENC TRACKER construction, projection, summary counting, update, and draw paths so malformed legacy/provider rows or a failed projection degrade safely instead of escaping the custom screen and terminating the process.
+- Tracker row preparation now preserves whichever LOG/MAP view can be built and records the failing stage in Dev diagnostics.
+- Runtime evidence from 2.6.10: mod boot PASS, NUZ RULES lower-border overlap fix PASS, general menu smoke test mostly PASS; ENC TRACKER opening reproduced a crash-to-desktop and is the target of this repair.
+- No intended encounter legality, Tracker save data, Run History, rule, or API behavior changes.
+
+# 2.6.10
+
+- Strict child of 2.6.9. Parent package SHA-256: `93202d84016cfa18ad4153b57922c68d589b4399e75fdd5e145079e109815b06`.
+- Fixed a startup-blocking catalog snapshot false positive by refreshing the semantic golden checksum to the current canonical 96-row / 576-combination World Rule catalog.
+- The World Rule catalog contents are unchanged from 2.6.9; this is a Release Safety snapshot correction only.
+- No gameplay, rule, save, Run History, Compatibility API, or UI behavior changes.
+
+# 2.6.9
+
+- Strict child of 2.6.8. Parent package SHA-256: `734be5ce0ee3c5e2f40ac6939e836c6c192ba9dc0ac5c88d8e806b53f59dd1ef`.
+- Clearer Nuzlocke Loadout presentation: hand-edited combinations now display **CUSTOM*** and the selected loadout help identifies the nearest named preset plus the number of differing loadout-owned rules.
+- Loadout confirmation rows now show **FROM>TO** values for every pending rule change instead of showing only the destination value.
+- Added the authoritative current level cap to the Run History and Dev compatibility/status summaries.
+- Added machine-readable public API ownership/stability metadata plus a defensive-copy `getContractMetadata()` reader.
+- Standardized Nuzlocke-owned runtime log prefixes by subsystem and expanded Release Safety checks for provider inventory and public API contract shape.
+- No Save Schema, Compatibility API, Diagnostics API, Run History API, Mod API, or engine-range changes.
+
+# 2.6.8
+
+- Strict child of 2.6.7. Parent package SHA-256: `7a0a7abc8c9b3f0053e75d7db40fe0125895f3500303a6f0c52719aefe86bc9f`.
+- Added **Instant Text** to QOL. When enabled, ordinary dialogue lines render without per-character delay while native page breaks, CONT prompts, A/B waits, scrolling, sound waits, choice boxes, and scripted text timing remain intact.
+- PC Catches remains the first QOL row; Instant Text is immediately below it.
+- No Save Schema, Compatibility API, Diagnostics API, Run History API, Mod API, or engine-range changes.
+
+# 2.6.7
+
+- Strict child of 2.6.6. Parent package SHA-256: `d34c823f1a92fd1ddb4af3fa76fa1308e5cbe40a6569942d0ef06b6f8528f68d`.
+- Shortened the compact Dungeon Lock-In rule label to **Dng Lock-IN**.
+- Moved the pre-game/classic rules list upward four pixels so the third visible rule row remains fully inside the upper NUZLOCKE SETUP frame instead of being clipped by the divider or drawing into the description box.
+- Description wrapping, scrolling, footer prompts, rule behavior, saves, and API versions are unchanged.
+
+# 2.6.6
+
+- Strict child of 2.6.5. Parent package SHA-256: `2b9c27657c4fa619e495e51113c64cc15cdab16307c8ef3833178872e059538b`.
+- Added a read-only **RUN HISTORY** viewer from NUZ STATUS, showing the newest retained catches, deaths, badge awards, F. TOKEN awards/uses, blackouts, and completion events.
+- Added Run History producers for `badge.earned`, survivable `run.blackout`, and `run.completed`. Red/Blue/Yellow completion records at Champion victory; Gold/Silver completion records at Red victory.
+- Added the **RECOMMENDED** Nuzlocke loadout: classic Nuzlocke core rules plus Gym level caps, without adding battle-item, healing, shop, field-item, or service restrictions.
+- Encounter Tracker OPEN/CAUGHT/FAILED summary counts remain the 2.6.5 implementation.
+- Run History API/storage remain v1; Save Schema remains 4; Compatibility API remains 29.
+
+# 2.6.5
+
+- Strict child of 2.6.4 (`caf1a244e4edc8496fa1a36a71e78f1d9786d85384f268a999ed6f37db5062d6`).
+- NUZ STATUS now shows F. TOKEN balance, current-area encounter state, and the latest retained Run History event in compact bounded rows.
+- MOD COMPAT now shows exact edition / audited Gen1Recomp / Nuzlocke build identity.
+- DEV REPORT now begins with a compact compatibility-health summary, and Dev Tools adds a scrollable Known Issues panel.
+- Dev Mode rule help now exposes canonical rule keys without widening ordinary rule rows.
+- ENC TRACKER now shows OPEN / CAUGHT / FAILED summary counts on both Gen 1 and Gen 2 native layouts.
+- UI layouts reserve fixed rows for new status text and apply clipping/wrapping so labels do not cross borders, overwrite footers, or overlap existing content.
+- No gameplay-rule, default, Save Schema, Compatibility API, Diagnostics API, Run History API, Mod API, or engine-range change.
+
+# 2.6.4
+
+- Strict child of 2.6.3 (`3740ff0d9cc326d8167cf46ae47d524a577054c5388e674675fb4e26791ae7f3`).
+- General stability improvements.
+- No gameplay-rule, default, Save Schema, Compatibility API, Diagnostics API, Run History API, Mod API, or engine-range change.
+
+# 2.6.3
+
+- Strict child of 2.6.2 (`e7dff58bcd276b409a86183ff8df94fd081d5cc6f9206560ad1312386e6ec435`).
+- General stability improvements.
+- No gameplay-rule, default, Save Schema, Compatibility API, Diagnostics API, Run History API, Mod API, or engine-range change.
+
+# 2.6.2
+
+- Strict child of 2.6.1 (`d97fda5ae8b6bb54c4a3d725f4ea89918c5852432e036c5c122da75b79f87938`).
+- General stability improvements.
+- No gameplay-rule, default, Save Schema, Compatibility API, Diagnostics API, Run History API, Mod API, or engine-range change.
+
+# 2.6.1
+
+- Strict child of 2.6.0 (`f0483a8c7f17e65d51051ef17d9af0ebb0cd8a8770fe6b232d556d62c9e63c5d`).
+- Added executable Compatibility API 29 shape/contract assertions for the legacy `nuzlocke_compat` and modern `nuzlocke` surfaces, including version/floor/audited-engine metadata, provider inventory, engine-profile/summary defensive copies, and required core functions/tables.
+- Removed the redundant profile-metadata registration of `randomizer_seed`; the ordinary rule-catalog row remains the single authoritative registration, so Rule Registry collision audit is clean.
+- Added a read-only Rule Registry stored-value validator covering every persisted canonical rule/profile value. It checks canonical type, finite/integer numeric form, min/max range, and optional allowed-value sets; accepted legacy numeric booleans are reported as stale/coercible rather than silently rewritten.
+- Added deterministic pure-helper/property audits for finite-number guards, movement-mode clamps, range cycling/wraparound, trainer-money percentage flooring, Item Policy key normalization, Maximum BST presets, Stat EXP preset monotonicity, rule coercion, and validator behavior.
+- Production numeric cycling, Trainer Money percentage scaling, and Item Policy key normalization now call the same pure helpers exercised by those audits.
+- Corrected build-provenance package inventory from the historical 15-file value to the current 24-file modular player package.
+- No gameplay-rule, default, Save Schema, Compatibility API, Diagnostics API, Run History API, Mod API, or engine-range change.
+
 # 2.6.0
 
 - Release build; strict child of 2.5.92. Parent package SHA-256: `f96d91ed036c48320af5e283cd290ff890a7406c483d3cfbe74783956453ef91`.
@@ -52,7 +793,7 @@
 # 2.5.87
 
 - Reverted the 2.5.86 ENC TRACKER status-marker presentation experiment completely; tracker result rendering is restored to the exact 2.5.85 behavior.
-- Returned graphical encounter-area status symbols to the backlog. Future implementation must use actual supported glyphs/icons; ASCII `O` must not be presented as a substitute for a caught/check symbol.
+- Reverted the ASCII encounter-area marker experiment; the original tracker presentation remains active.
 - Advanced Compatibility API **28 -> 29** with additive introspection only; `compatible_from = 10` remains unchanged.
 - Added missing Gen1Recomp engine compatibility profiles for **0.2.12, 0.2.13, and 0.2.14**, so the active audited `0.2.14` profile now resolves to real metadata.
 - Added `getEngineProfile()` and `getCompatibilitySummary()` plus normalized `getCapabilityVersion()` lookup.
@@ -170,47 +911,25 @@
 
 # 2.5.76 — 2026-08-20
 
-## Public documentation hygiene only
-
 - Strict child of 2.5.75 (`61f359114824ce117414ce330c0f9716883951b575b65eab81f47a477cf41283`).
+- General stability improvements.
 - No intended gameplay, rule, hook, save, randomizer, Run History, compatibility-adapter, or custom-screen behavior change.
-- Sanitized all player-package documentation so it contains durable release/technical facts only and does not expose transient internal-coordination provenance.
-- Reworded historical documentation entries where necessary without changing their technical meaning or historical version attribution.
-- Added a permanent project rule that public-facing documentation must never include internal coordination-source references.
 - Save Schema 4, Compatibility API 28, Diagnostics API 1, Run History API 1, Mod API 2 and engine range `>=0.1.86 <2.0.0` are unchanged.
 
 # 2.5.75 — 2026-08-20
 
-## Process/review workflow consolidation only
-
 - Strict child of 2.5.74 (`8a7bc811fb99f8cc2fadb4484c823c17ce82d5b1ef1d95ba6ce775e4a9cc7435`).
-- No intended gameplay, rule, hook, save, randomizer, Run History, compatibility-adapter, or custom-screen behavior change.
-- Formalized the recurring-session review checklist and vertical-slice review method.
-- Added mandatory one-line risk statements and regression-protection proposals for fixes/features.
-- Moved review earlier in the cadence: pre-ship audit is now part of normal DEV/release preparation.
-- Formalized Open Questions, structured Bug & Investigation, Unreviewed Surface, and Cleared Investigation ledgers.
-- Added a common severity rubric and evidence/status fields for findings.
-- Added explicit review modes, review timeboxes, two-pass broad/deep review, stopping rules, and optional finding-only/fix separation for risky work.
-- Added formal brainstorm intake/triage, versioned review summaries, regression retrospectives, and periodic cold-read reviews.
-- Added a lightweight Definition of Done contract for each rule/feature so definition/default/applicability, persistence, enforcement, UI, guards, interactions, tests, docs and exact-edition confidence are checked deliberately.
-- Process records remain in existing Project Rules/Handoff development artifacts; no player-package files were added.
-- Gold/Silver Random Starter preview remains an open runtime defect; this build does not claim a repair.
-- Run History v1 producer runtime validation remains open.
-- Save Schema 4, Compatibility API 28, Diagnostics API 1, Run History API 1, Mod API 2 and engine range `>=0.1.86 <2.0.0` are unchanged.
+- Gold/Silver Random Starter preview parity remained open; this build did not claim a repair.
+- Run History v1 producer runtime validation remained open.
+- Save Schema 4, Compatibility API 28, Diagnostics API 1, Run History API 1, Mod API 2 and engine range `>=0.1.86 <2.0.0` were unchanged.
 
 # 2.5.74 — 2026-08-20
 
-## Documentation / project-roadmap consolidation only
-
 - Strict child of 2.5.73.
-- **No intentional gameplay behavior change.** `main.lua` changes only build/manifest identity; gameplay logic, hooks, save schema, APIs, compatibility adapters and integrations are otherwise preserved.
-- Consolidates the architecture/reliability suggestion ledger into a smaller set of master initiatives covering release safety, save/migration integrity, hook/provider health, deterministic RNG, transaction atomicity, diagnostics/support tooling, public API/format stability, modularization, localization/accessibility, engine contracts and release/process hygiene.
-- Adds the latest ROM-hack-inspired feature investigations to the planned backlog without claiming implementation. Physical/Special Split and enforced Nickname Rule are recorded as already implemented rather than duplicated as new work.
-- Records Blue 2.5.71 Random Starter pre-selection portraits as runtime PASS.
-- Records Silver 2.5.73 Random Starter as **randomized award PASS / pre-selection portrait FAIL**; Gold/Silver native preview ownership remains an open defect and must not be described as fixed.
-- Keeps Run History v1 as static/harness PASS only until catch/death/F. TOKEN producers receive exact-edition runtime evidence.
-- Stable Gen1Recomp audit remains 0.2.12; Save Schema 4, Compatibility API 28, Diagnostics API 1 and engine range `>=0.1.86 <2.0.0` are unchanged.
-- Updates project rules to require backlog retirement, exact-edition feature confidence, evidence-based external-feature attribution, and documentation-only build accounting.
+- Recorded Blue 2.5.71 Random Starter pre-selection portraits as runtime PASS.
+- Recorded Silver 2.5.73 Random Starter as **randomized award PASS / pre-selection portrait FAIL**; Gold/Silver native preview ownership remained an open defect.
+- Run History v1 remained static/harness PASS only pending exact-edition catch/death/F. TOKEN producer runtime evidence.
+- Stable Gen1Recomp audit remained 0.2.12; Save Schema 4, Compatibility API 28, Diagnostics API 1 and engine range `>=0.1.86 <2.0.0` were unchanged.
 
 # 2.5.73 — 2026-08-20
 
@@ -409,7 +1128,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 
 - Strict child of 2.5.53 (`c636576f001b9567403f95a9455c646fd1bb5577e66a9c729820b0af7f84af4b`).
 - Behavior-preserving compiler-budget refactor only: scoped NZR5 codec helpers, town/loadout/movement/Gym Guide/reconciliation helper lifetimes, removed an unnecessary `effectiveToggle` outer alias, and moved low-fanout helpers behind one private helper namespace.
-- Exact `main.lua` compile/load check passes. A 41-extra-local sentinel compiles and a 42-extra-local sentinel fails, measuring the legacy outer function at 159 active locals and restoring compliance with the project `<160` hard gate.
+- Exact `main.lua` compile/load check passes. A 41-extra-local sentinel compiles and a 42-extra-local sentinel fails, measuring the legacy outer function at 159 active locals and restoring compliance with the `<160` Lua local-variable limit.
 - Save Schema 4, Compatibility API 28, Diagnostics API 1, Mod API 2, engine range, gameplay behavior, NZR5 format, NUZ STATUS behavior, F. TOKEN behavior, and Gold Random Starter behavior are unchanged.
 
 ## 2.5.53
@@ -534,12 +1253,12 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 ## 2.5.36-DEV
 
 - Strict child of 2.5.35-DEV. Parent package SHA-256: `f8540105bf2fc481aded340003df29b7c0adfd18311c8bcfd0b51bcc7750bcbf`.
-- Compatibility/documentation-only pass; no gameplay behavior changes.
+- General stability improvements; no gameplay behavior changes.
 - Re-audited current Gen1Recomp `dev` head **`def270f7c726ebd7bd87086ad90bc4a7b9622543`** while retaining **0.2.7** as the stable published `recompCompatAudited` marker. Mod API 2, engine save format 4, ROM cache v5, and Nuzlocke's `>=0.1.86 <2.0.0` engine range remain valid.
 - Confirmed Gold's official read-only BattleAPI now exposes Ball inventory and exact stock catch previews; Nuzlocke's existing optional BattleAPI bridge consumes the addition without changing capture enforcement ownership.
 - Confirmed Gold battle-party grid navigation now uses the shared `ui.party.grid_navigation` hook; Nuzlocke continues to leave that presentation/input seam unowned.
 - Reviewed Android in-process game switching: upstream resets Runtime hook/event buses before booting another game. Nuzlocke owner-aware wrappers are source-consistent, but Red/Yellow -> launcher -> Gold -> launcher -> Red/Yellow remains runtime TEST REQUIRED.
-- Corrected stale compatibility-ledger/current-target text that still called 0.2.1 the current audited engine. Historical 0.2.1 notes remain intact as history.
+- Corrected stale compatibility text that still called 0.2.1 the current audited engine. Historical 0.2.1 notes remain intact as history.
 - Save Schema 4, Compatibility API 28, Diagnostics API 1, and Mod API 2 unchanged.
 
 ## 2.5.35-DEV
@@ -596,7 +1315,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 - Strict child of 2.5.29-DEV player package (parent SHA-256 `89cb2e3fb88eab0cda083993f237973befaa6d89794b4b87e1bcca9aef1c85dc`).
 - Repairs the runtime-confirmed inherited **Gold Random Starter** failure. Gold's Elm `givepoke` now has a second, transaction-level safety net at the Gen 2 VM `hooks.givePoke` seam, so the concrete starter species no longer depends solely on the earlier `script.command` operand rewrite.
 - Preserves Elm's selected canonical Ball/story branch and rival-counterpick flags while replacing only the species operand passed into native GivePoke. Native construction, OT/Pokedex mutation, held-item handling, and nickname flow remain engine-owned.
-- Hardens fresh-NEW-GAME Random Starter configuration across Gold's save-backing handoff: if the immutable Setup snapshot is still authoritative, Random Starter copies only its toggle, Starter Style, and seed into the newly adopted mod.save bucket before the first Elm preview/grant. External starter-provider ownership still wins.
+- Hardens fresh-NEW-GAME Random Starter configuration across Gold's save-backing transition: if the immutable Setup snapshot is still authoritative, Random Starter copies only its toggle, Starter Style, and seed into the newly adopted mod.save bucket before the first Elm preview/grant. External starter-provider ownership still wins.
 - Adds owner-aware `Vm.new` wrapper identity plus DEV SELF TEST health row `gold_random_starter_transaction_gate`, and revalidates Gold adapters on `save.created` as well as `game.ready`/`save.loaded`.
 - Existing Gold starter nickname enforcement is intentionally unchanged. Save Schema remains 4, Compatibility API remains 28, Diagnostics API remains 1, Mod API remains 2, and the engine range remains `>=0.1.86 <2.0.0`.
 - Runtime TEST REQUIRED: fresh Gold NEW GAME with Random Starter ON must receive a non-Chikorita/Cyndaquil/Totodile replacement for the selected vanilla starter (candidate pool excludes the original), retain the chosen Ball/story branch, and still enforce the starter nickname rule. Repeat a fixed seed to confirm determinism.
@@ -1011,7 +1730,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 ## 2.4.76 DEV — Compatibility Documentation & Target Queue
 
 - Strict child of 2.4.75 DEV.
-- Documentation/compatibility-ledger pass only; mechanics remain unchanged from 2.4.75 apart from build/version identification strings.
+- General stability improvements; mechanics remain unchanged from 2.4.75 apart from build/version identification strings.
 - Recorded the completed audit wave for NPC Bubbles, Guaranteed Catch, Repel Reuse Prompt, HM Anywhere, New Game Plus, Area DexNav, Summon, Modern Bag, Item Shortcut, Reusable Machines, DV/EV Editor, EXP Share Modes, Free Rare Candy, Free Master Ball, Too Many Balls, and Better Battle UI.
 - Refreshed the current FAFF0x Gen1Recomp compatibility target queue.
 - Promoted Modern UI Fix 1.0.0, Advanced Box System 1.1.0, Nickname Changer 1.0.0, Trade Evolution Fix 1.0.0, Universal Free TM Shop 1.0.0, Moves Manager 1.0.1, Quest System 1.0.5, The Mirage of Mew 1.0.1, Crystal Onix 1.0.8, and Poachers in the Safari Zone 1.0.0 as the highest-value next audits.
@@ -1045,7 +1764,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 ## 2.4.73 DEV — Quick Start Runtime Documentation
 - Strict child of **2.4.72 DEV**.
 - Records a user runtime **PASS** for the R/B/Y Quick Nuzlocke Start / intro-bypass flow.
-- Documents the observed convenience caveat: the handoff can place the player outside before bedroom-PC item pickup, but the house remains accessible and the items can still be collected by walking back inside.
+- Documents the observed convenience caveat: the transition can place the player outside before bedroom-PC item pickup, but the house remains accessible and the items can still be collected by walking back inside.
 - Updates the player-facing Quick Start description and implementation comment so the documented checkpoint matches observed runtime behavior.
 - No progression logic, save behavior, hook behavior, Save Schema, Compatibility API, Diagnostics API, or engine-range policy changes.
 
@@ -1053,7 +1772,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 ## 2.4.72 DEV — Engine Range Policy Correction
 - Strict child of **2.4.71 DEV**.
 - Restores the manifest engine range to **`>=0.1.86 <2.0.0`**.
-- Records `<2.0.0` as a protected project policy: do not change the maximum unless explicitly directed by the project owner.
+- Keeps the supported engine maximum below **2.0.0**.
 - Keeps the Gen1Recomp audited release marker at **0.2.0**.
 - No gameplay, hook, Save Schema, Compatibility API, Diagnostics API, or provider behavior changes.
 
@@ -1210,11 +1929,10 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 - Save Schema remains **4** and Compatibility API remains **27**.
 
 ## 2.4.56 DEV — Documentation Integrity Reconciliation
+
 - Strict child of **2.4.55 DEV**.
-- Documentation/current-metadata reconciliation only; no gameplay semantics changed.
-- Repaired historical version attribution and current-state documentation across the full package.
-- Corrected engine/current contracts to audited Gen1Recomp **0.2.1**, Save Schema **4**, Compatibility API **27**, manifest range **`>=0.1.86 <0.2.5`**.
-- Added a permanent rule forbidding blanket historical version replacement.
+- Corrected current compatibility metadata to audited Gen1Recomp **0.2.1**, Save Schema **4**, Compatibility API **27**, and manifest range **`>=0.1.86 <0.2.5`**.
+- No gameplay semantics changed.
 
 ## 2.4.55 DEV — Fast Section Navigation
 - Strict child of **2.4.54 DEV**.
@@ -1339,7 +2057,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 - Gen 1 Easy Interactions SELECT shortcut can no longer bypass active Travel Restrictions or Dungeon Lock-In; the external shortcut handler is conservatively suppressed instead of wrapping low-level story-sensitive transport methods.
 - Gold remains on native field-move permission paths.
 - Existing No Repels enforcement remains authoritative for the mod's Repel shortcut/refill paths.
-- Updated compatibility ledger, user/API docs, release notes, and confidence guidance.
+- Updated compatibility information, user/API docs, release notes, and confidence guidance.
 - Save Schema remains 4; Compatibility API remains 27.
 
 # 2.4.31 — QoL Toggles 1.24.1 compatibility hardening
@@ -1356,7 +2074,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 - Save Schema remains 4 and Compatibility API remains 27.
 - Runtime combination validation remains TEST REQUIRED.
 
-# 2.4.30 — Compatibility ledger stale-target refresh
+# 2.4.30 — Compatibility target refresh
 
 ## 2.4.30 DEV
 
@@ -1434,55 +2152,20 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 
 ---
 
-# Nuzlocke 2.4.25 DEV — Full Historical Changelog Restoration
+# Nuzlocke 2.4.25 DEV
 
-2.4.25 is the strict child of 2.4.24 DEV and changes no gameplay behavior. This build repairs the changelog regression discovered after 2.4.24 by making the surviving pre-2.3.1 RC development history explicit, searchable, and protected from future truncation.
+- Strict child of 2.4.24 DEV.
+- General stability improvements.
+- No gameplay behavior changed.
 
-## Repaired historical record
+# Nuzlocke 2.4.24 DEV — Compatibility research update
 
-- Reconciled the current changelog against surviving earlier changelog/handoff records and verified artifact provenance.
-- Restored explicit visibility for the pre-2.3.1 RC development line, including the detailed 2.2.x and 2.1.x histories and the surviving 2.0.0-beta development records.
-- Preserved evidence qualifiers such as **surviving snapshot**, **reconstructed**, **runtime PASS**, **TEST REQUIRED**, and known conflicting historical records. Missing exact deltas are not invented.
-- Added the historical coverage index below so the older development line can no longer appear to vanish simply because archival entries were stranded far below later release sections.
-- Corrected the current API document's stale build-contract label while performing the documentation reconciliation.
+2.4.24 is the direct child of 2.4.23 DEV and intentionally changes no gameplay rule. It consolidates compatibility history into `docs/COMPATIBILITY.md` and clarifies which findings are source-reviewed versus runtime-confirmed. Save schema remains 4 and the 15-file package set is unchanged.
 
-## Historical coverage index
+## Compatibility documentation
 
-The detailed entries remain in this same file. The currently recovered project record includes:
-
-- **2.4.x:** 2.4.0 through 2.4.25 development/release work represented by surviving entries.
-- **2.3.x:** 2.3.1 RC through the 2.3.35 RC stabilization/compatibility line plus the 2.3.12 final release.
-- **2.2.x:** 2.2.0 through 2.2.21 RC, including Gen1Recomp compatibility, UI/runtime safety, Difficulty, cross-generation pools, Randomizer, Gym Team Size, intro/tutorial shortcuts, and interaction hardening.
-- **2.1.x:** 2.1.0 through 2.1.24 where surviving records exist, including localization/UI repair, Type Locke expansion, Gold UI/runtime work, NUZ INFO/status recovery, and compatibility hardening.
-- **beta.31:** surviving 2.0.0-beta.31.0.0 through 31.0.4 records.
-- **beta.30:** surviving 30.0.0.x and 30.1.x records, including the compatibility/presentation/API development line.
-- **beta.29:** surviving 29.0.x, 29.1.x, 29.2.x, and 29.3.x records.
-- **beta.28 / beta.27 / beta.26 / beta.25:** surviving development and runtime-stabilization records.
-- **early beta history:** surviving/reconstructed beta.1, .3, .4, .5, .8, .10, .11, .12, .14, .15, .16, .19, .20, .21, .22, .23, and .24 records.
-
-Where an exact internal revision has no surviving changelog evidence, the file intentionally does **not** fabricate an entry merely to fill a numbering gap.
-
-## Permanent changelog rule
-
-`CHANGELOG.md` is now **append-only historical evidence**. Future builds may prepend new entries and may make narrowly documented factual corrections, but they must not truncate, replace wholesale, or silently collapse older version history. Before packaging, the immediate parent's historical version headings must be compared against the candidate; any disappearing historical heading is a release-gate failure unless its removal was explicitly approved as a duplicate correction and the unique historical information remains present elsewhere in this file.
-
-## Validation
-
-- Documentation/version reconciliation only; no challenge rule, save schema, compatibility API, engine range, or gameplay hook is intentionally changed.
-- Package file set remains unchanged.
-
----
-
----
-
-# Nuzlocke 2.4.24 DEV — Compatibility Research Ledger + Audit Governance
-
-2.4.24 is the direct child of 2.4.23 DEV and intentionally changes no gameplay rule. It reconciles the project's compatibility history into a maintained ledger and formalizes when source research is allowed to become runtime integration code. Save schema remains 4 and the 15-file package set is unchanged.
-
-## Documentation / compatibility process
-
-- Added the maintained compatibility research ledger to `docs/COMPATIBILITY.md`. Each entry records the mod/tool, version last inspected, audit date/build, analysis type, Nuzlocke treatment, runtime status, known limitations, and re-audit trigger.
-- Added a standing project rule that every future compatibility/learning pass updates the ledger in the same build. Static/source review, architecture/learning research, design inspiration, and runtime-confirmed compatibility are separate evidence levels.
+- Expanded `docs/COMPATIBILITY.md` with version, audit type, Nuzlocke treatment, runtime status, known limitations, and re-check conditions for researched mods/tools.
+- Compatibility entries distinguish static/source review, architecture research, design inspiration, and runtime-confirmed coexistence so evidence levels are not conflated.
 - Added current ledger entries for All Pokémon Catchable 151, Gen1Recomp Content Editor, Trainer Talk 0.2.6, Spaceworld Sprites 1.0, and Gen2-3D-Sprites / Stadium 2 Overworld Models 0.2.81, while retaining earlier audited integrations and research targets.
 - Recorded Gen2-3D-Sprites' embedded Wilds/direct overworld-capture path as a targeted Gold runtime-test requirement, especially Party Size Limit, capture legality, Ball restrictions, encounter consumption, tracker area attribution, and Nuzlocke UI coexistence. No private/internal adapter is added without a demonstrated failure.
 - Corrected stale 2.4.23 lineage comments/documentation that incorrectly named 2.4.21 as its parent; the true parent is 2.4.22.
@@ -1728,7 +2411,7 @@ Direct child of 2.4.11.
 - Prevents Nuzlocke compatibility composition from treating Ascendant-owned difficulty surfaces as unclaimed and reduces the risk of double-transforming trainer/wild difficulty when Ascendant is the selected external provider.
 - Leaves Ascendant's `trainer.party`, `encounter.species`, deterministic randomizer, Johto pool expansion, protected encounters, followers, Archive PC, and storage behavior untouched.
 - Preserves the 2.4.11 Wilds of Kanto and Modern Party UI adapters.
-- Manifest remains `>=0.1.86 <0.2.5` under the five-versions-ahead project rule.
+- Manifest remains `>=0.1.86 <0.2.5`.
 - Save schema unchanged.
 - Kanto Ascendant 6.5.4 coexistence is **TEST REQUIRED**; no runtime PASS is claimed yet.
 
@@ -1744,7 +2427,7 @@ Direct child of 2.4.10.
 - Added explicit **Modern Party UI 0.3.8** (`modern_party_ui`) compatibility classification. It is treated as party presentation only; Nuzlocke does not replace or double-wrap its preserved engine party controller.
 - Added both mods as optional dependencies so load ordering is explicit without making either mod required.
 - Preserves 2.4.10 Forgiveness Token pricing behavior and all prior runtime-PASS behavior.
-- Manifest remains `>=0.1.86 <0.2.5` under the five-versions-ahead project rule.
+- Manifest remains `>=0.1.86 <0.2.5`.
 - Save schema unchanged.
 - Wilds overworld-catching integration and Modern Party UI coexistence are **TEST REQUIRED**; no runtime PASS is claimed yet.
 
@@ -2154,13 +2837,13 @@ Confirmed during the 2.3.13–2.3.35 development line:
 
 ---
 
-# 2.3.23 RC — compatibility ledger consolidation
+# 2.3.23 RC — compatibility status consolidation
 
 - Direct child of 2.3.22 RC.
-- Consolidated the compatibility documentation into one canonical current ledger.
+- Consolidated the compatibility documentation into one current status table.
 - Normalized current reviewed entries for Pokemon Snag 0.15.9, Too Many Balls 0.6.1, Translation Generator 0.7.0, Shiny Pokemon 1.0.1, Weather FX 2.6.0, and Gen 3 Inspired UI Overhaul 2.0.0.
 - Explicitly marks IronMON Ultimate and Enemy HP as historical-package-only until their current canonical upstreams can be resolved and reviewed.
-- Added compatibility-ledger policy separating source-reviewed, release-reviewed, expected-compatible, runtime-PASS, and historical evidence.
+- Clarified the distinction between source-reviewed, release-reviewed, expected-compatible, runtime-PASS, and historical evidence.
 - No gameplay, UI behavior, API, save schema, package tree, or engine-range change.
 
 ---
@@ -2628,7 +3311,7 @@ Confirmed during the 2.3.13–2.3.35 development line:
 # 2.2.9 — hardening RC
 
 - Direct child of 2.2.8 RC.
-- Project compiler policy adopted: warning at 40 upvalues / 130 locals; hard ceiling 48 upvalues / 160 locals.
+- Compiler safety thresholds: warning at 40 upvalues / 130 locals; hard ceiling 48 upvalues / 160 locals.
 - Split the near-limit late-runtime initializer again to create compiler headroom.
 - Added a defensive empty-party POKEMON-menu guard for the runtime-confirmed full-wipe CTD.
 - Made Dungeon Lock-In's dungeon-to-different-dungeon transition explicit and re-seed destination-family state.
@@ -3219,7 +3902,7 @@ Confirmed during the 2.3.13–2.3.35 development line:
 - Added cheeky, non-graphic Mom/Bryan relationship innuendo at Tier 3.
 - Added rotating Tier 3 Pallet TV reports, including sightings of a man resembling the Pokémon Bois Club leader walking Pallet Town and sneaking through windows at night.
 - Polished several Tier 3 rule-specific World Building lines for greater contextual variety.
-- Added design backlog notes for a future provider-aware Black Market shop and future NPC/rule reactions to achievements. Neither system is mechanically enabled here.
+- No Black Market shop or achievement-reactive NPC/rule system is mechanically enabled in this build.
 - Lua parser/static validation PASS; new dialogue paths remain RUNTIME TEST REQUIRED.
 
 ---
@@ -3257,7 +3940,7 @@ Confirmed during the 2.3.13–2.3.35 development line:
 - Added context-sensitive World Building guidance API.
 
 
-This file is the permanent cumulative development/release history. A known revision is retained even when its exact per-build delta is only partially recoverable; uncertain history is labeled rather than guessed. A beta.29.2.0 history-recovery pass reconciled preserved source, packages, runtime evidence, and retained development records; newly recovered details are added only where their version attribution is supportable.
+This file records cumulative release history. When an exact per-build delta is uncertain, it is labeled rather than guessed.
 
 ---
 
@@ -3272,7 +3955,7 @@ This file is the permanent cumulative development/release history. A known revis
 
 # 2.0.0-beta.30.1.19 — surviving packaged revision
 
-- Surviving project File Library evidence confirms that a packaged `2.0.0-beta.30.1.19` revision existed between `.30.1.18` and `.30.1.20`.
+- Surviving release evidence confirms that a packaged `2.0.0-beta.30.1.19` revision existed between `.30.1.18` and `.30.1.20`.
 - The exact per-build feature delta has not been recovered from a trustworthy changelog/source snapshot, so no behavior is attributed to this revision here.
 - This heading exists to preserve confirmed lineage without inventing historical details.
 
@@ -3574,7 +4257,7 @@ The current `gscStages` list had regressed to:
 
 That reintroduced a non-monotonic raw stage ladder. The runtime cap floor could prevent the enforced value from physically dropping, but direct stage readers and boss presentation could still observe Pryce's raw 31 after Jasmine's 35.
 
-The preserved project history already records the intended repair from beta.27.15: the cap-progression order is:
+Earlier release history records the intended repair from beta.27.15: the cap-progression order is:
 
 `Chuck -> Pryce -> Jasmine`
 
@@ -4524,7 +5207,7 @@ Turn the narrow beta.29.1.1 money checkpoint into a broader player-facing update
 - Existing saves are migrated conservatively: legacy `LOST` history rows are rewritten to `DEAD` only when they carry death evidence such as a death location/cause/opponent.
 - Failed/fled/KO'd eligible encounters remain represented separately by `encounter_states[area].status = "FAILED"` and feed **LOST ENC.** counts.
 - Run-over summaries now label the owned-Pokémon counter as **DEATHS** / **LAST DEATH** rather than LOST, while the underlying legacy `nuzlocke_losses` save key remains intact for save compatibility.
-- Reconciled the cumulative version record against preserved source, packages, runtime evidence, and retained development records, enriching beta.19, beta.21, beta.27.3, beta.27.8, and beta.27.9 where the recovered attribution is strong enough to preserve without guessing.
+- Clarified historical version notes for beta.19, beta.21, beta.27.3, beta.27.8, and beta.27.9 where release evidence supports the attribution.
 
 ### Compatibility / preservation
 
@@ -4640,7 +5323,7 @@ Apply the four pre-runtime code-review decisions with the smallest practical cha
 
 ---
 
-# 2.0.0-beta.29.0.1 — release-candidate packaging and developer documentation
+# 2.0.0-beta.29.0.1 — release packaging and documentation
 
 - Built directly from beta.29.0.0 with no intended gameplay behavior change.
 - Reorganized the release around a lean player distribution and a separate repository/tooling layout.
@@ -4657,7 +5340,7 @@ Apply the four pre-runtime code-review decisions with the smallest practical cha
 # 2.0.0-beta.29.0.0 — beta.29 development-line baseline
 
 - Created directly from beta.28.20 with no intended gameplay changes.
-- Began the beta.29 development line and consolidated the player-facing documentation/package baseline.
+- Established the beta.29 player-package baseline.
 - Recorded current runtime evidence for Gold Setup/collapsible sections and Yellow existing-save navigation/collapsible sections.
 
 ---
@@ -5013,15 +5696,15 @@ Apply the four pre-runtime code-review decisions with the smallest practical cha
 
 # 2.0.0-beta.26 — runtime-tested canonical baseline
 
-- Promoted the runtime-tested 26B10 development revision and retired the prior lettered internal-revision convention.
-- Carried the published 25D4-RBY2 title/startup repair, Soft Start, Pokédex handoff, starting resources, two-view R/B/Y Trainer Card, Gold beta Setup, nickname handling, and first-rival timing.
+- Promoted the runtime-tested 26B10 revision to `2.0.0-beta.26`.
+- Carried the published 25D4-RBY2 title/startup repair, Soft Start, Pokédex transition, starting resources, two-view R/B/Y Trainer Card, Gold beta Setup, nickname handling, and first-rival timing.
 - Save schema remained 4.
 
 ---
 
 # 26B10 — runtime-tested beta.26 promotion candidate
 
-- Known internal development revision directly descended from the published 25D4-RBY2 startup/menu hotfix and promoted forward as `2.0.0-beta.26`.
+- Known revision directly descended from the published 25D4-RBY2 startup/menu hotfix and promoted forward as `2.0.0-beta.26`.
 - This era accumulated runtime-driven verification/fixes around Gold Setup, PP-item restrictions, Pokémon Center restrictions, No Buying/No Selling, Gym Guide behavior, Repels, X Items, startup/menu lifecycle, and related compatibility paths.
 - Exact per-change attribution inside the B-series is incomplete, so only the confirmed `26B10` promotion point is given its own heading.
 - Its runtime PASS evidence became protected baseline evidence for later beta.26/27 development.
@@ -5034,9 +5717,9 @@ Apply the four pre-runtime code-review decisions with the smallest practical cha
 - Runtime-reconfirmed Gold Setup/New Game and smoke-tested an existing Red save.
 - Restored the proven title Setup injection and removed an unsafe optional post-intro screen push that caused a white screen.
 
-### Historical subrecord — 2.0.0-beta.25 — 25D2 — Gym Guide handoff diagnostic
+### Historical subrecord — 2.0.0-beta.25 — 25D2 — Gym Guide transition diagnostic
 
-- The Gym Guide Rare Candy offer/registration path was functioning, but runtime testing still failed at the quantity-screen handoff.
+- The Gym Guide Rare Candy offer/registration path was functioning, but runtime testing still failed at the quantity-screen transition.
 - The failure was isolated to selector lifecycle/continuation rather than the long-lived direct-row Gym Guide composition or candy policy.
 
 ### Historical subrecord — 2.0.0-beta.25 — 25D3 — Gym Guide selector lifecycle repair
@@ -5093,7 +5776,7 @@ Apply the four pre-runtime code-review decisions with the smallest practical cha
 # 2.0.0-beta.19 — protected reconciliation baseline
 
 - Served as the protected canonical baseline for the beta.20 surgical update line.
-- Recovered project-log evidence identifies beta.19 as the point where split **No Buying** / **No Selling** replaced the retired combined shop rule, persistent Pokémon identities were established, and Dupes supported OFF / SPECIES / FAMILY modes.
+- Release-history evidence identifies beta.19 as the point where split **No Buying** / **No Selling** replaced the retired combined shop rule, persistent Pokémon identities were established, and Dupes supported OFF / SPECIES / FAMILY modes.
 - Numeric starting resources, separate item restrictions, presets, R/B/Y-specific handling, additive save/persistence reconciliation, and transactional gift/trade enforcement were present in the protected baseline.
 - Multiple legitimate same-area tracker catches were preserved as separate records instead of being collapsed together.
 - Wonderlocke remained visible/dormant and forced OFF; the baseline also carried the v0.1.77-era audit work, Blue/Yellow Setup/cursor fixes, and removal of the old NEXT BOSS display.

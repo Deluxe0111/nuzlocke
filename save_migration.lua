@@ -92,5 +92,385 @@ return function(mod, deps)
       end
       return shadow
   end
+
+  ---------------------------------------------------------------------
+  -- GAMEPLAY TRANSACTION COORDINATOR v1 (2.6.57)
+  --
+  -- Durable intent -> perform -> commit -> clear orchestration for gameplay
+  -- mutations that need exactly-once recovery across save/reload interruption.
+  -- The coordinator serializes one pending mutation at a time, retains bounded
+  -- committed receipts so a stable transaction id cannot replay, and requires
+  -- each mutation kind to provide a reconciliation probe.  That probe is what
+  -- makes the dangerous "mutation happened, journal did not advance" window
+  -- recoverable without guessing.
+  ---------------------------------------------------------------------
+  local TX = {
+      api = 1,
+      storage_key = "__nuzlocke_gameplay_txn_v1",
+      receipts_key = "__nuzlocke_gameplay_txn_receipts_v1",
+      receipt_limit = 96,
+      handlers = {},
+  }
+  mod.exports.__beta26.GameplayTransactions = TX
+
+  local function txStore(opts)
+      return type(opts) == "table" and opts.store or mod.save
+  end
+
+  local function txGet(store, key, fallback)
+      if type(store) ~= "table" or type(store.get) ~= "function" then
+          return fallback
+      end
+      return store:get(key, fallback)
+  end
+
+  local function txSet(store, key, value)
+      if type(store) ~= "table" or type(store.set) ~= "function" then
+          return false, "store_unavailable"
+      end
+      local ok, result = pcall(store.set, store, key, value)
+      if not ok then return false, tostring(result) end
+      if result == false then return false, "store_rejected_write" end
+      return true
+  end
+
+  local function txReceipts(store)
+      local root = txGet(store, TX.receipts_key, {})
+      if type(root) ~= "table" then root = {} end
+      if type(root.order) ~= "table" then root.order = {} end
+      if type(root.by_id) ~= "table" then root.by_id = {} end
+      return root
+  end
+
+  local function txReceipt(store, id)
+      local root = txReceipts(store)
+      return root.by_id[tostring(id or "")]
+  end
+
+  -- Durable monotonic attempt identities share the receipt store so they are
+  -- outside gameplay objects and survive reloads without adding a second save
+  -- key. Gaps are acceptable; sequence reuse is not.
+  function TX.nextSequence(namespace, opts)
+      local store = txStore(opts)
+      namespace = tostring(namespace or "")
+      if namespace == "" then return nil, "missing_namespace" end
+      local root = txReceipts(store)
+      if type(root.sequences) ~= "table" then root.sequences = {} end
+      local previous = math.floor(tonumber(root.sequences[namespace]) or 0)
+      local nextValue = previous + 1
+      if nextValue <= 0 then return nil, "sequence_overflow" end
+      root.sequences[namespace] = nextValue
+      local ok, err = txSet(store, TX.receipts_key, root)
+      if not ok then return nil, err end
+      return nextValue
+  end
+
+  local function txAddReceipt(store, txn)
+      local root = txReceipts(store)
+      local id = tostring(txn and txn.id or "")
+      if id == "" then return false, "missing_id" end
+      if root.by_id[id] == nil then root.order[#root.order + 1] = id end
+      root.by_id[id] = {
+          id = id, kind = tostring(txn.kind or "unknown"),
+          build = tostring(mod.exports.__beta26.build), state = "committed",
+      }
+      while #root.order > TX.receipt_limit do
+          local old = table.remove(root.order, 1)
+          if old ~= id then root.by_id[old] = nil end
+      end
+      return txSet(store, TX.receipts_key, root)
+  end
+
+  function TX.register(kind, handler)
+      kind = tostring(kind or "")
+      if kind == "" or type(handler) ~= "table"
+          or type(handler.probe) ~= "function"
+          or type(handler.perform) ~= "function" then
+          return false, "invalid_handler"
+      end
+      TX.handlers[kind] = handler
+      return true
+  end
+
+  function TX.pending(opts)
+      local row = txGet(txStore(opts), TX.storage_key, nil)
+      return type(row) == "table" and deps.copy(row) or nil
+  end
+
+  function TX.begin(id, kind, payload, opts)
+      local store = txStore(opts)
+      id, kind = tostring(id or ""), tostring(kind or "")
+      if id == "" then return false, "missing_id" end
+      if kind == "" then return false, "missing_kind" end
+      if txReceipt(store, id) ~= nil then return false, "already_committed" end
+      local current = txGet(store, TX.storage_key, nil)
+      if type(current) == "table" then
+          if tostring(current.id or "") == id
+              and tostring(current.kind or "") == kind then
+              return true, deps.copy(current)
+          end
+          return false, "busy"
+      end
+      local txn = {
+          version = 1, id = id, kind = kind, state = "intent",
+          payload = deps.copy(type(payload) == "table" and payload or {}),
+          build = tostring(mod.exports.__beta26.build),
+      }
+      local ok, err = txSet(store, TX.storage_key, txn)
+      if not ok then return false, err end
+      return true, deps.copy(txn)
+  end
+
+  function TX.advance(id, state, detail, opts)
+      local store = txStore(opts)
+      local txn = txGet(store, TX.storage_key, nil)
+      if type(txn) ~= "table" then return false, "missing_transaction" end
+      if tostring(txn.id or "") ~= tostring(id or "") then
+          return false, "transaction_mismatch"
+      end
+      txn.state = tostring(state or txn.state or "intent")
+      txn.detail = detail and tostring(detail) or nil
+      local ok, err = txSet(store, TX.storage_key, txn)
+      if not ok then return false, err end
+      return true, deps.copy(txn)
+  end
+
+  -- Persist transaction-specific reconciliation evidence while retaining the
+  -- current journal state.  Handlers use this for checkpoints that must exist
+  -- before a second, separately recoverable mutation is attempted.
+  function TX.checkpoint(id, key, value, opts)
+      local store = txStore(opts)
+      local txn = txGet(store, TX.storage_key, nil)
+      if type(txn) ~= "table" then return false, "missing_transaction" end
+      if tostring(txn.id or "") ~= tostring(id or "") then
+          return false, "transaction_mismatch"
+      end
+      key = tostring(key or "")
+      if key == "" then return false, "missing_checkpoint_key" end
+      if type(txn.payload) ~= "table" then txn.payload = {} end
+      txn.payload[key] = deps.copy(value)
+      local ok, err = txSet(store, TX.storage_key, txn)
+      if not ok then return false, err end
+      return true, deps.copy(txn)
+  end
+
+  function TX.clear(id, opts)
+      local store = txStore(opts)
+      local txn = txGet(store, TX.storage_key, nil)
+      if type(txn) ~= "table" then return true end
+      if id ~= nil and tostring(txn.id or "") ~= tostring(id) then
+          return false, "transaction_mismatch"
+      end
+      return txSet(store, TX.storage_key, nil)
+  end
+
+  local function txProbe(handler, payload, txn, opts)
+      local ok, result, detail = pcall(handler.probe, payload, txn, opts)
+      if not ok then return nil, "probe_error:" .. tostring(result) end
+      if result == true or result == "applied" then return "applied", detail end
+      if result == false or result == "not_applied" then return "not_applied", detail end
+      return "unknown", detail
+  end
+
+  function TX.execute(id, kind, payload, opts)
+      opts = type(opts) == "table" and opts or {}
+      local store = txStore(opts)
+      local handler = TX.handlers[tostring(kind or "")]
+      if type(handler) ~= "table" then return false, "handler_unavailable" end
+      if txReceipt(store, id) ~= nil then
+          -- A crash can occur after the durable receipt is written but before
+          -- the pending journal is cleared.  The receipt is authoritative:
+          -- clear only a matching leftover journal and never replay the effect.
+          local leftover = txGet(store, TX.storage_key, nil)
+          if type(leftover) == "table" and tostring(leftover.id or "") == tostring(id) then
+              local clearOk, clearErr = TX.clear(id, opts)
+              if not clearOk then return false, clearErr end
+          end
+          return true, "already_committed"
+      end
+      local okBegin, txn = TX.begin(id, kind, payload, opts)
+      if not okBegin then
+          if txn == "already_committed" then return true, txn end
+          return false, txn
+      end
+      txn = txGet(store, TX.storage_key, txn)
+      if type(txn) ~= "table" then return false, "journal_missing_after_begin" end
+
+      if txn.state == "intent" then
+          local status, probeDetail = txProbe(handler, txn.payload, txn, opts)
+          if status == nil then return false, probeDetail end
+          if status == "unknown" then
+              TX.advance(id, "intent", "reconciliation_unknown", opts)
+              return false, "reconciliation_unknown"
+          end
+          if status == "not_applied" then
+              local okPerform, performResult, performDetail =
+                  pcall(handler.perform, txn.payload, txn, opts)
+              if not okPerform then
+                  return false, "perform_error:" .. tostring(performResult)
+              end
+              if performResult == false then
+                  return false, tostring(performDetail or "perform_rejected")
+              end
+          end
+          local advanced, advanceErr = TX.advance(id, "performed", probeDetail, opts)
+          if not advanced then return false, advanceErr end
+          txn = txGet(store, TX.storage_key, txn)
+      end
+
+      if txn.state == "performed" then
+          -- COMMIT is deliberately a durable journal state, not a second
+          -- arbitrary callback.  All externally visible mutation belongs in
+          -- perform() and must be detectable by probe(); otherwise exactly-once
+          -- recovery across interruption cannot be proven.
+          local advanced, advanceErr = TX.advance(id, "committed", nil, opts)
+          if not advanced then return false, advanceErr end
+          txn = txGet(store, TX.storage_key, txn)
+      end
+
+      if txn.state == "committed" then
+          local receiptOk, receiptErr = txAddReceipt(store, txn)
+          if not receiptOk then return false, receiptErr end
+          local clearOk, clearErr = TX.clear(id, opts)
+          if not clearOk then return false, clearErr end
+          return true, "committed"
+      end
+      return false, "invalid_state:" .. tostring(txn.state)
+  end
+
+  function TX.recover(opts)
+      opts = type(opts) == "table" and opts or {}
+      local txn = txGet(txStore(opts), TX.storage_key, nil)
+      if type(txn) ~= "table" then return true, "clean" end
+      if tonumber(txn.version) ~= 1 then return false, "newer_transaction" end
+      local handler = TX.handlers[tostring(txn.kind or "")]
+      if type(handler) ~= "table" then return false, "handler_unavailable" end
+      return TX.execute(txn.id, txn.kind, txn.payload, opts)
+  end
+
+  function TX.status(opts)
+      local store = txStore(opts)
+      local pending = txGet(store, TX.storage_key, nil)
+      local receipts = txReceipts(store)
+      local handlerCount = 0
+      for _ in pairs(TX.handlers) do handlerCount = handlerCount + 1 end
+      return {
+          api = TX.api, pending = type(pending) == "table" and deps.copy(pending) or nil,
+          receipt_count = #receipts.order, handler_count = handlerCount,
+      }
+  end
+
+  -- Generic durable exact-value mutation.  Higher-level transaction owners can
+  -- build on this without serializing Lua functions into the save journal.
+  TX.register("save.set_exact", {
+      probe = function(payload, txn, opts)
+          local store = txStore(opts)
+          local sentinel = {}
+          local current = txGet(store, payload.key, sentinel)
+          if payload.after_present == false then
+              if current == sentinel then return "applied" end
+          elseif current ~= sentinel and shadowValuesEqual(current, payload.after_value) then
+              return "applied"
+          end
+          if payload.before_present == false then
+              if current == sentinel then return "not_applied" end
+          elseif current ~= sentinel and shadowValuesEqual(current, payload.before_value) then
+              return "not_applied"
+          end
+          return "unknown"
+      end,
+      perform = function(payload, txn, opts)
+          return txSet(txStore(opts), payload.key,
+              payload.after_present == false and nil or deps.copy(payload.after_value))
+      end,
+  })
+
+  function TX.setExact(id, key, value, opts)
+      local store = txStore(opts)
+      local sentinel = {}
+      local before = txGet(store, key, sentinel)
+      return TX.execute(id, "save.set_exact", {
+          key = tostring(key),
+          before_present = before ~= sentinel,
+          before_value = before ~= sentinel and deps.copy(before) or nil,
+          after_present = value ~= nil,
+          after_value = deps.copy(value),
+      }, opts)
+  end
+
+  -- Pure in-memory interruption harness.  It simulates the critical window in
+  -- which the side effect happened but the journal still says INTENT, then
+  -- verifies recovery commits exactly once and a replay of the same id is a
+  -- no-op.  No live save keys are touched.
+  function TX.selfTest()
+      local data = {}
+      local store = {}
+      function store:get(key, fallback)
+          local value = data[key]
+          if value == nil then return fallback end
+          return deps.copy(value)
+      end
+      function store:set(key, value)
+          data[key] = deps.copy(value)
+          return true
+      end
+      local applied = 0
+      TX.register("__selftest_once", {
+          probe = function(payload)
+              return data.effect == payload.token and "applied" or "not_applied"
+          end,
+          perform = function(payload)
+              applied = applied + 1
+              data.effect = payload.token
+              return true
+          end,
+      })
+      local opts = { store = store }
+      local okBegin = TX.begin("selftest:interrupted", "__selftest_once",
+          { token="A" }, opts)
+      if not okBegin then return { ok=false, failures={"begin"} } end
+      -- Simulate side effect completed immediately before interruption.
+      data.effect = "A"
+      local okRecover = TX.recover(opts)
+      local okReplay, replay = TX.execute("selftest:interrupted", "__selftest_once",
+          { token="A" }, opts)
+      local okFresh = TX.execute("selftest:fresh", "__selftest_once",
+          { token="B" }, opts)
+      -- Simulate receipt persisted but journal-clear interrupted.
+      txSet(store, TX.storage_key, {
+          version=1, id="selftest:fresh", kind="__selftest_once",
+          state="committed", payload={ token="B" },
+      })
+      local okReceiptCleanup, receiptCleanup = TX.recover(opts)
+      -- Same-tick clobber protection: a different transaction cannot begin
+      -- while another intent owns the single durable journal.
+      local okBusyBegin = TX.begin("selftest:busy-a", "__selftest_once",
+          { token="C" }, opts)
+      local okBusySecond, busyReason = TX.begin("selftest:busy-b", "__selftest_once",
+          { token="D" }, opts)
+      TX.clear("selftest:busy-a", opts)
+      local okCheckpointBegin = TX.begin("selftest:checkpoint", "__selftest_once",
+          { token="E" }, opts)
+      local okCheckpoint = okCheckpointBegin and TX.checkpoint(
+          "selftest:checkpoint", "native_effect_returned", true, opts)
+      local checkpointed = TX.pending(opts)
+      TX.clear("selftest:checkpoint", opts)
+      local seq1 = TX.nextSequence("selftest_attempts", opts)
+      local seq2 = TX.nextSequence("selftest_attempts", opts)
+      local ok = okRecover == true and okReplay == true
+          and replay == "already_committed" and okFresh == true and applied == 1
+          and okReceiptCleanup == true and receiptCleanup == "already_committed"
+          and txGet(store, TX.storage_key, nil) == nil
+          and okBusyBegin == true and okBusySecond == false and busyReason == "busy"
+          and okCheckpoint == true and checkpointed
+          and checkpointed.payload and checkpointed.payload.native_effect_returned == true
+          and seq1 == 1 and seq2 == 2
+      TX.handlers.__selftest_once = nil
+      return { ok=ok, failures=ok and {} or {"exactly_once_recovery"},
+          applied=applied, replay=tostring(replay), busy=tostring(busyReason),
+          receipt_cleanup=tostring(receiptCleanup),
+          checkpoint=tostring(okCheckpoint), sequence=tostring(seq1) .. ":" .. tostring(seq2) }
+  end
+
   return mod.exports.__beta26.saveUpgrade.newShadowStore
 end

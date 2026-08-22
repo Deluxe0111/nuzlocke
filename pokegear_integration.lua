@@ -1,4 +1,4 @@
--- Optional Gold Pokegear Cards integration for Nuzlocke.
+-- Optional Gen 2 Pokegear Cards integration for Nuzlocke.
 --
 -- Uses only the active provider's mod.exports API. It never directly patches
 -- Pokegear and deliberately does not append to PHONE.
@@ -41,11 +41,15 @@ return function(mod, opts)
         return text:sub(1, math.max(1, width - 1)) .. "."
     end
 
-    local function isGold(game)
+    local function isGen2(game)
         local beta = mod.exports and mod.exports.__beta26
-        if beta and type(beta.runtimeIsGold) == "function" then
-            local ok, value = pcall(beta.runtimeIsGold, game or mod.game)
-            if ok then return value == true end
+        if beta then
+            local resolver = type(beta.runtimeIsGen2) == "function"
+                and beta.runtimeIsGen2 or beta.runtimeIsGold
+            if type(resolver) == "function" then
+                local ok, value = pcall(resolver, game or mod.game)
+                if ok then return value == true end
+            end
         end
         return false
     end
@@ -391,7 +395,7 @@ return function(mod, opts)
     end
 
     local function drawMapOverlay(api, gear)
-        if not isGold(gear and gear.game) then return end
+        if not isGen2(gear and gear.game) then return end
         local H = api.helpers
         local region = gearRegion(gear)
         local colors = {
@@ -407,7 +411,7 @@ return function(mod, opts)
     end
 
     local function drawRadioOverlay(api, gear)
-        if not isGold(gear and gear.game) then return end
+        if not isGen2(gear and gear.game) then return end
         local line = radioLine(gear)
         if line and line ~= "" then api.helpers.text(gear, fit(line, 18), 1, 11) end
     end
@@ -438,13 +442,13 @@ return function(mod, opts)
             icon = api.DEFAULT_ICON,
             priority = 70,
             owner = mod.id,
-            visible = function(gear) return isGold(gear and gear.game) end,
+            visible = function(gear) return isGen2(gear and gear.game) end,
             draw = function(gear) drawCard(api, gear) end,
             update = function(gear, input) updateCard(api, gear, input) end,
         })
         if not unregisterCard then
             if mod.log and mod.log.warn then
-                mod.log:warn("Pokegear NUZ card registration failed: %s",
+                mod.log:warn("[Nuzlocke:Pokegear] card registration failed: %s",
                     tostring(cardErr))
             end
             return false
@@ -456,13 +460,13 @@ return function(mod, opts)
             kind = "overlay",
             priority = 70,
             owner = mod.id,
-            visible = function(gear) return isGold(gear and gear.game) end,
+            visible = function(gear) return isGen2(gear and gear.game) end,
             draw = function(gear) drawMapOverlay(api, gear) end,
         })
         if not unmap then
             pcall(unregisterCard)
             if mod.log and mod.log.warn then
-                mod.log:warn("Pokegear NUZ map overlay failed: %s",
+                mod.log:warn("[Nuzlocke:Pokegear] map overlay failed: %s",
                     tostring(mapErr))
             end
             return false
@@ -475,7 +479,7 @@ return function(mod, opts)
             priority = 70,
             owner = mod.id,
             visible = function(gear)
-                return isGold(gear and gear.game)
+                return isGen2(gear and gear.game)
                     and mod.save:get("gold_radio_world_building", false) == true
                     and (tonumber(mod.save:get("world_building_tier", ruleDefault("world_building_tier", 1))) or ruleDefault("world_building_tier", 1)) > 0
             end,
@@ -485,7 +489,7 @@ return function(mod, opts)
             pcall(unmap)
             pcall(unregisterCard)
             if mod.log and mod.log.warn then
-                mod.log:warn("Pokegear NUZ radio overlay failed: %s",
+                mod.log:warn("[Nuzlocke:Pokegear] radio overlay failed: %s",
                     tostring(radioErr))
             end
             return false
@@ -503,7 +507,7 @@ return function(mod, opts)
             installCount = installCount,
         }
         if mod.log and mod.log.info then
-            mod.log:info("Pokegear Cards integration active: NUZ + MAP + RADIO")
+            mod.log:info("[Nuzlocke:Pokegear] integration active: NUZ + MAP + RADIO")
         end
         return true
     end

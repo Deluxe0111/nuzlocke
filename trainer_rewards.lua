@@ -385,7 +385,7 @@ function M.scaleTrainerMoney(battle, result)
         math.floor(tonumber(mod.save:get(
             "trainer_money_multiplier", 4)) or 4)))
     local pct = TRAINER_MONEY_PCTS[idx] or 100
-    local desired = math.floor(gained * pct / 100)
+    local desired = d.scalePercentFloor(gained, pct)
     setTrainerWalletValue(save, start + desired)
 
     if idx ~= 4 and game then
@@ -472,8 +472,27 @@ function M.recordLeagueProgression(battle, result)
         local progress = d.gscProgress(save)
         for _, stage in ipairs(d.gscStages) do
             if trainerIdentityContains(identity, stage.name) then
+                local firstCommit = progress[stage.name] ~= true
                 progress[stage.name] = true
                 mod.save:set("nuzlocke_gsc_defeated", progress)
+                if firstCommit and d.active(game, battle)
+                    and type(d.runHistory) == "table" then
+                    local badge = d.gscBadgeStages and d.gscBadgeStages[stage.name]
+                    if badge and type(d.runHistory.recordBadge) == "function" then
+                        pcall(d.runHistory.recordBadge, game, badge[2] or stage.name, {
+                            leader = stage.name,
+                            region = badge[1] == "kantoBadges" and "KANTO" or "JOHTO",
+                            dedupe = "badge:gsc:" .. tostring(stage.name),
+                        })
+                    end
+                    if stage.name == "RED"
+                        and type(d.runHistory.recordCompleted) == "function" then
+                        pcall(d.runHistory.recordCompleted, game, {
+                            target = "RED", phase = "POSTGAME",
+                            dedupe = "complete:gsc:red",
+                        })
+                    end
+                end
                 return true
             end
         end
@@ -483,8 +502,17 @@ function M.recordLeagueProgression(battle, result)
     local gymProgressTable = d.gymProgress(save)
     for _, gymLeader in ipairs(d.levelCapGymLeaders) do
         if trainerIdentityContains(identity, gymLeader) then
+            local firstCommit = gymProgressTable[gymLeader] ~= true
             gymProgressTable[gymLeader] = true
             mod.save:set(d.gymProgressKey, gymProgressTable)
+            if firstCommit and d.active(game, battle)
+                and type(d.runHistory) == "table"
+                and type(d.runHistory.recordBadge) == "function" then
+                pcall(d.runHistory.recordBadge, game, gymLeader, {
+                    leader = gymLeader, region = "KANTO",
+                    dedupe = "badge:rby:" .. tostring(gymLeader),
+                })
+            end
             return true
         end
     end
@@ -504,7 +532,16 @@ function M.recordLeagueProgression(battle, result)
         and (trainerIdentityContains(identity, "RIVAL")
             or trainerIdentityContains(identity, "BLUE")
             or trainerIdentityContains(identity, "CHAMPION")) then
+        local firstCommit = mod.save:get("nuzlocke_champion_defeated", false) ~= true
         mod.save:set("nuzlocke_champion_defeated", true)
+        if firstCommit and d.active(game, battle)
+            and type(d.runHistory) == "table"
+            and type(d.runHistory.recordCompleted) == "function" then
+            pcall(d.runHistory.recordCompleted, game, {
+                target = "CHAMPION", phase = "CHAMPION",
+                dedupe = "complete:rby:champion",
+            })
+        end
         return true
     end
     return false
@@ -524,9 +561,10 @@ function M.install(ownerMod, supplied)
         "worldMechanic", "worldRuleTriplet", "externalRuleDelegation",
         "pushWorldText",
         "worldRuleText", "getCurrentGame", "VersionCompat",
-        "gscProgress", "gscStages", "levelCapGymLeaders",
+        "gscProgress", "gscStages", "gscBadgeStages", "levelCapGymLeaders",
         "gymProgress", "gymProgressKey", "eliteFourCaps", "eliteFourDefeated",
         "currentGymProgressCount", "nextEliteFourCapInfo", "runHistory",
+        "scalePercentFloor",
     }) do
         assert(d[key] ~= nil, "trainer rewards missing dependency: " .. key)
     end

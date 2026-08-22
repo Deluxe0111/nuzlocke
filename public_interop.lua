@@ -8,6 +8,18 @@ return function(mod, deps)
   local registerArea = assert(deps.registerArea, "public_interop requires registerArea")
   local externalRuleDelegation = deps.externalRuleDelegation
   local NON_CORE_DELEGATION = deps.NON_CORE_DELEGATION
+  -- 2.6.29 split-scope hardening: gameplay policies below are intentionally
+  -- late-bound in main.lua. Depend on injected live wrappers/getters rather
+  -- than accidental globals or values frozen at module-load time.
+  local specialAcquisitionDenied = assert(deps.specialAcquisitionDenied,
+      "public_interop requires specialAcquisitionDenied wrapper")
+  local evaluateItemUsePolicy = assert(deps.evaluateItemUsePolicy,
+      "public_interop requires evaluateItemUsePolicy wrapper")
+  local active = assert(deps.active, "public_interop requires active wrapper")
+  local catchDeniedReason = assert(deps.catchDeniedReason,
+      "public_interop requires catchDeniedReason wrapper")
+  local getItemPolicy = assert(deps.getItemPolicy,
+      "public_interop requires ItemPolicy getter")
 
     ---------------------------------------------------------------------
     -- PUBLIC INTEROP / CAPABILITY API (30.0.0.3)
@@ -160,8 +172,91 @@ return function(mod, deps)
         Acquisition.KINDS = {
             wild=true, gift=true, trade=true, starter=true, scripted=true,
             editor=true, summon=true, quest=true, forced=true, wonder_trade=true,
-            trainer_capture=true,
+            trainer_capture=true, theft=true, owned_capture=true,
         }
+
+        -- 2.6.53: acquisition kinds are semantic vocabulary, not just labels.
+        -- Every public kind must make an explicit choice for each policy
+        -- dimension so adding a new kind cannot silently inherit "not covered".
+        -- `speciesLegality` routes through the canonical special-acquisition
+        -- species checks; `areaLegality` is intentionally separate because
+        -- theft/trainer-owned captures are not ordinary area acquisitions.
+        Acquisition.KIND_POLICY = {
+            wild = {
+                captureRule=true, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            gift = {
+                captureRule=false, speciesLegality=true, areaLegality=true,
+                partyAdmission=true, sourceRule=true,
+            },
+            trade = {
+                captureRule=false, speciesLegality=true, areaLegality=true,
+                partyAdmission=true, sourceRule=true,
+            },
+            starter = {
+                captureRule=false, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            scripted = {
+                captureRule=false, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            editor = {
+                captureRule=false, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            summon = {
+                captureRule=true, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            quest = {
+                captureRule=true, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            forced = {
+                captureRule=false, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            wonder_trade = {
+                captureRule=false, speciesLegality=false, areaLegality=false,
+                partyAdmission=false, sourceRule=false,
+            },
+            trainer_capture = {
+                captureRule=true, speciesLegality=true, areaLegality=false,
+                partyAdmission=true, sourceRule=false,
+            },
+            theft = {
+                captureRule=true, speciesLegality=true, areaLegality=false,
+                partyAdmission=true, sourceRule=false,
+            },
+            owned_capture = {
+                captureRule=true, speciesLegality=true, areaLegality=false,
+                partyAdmission=true, sourceRule=false,
+            },
+        }
+
+        local function validateAcquisitionKindPolicy()
+            for kind in pairs(Acquisition.KINDS) do
+                local row = Acquisition.KIND_POLICY[kind]
+                assert(type(row) == "table",
+                    "Acquisition.KIND_POLICY missing kind: " .. tostring(kind))
+                for _, field in ipairs({
+                    "captureRule", "speciesLegality", "areaLegality",
+                    "partyAdmission", "sourceRule",
+                }) do
+                    assert(type(row[field]) == "boolean",
+                        "Acquisition.KIND_POLICY." .. tostring(kind)
+                        .. " missing boolean " .. field)
+                end
+            end
+            for kind in pairs(Acquisition.KIND_POLICY) do
+                assert(Acquisition.KINDS[kind] == true,
+                    "Acquisition.KIND_POLICY has unknown kind: " .. tostring(kind))
+            end
+            return true
+        end
+        Acquisition.kindPolicyValid = validateAcquisitionKindPolicy()
         function Acquisition.classify(context)
             context = type(context) == "table" and context or {}
             local declared = norm(context.kind or context.sourceKind or context.acquisitionType)
@@ -170,10 +265,16 @@ return function(mod, deps)
                 SCRIPTED="scripted", EDITOR="editor", SUMMON="summon",
                 QUEST="quest", FORCED="forced", WONDER_TRADE="wonder_trade",
                 TRAINER_CAPTURE="trainer_capture", TRAINER_CATCH="trainer_capture",
-                SNAG="trainer_capture",
+                SNAG="trainer_capture", THEFT="theft", STEAL="theft",
+                STOLEN="theft", OWNED_CAPTURE="owned_capture",
+                OWNED_POKEMON="owned_capture",
             }
             if aliases[declared] then return aliases[declared] end
             if context.editor == true then return "editor" end
+            if context.theft == true or context.stolen == true then return "theft" end
+            if context.ownedCapture == true or context.owned_capture == true then
+                return "owned_capture"
+            end
             if context.trainerCapture == true or context.trainer_capture == true
                 or context.snag == true then return "trainer_capture" end
             if context.quest == true then return "quest" end
@@ -199,6 +300,18 @@ return function(mod, deps)
                     if not context.species then context.species = meta.species end
                     if not context.areaId then context.areaId = meta.areaId end
                     if meta.repeatable ~= nil and context.repeatable == nil then context.repeatable = meta.repeatable end
+                    -- 2.6.41: registered content sources may declaratively carry
+                    -- progression/catch/randomizer semantics. Preserve explicit
+                    -- caller values; fill only absent context fields.
+                    for _, field in ipairs({
+                        "progressionRequired", "allowProgressionException",
+                        "randomizable", "randomization", "static", "provider",
+                        "variant", "variantId", "form", "formId",
+                    }) do
+                        if context[field] == nil and meta[field] ~= nil then
+                            context[field] = meta[field]
+                        end
+                    end
                 end
             end
             local kind = Acquisition.classify(context)
@@ -239,8 +352,10 @@ return function(mod, deps)
                 result.pcLockReason = rule or reason
                 return true
             end
-            if kind == "wild" or kind == "summon" or kind == "quest"
-                or kind == "trainer_capture" then
+            local kindPolicy = Acquisition.KIND_POLICY[kind]
+            assert(type(kindPolicy) == "table",
+                "Acquisition.evaluate missing policy for kind: " .. tostring(kind))
+            if kindPolicy.captureRule == true then
                 if mod.save:get("no_catching", false) == true and context.captureAttempt == true then
                     if providerProgressionOverride("no_catching", "catching_banned") then
                         return result
@@ -254,7 +369,14 @@ return function(mod, deps)
                     or mod.exports.__beta26.typeLockAllowsSpecies
                 if type(evaluator) == "function" then
                     local ok, allowed = pcall(evaluator, game, concrete or species)
-                    if ok and allowed == false then
+                    if not ok then
+                        mod.exports.__beta26.lastAcquisitionPolicyError =
+                            "public_type_lock: " .. tostring(allowed)
+                        result.allowed, result.rule, result.reason =
+                            false, "policy_error", "policy_error"
+                        return result
+                    end
+                    if allowed == false then
                         if providerProgressionOverride("type_lock", "type_lock") then
                             return result
                         end
@@ -264,11 +386,22 @@ return function(mod, deps)
                 end
             end
             if species ~= "" and type(specialAcquisitionDenied) == "function"
-                and (kind == "gift" or kind == "trade") then
+                and (kindPolicy.speciesLegality == true
+                    or kindPolicy.areaLegality == true
+                    or kindPolicy.partyAdmission == true
+                    or kindPolicy.sourceRule == true) then
                 local area = context.areaId or context.area or context.location
                 local policyKind = kind
-                local ok, reason = pcall(specialAcquisitionDenied, game, species, area, policyKind, concrete)
-                if ok and reason then
+                local ok, reason = pcall(specialAcquisitionDenied, game, species, area,
+                    policyKind, concrete, kindPolicy)
+                if not ok then
+                    mod.exports.__beta26.lastAcquisitionPolicyError =
+                        "public_acquisition: " .. tostring(reason)
+                    result.allowed, result.rule, result.reason =
+                        false, "policy_error", "policy_error"
+                    return result
+                end
+                if reason then
                     result.allowed, result.rule, result.reason = false, reason, reason
                     return result
                 end
@@ -306,6 +439,8 @@ return function(mod, deps)
             context = type(context) == "table" and context or { itemId=context }
             local data = context.data or (context.game and context.game.data) or (getCurrentGame() and getCurrentGame().data) or (mod.game and mod.game.data)
             local itemId = context.itemId or context.id or context.item
+            local ItemPolicy = getItemPolicy()
+            if type(ItemPolicy) ~= "table" then return "item" end
             if ItemPolicy.isFishingRod(data, itemId) then return "fishing_rod" end
             local id = ItemPolicy.normalize(itemId)
             if ItemPolicy.repels[id] then return "repel" end
@@ -369,7 +504,7 @@ return function(mod, deps)
             -- never receive a nil Gen 1 alias on a Gold boot (Gen1Recomp 0.2.7
             -- also adds TimeFishGroups/day-night fishing under this target).
             if not data then return nil end
-            if mod.exports.__beta26.runtimeIsGold(game) then
+            if mod.exports.__beta26.runtimeIsGen2(game) then
                 return data.gen2Encounters or data.encounters
             end
             return data.encounters
@@ -392,6 +527,63 @@ return function(mod, deps)
             }
         end
 
+        function Registry.starterInformationPolicy(game)
+            local randomized = not (externalRuleDelegation
+                and externalRuleDelegation("random_starter", game or getCurrentGame() or mod.game))
+                and mod.save:get("random_starter", false) == true
+            local mode = math.max(0, math.min(1,
+                math.floor(tonumber(mod.save:get("randomizer_info_policy", 0)) or 0)))
+            return {
+                mode = mode == 1 and "blind" or "open",
+                randomized = randomized,
+                revealStarterSlate = not randomized or mode == 0,
+            }
+        end
+
+        function Registry.starterInformation(context)
+            context = type(context)=="table" and context or {}
+            local policy = Registry.starterInformationPolicy(context.game)
+            local info = type(mod.exports.__beta26.randomizerStarterInfo) == "function"
+                and mod.exports.__beta26.randomizerStarterInfo(
+                    context.game or getCurrentGame() or mod.game,
+                    policy.revealStarterSlate) or nil
+            return {
+                policy = policy,
+                info = info,
+            }
+        end
+
+        function Registry.fieldItemInformationPolicy(game)
+            local randomized = not (externalRuleDelegation
+                and externalRuleDelegation("random_field_items",
+                    game or getCurrentGame() or mod.game))
+                and mod.save:get("random_field_items", false) == true
+            local mode = math.max(0, math.min(1,
+                math.floor(tonumber(
+                    mod.save:get("randomizer_info_policy", 0)) or 0)))
+            return {
+                mode = mode == 1 and "blind" or "open",
+                randomized = randomized,
+                revealFieldItemMappings = not randomized or mode == 0,
+            }
+        end
+
+        function Registry.fieldItemDiagnostics(context)
+            context = type(context)=="table" and context or {}
+            local policy = Registry.fieldItemInformationPolicy(context.game)
+            local info = type(mod.exports.__beta26.randomizerFieldItemInfo)
+                == "function"
+                and mod.exports.__beta26.randomizerFieldItemInfo(
+                    context.game or getCurrentGame() or mod.game,
+                    policy.revealFieldItemMappings) or nil
+            return {
+                policy = policy.mode,
+                randomized = policy.randomized,
+                revealFieldItemMappings = policy.revealFieldItemMappings,
+                info = info,
+            }
+        end
+
         function Registry.canRevealEncounterInformation(context)
             context = type(context)=="table" and context or {}
             local policy = Registry.encounterInformationPolicy(context.game)
@@ -406,14 +598,42 @@ return function(mod, deps)
             return false, policy
         end
 
+        function Registry.encounterDiagnostics(context)
+            context = type(context)=="table" and context or {}
+            local policy = Registry.encounterInformationPolicy(context.game)
+            local info = type(mod.exports.__beta26.randomizerEncounterInfo)
+                == "function"
+                and mod.exports.__beta26.randomizerEncounterInfo(
+                    context.game or getCurrentGame() or mod.game,
+                    policy.revealRandomizedTables) or nil
+            return {
+                policy = policy.mode,
+                randomized = policy.randomized,
+                revealRandomizedTables = policy.revealRandomizedTables,
+                info = info,
+            }
+        end
+
         function Registry.encounterInformation(context)
             context = type(context)=="table" and context or {}
             local allowed, policy = Registry.canRevealEncounterInformation(context)
+            local diagnostics = type(
+                mod.exports.__beta26.randomizerEncounterInfo) == "function"
+                and mod.exports.__beta26.randomizerEncounterInfo(
+                    context.game or getCurrentGame() or mod.game,
+                    policy.revealRandomizedTables) or nil
             return {
                 allowed = allowed,
                 policy = policy.mode,
                 randomized = policy.randomized,
-                registry = allowed and policy.gameplayRegistry or nil,
+                -- API 31: BLIND never returns the whole randomized registry,
+                -- even when one discovered/owned encounter makes the context
+                -- individually revealable.
+                registry = allowed and policy.revealRandomizedTables
+                    and policy.gameplayRegistry or nil,
+                registryVisible = allowed
+                    and policy.revealRandomizedTables or false,
+                diagnostics = diagnostics,
                 reason = allowed and nil or "randomized_encounters_undiscovered",
             }
         end
@@ -483,8 +703,10 @@ return function(mod, deps)
                 encounters=Registry.effectiveEncounters(game),
                 moves=game and game.data and game.data.moves or nil,
                 randomEncounters=(not (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", getCurrentGame() or mod.game)) and mod.save:get("random_encounter_tables", false) == true),
+                randomFieldItems=(not (externalRuleDelegation and externalRuleDelegation("random_field_items", getCurrentGame() or mod.game)) and mod.save:get("random_field_items", false) == true),
                 randomLearnsets=(not (externalRuleDelegation and externalRuleDelegation("random_learnsets", getCurrentGame() or mod.game)) and mod.save:get("random_learnsets", false) == true),
                 encounterInformation=Registry.encounterInformationPolicy(game),
+                fieldItemInformation=Registry.fieldItemInformationPolicy(game),
             }
         end
 
@@ -722,6 +944,23 @@ return function(mod, deps)
             return true, id
         end
 
+        local RANDOMIZER_POLICY_ALIASES = {
+            preserve = "deny", story = "deny",
+            external = "provider", owned = "provider",
+        }
+
+        local function normalizeRandomizerPolicy(policy)
+            if policy == true then return "allow" end
+            if policy == false then return "deny" end
+            local value = tostring(policy or ""):lower()
+            value = RANDOMIZER_POLICY_ALIASES[value] or value
+            if value == "allow" or value == "deny" or value == "provider" then
+                return value
+            end
+            return nil, "policy must be allow, deny, or provider"
+        end
+        Content.normalizeRandomizerPolicy = normalizeRandomizerPolicy
+
         function Content.registerEncounter(def)
             if type(def) ~= "table" then return false, "encounter table required" end
             local id = contentId(def.id or def.sourceId or ((def.species or "ENCOUNTER") .. "_" .. (def.mapId or def.areaId or "")))
@@ -732,7 +971,16 @@ return function(mod, deps)
             row.areaId = contentId(def.areaId or def.mapId)
             row.kind = def.kind or "quest"
             if def.repeatable == true then row.repeatable = true end
-            if def.randomizable == false then row.randomizable = false end
+            if def.randomizable ~= nil then row.randomizable = def.randomizable == true end
+            if def.randomization ~= nil then
+                local normalized, err = normalizeRandomizerPolicy(def.randomization)
+                if not normalized then return false, err end
+                row.randomization = normalized
+            end
+            if def.variant ~= nil then row.variant = def.variant end
+            if def.variantId ~= nil then row.variantId = def.variantId end
+            if def.form ~= nil then row.form = def.form end
+            if def.formId ~= nil then row.formId = def.formId end
             Content.encounters[id] = row
             if row.areaId ~= "" then Content.registerArea({id=row.areaId, name=def.areaName or row.areaId, provider=def.provider}) end
             Interop.emit("content_encounter_registered", row)
@@ -742,14 +990,18 @@ return function(mod, deps)
         function Content.setEncounterRandomizerPolicy(id, policy)
             id = contentId(id)
             if id == "" then return false end
-            Content.randomizerEncounterPolicies[id] = policy
+            local normalized, err = normalizeRandomizerPolicy(policy)
+            if not normalized then return false, err end
+            Content.randomizerEncounterPolicies[id] = normalized
             return true
         end
 
         function Content.setLearnsetRandomizerPolicy(species, policy)
             species = tostring(species or ""):upper()
             if species == "" then return false end
-            Content.randomizerLearnsetPolicies[species] = policy
+            local normalized, err = normalizeRandomizerPolicy(policy)
+            if not normalized then return false, err end
+            Content.randomizerLearnsetPolicies[species] = normalized
             return true
         end
 
@@ -758,10 +1010,17 @@ return function(mod, deps)
             if context.randomizable == false then return false, "record_opt_out" end
             local sourceId = contentId(context.sourceId or context.id)
             local policy = sourceId ~= "" and Content.randomizerEncounterPolicies[sourceId] or nil
-            if policy == false or policy == "preserve" or policy == "story" then return false, "provider_policy" end
+            if not policy and context.randomization ~= nil then
+                policy = normalizeRandomizerPolicy(context.randomization)
+            end
+            if policy == "deny" then return false, "provider_policy" end
+            if policy == "provider" then return false, "provider_owned" end
+            if policy == "allow" then return true, "provider_allow" end
             local mapId = contentId(context.mapId or context.areaId)
             for _, encounter in pairs(Content.encounters) do
-                if encounter.randomizable == false
+                if (encounter.randomizable == false
+                    or encounter.randomization == "deny"
+                    or encounter.randomization == "provider")
                     and (sourceId ~= "" and encounter.id == sourceId
                         or mapId ~= "" and encounter.areaId == mapId
                             and (not encounter.species or encounter.species == tostring(context.species or ""):upper())) then
@@ -775,7 +1034,9 @@ return function(mod, deps)
             species = tostring(species or ""):upper()
             if type(def) == "table" and def.nuzlockeRandomizable == false then return false, "record_opt_out" end
             local policy = Content.randomizerLearnsetPolicies[species]
-            if policy == false or policy == "preserve" or policy == "story" then return false, "provider_policy" end
+            if policy == "deny" then return false, "provider_policy" end
+            if policy == "provider" then return false, "provider_owned" end
+            if policy == "allow" then return true, "provider_allow" end
             return true
         end
 
@@ -1136,7 +1397,21 @@ return function(mod, deps)
                     local battle = syntheticBattle(game, cap)
                     local okPolicy, reason = pcall(catchDeniedReason,
                         game, battle, species)
-                    if okPolicy and battle.nuzlockeProgressionCatch == true
+                    if not okPolicy then
+                        mod.exports.__beta26.lastAcquisitionPolicyError =
+                            "provider_capture: " .. tostring(reason)
+                        if self and type(self._refundBall) == "function"
+                            and cap and cap.ballType then
+                            pcall(self._refundBall, self, game, cap.ballType)
+                        end
+                        if self and self.hud
+                            and type(self.hud.showFeedback) == "function" then
+                            pcall(self.hud.showFeedback, self.hud,
+                                "NUZLOCKE ERROR", 0.85)
+                        end
+                        return previousResolve(self, game, ow, false)
+                    end
+                    if battle.nuzlockeProgressionCatch == true
                         and type(cap) == "table" then
                         -- This provider settles the caught mon in a separate
                         -- giveCaughtPokemon callback, so carry the semantic
@@ -1376,6 +1651,83 @@ return function(mod, deps)
             custom_boss_metadata=true, randomizer_opt_out=true,
             legacy_auto_adapter=true, passive_acquisition_detection=true,
         }
+        -- 2.6.55: semantic enforcement coverage is a first-class contract.
+        -- This maps behavioral operations to enforcement owners; it is not a
+        -- second source of rule defaults.
+        local SEMANTIC_ENFORCEMENT_COVERAGE = {
+            capture_attempt={rules={"no_catching"},editions="RBYGS",seam="Acquisition.evaluate/capture gate",provider="acquisitionPolicy",evidence="behavior"},
+            special_acquisition={rules={"allow_gifts","allow_trades","ban_legendaries","ban_mythicals","ban_pseudos","maximum_bst","party_size_limit"},editions="RBYGS",seam="Acquisition.KIND_POLICY + specialAcquisitionDenied",provider="acquisitionPolicy",evidence="behavior"},
+            daycare_deposit={rules={"no_day_care"},editions="RBYGS",seam="stock Day Care + Gen2 deposit + custom pick-only guard",provider="content/provider fallback",evidence="source"},
+            held_item_give={rules={"no_held_items"},editions="GS+provider",seam="native giveItem + provider party submenu",provider="held_items",evidence="source"},
+            held_item_battle_effect={rules={"no_held_items"},editions="GS+provider",seam="held_item.trigger/provider transient suppression",provider="held_items",evidence="source"},
+            purchase_commit={rules={"no_buying"},editions="RBYGS",seam="mart purchase commit gates",provider="itemPolicy",evidence="source"},
+            sale_commit={rules={"no_selling"},editions="RBYGS",seam="mart sale commit gates",provider="itemPolicy",evidence="source"},
+            center_heal={rules={"no_poke_center"},editions="RBYGS",seam="center/nurse dispatch gates",provider="service ownership",evidence="source"},
+            mom_heal={rules={"no_mom_heal"},editions="RBYGS",seam="mom heal dispatch gates",provider="service ownership",evidence="source"},
+            static_capture={rules={"no_static_encounters"},editions="RBYGS",seam="static provenance + capture legality",provider="content.encounters",evidence="behavior"},
+            encounter_randomization={rules={"random_encounter_tables"},editions="RBYGS",seam="Content.shouldRandomizeEncounter",provider="content randomizer policy",evidence="behavior"},
+            learnset_randomization={rules={"random_learnsets"},editions="RBYGS",seam="Content.shouldRandomizeLearnset",provider="content randomizer policy",evidence="behavior"},
+            pc_withdraw_release={rules={"progression_pc_catches"},editions="RBYGS",seam="PC withdraw/release gates",provider="pcPolicy",evidence="source"},
+            battle_status_application={rules={"sleep_clause","status_burn_scope","status_poison_scope","status_freeze_scope"},editions="RBYGS",seam="battle status application wrappers",provider="battle hooks",evidence="source"},
+            battle_stat_stage={rules={"status_accuracy_scope","evasion_clause","other_stat_drop_scope"},editions="RBYGS",seam="battle stat-stage wrappers",provider="battle hooks",evidence="source"},
+        }
+        local function copyCoverage()
+            local out={}
+            for id,row in pairs(SEMANTIC_ENFORCEMENT_COVERAGE) do
+                local copy={}
+                for k,v in pairs(row) do
+                    if type(v)=="table" then
+                        local list={}
+                        for i,item in ipairs(v) do list[i]=item end
+                        copy[k]=list
+                    else copy[k]=v end
+                end
+                out[id]=copy
+            end
+            return out
+        end
+        Acquisition.semanticCoverage=copyCoverage
+        Acquisition.regressionAudit=function()
+            local report={ok=true,checked=0,failures={}}
+            local function check(id,condition)
+                report.checked=report.checked+1
+                if condition then return end
+                report.ok=false
+                report.failures[#report.failures+1]=id
+            end
+            for kind in pairs(Acquisition.KINDS) do
+                local row=Acquisition.KIND_POLICY[kind]
+                check("kind_policy_"..kind,type(row)=="table")
+                if type(row)=="table" then
+                    for _,field in ipairs({"captureRule","speciesLegality","areaLegality","partyAdmission","sourceRule"}) do
+                        check("kind_field_"..kind.."_"..field,type(row[field])=="boolean")
+                    end
+                end
+            end
+            local expected={
+                gift={captureRule=false,speciesLegality=true,areaLegality=true,partyAdmission=true,sourceRule=true},
+                trade={captureRule=false,speciesLegality=true,areaLegality=true,partyAdmission=true,sourceRule=true},
+                trainer_capture={captureRule=true,speciesLegality=true,areaLegality=false,partyAdmission=true,sourceRule=false},
+                theft={captureRule=true,speciesLegality=true,areaLegality=false,partyAdmission=true,sourceRule=false},
+                owned_capture={captureRule=true,speciesLegality=true,areaLegality=false,partyAdmission=true,sourceRule=false},
+                wonder_trade={captureRule=false,speciesLegality=false,areaLegality=false,partyAdmission=false,sourceRule=false},
+            }
+            for kind,want in pairs(expected) do
+                local row=Acquisition.KIND_POLICY[kind] or {}
+                for field,value in pairs(want) do check("kind_semantic_"..kind.."_"..field,row[field]==value) end
+            end
+            local classifyCases={{{theft=true},"theft"},{{ownedCapture=true},"owned_capture"},{{trainerCapture=true},"trainer_capture"},{{trade=true},"trade"},{{gift=true},"gift"},{{starter=true},"starter"},{{wild=true},"wild"}}
+            for i,case in ipairs(classifyCases) do check("classify_"..i,Acquisition.classify(case[1])==case[2]) end
+            local policyCases={{true,"allow"},{false,"deny"},{"allow","allow"},{"deny","deny"},{"provider","provider"},{"preserve","deny"},{"story","deny"},{"external","provider"},{"owned","provider"}}
+            for i,case in ipairs(policyCases) do check("randomizer_policy_"..i,normalizeRandomizerPolicy(case[1])==case[2]) end
+            for _,id in ipairs({"capture_attempt","special_acquisition","daycare_deposit","held_item_give","purchase_commit","sale_commit","center_heal","mom_heal","static_capture","encounter_randomization","learnset_randomization","pc_withdraw_release","battle_status_application","battle_stat_stage"}) do
+                local row=SEMANTIC_ENFORCEMENT_COVERAGE[id]
+                check("coverage_"..id,type(row)=="table" and type(row.rules)=="table" and #row.rules>0 and type(row.seam)=="string" and row.seam~="" and type(row.editions)=="string" and row.editions~="" and type(row.evidence)=="string" and row.evidence~="")
+            end
+            return report
+        end
+        mod.exports.__beta26.semanticEnforcementCoverage=copyCoverage
+        mod.exports.__beta26.semanticBehaviorRegressionAudit=Acquisition.regressionAudit
         mod.exports.nuzlocke.acquisitionPolicy = Acquisition
         mod.exports.nuzlocke.itemPolicy = ItemAPI
         mod.exports.nuzlocke.registry = Registry

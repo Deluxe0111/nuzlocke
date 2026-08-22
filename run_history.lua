@@ -109,7 +109,7 @@ return function(mod, deps)
       if root.generation == nil then
           local live = game or deps.currentGame() or mod.game
           root.generation = tonumber(live and live.generation)
-              or (mod.exports.__beta26.runtimeIsGold(live) and 2 or 1)
+              or (mod.exports.__beta26.runtimeIsGen2(live) and 2 or 1)
           changed = true
       end
       if root.run_id == nil then
@@ -141,7 +141,7 @@ return function(mod, deps)
       row.edition = mod.exports.__beta26.Dev.gameId(game or deps.currentGame() or mod.game)
       local live = game or deps.currentGame() or mod.game
       row.generation = tonumber(live and live.generation)
-          or (mod.exports.__beta26.runtimeIsGold(live) and 2 or 1)
+          or (mod.exports.__beta26.runtimeIsGen2(live) and 2 or 1)
       row.build = mod.exports.__beta26.build
       if dedupe ~= "" then row.dedupe = dedupe end
       root.events[#root.events + 1] = row
@@ -165,6 +165,20 @@ return function(mod, deps)
       return true, row
   end
   
+  mod.exports.__beta26.RunHistory.dedupeKey = function(kind, pokemonId, occurrence)
+      if pokemonId == nil then return nil end
+      kind = tostring(kind or "")
+      if kind == "catch" then
+          return "catch:" .. tostring(pokemonId)
+      elseif kind == "death" then
+          occurrence = tonumber(occurrence)
+          if occurrence == nil then return nil end
+          occurrence = math.max(1, math.floor(occurrence))
+          return "death:" .. tostring(pokemonId) .. ":" .. tostring(occurrence)
+      end
+      return nil
+  end
+
   mod.exports.__beta26.RunHistory.recordCatch = function(game, mon, fields)
       fields = fields or {}
       local species = fields.species or (mon and mon.species)
@@ -194,7 +208,7 @@ return function(mod, deps)
           source = fields.source,
       }
       local dedupe = fields.dedupe
-          or (pokemonId ~= nil and ("catch:" .. tostring(pokemonId)) or nil)
+          or mod.exports.__beta26.RunHistory.dedupeKey("catch", pokemonId)
       return mod.exports.__beta26.RunHistory.append(
           game, "pokemon.caught", payload, { dedupe = dedupe })
   end
@@ -228,9 +242,8 @@ return function(mod, deps)
       -- Pokemon lifetime. The authoritative death bridges increment and
       -- persist nuzlockeDeathSequence before archiving/removing the mon.
       local dedupe = fields.dedupe
-          or (pokemonId ~= nil and deathSequence ~= nil
-              and ("death:" .. tostring(pokemonId) .. ":"
-                  .. tostring(deathSequence)) or nil)
+          or mod.exports.__beta26.RunHistory.dedupeKey(
+              "death", pokemonId, deathSequence)
       return mod.exports.__beta26.RunHistory.append(
           game, "pokemon.died", payload, { dedupe = dedupe })
   end
@@ -256,6 +269,44 @@ return function(mod, deps)
           tokens = fields.tokens,
           source = fields.source,
       }, { dedupe = fields.dedupe })
+  end
+
+
+  mod.exports.__beta26.RunHistory.recordBadge = function(game, badge, fields)
+      fields = fields or {}
+      badge = tostring(badge or fields.badge or fields.leader or "UNKNOWN")
+      local dedupe = fields.dedupe or ("badge:" .. badge:upper())
+      return mod.exports.__beta26.RunHistory.append(game, "badge.earned", {
+          badge = badge,
+          name = badge,
+          leader = fields.leader,
+          region = fields.region,
+          map = fields.map,
+          source = fields.source or "progression",
+      }, { dedupe = dedupe })
+  end
+
+  mod.exports.__beta26.RunHistory.recordBlackout = function(game, fields)
+      fields = fields or {}
+      local sequence = math.max(1, math.floor(tonumber(fields.sequence) or 1))
+      return mod.exports.__beta26.RunHistory.append(game, "run.blackout", {
+          name = fields.name or "BLACKOUT",
+          area = fields.area,
+          source = fields.source,
+          sequence = sequence,
+          deaths = fields.deaths,
+      }, { dedupe = fields.dedupe or ("blackout:" .. tostring(sequence)) })
+  end
+
+  mod.exports.__beta26.RunHistory.recordCompleted = function(game, fields)
+      fields = fields or {}
+      local target = tostring(fields.target or fields.name or "COMPLETE")
+      return mod.exports.__beta26.RunHistory.append(game, "run.completed", {
+          name = target,
+          target = target,
+          source = fields.source or "progression",
+          phase = fields.phase,
+      }, { dedupe = fields.dedupe or ("complete:" .. target:upper()) })
   end
   
   mod.exports.__beta26.RunHistory.list = function(game, opts)

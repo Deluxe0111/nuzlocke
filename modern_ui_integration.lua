@@ -14,7 +14,7 @@ return function(mod, deps)
     --
     -- Inspired by the compatibility review of SliferDaG/TextKerningGen1Recomp.
     -- This is an independent Nuzlocke implementation: presentation only,
-    -- generation-gated on every call, and deliberately inert on Gold/Gen2.
+    -- generation-gated on every call, and deliberately inert on Gen 2.
     ---------------------------------------------------------------------
     mod.exports.__beta26 = mod.exports.__beta26 or {}
     mod.exports.__beta26.Gen1Kerning =
@@ -45,9 +45,9 @@ return function(mod, deps)
     }
 
     local function confirmedGen1(game)
-        if not game or type(deps.isGold) ~= "function" then return false end
-        local ok, gold = pcall(deps.isGold, game)
-        return ok and gold == false
+        if not game or type(deps.isGen2) ~= "function" then return false end
+        local ok, gen2 = pcall(deps.isGen2, game)
+        return ok and gen2 == false
     end
 
     local function activeGame()
@@ -316,21 +316,21 @@ return function(mod, deps)
             state.lastError = "game not ready"
             return false, state.lastError
         end
-        if type(deps.isGold) ~= "function" then
+        if type(deps.isGen2) ~= "function" then
             state.active = false
             state.lastError = "generation resolver unavailable"
             return false, state.lastError
         end
-        local okGold, gold = pcall(deps.isGold, game)
-        if not okGold then
+        local okGen2, gen2 = pcall(deps.isGen2, game)
+        if not okGen2 then
             state.active = false
             state.lastError = "generation unresolved"
             return false, state.lastError
         end
-        if gold == true then
+        if gen2 == true then
             -- The provider may not expose an unregister contract. Keep the
             -- historical registration marker, but make every adapter callback
-            -- inert while Gold/Gen2 is active.
+            -- inert while Gen 2 is active.
             state.active = false
             state.lastError = "gen1 only"
             return false, state.lastError

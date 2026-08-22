@@ -355,14 +355,82 @@ return function(mod, deps)
           "build=" .. tostring(report.build),
           "game=" .. tostring(report.game),
           "generation=" .. tostring(report.generation or
-              (mod.exports.__beta26.runtimeIsGold(game) and 2 or 1)),
+              (mod.exports.__beta26.runtimeIsGen2(game) and 2 or 1)),
+          "engine_family=" .. tostring((mod.exports.__beta26.Dev.editionContext(game)).engine_family),
+          "profile_scope=" .. tostring((mod.exports.__beta26.Dev.editionContext(game)).profile_scope),
           "environment=" .. tostring(report.environment),
           "save_schema=" .. tostring(mod.save:get(
               SAVE_SCHEMA_KEY, CURRENT_SAVE_SCHEMA)),
+          "randomizer_seed_mode=" .. tostring(
+              type(mod.exports.__beta26.randomizerSeedMode) == "function"
+                  and mod.exports.__beta26.randomizerSeedMode(nil) or "UNKNOWN"),
+          "randomizer_run_seed=" .. string.format("%08d", math.max(0,
+              math.floor(tonumber(type(mod.exports.__beta26.randomizerSeed) == "function"
+                  and mod.exports.__beta26.randomizerSeed(nil, false) or 0) or 0))),
+          "randomizer_run_snapshot=" .. tostring(
+              type(mod.exports.__beta26.randomizerRunConfig) == "function"
+                  and mod.exports.__beta26.randomizerRunConfig() ~= nil),
+          "randomizer_streams=" .. tostring(
+              type(mod.exports.__beta26.randomizerStreamNames) == "function"
+                  and #mod.exports.__beta26.randomizerStreamNames() or 0),
+          "randomizer_starter_slate_version=" .. tostring(
+              type(mod.exports.__beta26.randomizerStarterInfo) == "function"
+                  and (mod.exports.__beta26.randomizerStarterInfo(nil, false).starterSlateVersion or 0) or 0),
+          "randomizer_starter_reroll_index=" .. tostring(
+              type(mod.exports.__beta26.randomizerStarterRerollIndex) == "function"
+                  and mod.exports.__beta26.randomizerStarterRerollIndex() or 0),
+          "randomizer_starter_reroll_locked=" .. tostring(
+              type(mod.exports.__beta26.randomizerStarterInfo) == "function"
+                  and mod.exports.__beta26.randomizerStarterInfo(nil, false).rerollLocked == true),
+          "randomizer_external_owners=" .. (function()
+              if type(mod.exports.__beta26.randomizerCompatibilitySnapshot)
+                  ~= "function" then return "unavailable" end
+              local ok, snapshot = pcall(
+                  mod.exports.__beta26.randomizerCompatibilitySnapshot, mod.game)
+              if not ok or type(snapshot) ~= "table"
+                  or type(snapshot.rows) ~= "table" then return "error" end
+              local out = {}
+              for _, row in ipairs(snapshot.rows) do
+                  out[#out + 1] = tostring(row.mechanic or "?") .. ":"
+                      .. tostring(row.delegated and (row.owner_id or "external")
+                          or "nuzlocke")
+              end
+              return table.concat(out, ",")
+          end)(),
+          "stadium_compat=" .. (function()
+              local api = mod.exports.nuzlocke_acquisition_provenance
+              if type(api) ~= "table" or type(api.compatibilitySnapshot)
+                  ~= "function" then return "unavailable" end
+              local ok, snapshot = pcall(api.compatibilitySnapshot, mod.game)
+              if not ok or type(snapshot) ~= "table"
+                  or type(snapshot.rows) ~= "table" then return "error" end
+              local out = { "edition:" .. tostring(snapshot.edition or "unknown") }
+              for _, row in ipairs(snapshot.rows) do
+                  out[#out + 1] = tostring(row.kind or row.id or "stadium")
+                      .. ":" .. tostring(row.origin or "presentation")
+              end
+              if #snapshot.rows == 0 then out[#out + 1] = "none" end
+              return table.concat(out, ",")
+          end)(),
           "compat_api=" .. tostring(mod.exports.__beta26.compatibilityApi),
           "audited_recomp="
               .. tostring(mod.exports.__beta26.recompCompatAudited),
       }
+      local contract = mod.exports.__beta26.publicApiContract
+      if type(contract) == "table" then
+          lines[#lines + 1] = "api_owner=" .. tostring(contract.owner or "?")
+          lines[#lines + 1] = "api_stability=" .. tostring(contract.stability or "?")
+          local surfaceCount = 0
+          for _ in pairs(type(contract.surfaces) == "table" and contract.surfaces or {}) do
+              surfaceCount = surfaceCount + 1
+          end
+          lines[#lines + 1] = "api_surfaces=" .. tostring(surfaceCount)
+      end
+      local compat = mod.exports.nuzlocke_compat
+      if type(compat) == "table" and type(compat.providerCount) == "function" then
+          local okProviders, count = pcall(compat.providerCount)
+          if okProviders then lines[#lines + 1] = "providers=" .. tostring(count) end
+      end
       local provenance = report.build_provenance
           or mod.exports.__beta26.buildProvenance()
       if type(provenance) == "table" then
@@ -473,14 +541,63 @@ return function(mod, deps)
           tonumber(hookCounts.chained or 0),
           tonumber(hookCounts.pending or 0),
           tonumber(hookCounts.missing or 0))
+      lines[#lines + 1] = string.format(
+          "IDENTITY edition=%s family=%s profile=%s",
+          tostring(hookHealth.edition or report.game or "?"),
+          tostring(hookHealth.engine_family or report.engine_family or "?"),
+          tostring(hookHealth.profile_scope or report.profile_scope or "?"))
       for _, row in ipairs(hookHealth.rows or {}) do
           lines[#lines + 1] = string.format(
               "%-8s %-26s %s.%s %s",
               tostring(row.state or "?"),
-              tostring(row.id or "?"),
+              tostring(row.adapter_id or row.id or "?"),
               tostring(row.path or "?"),
               tostring(row.method or "?"),
               tostring(row.detail or ""))
+      end
+
+      lines[#lines + 1] = ""
+      lines[#lines + 1] = "[FEATURE HEALTH]"
+      local featureHealth = report.feature_health or {}
+      local featureKeys = {}
+      for key in pairs(featureHealth) do featureKeys[#featureKeys + 1] = key end
+      table.sort(featureKeys)
+      if #featureKeys == 0 then lines[#lines + 1] = "no feature-health transitions recorded" end
+      for _, key in ipairs(featureKeys) do
+          local row = featureHealth[key] or {}
+          lines[#lines + 1] = string.format("%-12s %s%s",
+              tostring(row.state or "?"), tostring(key),
+              row.reason and (" reason=" .. tostring(row.reason)) or "")
+      end
+
+      lines[#lines + 1] = ""
+      lines[#lines + 1] = "[GAMEPLAY TRANSACTIONS]"
+      local tx = report.gameplay_transactions or {}
+      lines[#lines + 1] = string.format("api=%s handlers=%s receipts=%s pending=%s",
+          tostring(tx.api or "?"), tostring(tx.handler_count or 0),
+          tostring(tx.receipt_count or 0), tostring(type(tx.pending) == "table"))
+      if type(tx.pending) == "table" then
+          lines[#lines + 1] = string.format("PENDING id=%s kind=%s state=%s",
+              tostring(tx.pending.id or "?"), tostring(tx.pending.kind or "?"),
+              tostring(tx.pending.state or "?"))
+      end
+
+      local gen2Parity = report.gen2_parity
+      if type(gen2Parity) == "table" and gen2Parity.applies == true then
+          lines[#lines + 1] = ""
+          lines[#lines + 1] = "[GEN 2 EDITION PARITY]"
+          lines[#lines + 1] = string.format(
+              "status=%s edition=%s family=%s profile=%s hooks=%d dex=%d failures=%d",
+              gen2Parity.ok == true and "PASS" or "WARN",
+              tostring(gen2Parity.edition or "?"),
+              tostring(gen2Parity.engine_family or "?"),
+              tostring(gen2Parity.profile_scope or "?"),
+              tonumber(gen2Parity.checked_rows or 0),
+              tonumber(gen2Parity.species_ban_rows or 0),
+              #(gen2Parity.failures or {}))
+          for _, failure in ipairs(gen2Parity.failures or {}) do
+              lines[#lines + 1] = "WARN " .. tostring(failure)
+          end
       end
 
       lines[#lines + 1] = ""
@@ -572,7 +689,7 @@ return function(mod, deps)
           and type(storage.writeBytes) == "function" then
           writeAttempted = true
           local ok, result, code, message = pcall(
-              storage.writeBytes, storage, storageKey, text)
+              storage.writeBytes, storage, game, storageKey, text)
           if ok then
               writeReturned = result == true
               storageCode = code
@@ -588,7 +705,7 @@ return function(mod, deps)
 
       if writeReturned and type(storage.readBytes) == "function" then
           local ok, result, code, message = pcall(
-              storage.readBytes, storage, storageKey)
+              storage.readBytes, storage, game, storageKey)
           if ok and type(result) == "string" then
               bytesRead = #result
               readBackMatches = result == text
@@ -604,7 +721,7 @@ return function(mod, deps)
       -- Keep latest for convenience plus bounded sequenced history.
       if verified and type(storage.list) == "function"
           and type(storage.delete) == "function" then
-          local okList, keys = pcall(storage.list, storage, "dev")
+          local okList, keys = pcall(storage.list, storage, game, "dev")
           if okList and type(keys) == "table" then
               local numbered = {}
               local maxIndex = 0
@@ -625,7 +742,7 @@ return function(mod, deps)
               historyKey = string.format(
                   "dev/self_test_history_%06d", nextIndex)
               local okHistory, result = pcall(
-                  storage.writeBytes, storage, historyKey, text)
+                  storage.writeBytes, storage, game, historyKey, text)
               historyWritten = okHistory and result == true
 
               if historyWritten then
@@ -637,7 +754,7 @@ return function(mod, deps)
                   end)
                   while #numbered > 16 do
                       local oldest = table.remove(numbered, 1)
-                      pcall(storage.delete, storage, oldest.key)
+                      pcall(storage.delete, storage, game, oldest.key)
                   end
                   historyCount = #numbered
               else
@@ -675,7 +792,7 @@ return function(mod, deps)
 
       pcall(function()
           mod.log:info(
-              "NUZ DEV SELF-TEST EXPORT BEGIN\n%s\nNUZ DEV SELF-TEST EXPORT END",
+              "[Nuzlocke:Dev] SELF-TEST EXPORT BEGIN\n%s\n[Nuzlocke:Dev] SELF-TEST EXPORT END",
               text)
       end)
       mod.exports.__beta26.Dev.push("self_test",
@@ -747,7 +864,7 @@ return function(mod, deps)
       end
 
       local ok, text, code, message = pcall(
-          storage.readBytes, storage, storageKey)
+          storage.readBytes, storage, game, storageKey)
       if not ok or type(text) ~= "string" then
           return false, {
               error = tostring((not ok and text) or code or "NOT FOUND"),
@@ -795,6 +912,11 @@ return function(mod, deps)
       assertions = mod.exports.__beta26.Dev.assertions,
       snapshot = mod.exports.__beta26.Dev.snapshot,
       hook_health = mod.exports.__beta26.Dev.hookHealth,
+      hook_registry = mod.exports.__beta26.hookRegistry.describe,
+      feature_health = mod.exports.__beta26.featureHealth.status,
+      gameplay_transactions = mod.exports.__beta26.GameplayTransactions.status,
+      gen2_edition_parity = mod.exports.__beta26.Dev.gen2EditionParityAudit,
+      gen2_description_parity = mod.exports.__beta26.gen2DescriptionParityAudit,
       rule_effectiveness = mod.exports.__beta26.Dev.ruleEffectiveness,
       randomizer_integrity = mod.exports.__beta26.Dev.randomizerIntegrity,
       lifecycle = mod.exports.__beta26.Dev.lifecycleReport,
@@ -817,6 +939,11 @@ return function(mod, deps)
       contracts = {
           self_test = 1,
           hook_health = 1,
+          hook_registry = 1,
+          feature_health = 1,
+          gameplay_transactions = 1,
+          gen2_edition_parity = 1,
+          gen2_description_parity = 1,
           rule_registry = 1,
           save_schema_descriptor = 1,
           build_provenance = 1,
@@ -838,7 +965,7 @@ return function(mod, deps)
           if type(storage) ~= "table" or type(storage.list) ~= "function" then
               return {}
           end
-          local ok, keys = pcall(storage.list, storage, "dev")
+          local ok, keys = pcall(storage.list, storage, game, "dev")
           if not ok or type(keys) ~= "table" then return {} end
           local out = {}
           for _, key in ipairs(keys) do
