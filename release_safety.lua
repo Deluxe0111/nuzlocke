@@ -536,6 +536,8 @@ return function(mod, deps)
     run("rule_defaults", mod.exports.__beta26.auditNewRuleDefaults)
     run("rule_registry", mod.exports.__beta26.ruleRegistry and mod.exports.__beta26.ruleRegistry.audit)
     run("compat_contract", mod.exports.__beta26.compatContractAudit)
+    run("late_runtime_message_dependencies",
+      mod.exports.__beta26.lateRuntimeMessageDependencyAudit)
     run("registry_describe_context_consistency",
       mod.exports.nuzlocke and mod.exports.nuzlocke.registry
         and mod.exports.nuzlocke.registry.contextConsistencyAudit)
@@ -546,6 +548,8 @@ return function(mod, deps)
       mod.exports.__beta26.randomizerProjectionAudit)
     run("randomizer_encounter_profile_builds",
       mod.exports.__beta26.randomizerEncounterProfileBuildAudit)
+    run("randomizer_learnset_phase_e_foundation",
+      mod.exports.__beta26.randomizerLearnsetPhaseEFoundationAudit)
     run("pure_helpers", mod.exports.__beta26.pureHelperAudit)
     run("public_documentation", mod.exports.__beta26.publicDocumentationAudit)
     run("package_drift", mod.exports.__beta26.packageDriftAudit)

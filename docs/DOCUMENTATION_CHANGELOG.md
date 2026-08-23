@@ -1,4 +1,6 @@
-# Documentation Changelog — 2.7.25
+# Documentation Changelog — 2.7.28
+- 2.7.28: Documented confirmed Gen2 late-runtime/title failure, Yellow control PASS, Gen2 final-list repair, and continued-game SETUP suppression contract.
+- 2.7.27: Documented Phase E #4 move hard-safety, #5 type-aware soft weighting, #6 damaging/status soft balance, `lp2` learnset policy migration, and remaining #7–12 scope.
 - 2.7.25: Promoted the audited 2.7.24 documentation set to the 2.7.x release build and replaced checkpoint wording with release wording; no gameplay/API documentation contract changed.
 - 2.7.24: Performed a full shipped-document audit; restored README/API/Compatibility/User Guide to their current-state roles, removed duplicated release timelines from those documents, reconciled current transaction/Randomizer/Stadium/World Building context language, restored missing 2.7.17 history to CHANGELOG, source-audited Gen1Recomp 0.2.20, and documented the Run History baseline-normalization persistence hardening.
 - 2.7.23: Documented `Registry.describe(game)` exact-context Randomizer ownership and its regression audit.

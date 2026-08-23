@@ -1,3 +1,31 @@
+# 2.7.28 — Gen2 boot/title repair
+
+- Fixes the inherited Gen2 late-runtime dependency-order failure by materializing shared rule-message helpers before `late_runtime.lua` loads.
+- Adds a Gen2 `MainMenu.buildList` final-list fallback for fresh Gold/Silver title sessions on Gen1Recomp 0.2.20.
+- Preserves NEW-GAME-only setup semantics: an existing save/CONTINUE row suppresses SETUP and stale Nuzlocke-owned SETUP rows are removed.
+- Adds active-wrapper audit coverage for the Gen2 `buildList` wrapper and Release Safety coverage for late-runtime message dependencies.
+- Preserves Randomizer Phase E items 1–6 unchanged.
+
+# 2.7.27 — Randomizer Phase E items 4–6
+
+- Completes Phase E #4 hard move safety: sentinel/missing moves, invalid/broken/unusable/disabled/placeholders/internal-only records, explicit provider opt-outs/policies, nameless records, and non-positive/missing PP records are excluded as hard constraints. Zero-power fixed-damage/special-effect moves remain legal when otherwise valid.
+- Adds Phase E #5 type-aware move weighting. Candidate moves matching any live species type receive a mild deterministic soft weight; every hard-safe move remains reachable. This is infrastructure/default affinity only, not the configurable STAB controls reserved for Phase E #8.
+- Adds Phase E #6 damaging/status balance by softly preferring replacements with the same damaging-vs-status semantic shape as the authored move slot while keeping every hard-safe candidate reachable.
+- Learnset policy namespace advances to `lp2` for fresh policy-weighted results, while legal prior `gN` mappings are adopted for upgraded runs instead of being gratuitously rerolled.
+- Hardens generic `stableChoice` legacy adoption so a simultaneous policy-namespace + storage-identity upgrade can recover the historical seed/source slot.
+- Expands the Phase E Release Safety audit with hard-safety, weighting, and deterministic weighted-selection checks.
+- No Phase E #7–12 features are implemented here; Randomizer algorithm version remains 1.
+
+# 2.7.26 — Randomizer Phase E items 1–3
+
+- Migrates Learnset Randomizer move selection onto the shared candidate-policy engine.
+- Adds immutable `LEARNSET_SOURCE:v1` identities preserving species, authored table shape, slot index, and authored level independently of the randomized move.
+- Preserves historical algorithm-v1 LEARNSETS RNG identity/mappings by separating new storage identity from the legacy seed slot and adopting legal historical rows.
+- Adds pass-scoped semantic move metadata (type, category, damaging/status state, power/power band, accuracy, priority) for later Phase E balancing steps; items 1–3 intentionally add no new weighting/preferences.
+- Adds hard-safe candidate filtering for missing/sentinel and explicitly provider-protected/broken/unusable moves.
+- Adds a Release Safety Phase E foundation audit for source-identity and semantic-classification invariants.
+- Phase E items 4–12 remain unimplemented/deferred.
+
 # 2.7.25 — 2.7.x release promotion
 
 - Promotes exact 2.7.24 as the 2.7.x release build.

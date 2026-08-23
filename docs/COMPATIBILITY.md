@@ -1,5 +1,6 @@
-# Nuzlocke Compatibility — 2.7.25
+# Nuzlocke Compatibility — 2.7.28
 
+2.7.27 keeps provider ownership semantics unchanged. Provider-added moves remain eligible only when the live move record is usable and not explicitly protected/non-randomizable; type/category weighting is soft and never overrides provider hard safety.
 2.7.25 is a release promotion only. Compatibility ownership/composition rules are unchanged from exact 2.7.24.
 This file describes **current compatibility ownership and composition rules**. Historical compatibility work belongs in `CHANGELOG.md`.
 

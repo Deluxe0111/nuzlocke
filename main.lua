@@ -1,5 +1,5 @@
--- Nuzlocke 2.7.25
--- Strict child of exact 2.7.24. Release promotion only: no new gameplay semantics beyond the audited 2.7.24 parent.
+-- Nuzlocke 2.7.28
+-- Strict child of exact 2.7.27. Repairs inherited Gen2 initialization and fresh-title SETUP failures while preserving continued-game suppression.
 -- Historical version lineage is maintained in CHANGELOG.md and docs/DOCUMENTATION_CHANGELOG.md.
 --
 -- Lineage:
@@ -32,14 +32,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.7.25",
+      build = "2.7.28",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.7.25",
+      manifestVersion = "2.7.28",
       setupProfileScope = "gen1",
-      parentVersion = "2.7.24",
-      parentSha256 = "749f5cbbca56113278b17a492f15429c32fb628f6510be1d673ff64e95d7817b",
+      parentVersion = "2.7.27",
+      parentSha256 = "cd6cd96f871a5f16f7c08a252ebbcfe7b557159d5f1cadad92590cba12f689cd",
       compatibilityApi = 32,
       diagnosticsApi = 1,
   }
@@ -14100,8 +14100,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.7.24",
-      expectedParentSha256 = "749f5cbbca56113278b17a492f15429c32fb628f6510be1d673ff64e95d7817b",
+      expectedParentVersion = "2.7.27",
+      expectedParentSha256 = "cd6cd96f871a5f16f7c08a252ebbcfe7b557159d5f1cadad92590cba12f689cd",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -14427,6 +14427,9 @@ return function(mod)
           { id="title_setup_gold", path="src.ui.gen2.MainMenu", method="choose",
             owner="__nuzlockeTitleSetupOwner",
             wrapper="__nuzlockeTitleSetupFunction", generation="gen2" },
+          { id="title_setup_gold_list", path="src.ui.gen2.MainMenu", method="buildList",
+            owner="__nuzlockeTitleSetupListOwner",
+            wrapper="__nuzlockeTitleSetupListFunction", generation="gen2" },
           { id="default_names_rby", path="src.ui.OakSpeech", method="runStep",
             owner="__nuzlockeDefaultNamesOwner",
             wrapper="__nuzlockeDefaultNamesFunction", generation="rby" },
@@ -18762,10 +18765,13 @@ return function(mod)
           local okMenu, MainMenu = pcall(require, "src.ui.gen2.MainMenu")
           if not okMenu or type(MainMenu) ~= "table"
               or type(MainMenu.choose) ~= "function" then return false end
-          if MainMenu.__nuzlockeTitleSetupOwner == mod
-              and MainMenu.choose == MainMenu.__nuzlockeTitleSetupFunction then
-              return true
-          end
+          local chooseInstalled = MainMenu.__nuzlockeTitleSetupOwner == mod
+              and MainMenu.choose == MainMenu.__nuzlockeTitleSetupFunction
+          local listInstalled = type(MainMenu.buildList) ~= "function"
+              or (MainMenu.__nuzlockeTitleSetupListOwner == mod
+                  and MainMenu.buildList
+                      == MainMenu.__nuzlockeTitleSetupListFunction)
+          if chooseInstalled and listInstalled then return true end
           -- If the previous Nuzlocke loader session is still the live top-level
           -- wrapper, unwrap exactly that function before composing this session.
           -- If another mod wrapped after us, preserve its live chain instead.
@@ -18776,40 +18782,124 @@ return function(mod)
               MainMenu.choose = MainMenu.__nuzlockeTitleSetupPrevious
           end
 
-          local vanillaChoose = MainMenu.choose
-          local chooseWrapper
-          chooseWrapper = function(self, value, ...)
-              if value == "nuzlocke_setup" then
-                  mod.exports.__beta26.selectSetupProfileScope(self.game)
-                  pendingNewGameRules = loadSetupProfileFromDisk()
-                      or makeDefaultPreGameRules()
-                  pendingRulesDirty = false
-                  mod.exports.__beta26.pushNuzlockeConfigScreen(self.game,
-                      { preGame = true, goldMode = true })
-                  return
-              elseif value == "new" then
-                  pcall(installAutomaticDefaultNameAdapters)
-                  mod.exports.__beta26.selectSetupProfileScope(self.game)
-                  if not pendingNewGameRules then
+          if not chooseInstalled then
+              local vanillaChoose = MainMenu.choose
+              local chooseWrapper
+              chooseWrapper = function(self, value, ...)
+                  if value == "nuzlocke_setup" then
+                      mod.exports.__beta26.selectSetupProfileScope(self.game)
                       pendingNewGameRules = loadSetupProfileFromDisk()
                           or makeDefaultPreGameRules()
+                      pendingRulesDirty = false
+                      mod.exports.__beta26.pushNuzlockeConfigScreen(self.game,
+                          { preGame = true, goldMode = true })
+                      return
+                  elseif value == "new" then
+                      pcall(installAutomaticDefaultNameAdapters)
+                      mod.exports.__beta26.selectSetupProfileScope(self.game)
+                      if not pendingNewGameRules then
+                          pendingNewGameRules = loadSetupProfileFromDisk()
+                              or makeDefaultPreGameRules()
+                      end
+                      saveSetupProfileToDisk(pendingNewGameRules)
+                      stageNewGameProfile()
+                  elseif value == "continue" then
+                      pendingNewGameRulesForNextSave = false
+                      pendingRulesDirty = false
+                      newGameRulesSnapshot = nil
+                      newGameRulesCommitPending = false
+                      newGameCommitPassesRemaining = 0
+                      clearPersistedStagedProfile()
                   end
-                  saveSetupProfileToDisk(pendingNewGameRules)
-                  stageNewGameProfile()
-              elseif value == "continue" then
-                  pendingNewGameRulesForNextSave = false
-                  pendingRulesDirty = false
-                  newGameRulesSnapshot = nil
-                  newGameRulesCommitPending = false
-                  newGameCommitPassesRemaining = 0
-                  clearPersistedStagedProfile()
+                  return vanillaChoose(self, value, ...)
               end
-              return vanillaChoose(self, value, ...)
+              MainMenu.choose = chooseWrapper
+              MainMenu.__nuzlockeTitleSetupOwner = mod
+              MainMenu.__nuzlockeTitleSetupPrevious = vanillaChoose
+              MainMenu.__nuzlockeTitleSetupFunction = chooseWrapper
           end
-          MainMenu.choose = chooseWrapper
-          MainMenu.__nuzlockeTitleSetupOwner = mod
-          MainMenu.__nuzlockeTitleSetupPrevious = vanillaChoose
-          MainMenu.__nuzlockeTitleSetupFunction = chooseWrapper
+
+          -- 2.7.28 Gold/Silver title repair: Gen1Recomp 0.2.20 runtime
+          -- evidence shows the shared ui.title_menu.items seam is not the
+          -- final Gen2 list path on a fresh game. Wrap only Gen2 buildList as
+          -- a conservative final-list fallback. CONTINUE/self.hasSave is
+          -- authoritative and actively removes Nuzlocke-owned SETUP rows, so
+          -- continued games can never expose or stage NEW-GAME setup.
+          if type(MainMenu.buildList) == "function" and not listInstalled then
+              if MainMenu.__nuzlockeTitleSetupListOwner ~= nil
+                  and MainMenu.__nuzlockeTitleSetupListOwner ~= mod
+                  and MainMenu.buildList
+                      == MainMenu.__nuzlockeTitleSetupListFunction
+                  and type(MainMenu.__nuzlockeTitleSetupListPrevious)
+                      == "function" then
+                  MainMenu.buildList =
+                      MainMenu.__nuzlockeTitleSetupListPrevious
+              end
+              local vanillaBuildList = MainMenu.buildList
+              local listWrapper
+              listWrapper = function(self, ...)
+                  local result = vanillaBuildList(self, ...)
+                  if mod.exports.__beta26.isSaveEditorSession() then
+                      return result
+                  end
+                  local list = self and self.list
+                  local items = list and list.items
+                  if type(items) ~= "table" then return result end
+
+                  local function labelOf(item)
+                      if type(item) ~= "table" then return nil end
+                      local label = item.label
+                      if type(label) == "table" then
+                          label = label.source or label.text or label.label
+                      end
+                      return type(label) == "string"
+                          and label:upper() or nil
+                  end
+                  local hasContinue, hasSetup, newIndex = false, false, nil
+                  for index, item in ipairs(items) do
+                      if type(item) == "table" then
+                          local label = labelOf(item)
+                          if item.value == "continue"
+                              or label == "CONTINUE" then
+                              hasContinue = true
+                          end
+                          if item.nuzlockeSetup == true
+                              or item.value == "nuzlocke_setup" then
+                              hasSetup = true
+                          end
+                          if newIndex == nil and (item.value == "new"
+                              or label == "NEW GAME") then
+                              newIndex = index
+                          end
+                      end
+                  end
+
+                  local continued = self.hasSave == true or hasContinue
+                  if continued then
+                      -- Fail closed for existing saves, including a stale row
+                      -- left by another title-list pass in the same session.
+                      for index = #items, 1, -1 do
+                          local item = items[index]
+                          if type(item) == "table"
+                              and (item.nuzlockeSetup == true
+                                  or item.value == "nuzlocke_setup") then
+                              table.remove(items, index)
+                          end
+                      end
+                  elseif not hasSetup and newIndex ~= nil then
+                      table.insert(items, newIndex, {
+                          label = Strings("SETUP"),
+                          value = "nuzlocke_setup",
+                          nuzlockeSetup = true,
+                      })
+                  end
+                  return result
+              end
+              MainMenu.buildList = listWrapper
+              MainMenu.__nuzlockeTitleSetupListOwner = mod
+              MainMenu.__nuzlockeTitleSetupListPrevious = vanillaBuildList
+              MainMenu.__nuzlockeTitleSetupListFunction = listWrapper
+          end
           return true
       end
       mod.events:on("game.ready", function()
@@ -25849,6 +25939,95 @@ return function(mod)
         mod.exports.__beta26.attemptInstall("pc.whiteout_recovery", mod.exports.__beta26.installWhiteoutRecoveryPcGate)
     end)
 
+    -- 2.7.28: shared rule-message dependencies must exist before the
+    -- Gen2 late-runtime module is loaded. These used to be declared inside the
+    -- R/B/Y field-command installer, which intentionally no-ops on Gen2; that
+    -- left late_runtime.lua with nil dependencies and aborted Gold/Silver boot.
+    local function sharedShowRuleMessage(ctx, msg)
+        if ctx and ctx.__nuzlockeRuleMessageShown == true then return false end
+        msg = mod.exports.__beta26.formatWorldText(msg)
+        local game = (ctx and (ctx.game or (ctx.env and ctx.env.game)))
+            or currentGame or mod.game
+        local shown = false
+
+        -- Gen1 may use its native script-command text surface first. Never
+        -- require src.script.Commands for Gen2: Gen2 uses a different VM.
+        if game and not mod.exports.__beta26.runtimeIsGen2(game) then
+            local Commands = mod.exports.__beta26.rbyCommandsFor(game)
+            if type(Commands) == "table" then
+                if type(Commands.show_text) == "function" then
+                    local ok = pcall(Commands.show_text, ctx, msg)
+                    shown = ok == true
+                elseif type(Commands.text) == "function" then
+                    local ok = pcall(Commands.text, ctx, msg)
+                    shown = ok == true
+                elseif type(Commands.message) == "function" then
+                    local ok = pcall(Commands.message, ctx, msg)
+                    shown = ok == true
+                end
+            end
+        end
+
+        -- Shared fallback works for both generations and is the Gen2 path.
+        if not shown and game and game.stack then
+            local okText, TextBox = pcall(require, "src.render.TextBox")
+            if okText and TextBox then
+                local okPush = pcall(function()
+                    game.stack:push(TextBox.new(game, msg))
+                end)
+                shown = okPush == true
+            end
+        end
+
+        if shown and ctx then ctx.__nuzlockeRuleMessageShown = true end
+        return shown
+    end
+
+    local function sharedAcquisitionDeniedMessage(kind, reason, area)
+        local game = currentGame or mod.game
+        if reason == "disabled" then
+            return mod.exports.__beta26.worldRuleText(
+                game, kind == "trade" and "allow_trades" or "allow_gifts")
+        elseif reason == "area" then
+            local areaName = routeName(area or "UNKNOWN")
+            local base = mod.exports.__beta26.worldRuleText(
+                game, "encounter_area")
+            return Strings("%s\n%s", tostring(base), tostring(areaName))
+        elseif reason == "party_size" then
+            return mod.exports.__beta26.worldRuleText(game, "party_size_limit")
+        elseif reason == "type_lock" then
+            return mod.exports.__beta26.catchRejectionMessage(game, "type_lock", nil)
+        elseif reason == "legendary" then
+            return mod.exports.__beta26.worldRuleText(game, "ban_legendaries")
+        elseif reason == "mythical" then
+            return mod.exports.__beta26.worldRuleText(game, "ban_mythicals")
+        elseif reason == "pseudo" then
+            return mod.exports.__beta26.worldRuleText(game, "ban_pseudos")
+        elseif reason == "pkmn_ban" then
+            return mod.exports.__beta26.worldRuleText(game, "pkmn_ban")
+        elseif reason == "bst" then
+            return mod.exports.__beta26.worldRuleText(game, "maximum_bst")
+        elseif reason == "glitch" then
+            return mod.exports.__beta26.worldRuleText(game, "allow_glitch_pokemon")
+        end
+        return Strings("This Pokemon is blocked by your Nuzlocke rules.")
+    end
+
+    mod.exports.__beta26.showRuleMessage = sharedShowRuleMessage
+    mod.exports.__beta26.acquisitionDeniedMessage =
+        sharedAcquisitionDeniedMessage
+
+    mod.exports.__beta26.lateRuntimeMessageDependencyAudit = function()
+        local failures = {}
+        if type(mod.exports.__beta26.showRuleMessage) ~= "function" then
+            failures[#failures + 1] = "showRuleMessage"
+        end
+        if type(mod.exports.__beta26.acquisitionDeniedMessage) ~= "function" then
+            failures[#failures + 1] = "acquisitionDeniedMessage"
+        end
+        return { ok = #failures == 0, failures = failures }
+    end
+
     local function installNuzlockeFieldCommandPatches()
         if mod.exports.__beta26.isSaveEditorSession() then return true end
         if mod.exports.__beta26.runtimeIsGen2(currentGame or mod.game) then
@@ -25934,41 +26113,7 @@ return function(mod)
             return false
         end
   
-        local function showRuleMessage(ctx, msg)
-            -- One Nuzlocke denial/flavor box per ScriptRunner transaction.
-            -- Several compatibility seams can observe the same interaction;
-            -- once one of them owns the response the others must stay silent.
-            if ctx and ctx.__nuzlockeRuleMessageShown == true then return false end
-            msg = mod.exports.__beta26.formatWorldText(msg)
-            local shown = false
-            if type(Commands.show_text) == "function" then
-                local ok = pcall(Commands.show_text, ctx, msg)
-                shown = ok
-            elseif type(Commands.text) == "function" then
-                local ok = pcall(Commands.text, ctx, msg)
-                shown = ok
-            elseif type(Commands.message) == "function" then
-                local ok = pcall(Commands.message, ctx, msg)
-                shown = ok
-            end
-  
-            if not shown then
-                local game = ctx and (ctx.game or (ctx.env and ctx.env.game))
-                if game and game.stack then
-                    local okText, TextBox = pcall(require, "src.render.TextBox")
-                    if okText and TextBox then
-                        local okPush = pcall(function()
-                            game.stack:push(TextBox.new(game, msg))
-                        end)
-                        shown = okPush == true
-                    end
-                end
-            end
-            if shown and ctx then ctx.__nuzlockeRuleMessageShown = true end
-            return shown
-        end
-  
-        mod.exports.__beta26.showRuleMessage = showRuleMessage
+        local showRuleMessage = sharedShowRuleMessage
 
         -- Hook callbacks run inside the hook bus's protected call, so they must
         -- not yield.  Push the TextBox directly here; the hook returns "end"
@@ -25990,37 +26135,7 @@ return function(mod)
         end
         mod.exports.__beta26.showRuleMessageImmediate = showRuleMessageImmediate
   
-        local function acquisitionDeniedMessage(kind, reason, area)
-            local game = currentGame or mod.game
-            if reason == "disabled" then
-                return mod.exports.__beta26.worldRuleText(
-                    game, kind == "trade" and "allow_trades" or "allow_gifts")
-            elseif reason == "area" then
-                local areaName = routeName(area or "UNKNOWN")
-                local base = mod.exports.__beta26.worldRuleText(
-                    game, "encounter_area")
-                return Strings("%s\n%s", tostring(base), tostring(areaName))
-            elseif reason == "party_size" then
-                return mod.exports.__beta26.worldRuleText(game, "party_size_limit")
-            elseif reason == "type_lock" then
-                return mod.exports.__beta26.catchRejectionMessage(game, "type_lock", nil)
-            elseif reason == "legendary" then
-                return mod.exports.__beta26.worldRuleText(game, "ban_legendaries")
-            elseif reason == "mythical" then
-                return mod.exports.__beta26.worldRuleText(game, "ban_mythicals")
-            elseif reason == "pseudo" then
-                return mod.exports.__beta26.worldRuleText(game, "ban_pseudos")
-            elseif reason == "pkmn_ban" then
-                return mod.exports.__beta26.worldRuleText(game, "pkmn_ban")
-            elseif reason == "bst" then
-                return mod.exports.__beta26.worldRuleText(game, "maximum_bst")
-            elseif reason == "glitch" then
-                return mod.exports.__beta26.worldRuleText(game, "allow_glitch_pokemon")
-            end
-            return Strings("This Pokemon is blocked by your Nuzlocke rules.")
-        end
-  
-        mod.exports.__beta26.acquisitionDeniedMessage = acquisitionDeniedMessage
+        local acquisitionDeniedMessage = sharedAcquisitionDeniedMessage
 
         -- Native in-game trade gate. The engine's Commands.trade removes the
         -- selected outgoing Pokemon and creates the incoming Pokemon in one

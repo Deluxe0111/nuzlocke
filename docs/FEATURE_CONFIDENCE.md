@@ -1,4 +1,6 @@
-# Feature Confidence — 2.7.25
+# Feature Confidence — 2.7.28
+- **2.7.28 Gen2 title repair:** Yellow fresh NEW GAME SETUP is parent-runtime PASS; Gold parent fresh NEW GAME SETUP is confirmed FAIL. Repaired Gold/Silver fresh SETUP and continued-game SETUP suppression are TEST REQUIRED.
+- **2.7.27 Phase E #4–6:** STATIC/SEMANTIC/INTEGRITY validation required; hard move safety plus type/category soft weighting are implemented, but exact R/B/Y/G/S runtime determinism remains TEST REQUIRED.
 - **2.7.25 release promotion:** STATIC/SEMANTIC/INTEGRITY PASS inherited from exact 2.7.24 plus release-provenance validation. 2.7.25 itself remains RUNTIME TEST REQUIRED until separately exercised.
 - **2.7.24 documentation audit + Run History baseline persistence:** Static/Semantic PASS; documentation was reconciled to current shipped contracts and malformed baseline-counter persistence is covered by a pure Release Safety audit. Runtime behavior of ordinary gameplay is unchanged; malformed-save normalization remains Runtime TEST REQUIRED if exercised against a real edited/legacy save.
 - **2.7.23 Public Interop context consistency:** Static/Semantic PASS; multi-context compatibility inspection remains Runtime TEST REQUIRED.

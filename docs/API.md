@@ -1,5 +1,6 @@
-# Nuzlocke API — 2.7.25
+# Nuzlocke API — 2.7.28
 
+2.7.27 adds internal Learnset Randomizer hard-safety and soft semantic weighting only. Public API versions remain unchanged; providers can opt moves out through existing randomizable/protection metadata and should expose usable move records with a non-empty name and positive PP.
 2.7.25 is a release promotion only. Public API versions and the provider/developer contract are unchanged from exact 2.7.24.
 This document describes the **current provider/developer contract**. Historical API changes belong in `CHANGELOG.md`.
 

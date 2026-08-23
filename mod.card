@@ -5,6 +5,8 @@ return {
   tags = { "ruleset", "hardcore", "quality-of-life", "ui" },
   differences = {
     changed = {
+      "2.7.28 repairs inherited Gen2 boot/title SETUP integration and explicitly keeps SETUP hidden on continued games.",
+      "2.7.27 advances Randomizer Phase E through items 4-6: hard-safe move legality, type-aware soft weighting, damaging/status soft balance, and migration-safe lp2 learnset policy results.",
       "2.7.25 promotes exact 2.7.24 as the 2.7.x release build with no new gameplay semantics; it carries forward the completed hardening, documentation audit, Gen1Recomp 0.2.20 source audit, and Run History normalization repair.",
       "2.7.24 audits and reconciles all shipped documentation, restores missing 2.7.17 CHANGELOG history, and persists normalized malformed Run History baseline counters.",
                                                                                                                                                 "2.7.23 keeps Registry.describe(game) Randomizer ownership/delegation bound to the explicitly requested game context.",

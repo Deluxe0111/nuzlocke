@@ -1,8 +1,8 @@
-# Nuzlocke 2.7.25
+# Nuzlocke 2.7.28
 
 A configurable Nuzlocke ruleset for Gen1Recomp with exact-edition support for **Pokémon Red, Blue, Yellow, Gold, and Silver**.
 
-2.7.25 is the release promotion of exact 2.7.24. It carries forward the completed documentation/code audit, Gen1Recomp 0.2.20 source-compatibility review, and the small Run History baseline-normalization persistence repair without adding new gameplay semantics.
+2.7.28 is a strict development child of exact 2.7.27. It repairs inherited Gen2 initialization and Gold/Silver fresh-title SETUP paths while preserving Randomizer Phase E items 1–6. Continued games remain intentionally SETUP-free. The last published release checkpoint remains 2.7.25.
 
 ## Highlights
 

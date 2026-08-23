@@ -989,6 +989,313 @@ return function(mod, deps)
           return out
       end
 
+      -- 2.7.26 Phase E items 1-3: Learnsets now use the shared
+      -- candidate-policy engine, retain an immutable source identity for each
+      -- authored slot/level, and expose semantic move classifications for the
+      -- later balance/weighting steps.  Items 1-3 deliberately do not change
+      -- default move preference: every hard-safe move remains equally eligible.
+      local LEARNSET_POLICY_VERSION = 2
+
+      local function normalizeMoveType(value)
+          local text = tostring(value or ""):upper()
+          if text == "" or text == "NONE" or text == "NIL" then return nil end
+          return text
+      end
+
+      local function moveSemanticClass(def)
+          def = type(def) == "table" and def or {}
+          local power = tonumber(def.power or def.basePower or def.base_power
+              or def.damage or def.strength)
+          local accuracy = tonumber(def.accuracy or def.acc)
+          local moveType = normalizeMoveType(def.type or def.moveType
+              or def.move_type)
+          local category = tostring(def.category or def.damageClass
+              or def.damage_class or def.class or ""):upper()
+          local damaging
+          if category == "STATUS" or category == "NON-DAMAGING"
+              or category == "NON_DAMAGING" then
+              damaging = false
+          elseif category == "PHYSICAL" or category == "SPECIAL" then
+              damaging = true
+          elseif power ~= nil then
+              damaging = power > 0
+          end
+          local powerBand = "UNKNOWN"
+          if damaging == false or (power ~= nil and power <= 0) then
+              powerBand = "STATUS"
+          elseif power ~= nil then
+              if power <= 40 then powerBand = "LOW"
+              elseif power <= 70 then powerBand = "MEDIUM"
+              elseif power <= 100 then powerBand = "HIGH"
+              else powerBand = "VERY_HIGH" end
+          end
+          return {
+              type = moveType,
+              category = category ~= "" and category or nil,
+              damaging = damaging,
+              power = power,
+              powerBand = powerBand,
+              accuracy = accuracy,
+              priority = tonumber(def.priority),
+          }
+      end
+
+      local function buildMoveSemantics(game, pool)
+          local moves = game and game.data and game.data.moves or {}
+          local out = {}
+          for _, id in ipairs(type(pool) == "table" and pool or {}) do
+              local key = tostring(id or ""):upper()
+              if type(moves[key]) == "table" then
+                  out[key] = moveSemanticClass(moves[key])
+              elseif type(moves[id]) == "table" then
+                  out[key] = moveSemanticClass(moves[id])
+              end
+          end
+          return out
+      end
+
+      local function learnsetSourceIdentity(species, shape, index, level, originalMove)
+          local canonical = table.concat({
+              "LEARNSET_SOURCE:v1",
+              tostring(species or ""):upper(),
+              tostring(shape or ""):upper(),
+              tostring(math.max(1, math.floor(tonumber(index) or 1))),
+              "L" .. tostring(math.max(0, math.floor(tonumber(level) or 0))),
+          }, ":")
+          return {
+              canonical = canonical,
+              species = tostring(species or ""):upper(),
+              shape = tostring(shape or ""):upper(),
+              index = math.max(1, math.floor(tonumber(index) or 1)),
+              level = math.max(0, math.floor(tonumber(level) or 0)),
+              originalMove = tostring(originalMove or ""):upper(),
+          }
+      end
+
+      local function learnsetHardSafeMove(game, id)
+          local key = tostring(id or ""):upper()
+          if key == "" or key == "NONE" or key == "NO_MOVE"
+              or key == "STRUGGLE" then
+              return false, "invalid_move"
+          end
+          local moves = game and game.data and game.data.moves or {}
+          local def = moves[key] or moves[id]
+          if type(def) ~= "table" then return false, "missing_move" end
+
+          -- Phase E #4: explicit engine/provider unusability always wins.
+          if def.nuzlockeRandomizable == false or def.randomizable == false
+              or def.invalid == true or def.broken == true
+              or def.unusable == true or def.disabled == true
+              or def.placeholder == true or def.internalOnly == true
+              or def.internal_only == true then
+              return false, "provider_protected"
+          end
+          local policy = tostring(def.randomization
+              or def.nuzlockeRandomization or ""):lower()
+          if policy == "deny" or policy == "provider"
+              or policy == "preserve" or policy == "external"
+              or policy == "owned" or policy == "invalid"
+              or policy == "broken" or policy == "unusable" then
+              return false, "provider_protected"
+          end
+
+          -- A learnable move must have enough live registry data for the
+          -- native move system to present/use it. Fixed-damage and special
+          -- effect moves may legitimately have zero power, so power is not a
+          -- hard-safety requirement.
+          if type(def.name) ~= "string" or def.name == "" then
+              return false, "missing_name"
+          end
+          local pp = tonumber(def.pp or def.maxPP or def.max_pp)
+          if pp == nil or pp <= 0 then
+              return false, "invalid_pp"
+          end
+          return true
+      end
+
+      local function learnsetSpeciesTypes(game, species)
+          local def = game and game.data and game.data.pokemon
+              and game.data.pokemon[tostring(species or ""):upper()]
+          local out, seen = {}, {}
+          if type(def) == "table" and type(def.types) == "table" then
+              for _, value in pairs(def.types) do
+                  local moveType = normalizeMoveType(value)
+                  if moveType and not seen[moveType] then
+                      seen[moveType] = true
+                      out[#out + 1] = moveType
+                  end
+              end
+          end
+          return out
+      end
+
+      local function typeAffinityWeight(candidateSemantic, speciesTypes)
+          local candidateType = candidateSemantic
+              and normalizeMoveType(candidateSemantic.type)
+          if not candidateType then return 1 end
+          for _, speciesType in ipairs(speciesTypes or {}) do
+              if candidateType == speciesType then
+                  -- Phase E #5: mild type-aware affinity only. This is not the
+                  -- configurable STAB policy from Phase E #8.
+                  return 2
+              end
+          end
+          return 1
+      end
+
+      local function damageStatusBalanceWeight(candidateSemantic, originalSemantic)
+          local candidateDamaging = candidateSemantic
+              and candidateSemantic.damaging
+          local originalDamaging = originalSemantic
+              and originalSemantic.damaging
+          if candidateDamaging == nil or originalDamaging == nil then return 1 end
+          -- Phase E #6 preserves the authored damaging/status shape as a soft
+          -- preference while leaving every hard-safe candidate reachable.
+          return candidateDamaging == originalDamaging and 1.75 or 1
+      end
+
+      local function learnsetWeightedIndex(seed, stream, slot, candidates,
+          semantics, speciesTypes, originalSemantic)
+          if type(candidates) ~= "table" or #candidates == 0 then return nil end
+          if #candidates == 1 then return 1 end
+          local weights, total = {}, 0
+          for index, id in ipairs(candidates) do
+              local semantic = semantics[tostring(id or ""):upper()]
+              local weight = typeAffinityWeight(semantic, speciesTypes)
+                  * damageStatusBalanceWeight(semantic, originalSemantic)
+              if weight <= 0 then weight = 0.000001 end
+              weights[index] = weight
+              total = total + weight
+          end
+          if total <= 0 then return 1 end
+
+          local bucketCount = 1000000
+          local bucket
+          if tonumber(seed) and tonumber(seed) > 0 then
+              bucket = seededIndexFor(seed, stream,
+                  tostring(slot) .. ":learnset_weight", bucketCount) - 1
+          else
+              local rng = love and love.math and love.math.random or math.random
+              bucket = rng(0, bucketCount - 1)
+          end
+          local target = (bucket / bucketCount) * total
+          local cumulative = 0
+          for index, weight in ipairs(weights) do
+              cumulative = cumulative + weight
+              if target < cumulative then return index end
+          end
+          return #candidates
+      end
+
+      local function learnsetCandidates(game, pool, identity)
+          return mod.exports.__beta26.randomizerResolveCandidatePolicy({
+              subsystem = "LEARNSETS",
+              source = identity and identity.canonical or "unknown",
+              requested = "HARD_SAFE",
+              reason = "learnset_phase_e",
+          }, pool, {
+              function(id) return learnsetHardSafeMove(game, id) end,
+          }, {})
+      end
+
+      mod.exports.__beta26.randomizerLearnsetSourceIdentity =
+          learnsetSourceIdentity
+      mod.exports.__beta26.randomizerMoveSemanticClass = moveSemanticClass
+      mod.exports.__beta26.randomizerBuildMoveSemantics = buildMoveSemantics
+      mod.exports.__beta26.randomizerLearnsetHardSafeMove =
+          learnsetHardSafeMove
+      mod.exports.__beta26.randomizerLearnsetTypeAffinityWeight =
+          typeAffinityWeight
+      mod.exports.__beta26.randomizerLearnsetDamageStatusBalanceWeight =
+          damageStatusBalanceWeight
+
+      mod.exports.__beta26.randomizerLearnsetPhaseEFoundationAudit =
+          function()
+              local report = { ok = true, checked = 0, failures = {} }
+              local function check(ok, name)
+                  report.checked = report.checked + 1
+                  if not ok then
+                      report.ok = false
+                      report.failures[#report.failures + 1] = name
+                  end
+              end
+
+              local a = learnsetSourceIdentity(
+                  "PIKACHU", "level", 3, 26, "THUNDER_WAVE")
+              local b = learnsetSourceIdentity(
+                  "PIKACHU", "level", 3, 26, "QUICK_ATTACK")
+              local c = learnsetSourceIdentity(
+                  "PIKACHU", "level", 4, 26, "THUNDER_WAVE")
+              check(a.canonical == b.canonical,
+                  "source_identity_depends_on_move")
+              check(a.canonical ~= c.canonical,
+                  "source_identity_collides_between_slots")
+              check(a.level == 26 and a.shape == "LEVEL",
+                  "source_identity_loses_level_shape")
+
+              local damaging = moveSemanticClass({
+                  type="ELECTRIC", power=90, accuracy=100,
+                  category="SPECIAL",
+              })
+              check(damaging.type == "ELECTRIC"
+                  and damaging.damaging == true
+                  and damaging.powerBand == "HIGH",
+                  "semantic_damaging_classification")
+              local status = moveSemanticClass({
+                  type="NORMAL", power=0, category="STATUS",
+              })
+              check(status.damaging == false
+                  and status.powerBand == "STATUS",
+                  "semantic_status_classification")
+
+              check(typeAffinityWeight(
+                  { type="ELECTRIC" }, { "ELECTRIC" }) > 1
+                  and typeAffinityWeight(
+                      { type="WATER" }, { "ELECTRIC" }) == 1,
+                  "type_affinity_weight")
+              check(damageStatusBalanceWeight(
+                  { damaging=true }, { damaging=true })
+                    > damageStatusBalanceWeight(
+                        { damaging=false }, { damaging=true }),
+                  "damage_status_balance_weight")
+
+              local fakeGame = {
+                  data = {
+                      moves = {
+                          GOOD = { name="Good", pp=10, power=50,
+                              type="NORMAL" },
+                          BROKEN = { name="Broken", pp=10, broken=true },
+                          ZERO_PP = { name="Zero", pp=0 },
+                          PROVIDER = { name="Provider", pp=10,
+                              nuzlockeRandomizable=false },
+                      },
+                  },
+              }
+              local good = learnsetHardSafeMove(fakeGame, "GOOD")
+              local broken = learnsetHardSafeMove(fakeGame, "BROKEN")
+              local zeroPp = learnsetHardSafeMove(fakeGame, "ZERO_PP")
+              local provider = learnsetHardSafeMove(fakeGame, "PROVIDER")
+              check(good == true and broken == false
+                  and zeroPp == false and provider == false,
+                  "learnset_hard_safety")
+
+              local weightedPool = { "A", "B", "C" }
+              local weightedSemantics = {
+                  A = { type="ELECTRIC", damaging=true },
+                  B = { type="NORMAL", damaging=true },
+                  C = { type="NORMAL", damaging=false },
+              }
+              local first = learnsetWeightedIndex(
+                  12345, "LEARNSETS", "audit", weightedPool,
+                  weightedSemantics, { "ELECTRIC" }, { damaging=true })
+              local second = learnsetWeightedIndex(
+                  12345, "LEARNSETS", "audit", weightedPool,
+                  weightedSemantics, { "ELECTRIC" }, { damaging=true })
+              check(first == second and first >= 1 and first <= 3,
+                  "learnset_weight_determinism")
+              return report
+          end
+
       local function persistedMap(key)
           local value = mod.save:get(key, {})
           return type(value) == "table" and value or {}
@@ -1017,11 +1324,21 @@ return function(mod, deps)
           -- the new policy namespace when its result is still legal there.
           for _, legacyScope in ipairs(type(options.legacyScopes) == "table"
               and options.legacyScopes or {}) do
-              local legacyScoped = seed > 0 and table.concat({
+              local legacyStorageScoped = seed > 0 and table.concat({
                   "v" .. tostring(Randomizer.algorithmVersion),
                   "s" .. tostring(seed), tostring(legacyScope), storageSlot
               }, ":") or storageSlot
-              local prior = tostring(map[legacyScoped] or ""):upper()
+              local legacySeedScoped = seed > 0 and table.concat({
+                  "v" .. tostring(Randomizer.algorithmVersion),
+                  "s" .. tostring(seed), tostring(legacyScope), seedSlot
+              }, ":") or seedSlot
+              local prior = tostring(map[legacyStorageScoped] or ""):upper()
+              if prior == "" and legacySeedScoped ~= legacyStorageScoped then
+                  -- A subsystem may upgrade both policy namespace and storage
+                  -- identity at once. Check the historical RNG/source slot too
+                  -- so an existing legal mapping is not needlessly rerolled.
+                  prior = tostring(map[legacySeedScoped] or ""):upper()
+              end
               if prior ~= "" and (not valid or valid(prior)) then
                   map[storageScoped] = prior
                   mod.save:set(key, map)
@@ -2388,9 +2705,67 @@ return function(mod, deps)
           -- GEN2 on an R/B/Y registry intentionally fails open: no fake moves.
           if #pool == 0 then return false end
           local moves = game.data.moves or {}
+          -- Build semantic metadata once per apply pass. Phase E item 3 makes
+          -- this authoritative context available without yet changing default
+          -- selection weights; later Phase E items consume these classifications.
+          Randomizer.learnsetSemantics = buildMoveSemantics(game, pool)
           local speciesIds = {}
           for species in pairs(game.data.pokemon or {}) do speciesIds[#speciesIds + 1] = species end
           table.sort(speciesIds, function(a, b) return tostring(a) < tostring(b) end)
+
+          local function applyLearnsetSlot(species, shape, index, level,
+              originalMove, assign)
+              local identity = learnsetSourceIdentity(
+                  species, shape, index, level, originalMove)
+              local candidates = learnsetCandidates(game, pool, identity)
+              if #candidates == 0 then return false end
+
+              -- Preserve the historical RNG identity/scope for existing v1
+              -- mappings while upgrading persistence to immutable source
+              -- identity. stableChoice adopts the old seed-scoped row first.
+              local legacySlot
+              if shape == "level1" then
+                  legacySlot = tostring(species) .. ".level1." .. tostring(index)
+              elseif shape == "level" then
+                  legacySlot = tostring(species) .. ".level." .. tostring(index)
+              else
+                  legacySlot = tostring(species) .. ".levelMoves." .. tostring(index)
+              end
+              local legacyScope = "g" .. tostring(generation)
+              local scope = "lp" .. tostring(LEARNSET_POLICY_VERSION)
+                  .. "." .. legacyScope
+              local speciesTypes = learnsetSpeciesTypes(game, species)
+              local originalDef = moves[
+                  tostring(originalMove or ""):upper()] or moves[originalMove]
+              local originalSemantic = type(originalDef) == "table"
+                  and moveSemanticClass(originalDef) or nil
+              local choice = stableChoice(
+                  RANDOMIZER_SOURCE_MAPS.LEARNSETS.saveKey,
+                  legacySlot,
+                  candidates,
+                  function(id)
+                      return learnsetHardSafeMove(game, id) == true
+                  end,
+                  RANDOMIZER_STREAMS.LEARNSETS,
+                  scope,
+                  {
+                      storageSlot = identity.canonical,
+                      seedSlot = legacySlot,
+                      legacyScopes = { legacyScope },
+                      choose = function(ctx)
+                          return learnsetWeightedIndex(
+                              ctx.seed, ctx.stream, ctx.seedScoped,
+                              ctx.pool, Randomizer.learnsetSemantics or {},
+                              speciesTypes, originalSemantic)
+                      end,
+                  })
+              if choice then
+                  assign(choice)
+                  return true
+              end
+              return false
+          end
+
           for _, species in ipairs(speciesIds) do
               local def = game.data.pokemon[species]
               local allowSpecies = type(def) == "table"
@@ -2400,37 +2775,29 @@ return function(mod, deps)
                   if ok and permitted == false then allowSpecies = false end
               end
               if allowSpecies then
-                  for i in ipairs(def.level1Moves or {}) do
-                      local slot = tostring(species) .. ".level1." .. tostring(i)
-                      local choice = stableChoice(RANDOMIZER_SOURCE_MAPS.LEARNSETS.saveKey,
-                          slot, pool,
-                          function(id) return type(moves[id]) == "table" end,
-                          RANDOMIZER_STREAMS.LEARNSETS, "g" .. tostring(generation))
-                      if choice then def.level1Moves[i] = choice end
+                  for i, originalMove in ipairs(def.level1Moves or {}) do
+                      applyLearnsetSlot(species, "level1", i, 1, originalMove,
+                          function(choice) def.level1Moves[i] = choice end)
                   end
                   for i, entry in ipairs(def.learnset or {}) do
                       if type(entry) == "table" then
-                          local slot = tostring(species) .. ".level." .. tostring(i)
-                          local choice = stableChoice(RANDOMIZER_SOURCE_MAPS.LEARNSETS.saveKey,
-                              slot, pool,
-                              function(id) return type(moves[id]) == "table" end,
-                              RANDOMIZER_STREAMS.LEARNSETS, "g" .. tostring(generation))
-                          if choice then entry.move = choice end
+                          local level = entry.level or entry[1] or 0
+                          local originalMove = entry.move or entry[2]
+                          applyLearnsetSlot(species, "level", i, level,
+                              originalMove,
+                              function(choice) entry.move = choice end)
                       end
                   end
                   -- Gold/Gen2 species use levelMoves rather than the Gen1
-                  -- level1Moves/learnset pair. Preserve the level and row count
-                  -- exactly; only replace the move id through the same seeded
-                  -- LEARNSETS stream. If a provider exposes both shapes, both
-                  -- remain deterministic and internally consistent.
+                  -- level1Moves/learnset pair. Preserve authored level and row
+                  -- identity exactly while replacing only the move id.
                   for i, entry in ipairs(def.levelMoves or {}) do
                       if type(entry) == "table" then
-                          local slot = tostring(species) .. ".levelMoves." .. tostring(i)
-                          local choice = stableChoice(RANDOMIZER_SOURCE_MAPS.LEARNSETS.saveKey,
-                              slot, pool,
-                              function(id) return type(moves[id]) == "table" end,
-                              RANDOMIZER_STREAMS.LEARNSETS, "g" .. tostring(generation))
-                          if choice then entry.move = choice end
+                          local level = entry.level or entry[1] or 0
+                          local originalMove = entry.move or entry[2]
+                          applyLearnsetSlot(species, "levelMoves", i, level,
+                              originalMove,
+                              function(choice) entry.move = choice end)
                       end
                   end
               end

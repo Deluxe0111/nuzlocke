@@ -1,6 +1,6 @@
-# Nuzlocke User Guide — 2.7.25
-
-2.7.25 is a release promotion only. Player-facing rule behavior is unchanged from exact 2.7.24.
+# Nuzlocke User Guide — 2.7.28
+2.7.28 repairs Gold/Silver startup/title setup integration. On a fresh Gen2 game, SETUP belongs immediately before NEW GAME; when a valid save exposes CONTINUE, SETUP is intentionally hidden. Randomizer Phase E items 1–6 remain unchanged.
+2.7.27 is a development build. Random Learnsets now exclude unusable/broken/invalid live move records and apply deterministic soft type-affinity plus authored damaging/status-shape weighting. These are soft preferences only; every hard-safe move remains reachable. Explicit STAB controls are reserved for Phase E #8.
 This guide describes **what the mod does now**. Historical changes belong in `CHANGELOG.md`.
 
 World Building remains independent of the Nuzlocke master switch as a presentation feature. Encounter/Learnset Randomizer subsystems use explicit disabled/delegated/applied lifecycle states, and Randomizer information policy is shown whenever Nuzlocke owns at least one supported Randomizer surface, including learnset-only runs.
