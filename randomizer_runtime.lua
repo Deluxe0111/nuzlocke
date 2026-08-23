@@ -809,7 +809,8 @@ return function(mod, deps)
                   and state.state ~= "applied"
                   and state.state ~= "delegated"
                   and state.state ~= "provider_adopted"
-                  and state.state ~= "restored") then
+                  and state.state ~= "restored"
+                  and state.state ~= "disabled") then
                   report.ok = false
                   report.failures[#report.failures + 1] = key .. ":invalid_state"
               end
@@ -1461,9 +1462,10 @@ return function(mod, deps)
           end
       end
 
-      local function encounterPreferenceStages(game, node, original, pool, balance)
+      local function encounterPreferenceStages(
+          game, node, original, pool, balance, sharedProfile)
           if balance <= 0 then return {}, "CHAOS" end
-          local profile = encounterEvolutionProfile(game)
+          local profile = sharedProfile or encounterEvolutionProfile(game)
           local originalStage = profile.stage(original)
           local originalDepth = profile.depth(original)
           local originalRemaining = profile.remaining(original)
@@ -1528,7 +1530,7 @@ return function(mod, deps)
       local ENCOUNTER_POLICY_VERSION = 2
 
       local function randomizeEncounterLeaf(
-          game, leaf, pool, pokemon, groupUsage, repetition)
+          game, leaf, pool, pokemon, groupUsage, repetition, sharedProfile)
           local node = leaf.node
           local identity = leaf.identity
           local protectedReason = encounterLeafProtectionReason(node, identity)
@@ -1568,7 +1570,8 @@ return function(mod, deps)
           local diversityFactor = diversityFactors[diversityStrength] or 0.45
           local generation = effectiveRandomSpeciesGeneration()
           local stages, requested =
-              encounterPreferenceStages(game, node, original, pool, balance)
+              encounterPreferenceStages(
+                  game, node, original, pool, balance, sharedProfile)
           local candidates = mod.exports.__beta26.randomizerResolveCandidatePolicy({
               subsystem = "ENCOUNTERS",
               source = identity.canonical,
@@ -1666,7 +1669,19 @@ return function(mod, deps)
       -- canonical source identity, then apply. Generation therefore cannot
       -- depend on map visit order, provider table insertion order, or which
       -- table a consumer happens to inspect first.
-      local function randomizeEncounterRegistry(game, registry, pool, pokemon)
+      local function encounterProfileForPass(game, balance, perfStats)
+          balance = math.max(0, math.min(3,
+              math.floor(tonumber(balance) or 0)))
+          if balance <= 0 then return nil end
+          if type(perfStats) == "table" then
+              perfStats.profileBuilds =
+                  (tonumber(perfStats.profileBuilds) or 0) + 1
+          end
+          return encounterEvolutionProfile(game)
+      end
+
+      local function randomizeEncounterRegistry(
+          game, registry, pool, pokemon, perfStats)
           local leaves = {}
           collectEncounterLeaves(registry, "encounters", leaves)
           table.sort(leaves, function(a, b)
@@ -1677,13 +1692,41 @@ return function(mod, deps)
           end)
           local repetition = math.max(0, math.min(2, math.floor(tonumber(
               mod.save:get("random_encounter_repetition", 0)) or 0)))
+          local balance = math.max(0, math.min(3, math.floor(tonumber(
+              mod.save:get("random_encounter_balance", 0)) or 0)))
+          local sharedProfile =
+              encounterProfileForPass(game, balance, perfStats)
           local groupUsage = {}
           for _, leaf in ipairs(leaves) do
               randomizeEncounterLeaf(
-                  game, leaf, pool, pokemon, groupUsage, repetition)
+                  game, leaf, pool, pokemon, groupUsage, repetition,
+                  sharedProfile)
           end
           return leaves
       end
+
+      mod.exports.__beta26.randomizerEncounterProfileBuildAudit =
+          function(game)
+              game = game or getCurrentGame() or mod.game
+              local report = { ok = true, checked = 0, failures = {} }
+              local function check(id, balance, expected)
+                  local stats = { profileBuilds = 0 }
+                  encounterProfileForPass(game, balance, stats)
+                  report.checked = report.checked + 1
+                  if stats.profileBuilds ~= expected then
+                      report.ok = false
+                      report.failures[#report.failures + 1] =
+                          tostring(id) .. ":" .. tostring(stats.profileBuilds)
+                  end
+              end
+              -- Exact expectations matter: balanced modes require one build,
+              -- while CHAOS must retain the zero-build cheap path.
+              check("chaos_apply_boundary", 0, 0)
+              check("balanced_apply_boundary", 3, 1)
+              check("chaos_info_boundary", 0, 0)
+              check("balanced_info_boundary", 2, 1)
+              return report
+          end
 
       mod.exports.__beta26.randomizerEncounterPlan = function(game)
           game = game or getCurrentGame() or mod.game
@@ -1751,7 +1794,7 @@ return function(mod, deps)
           return state
       end
 
-      local function encounterInfoRows(game, reveal)
+      local function encounterInfoRows(game, reveal, perfStats)
           local registry = liveEncounterRegistry(game)
           if type(registry) ~= "table" then return {}, 0, 0 end
           local leaves = {}
@@ -1777,6 +1820,8 @@ return function(mod, deps)
           local pool = speciesPool(game)
           local balance = math.max(0, math.min(3, math.floor(tonumber(
               mod.save:get("random_encounter_balance", 0)) or 0)))
+          local sharedProfile =
+              encounterProfileForPass(game, balance, perfStats)
           local protectedCount = 0
           local rows = {}
           for _, leaf in ipairs(leaves) do
@@ -1804,7 +1849,8 @@ return function(mod, deps)
                   local original = originalSpecies[identity.canonical]
                       or tostring(node.species or ""):upper()
                   local stages, requested =
-                      encounterPreferenceStages(game, node, original, pool, balance)
+                      encounterPreferenceStages(
+                          game, node, original, pool, balance, sharedProfile)
                   row.originalSpeciesKnown =
                       originalSpecies[identity.canonical] ~= nil
                   local candidates, meta =
@@ -2223,14 +2269,24 @@ return function(mod, deps)
               Randomizer.encounterRegistry = nil
               Randomizer.encounterApplied = nil
               setProjectionState("ENCOUNTERS", "delegated", nil)
-              return true
+              return true, "delegated"
           end
-          if not snapshotEncounters(game) then return false end
+          local enabled = mod.save:get("random_encounter_tables", false) == true
+          if not enabled then
+              if Randomizer.encounterSnapshot ~= nil then
+                  if liveEncounterRegistry(game) == nil then
+                      return false, "restore_unavailable"
+                  end
+                  restoreEncounterRegistry(game)
+                  Randomizer.encounterApplied = copy(liveEncounterRegistry(game))
+              end
+              setProjectionState("ENCOUNTERS", "disabled", nil)
+              return true, "disabled"
+          end
+          if not snapshotEncounters(game) then
+              return false, "registry_unavailable"
+          end
           restoreEncounterRegistry(game)
-          if mod.save:get("random_encounter_tables", false) ~= true then
-              Randomizer.encounterApplied = copy(liveEncounterRegistry(game))
-              return true
-          end
           local pool = speciesPool(game)
           if #pool == 0 then return false end
           randomizeEncounterRegistry(game, liveEncounterRegistry(game),
@@ -2240,7 +2296,7 @@ return function(mod, deps)
           if mod.exports.nuzlocke and mod.exports.nuzlocke.registry then
               mod.exports.nuzlocke.registry.changed("encounters", game, "random_encounters")
           end
-          return true
+          return true, "applied"
       end
 
       -- Learnset ownership is deliberately projected to the only three fields
@@ -2309,11 +2365,24 @@ return function(mod, deps)
               Randomizer.learnsetRegistry = nil
               Randomizer.learnsetApplied = nil
               setProjectionState("LEARNSETS", "delegated", nil)
-              return true
+              return true, "delegated"
           end
-          if not snapshotLearnsets(game) then return false end
+          local enabled = mod.save:get("random_learnsets", false) == true
+          if not enabled then
+              if Randomizer.learnsetSnapshot ~= nil then
+                  if not (game and game.data
+                      and type(game.data.pokemon) == "table") then
+                      return false, "restore_unavailable"
+                  end
+                  restoreLearnsets(game)
+              end
+              setProjectionState("LEARNSETS", "disabled", nil)
+              return true, "disabled"
+          end
+          if not snapshotLearnsets(game) then
+              return false, "registry_unavailable"
+          end
           restoreLearnsets(game)
-          if mod.save:get("random_learnsets", false) ~= true then return true end
           local generation = effectiveRandomLearnsetGeneration()
           local pool = movePool(game, generation)
           -- GEN2 on an R/B/Y registry intentionally fails open: no fake moves.
@@ -2371,7 +2440,7 @@ return function(mod, deps)
           if mod.exports.nuzlocke and mod.exports.nuzlocke.registry then
               mod.exports.nuzlocke.registry.changed("learnsets", game, "random_learnsets")
           end
-          return true
+          return true, "applied"
       end
 
       -- 2.5.25 visible field/item-ball randomizer. This is intentionally
@@ -3426,10 +3495,40 @@ return function(mod, deps)
       end
 
       function Randomizer.applyAll(game)
-          if saveBlocked() then return false end
+          local report = { ok = true, encounters = nil, learnsets = nil, failures = {} }
+          if saveBlocked() then
+              report.ok = false
+              report.failures[#report.failures + 1] = "save_blocked"
+              Randomizer.lastApplyReport = report
+              return false, report
+          end
           game = game or getCurrentGame() or mod.game
-          Randomizer.applyEncounters(game)
-          Randomizer.applyLearnsets(game)
+          local okEnc, encResult, encState =
+              pcall(Randomizer.applyEncounters, game)
+          report.encounters = okEnc and encResult == true
+          report.encounter_state =
+              okEnc and tostring(encState or "applied") or "error"
+          if not okEnc or encResult ~= true then
+              report.ok = false
+              report.failures[#report.failures + 1] = okEnc
+                  and ("encounters_" .. tostring(encState or "returned_false"))
+                  or ("encounters_error:" .. tostring(encResult))
+          end
+          local okLearn, learnResult, learnState =
+              pcall(Randomizer.applyLearnsets, game)
+          report.learnsets = okLearn and learnResult == true
+          report.learnset_state =
+              okLearn and tostring(learnState or "applied") or "error"
+          if not okLearn or learnResult ~= true then
+              report.ok = false
+              report.failures[#report.failures + 1] = okLearn
+                  and ("learnsets_" .. tostring(learnState or "returned_false"))
+                  or ("learnsets_error:" .. tostring(learnResult))
+          end
+          report.active = report.encounter_state ~= "disabled"
+              or report.learnset_state ~= "disabled"
+          Randomizer.lastApplyReport = report
+          return report.ok, report
       end
 
       mod.exports.__beta26.Randomizer = Randomizer
@@ -3557,13 +3656,32 @@ return function(mod, deps)
 
       -- Re-apply after provider registries have settled and when a save/game
       -- becomes authoritative. Idempotent snapshots prevent stacking rolls.
-      mod.events:on("mods.loaded", function() pcall(Randomizer.applyAll, getCurrentGame() or mod.game) end)
+      local function applyForLifecycle(game)
+          local ok, report = Randomizer.applyAll(game)
+          if ok ~= true and type(mod.exports.__beta26.noteFeatureHealth) == "function" then
+              mod.exports.__beta26.noteFeatureHealth("randomizer.apply", "FAIL",
+                  type(report) == "table" and table.concat(report.failures or {}, ",")
+                      or "apply_failed", "randomizer.apply")
+          elseif ok == true and type(mod.exports.__beta26.noteFeatureHealth) == "function" then
+              if type(report) == "table" and report.active == false then
+                  mod.exports.__beta26.noteFeatureHealth("randomizer.apply", "N/A",
+                      "encounter/learnset randomizers disabled", "randomizer.apply")
+              else
+                  mod.exports.__beta26.noteFeatureHealth("randomizer.apply", "ACTIVE", nil,
+                      "randomizer.apply")
+              end
+          end
+          return ok, report
+      end
+      mod.events:on("mods.loaded", function()
+          applyForLifecycle(getCurrentGame() or mod.game)
+      end)
       mod.events:on("game.ready", function(ev)
           local game = type(ev) == "table" and ev.game or ev
-          pcall(Randomizer.applyAll, game or getCurrentGame() or mod.game)
+          applyForLifecycle(game or getCurrentGame() or mod.game)
       end)
       mod.events:on("save.loaded", function()
-          pcall(Randomizer.applyAll, getCurrentGame() or mod.game)
+          applyForLifecycle(getCurrentGame() or mod.game)
       end)
   end
 

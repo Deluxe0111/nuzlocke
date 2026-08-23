@@ -59,14 +59,67 @@ return function(mod, deps)
       return root.dedupe
   end
   
+  mod.exports.__beta26.RunHistory.dedupeIndexMatches = function(root)
+      if type(root) ~= "table" or type(root.events) ~= "table"
+          or type(root.dedupe) ~= "table" then
+          return false, "missing_table"
+      end
+      local expected = {}
+      for _, row in ipairs(root.events) do
+          if type(row) == "table" and type(row.dedupe) == "string"
+              and row.dedupe ~= "" then
+              expected[row.dedupe] = row.seq or true
+          end
+      end
+      for key, value in pairs(expected) do
+          if root.dedupe[key] ~= value then
+              return false, "missing_or_wrong:" .. tostring(key)
+          end
+      end
+      for key, value in pairs(root.dedupe) do
+          if expected[key] ~= value then
+              return false, "phantom_or_wrong:" .. tostring(key)
+          end
+      end
+      return true
+  end
+
+  local function normalizeBaselineCounter(value)
+      local normalized = math.max(0, math.floor(tonumber(value) or 0))
+      return normalized, value ~= normalized
+  end
+
+  mod.exports.__beta26.RunHistory.baselineNormalizationAudit = function()
+      local cases = {
+          { value = 3, expected = 3, changed = false },
+          { value = "3", expected = 3, changed = true },
+          { value = -4, expected = 0, changed = true },
+          { value = 2.9, expected = 2, changed = true },
+          { value = "bad", expected = 0, changed = true },
+      }
+      local failures = {}
+      for index, case in ipairs(cases) do
+          local normalized, changed = normalizeBaselineCounter(case.value)
+          if normalized ~= case.expected or changed ~= case.changed then
+              failures[#failures + 1] = "case_" .. tostring(index)
+          end
+      end
+      return { ok = #failures == 0, failures = failures, checked = #cases }
+  end
+
   mod.exports.__beta26.RunHistory.ensure = function(game)
       if deps.saveBlocked() then return nil, "newer_schema" end
       local root = mod.save:get(mod.exports.__beta26.RunHistory.storage_key, {})
       if type(root) ~= "table" then root = {} end
       local changed = false
-      if tonumber(root.version) ~= mod.exports.__beta26.RunHistory.storage_version then
-          -- v1 is the first format. Future format upgrades should be explicit
-          -- rather than interpreting unknown history rows as current data.
+      local storedVersion = tonumber(root.version)
+      local currentVersion = mod.exports.__beta26.RunHistory.storage_version
+      if storedVersion ~= nil and storedVersion > currentVersion then
+          return nil, "newer_history_schema"
+      end
+      if storedVersion ~= currentVersion then
+          -- v1 is the first format. Missing/legacy state may initialize v1;
+          -- future versions were rejected above and remain untouched.
           local legacy = mod.save:get("nuzlocke_history", {})
           local baselineCatches = 0
           if type(deps.countTrackerCatches) == "function" then
@@ -90,7 +143,9 @@ return function(mod, deps)
       end
       if type(root.events) ~= "table" then root.events = {}; changed = true end
       if type(root.summary) ~= "table" then root.summary = {}; changed = true end
-      if type(root.dedupe) ~= "table" then
+      local dedupeOk = type(root.dedupe) == "table"
+          and mod.exports.__beta26.RunHistory.dedupeIndexMatches(root) == true
+      if not dedupeOk then
           mod.exports.__beta26.RunHistory.rebuildDedupe(root)
           changed = true
       end
@@ -99,9 +154,26 @@ return function(mod, deps)
           changed = true
       end
       if root.partial == nil then root.partial = false; changed = true end
-      root.baseline_catches = math.max(0, math.floor(tonumber(root.baseline_catches) or 0))
-      root.baseline_deaths = math.max(0, math.floor(tonumber(root.baseline_deaths) or 0))
-      root.next_seq = math.max(1, math.floor(tonumber(root.next_seq) or 1))
+      local normalizedBaselineCatches, catchesChanged =
+          normalizeBaselineCounter(root.baseline_catches)
+      local normalizedBaselineDeaths, deathsChanged =
+          normalizeBaselineCounter(root.baseline_deaths)
+      if catchesChanged or deathsChanged then changed = true end
+      root.baseline_catches = normalizedBaselineCatches
+      root.baseline_deaths = normalizedBaselineDeaths
+      -- 2.7.4: recover sequence state from the retained journal. A malformed
+      -- or stale next_seq must never reuse an earlier event number.
+      local maxRetainedSeq = 0
+      for _, row in ipairs(root.events) do
+          if type(row) == "table" then
+              maxRetainedSeq = math.max(maxRetainedSeq,
+                  math.max(0, math.floor(tonumber(row.seq) or 0)))
+          end
+      end
+      local storedNextSeq = math.floor(tonumber(root.next_seq) or 0)
+      local repairedNextSeq = math.max(1, maxRetainedSeq + 1, storedNextSeq)
+      if storedNextSeq ~= repairedNextSeq then changed = true end
+      root.next_seq = repairedNextSeq
       if root.edition == nil then
           root.edition = mod.exports.__beta26.Dev.gameId(game or deps.currentGame() or mod.game)
           changed = true
@@ -119,8 +191,27 @@ return function(mod, deps)
           root.run_id = tostring(root.edition) .. ":" .. tostring(playerId)
           changed = true
       end
-      if changed then mod.save:set(mod.exports.__beta26.RunHistory.storage_key, root) end
+      if changed then
+          local okWrite, writeResult = pcall(mod.save.set, mod.save,
+              mod.exports.__beta26.RunHistory.storage_key, root)
+          if not okWrite then
+              return nil, "history_repair_write_error:" .. tostring(writeResult)
+          end
+          if writeResult == false then
+              return nil, "history_repair_write_rejected"
+          end
+      end
       return root
+  end
+
+  mod.exports.__beta26.RunHistory.hasDedupe = function(game, dedupe)
+      dedupe = tostring(dedupe or "")
+      if dedupe == "" then return false end
+      local root, ensureErr = mod.exports.__beta26.RunHistory.ensure(game)
+      if type(root) ~= "table" then
+          return nil, tostring(ensureErr or "unavailable")
+      end
+      return root.dedupe[dedupe] ~= nil, root.dedupe[dedupe]
   end
   
   mod.exports.__beta26.RunHistory.append = function(game, kind, payload, opts)
@@ -128,8 +219,10 @@ return function(mod, deps)
       if deps.saveBlocked() then return false, "newer_schema" end
       kind = tostring(kind or "")
       if kind == "" then return false, "missing_kind" end
-      local root = mod.exports.__beta26.RunHistory.ensure(game)
-      if type(root) ~= "table" then return false, "unavailable" end
+      local root, ensureErr = mod.exports.__beta26.RunHistory.ensure(game)
+      if type(root) ~= "table" then
+          return false, tostring(ensureErr or "unavailable")
+      end
       local dedupe = tostring(opts.dedupe or "")
       if dedupe ~= "" and root.dedupe[dedupe] ~= nil then
           return false, "duplicate"
@@ -156,7 +249,14 @@ return function(mod, deps)
       if #root.events >= mod.exports.__beta26.RunHistory.max_events then
           mod.exports.__beta26.RunHistory.rebuildDedupe(root)
       end
-      mod.save:set(mod.exports.__beta26.RunHistory.storage_key, root)
+      local okWrite, writeResult = pcall(mod.save.set, mod.save,
+          mod.exports.__beta26.RunHistory.storage_key, root)
+      if not okWrite then
+          return false, "history_write_error:" .. tostring(writeResult)
+      end
+      if writeResult == false then
+          return false, "history_write_rejected"
+      end
       if mod.events and type(mod.events.emit) == "function" then
           pcall(mod.events.emit, mod.events, "nuzlocke.run_history", {
               game = live, event = row, run_id = root.run_id,
@@ -311,8 +411,10 @@ return function(mod, deps)
   
   mod.exports.__beta26.RunHistory.list = function(game, opts)
       opts = opts or {}
-      local root = mod.exports.__beta26.RunHistory.ensure(game)
-      if type(root) ~= "table" then return {} end
+      local root, ensureErr = mod.exports.__beta26.RunHistory.ensure(game)
+      if type(root) ~= "table" then
+          return nil, tostring(ensureErr or "unavailable")
+      end
       local out = {}
       local kind = opts.kind and tostring(opts.kind) or nil
       local after = tonumber(opts.after_seq) or 0
@@ -329,8 +431,10 @@ return function(mod, deps)
   end
   
   mod.exports.__beta26.RunHistory.report = function(game)
-      local root = mod.exports.__beta26.RunHistory.ensure(game)
-      if type(root) ~= "table" then return nil end
+      local root, ensureErr = mod.exports.__beta26.RunHistory.ensure(game)
+      if type(root) ~= "table" then
+          return nil, tostring(ensureErr or "unavailable")
+      end
       local summary = {}
       for key, value in pairs(root.summary or {}) do summary[key] = value end
       return {
@@ -419,8 +523,16 @@ return function(mod, deps)
               end
           end
       end
-      if tonumber(root.next_seq) ~= nil and tonumber(root.next_seq) <= previous then
+      if tonumber(root.next_seq) == nil then
+          failures[#failures + 1] = "next_seq missing or invalid"
+      elseif tonumber(root.next_seq) <= previous then
           failures[#failures + 1] = "next_seq does not advance"
+      end
+      local dedupeOk, dedupeDetail =
+          mod.exports.__beta26.RunHistory.dedupeIndexMatches(root)
+      if dedupeOk ~= true then
+          failures[#failures + 1] =
+              "dedupe index mismatch:" .. tostring(dedupeDetail)
       end
       return { ok = #failures == 0, failures = failures, events = #root.events }
   end

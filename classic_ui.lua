@@ -783,9 +783,28 @@ return function(mod, deps)
               -- table here; once the save exists, mod.save is authoritative.
               local names = {}
               if mod.save:get("nuzlocke_enabled", true) ~= true then
-                  return { Strings("Nuzlocke OFF") }, {
-                      { title = "CORE", names = { Strings("Nuzlocke OFF") } }
+                  local offLabel = Strings("Nuzlocke OFF")
+                  local offNames = { offLabel }
+                  local offGroups = {
+                      { title = "CORE", names = { offLabel } }
                   }
+                  -- World Building is an independent presentation option and
+                  -- remains active when the challenge master switch is OFF.
+                  local tier = math.max(0, math.min(3,
+                      math.floor(tonumber(mod.save:get("world_building_tier",
+                          defaultRuleValue("world_building_tier")))
+                          or defaultRuleValue("world_building_tier"))))
+                  if tier > 0 then
+                      local worldLabel = Strings("World %s", Strings(
+                          ({ [1] = "TIER 1", [2] = "TIER 2",
+                             [3] = "TIER 3" })[tier]))
+                      offNames[#offNames + 1] = worldLabel
+                      offGroups[#offGroups + 1] = {
+                          title = "WORLD",
+                          names = { worldLabel },
+                      }
+                  end
+                  return offNames, offGroups
               end
               local lockeType = math.max(0, math.min(6,
                   math.floor(tonumber(mod.save:get("locke_type",
@@ -924,6 +943,7 @@ return function(mod, deps)
                       local encountersOwned = mod.save:get("random_encounter_tables", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", self.game))
                       local fieldItemsOwned = mod.save:get("random_field_items", false) == true
+                          and not (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game))
                       local learnsetsOwned = mod.save:get("random_learnsets", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_learnsets", self.game))
                       local seed = type(mod.exports.__beta26.randomizerSeed) == "function"
@@ -944,10 +964,12 @@ return function(mod, deps)
                           or (externalRuleDelegation and externalRuleDelegation("random_starter", self.game)) then return nil end
                       return tonumber(value) == 1 and Strings("Trio AUTO") or Strings("Trio OFF")
                   elseif rule.key == "random_field_item_balance" then
-                      if mod.save:get("random_field_items", false) ~= true then return nil end
+                      if mod.save:get("random_field_items", false) ~= true
+                          or (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game)) then return nil end
                       return Strings("Items %s", ({ [0]="CHAOS", [1]="CATEGORY", [2]="BALANCED" })[tonumber(value) or 0] or "CHAOS")
                   elseif rule.key == "random_field_item_repetition" then
-                      if mod.save:get("random_field_items", false) ~= true then return nil end
+                      if mod.save:get("random_field_items", false) ~= true
+                          or (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game)) then return nil end
                       return Strings("ItemRep %s", ({ [0]="ALLOW", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "ALLOW")
                   elseif rule.key == "random_encounter_balance" then
                       if mod.save:get("random_encounter_tables", false) ~= true
@@ -963,8 +985,16 @@ return function(mod, deps)
                           or (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", self.game)) then return nil end
                       return Strings("Diversity %s", ({ [0]="LIGHT", [1]="STANDARD", [2]="STRONG" })[tonumber(value) or 1] or "STANDARD")
                   elseif rule.key == "randomizer_info_policy" then
-                      if mod.save:get("random_encounter_tables", false) ~= true
-                          and mod.save:get("random_starter", false) ~= true then return nil end
+                      local starterOwned = mod.save:get("random_starter", false) == true
+                          and not (externalRuleDelegation and externalRuleDelegation("random_starter", self.game))
+                      local encountersOwned = mod.save:get("random_encounter_tables", false) == true
+                          and not (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", self.game))
+                      local fieldItemsOwned = mod.save:get("random_field_items", false) == true
+                          and not (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game))
+                      local learnsetsOwned = mod.save:get("random_learnsets", false) == true
+                          and not (externalRuleDelegation and externalRuleDelegation("random_learnsets", self.game))
+                      if not starterOwned and not encountersOwned
+                          and not fieldItemsOwned and not learnsetsOwned then return nil end
                       return tonumber(value) == 1 and Strings("RNG BLIND") or Strings("RNG OPEN")
                   elseif rule.key == "gold_egg_encounter_mode" then
                       local mode = tonumber(value) or 0

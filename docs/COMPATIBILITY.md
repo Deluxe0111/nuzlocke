@@ -1,20 +1,17 @@
-# Nuzlocke Compatibility — 2.7.0
-2.7.0 changes no compatibility ownership/provider semantics from 2.6.98; it promotes the runtime-confirmed head to release.
-2.6.96 changes no compatibility ownership/provider semantics; it repairs current-build documentation header packaging only.
-2.6.95 changes no compatibility ownership/provider semantics; it repairs the NUZ RULES Randomizer rival-sync diagnostic path.
-2.6.94 changes no compatibility ownership/provider semantics; it expands the Lua unpack compatibility audit to the full shipped Lua inventory.
+# Nuzlocke Compatibility — 2.7.25
 
+2.7.25 is a release promotion only. Compatibility ownership/composition rules are unchanged from exact 2.7.24.
 This file describes **current compatibility ownership and composition rules**. Historical compatibility work belongs in `CHANGELOG.md`.
 
-2.6.93 changes no compatibility ownership or provider semantics; it repairs the World Building catalog startup golden only.
+Explicit game/context arguments are authoritative. A compatibility function may resolve a missing game through the current runtime once, but it must not mix registries from the requested game with ownership/delegation state from another current/global game. Randomizer ownership is provider-agnostic and Nuzlocke relinquishes local projection ownership while an external provider is active.
 
-## Correctness hardening — 2.6.91
+## Randomizer / transaction coexistence
 
 Learnset coexistence now compares only Nuzlocke-owned move-list fields (`level1Moves`, `learnset`, `levelMoves`). External providers may change unrelated Pokémon stats/types/metadata without accidentally transferring learnset ownership. No provider capability or Compatibility API version changes.
 
 Rare Candy to Cap now uses transaction-specific durable recovery checkpoints and versioned monotonic attempt IDs. These are internal save-safety mechanisms and do not change public compatibility ownership.
 
-## Stadium / Crystal 251 presentation and import compatibility — 2.6.91
+## Stadium / Crystal 251 presentation and import compatibility
 
 The Stadium provenance surface is now version 2 and explicitly distinguishes **model/ROM import** from **Pokémon acquisition**. Nuzlocke recognizes loaded `STADIUM_OVERWORLD_MODELS`, `STADIUM_UI_MODEL_VIEWER`, `STADIUM2_OVERWORLD_MODELS`, and `CRYSTAL_251` presentation/importer surfaces for diagnostics while preserving the engine's exact running Red/Blue/Yellow/Gold/Silver edition identity. Crystal 251 is therefore treated as an overlay/content provider, not as permission to rewrite the underlying edition to "Crystal".
 
@@ -44,10 +41,12 @@ The read-only randomizer compatibility snapshot reports current owner state for 
 
 - Gen1Recomp Mod API: **2**
 - Supported engine range: **`>=0.1.86 <2.0.0`**
-- Latest source-audited release: **0.2.19**
+- Latest source-audited release: **0.2.20**
 - Declared exact editions: Red, Blue, Yellow, Gold, Silver
 
-The complete 17-commit 0.2.18 → 0.2.19 upstream delta was reviewed. Material changes include Gen 2 battle/EXP, Bill's PC BoxMenu, Pack/Item-PC UI, SaveData resilience, Gen2Compat/Loader facades, overworld/transitions, Bag/Stats, and Gold/Silver import data. The protected Gold/Silver Bill's PC methods `doWithdraw`, `checkSpaceInDestination`, and `askRelease` retain compatible semantic roles, so Nuzlocke's Party Size and progression-catch wrappers require no migration. Gen 2 `battle.exp_award` now honors an explicit announce argument; Nuzlocke records that as a useful future EXP-policy capability but does not adopt ownership in this build. Mod API 2, Save Schema 4, and the `>=0.1.86 <2.0.0` engine range remain unchanged. Exact 0.2.19 runtime smoke testing is still required.
+The complete 0.2.19 → 0.2.20 upstream delta was reviewed: **6 commits / 26 changed files**. The compatibility-relevant change is stronger in-process session teardown. Returning from a game or embedded Save Editor now unmounts the active cache, unloads generated Data, resets the mod Runtime, Assets loader, and LegacyCompat state, and calls generation-specific `Game:reset()` / `Game2:reset()` cleanup before another launcher session. Upstream also added a regression test for opening a second mod-aware Save Editor session in the same process. This is favorable for Nuzlocke's lifecycle assumptions: stale mod loaders/provider state should be less likely to leak across Edit/Play or game-switch sessions.
+
+Gold/Silver now import a label-keyed `rom_text.lua` table and load it into `Game2.data.text`, allowing shared `RomText` readers to use extracted Gen 2 engine strings rather than Lua fallbacks. The remaining 0.2.20 changes are concentrated in ROM/cache hygiene, palette/tile rendering, trade animation, Magnet Train presentation, Yellow title palette tests, and generated Gold/Silver manifest data. No `src/mods` hook/runtime contract file, Bill's PC wrapper seam, battle-clause seam, or public Mod API contract changed in this delta. Nuzlocke therefore requires **no source migration** for 0.2.20. Mod API 2, Save Schema 4, and the `>=0.1.86 <2.0.0` engine range remain unchanged. Exact-edition 0.2.20 runtime smoke testing is still required.
 
 ## Randomizer information compatibility
 

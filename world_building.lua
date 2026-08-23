@@ -3,6 +3,7 @@ return function(mod, deps)
   deps = deps or {}
   local Strings = assert(deps.Strings, "world_building requires Strings")
   local defaultRuleValue = assert(deps.defaultRuleValue, "world_building requires defaultRuleValue")
+  local saveBlocked = deps.saveBlocked or function() return false end
   ---------------------------------------------------------------------
   -- WORLD BUILDING / FLAVOR
   -- Cosmetic only: never changes a rule result or owns an engine hook.
@@ -18,7 +19,6 @@ return function(mod, deps)
       local value = tonumber(mod.save:get("world_building_tier", fallback)) or fallback
       value = math.max(0, math.min(3, value))
       if not (game and game.save) then return 0 end
-      if mod.save:get("nuzlocke_enabled", true) ~= true then return 0 end
       return value
   end
 
@@ -690,15 +690,22 @@ return function(mod, deps)
       local token = table.concat({ editionId(game), tostring(tier),
           tostring(key) }, ":")
       local storageKey = "world_dialogue_last:" .. token
+      local canPersist = game and game.save and not saveBlocked()
       local last
-      if game and game.save then
+      if canPersist then
           last = tonumber(mod.save:get(storageKey, 0)) or 0
       else
           last = tonumber(dialogueSessionLast[token] or 0) or 0
       end
       local index = (math.floor(last) % #pool) + 1
-      if game and game.save then mod.save:set(storageKey, index)
-      else dialogueSessionLast[token] = index end
+      if canPersist then
+          local ok, result = pcall(mod.save.set, mod.save, storageKey, index)
+          if not ok or result == false then
+              dialogueSessionLast[token] = index
+          end
+      else
+          dialogueSessionLast[token] = index
+      end
       return pool[index]
   end
 
@@ -802,6 +809,13 @@ return function(mod, deps)
   -- arguments on those calls are unreachable and usually signal an author
   -- expected dynamic/custom text that can never render. Reject that shape at
   -- module load instead of letting another silent dialogue regression ship.
+
+  local function safeSourceRead(path)
+      local ok, content = pcall(mod.read, mod, path)
+      if ok and type(content) == "string" then return content end
+      return nil
+  end
+
   mod.exports.__beta26.deadFallbackAudit = function(source)
       local report = { ok = true, checked = 0, failures = {} }
       if type(source) ~= "string" then
@@ -827,11 +841,13 @@ return function(mod, deps)
   do
       -- 2.6.18 ownership move: reconstruct the same source surface that lived
       -- in main.lua before extraction so the lint does not lose coverage.
-      local source = tostring(mod:read("main.lua") or "") .. "\n"
-          .. tostring(mod:read("world_building.lua") or "")
-      local report = mod.exports.__beta26.deadFallbackAudit(source)
-      assert(report.ok, "Nuzlocke dead-fallback lint failure: "
-          .. table.concat(report.failures, "; "))
+      local mainSource = safeSourceRead("main.lua")
+      local worldSource = safeSourceRead("world_building.lua")
+      if mainSource and worldSource then
+          local report = mod.exports.__beta26.deadFallbackAudit(mainSource .. "\n" .. worldSource)
+          assert(report.ok, "Nuzlocke dead-fallback lint failure: "
+              .. table.concat(report.failures, "; "))
+      end
   end
 
   -- 2.5.60: semantic golden snapshot for the catalog-driven dialogue surface.
@@ -1197,10 +1213,12 @@ return function(mod, deps)
   end
 
   do
-      local source = tostring(mod:read("world_building.lua") or "")
-      local report = mod.exports.__beta26.maximumBstMessageDetailAudit(source)
-      assert(report.ok, "Nuzlocke Maximum BST message detail audit failure: "
-          .. table.concat(report.failures, "; "))
+      local source = safeSourceRead("world_building.lua")
+      if source then
+          local report = mod.exports.__beta26.maximumBstMessageDetailAudit(source)
+          assert(report.ok, "Nuzlocke Maximum BST message detail audit failure: "
+              .. table.concat(report.failures, "; "))
+      end
   end
 
 

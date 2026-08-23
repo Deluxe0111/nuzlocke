@@ -54,7 +54,8 @@ return function(mod, deps)
         active = details.active ~= false,
         importer = details.importer == true,
         renderer = details.renderer == true,
-        presentation_only = details.presentation_only ~= false,
+        presentation_only = type(details.presentation_only) == "boolean"
+            and details.presentation_only or details.importer ~= true,
         target_generation = details.target_generation,
         max_dex = details.max_dex,
       }
@@ -113,14 +114,28 @@ return function(mod, deps)
       })
     end
 
-    local preferredOrigin = nil
+    local importerOrigins, importerRows = {}, {}
     for _, row in ipairs(rows) do
-      if row.active and row.origin == "stadium_2" then
-        preferredOrigin = "stadium_2"
-        break
-      elseif row.active and row.origin == "stadium_1" then
-        preferredOrigin = preferredOrigin or "stadium_1"
+      -- Renderer/presentation-only mods must never imply a real imported
+      -- Pokemon. Automatic origin detection is valid only for active rows
+      -- that explicitly advertise importer capability.
+      if row.active and row.importer == true and row.origin ~= nil then
+        importerOrigins[row.origin] = true
+        importerRows[#importerRows + 1] = row
       end
+    end
+    local preferredOrigin, importerOriginCount = nil, 0
+    for origin in pairs(importerOrigins) do
+      preferredOrigin = origin
+      importerOriginCount = importerOriginCount + 1
+    end
+    if importerOriginCount ~= 1 then
+      preferredOrigin = nil
+    end
+
+    local preferredProvider = nil
+    if #importerRows == 1 then
+      preferredProvider = importerRows[1].id
     end
 
     return {
@@ -128,6 +143,11 @@ return function(mod, deps)
       edition = exactEdition(game),
       rows = rows,
       preferred_origin = preferredOrigin,
+      preferred_provider = preferredProvider,
+      origin_ambiguous = importerOriginCount > 1,
+      provider_ambiguous = #importerRows > 1,
+      importer_origin_count = importerOriginCount,
+      importer_count = #importerRows,
       acquisition_policy = "explicit_only",
     }
   end
@@ -146,15 +166,32 @@ return function(mod, deps)
     deps.setPokemonOrigin(mon, "STADIUM_PRIZE")
     mon.nuzlockeEncounterSource = "STADIUM_PRIZE"
     mon.nuzlockeAcquisitionSource = "stadium_prize"
-    if normalized then mon.nuzlockeAcquisitionOrigin = normalized end
+    -- A new mark replaces the whole Stadium provenance tuple. Optional
+    -- values omitted by a v1-compatible caller must not inherit stale metadata
+    -- from a previous Stadium mark on the same Pokemon object.
+    mon.nuzlockeAcquisitionOrigin = normalized
 
     local providerId = context.provider_id or context.providerId or context.mod_id or context.modId
     if providerId ~= nil and tostring(providerId) ~= "" then
       mon.nuzlockeAcquisitionProvider = tostring(providerId)
+    else
+      mon.nuzlockeAcquisitionProvider = nil
     end
-    local edition = context.edition or exactEdition(context.game)
+    -- Exact running edition is authoritative. Importer/source edition
+    -- remains useful provenance, but may not overwrite R/B/Y/Gold/Silver
+    -- identity (for example a Crystal-251 overlay running on Yellow).
+    local edition = exactEdition(context.game)
     if edition and edition ~= "unknown" and tostring(edition) ~= "" then
       mon.nuzlockeAcquisitionEdition = tostring(edition):lower()
+    else
+      mon.nuzlockeAcquisitionEdition = nil
+    end
+    local sourceEdition = context.source_edition or context.sourceEdition
+        or context.edition
+    if sourceEdition ~= nil and tostring(sourceEdition) ~= "" then
+      mon.nuzlockeAcquisitionSourceEdition = tostring(sourceEdition):lower()
+    else
+      mon.nuzlockeAcquisitionSourceEdition = nil
     end
 
     return true, {
@@ -162,6 +199,7 @@ return function(mod, deps)
       origin = normalized,
       provider_id = mon.nuzlockeAcquisitionProvider,
       edition = mon.nuzlockeAcquisitionEdition,
+      source_edition = mon.nuzlockeAcquisitionSourceEdition,
       display = API.display,
     }
   end
@@ -172,6 +210,12 @@ return function(mod, deps)
     if not origin and context.use_detected_origin == true then
       local snapshot = API.compatibilitySnapshot(context.game)
       origin = normalizeOrigin(snapshot and snapshot.preferred_origin)
+      if context.provider_id == nil and context.providerId == nil
+          and context.mod_id == nil and context.modId == nil
+          and snapshot and snapshot.provider_ambiguous ~= true
+          and snapshot.preferred_provider ~= nil then
+        context.provider_id = snapshot.preferred_provider
+      end
     end
     if not origin then return false, "stadium_origin_required" end
     return API.mark(mon, origin, context)
@@ -186,6 +230,7 @@ return function(mod, deps)
         origin = normalizeOrigin(mon.nuzlockeAcquisitionOrigin),
         provider_id = mon.nuzlockeAcquisitionProvider,
         edition = mon.nuzlockeAcquisitionEdition,
+        source_edition = mon.nuzlockeAcquisitionSourceEdition,
         display = API.display,
       }
     end

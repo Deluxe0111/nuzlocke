@@ -43,7 +43,9 @@ return function(mod, deps)
     -- suppressed.
     ---------------------------------------------------------------------
     mod.exports.__beta26.installBattleClauses = function()
-        if mod.exports.__beta26.isSaveEditorSession() then return true end
+        if mod.exports.__beta26.isSaveEditorSession() then
+            return false, "not_applicable", "save-editor session"
+        end
 
         local function clauseOn(key, game)
             game = game or getCurrentGame() or mod.game
@@ -118,6 +120,13 @@ return function(mod, deps)
         end
 
         local installed = false
+        local healthMissing = {}
+        local function requireSession(container, key, label)
+            local session = type(container) == "table" and container[key] or nil
+            if type(session) ~= "table" or type(session.wrapper) ~= "function" then
+                healthMissing[#healthMissing + 1] = label
+            end
+        end
         do
             local ok, MoveEffects = pcall(require, "src.battle.MoveEffects")
             if ok and type(MoveEffects) == "table"
@@ -369,6 +378,10 @@ return function(mod, deps)
                             end) or installed
                     end
                 end
+                requireSession(sleep, "__nuzlockeSleepClauseSession2615", "rby.sleep")
+                requireSession(heal, "__nuzlockeSleepClauseRestSession2638", "rby.rest")
+                requireSession(evasion, "__nuzlockeEvasionClauseSession2615", "rby.evasion")
+                requireSession(ohko, "__nuzlockeOhkoClauseSession2615", "rby.ohko")
             end
         end
 
@@ -683,7 +696,18 @@ return function(mod, deps)
                             end
                         end) or installed
                 end
+                requireSession(Battle, "__nuzlockeSleepClauseSession2615", "gen2.sleep")
+                requireSession(Battle, "__nuzlockeStatusScopeSession2624", "gen2.status")
+                requireSession(Battle, "__nuzlockeMoveStageContextSession2638", "gen2.move_context")
+                requireSession(Battle, "__nuzlockeEvasionClauseSession2615", "gen2.evasion")
+                requireSession(Battle, "__nuzlockeMoveStageScopesSession2638", "gen2.setup")
+                requireSession(Battle, "__nuzlockeStatDropScopesSession2635", "gen2.stat_drops")
+                requireSession(Battle, "__nuzlockeFlinchTrapScopesSession2628", "gen2.flinch_trap")
+                requireSession(ohko, "__nuzlockeOhkoClauseSession2615", "gen2.ohko")
             end
+        end
+        if #healthMissing > 0 then
+            return false, "missing_clause_hooks:" .. table.concat(healthMissing, ",")
         end
         return installed
     end

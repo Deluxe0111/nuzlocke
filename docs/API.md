@@ -1,14 +1,9 @@
-# Nuzlocke API — 2.7.0
-2.7.0 changes no public API contract from 2.6.98; it promotes the completed 2.6.x line to release.
-2.6.96 changes no public API contract; it repairs current-build documentation header packaging so Release Safety can validate the package.
-2.6.95 changes no public API contract; it repairs a runtime diagnostic closure/order dependency in Randomizer rival-sync validation.
-2.6.94 changes no public API contract; it hardens Release Safety coverage for Lua unpack compatibility across all shipped Lua modules.
+# Nuzlocke API — 2.7.25
 
+2.7.25 is a release promotion only. Public API versions and the provider/developer contract are unchanged from exact 2.7.24.
 This document describes the **current provider/developer contract**. Historical API changes belong in `CHANGELOG.md`.
 
-2.6.93 is an internal World Building Release Safety snapshot repair and does not change Compatibility API 32 or any provider contract.
-
-2.6.91 does not change Compatibility API 32. Random Learnset ownership/drift detection now projects only `level1Moves`, `learnset`, and `levelMoves`; unrelated Pokémon registry metadata is outside Nuzlocke learnset ownership. Rare Candy transaction checkpoint/sequence helpers are internal `__beta26` save-safety infrastructure, not new public compatibility contracts.
+2.7.24 changes no public API version. The documentation audit reconciles the current transaction, Randomizer-ownership, Stadium provenance, Run History, and exact-game-context contracts with the shipped implementation. `Registry.describe(game)` uses one resolved game context for all returned registry and Randomizer-ownership fields.
 
 ## Versions
 
@@ -53,7 +48,7 @@ The internal compatibility namespace exposes read-only Field Item foundation hel
 - `randomFieldItemEditionTableClass(game, itemId, def)` — normalizes the live item definition to an edition-specific item-table class.
 - `randomizerFieldItemInfo(game, reveal)` — internal read-only diagnostic payload used by Compatibility API 32.
 
-These helpers do not change Compatibility API 31 because no new `mod.exports.nuzlocke` public Registry surface is added in 2.6.86.
+These internal helpers did not themselves bump the public API. The current public Compatibility API is **32**; public Field Item information is exposed through the Registry methods above.
 
 ### Randomizer information registry additions
 
@@ -171,7 +166,7 @@ Gold/Silver use the native held-item engine. R/B/Y can expose No Held Items only
 
 `mod.exports.__beta26.GameplayTransactions` is the v1 interruption-recovery coordinator. It owns one durable pending journal (`__nuzlocke_gameplay_txn_v1`) plus bounded committed receipts (`__nuzlocke_gameplay_txn_receipts_v1`). A transaction kind is registered with `register(kind, { probe=..., perform=... })`; `probe` must return applied/not-applied/unknown semantics and `perform` owns all externally visible mutation. The durable COMMIT state is a journal marker, not a second arbitrary side-effect callback.
 
-`execute(id, kind, payload)` provides exactly-once replay protection for a stable logical transaction id. `recover()` resumes a pending transaction after load. Unknown/ambiguous reconciliation fails closed. `setExact(id, key, value)` is the initial generic recovery-safe save-value primitive. Transaction ids must identify a single logical mutation; reusing an id for a different desired mutation intentionally returns the prior committed receipt.
+`execute(id, kind, payload)` provides exactly-once replay protection for a stable logical transaction identity. Durable receipt authority is **ID + kind**; an ID collision with another kind fails closed. `recover()` resumes a pending transaction after load. Unknown/ambiguous reconciliation fails closed. Unsupported future transaction journals are preserved: execute/recover and journal-mutating helpers (`advance`, `checkpoint`, targeted `clear`, and broad `clear`) reject them with `newer_transaction` rather than rewriting or deleting them. `setExact(id, key, value)` is the initial generic recovery-safe save-value primitive.
 
 The coordinator is infrastructure, not a blanket claim that every historical gameplay action is atomic. Feature owners adopt it only when they can prove a stable id and a deterministic reconciliation probe.
 
@@ -191,6 +186,10 @@ The coordinator is infrastructure, not a blanket claim that every historical gam
 - Do not rely on accidental `_ENV` lookup or private Nuzlocke locals.
 - Provider/API correctness has its own confidence status; player-facing Runtime PASS does not imply provider-interop PASS.
 
+
+## Gen1Recomp 0.2.20 source-compatibility audit
+
+The 0.2.19 → 0.2.20 delta changes no public Nuzlocke provider API requirement and no Gen1Recomp Mod API version. The main compatibility-relevant engine change is stronger launcher/session teardown: generated Data, mod Runtime state, Assets loader state, LegacyCompat state, and generation-specific Game instance fields are reset before a later in-process Edit/Play session. Gold/Silver also gain extracted label-keyed engine text through `data.text`. These changes require no Nuzlocke API migration; runtime validation remains separate from source compatibility.
 
 ## Gen1Recomp 0.2.19 mod-options persistence audit
 

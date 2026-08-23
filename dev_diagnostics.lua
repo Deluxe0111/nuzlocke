@@ -162,8 +162,26 @@ return function(mod, deps)
               check("history_events", type(history.events) == "table", true)
               check("history_summary", type(history.summary) == "table", true)
               check("history_dedupe", type(history.dedupe) == "table", true)
-              check("history_next_seq", tonumber(history.next_seq) == nil
-                  or tonumber(history.next_seq) >= 1, true, tostring(history.next_seq))
+              if type(mod.exports.__beta26.RunHistory) == "table"
+                  and type(mod.exports.__beta26.RunHistory.dedupeIndexMatches)
+                      == "function" then
+                  local okDedupe, detail =
+                      mod.exports.__beta26.RunHistory.dedupeIndexMatches(history)
+                  check("history_dedupe_index", okDedupe == true, true,
+                      tostring(detail or "ok"))
+              else
+                  check("history_dedupe_index", false, true, "helper_missing")
+              end
+              local maxSeq = 0
+              if type(history.events) == "table" then
+                  for _, event in ipairs(history.events) do
+                      maxSeq = math.max(maxSeq, math.floor(tonumber(event and event.seq) or 0))
+                  end
+              end
+              local nextSeq = tonumber(history.next_seq)
+              check("history_next_seq", nextSeq ~= nil and nextSeq >= 1
+                  and math.floor(nextSeq) == nextSeq and nextSeq > maxSeq,
+                  true, tostring(history.next_seq))
               for key, value in pairs(type(history.summary) == "table" and history.summary or {}) do
                   check("history_summary_" .. tostring(key), tonumber(value) ~= nil
                       and tonumber(value) >= 0 and math.floor(tonumber(value)) == tonumber(value),
@@ -597,6 +615,12 @@ return function(mod, deps)
           end
       end
   
+      local function safeDiagnosticSource(path)
+          local okRead, source = pcall(mod.read, mod, path)
+          if okRead and type(source) == "string" then return source end
+          return nil
+      end
+
       -- 2.5.57: the trainer-reward subsystem carries executable source-level
       -- contracts for every gameplay-state mutator plus explicit OFF-state
       -- exceptions. Surface any drift in DEV assertions as well as failing
@@ -604,9 +628,12 @@ return function(mod, deps)
       local rewardModule = mod.exports.__beta26.TrainerRewards
       if type(rewardModule) == "table"
           and type(rewardModule.activeGuardAudit) == "function" then
-          local okGuard, guardReport = pcall(rewardModule.activeGuardAudit,
-              mod:read("trainer_rewards.lua"))
-          if not okGuard or type(guardReport) ~= "table" or guardReport.ok ~= true then
+          local rewardSource = safeDiagnosticSource("trainer_rewards.lua")
+          local okGuard, guardReport = true, nil
+          if rewardSource then
+              okGuard, guardReport = pcall(rewardModule.activeGuardAudit, rewardSource)
+          end
+          if rewardSource and (not okGuard or type(guardReport) ~= "table" or guardReport.ok ~= true) then
               local detail = not okGuard and tostring(guardReport)
                   or table.concat(guardReport and guardReport.failures or {}, ", ")
               warn("active_guard_contract", detail ~= "" and detail or "audit failed")
@@ -632,10 +659,13 @@ return function(mod, deps)
       -- blocked by the module-load release gate.
       local deadFallbackAudit = mod.exports.__beta26.deadFallbackAudit
       if type(deadFallbackAudit) == "function" then
-          local okFallback, fallbackReport = pcall(deadFallbackAudit,
-              mod:read("main.lua"))
-          if not okFallback or type(fallbackReport) ~= "table"
-              or fallbackReport.ok ~= true then
+          local mainSource = safeDiagnosticSource("main.lua")
+          local okFallback, fallbackReport = true, nil
+          if mainSource then
+              okFallback, fallbackReport = pcall(deadFallbackAudit, mainSource)
+          end
+          if mainSource and (not okFallback or type(fallbackReport) ~= "table"
+              or fallbackReport.ok ~= true) then
               local detail = not okFallback and tostring(fallbackReport)
                   or table.concat(fallbackReport and fallbackReport.failures or {}, ", ")
               warn("dead_fallback_lint", detail ~= "" and detail or "audit failed")

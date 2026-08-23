@@ -255,9 +255,29 @@ function M.install(mod, deps)
         return true
     end
 
+    local function runInstaller(label, fn)
+        local ok, result = pcall(fn)
+        if not ok then
+            if mod.log and type(mod.log.error) == "function" then
+                mod.log:error("[Nuzlocke:TitleSetupCompat] %s install failed: %s",
+                    tostring(label), tostring(result))
+            end
+            return false
+        end
+        if result == false then
+            if mod.log and type(mod.log.warn) == "function" then
+                mod.log:warn("[Nuzlocke:TitleSetupCompat] %s install unavailable",
+                    tostring(label))
+            end
+            return false
+        end
+        return true
+    end
+
     local function installAll()
-        pcall(installRby)
-        pcall(installGold)
+        local rbyOk = runInstaller("rby", installRby)
+        local goldOk = runInstaller("gold", installGold)
+        return rbyOk and goldOk
     end
 
     installAll()

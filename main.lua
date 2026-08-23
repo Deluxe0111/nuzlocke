@@ -1,5 +1,5 @@
--- Nuzlocke 2.7.0
--- Strict child of exact runtime-confirmed 2.6.98. Release promotion; gameplay semantics unchanged from 2.6.98.
+-- Nuzlocke 2.7.25
+-- Strict child of exact 2.7.24. Release promotion only: no new gameplay semantics beyond the audited 2.7.24 parent.
 -- Historical version lineage is maintained in CHANGELOG.md and docs/DOCUMENTATION_CHANGELOG.md.
 --
 -- Lineage:
@@ -32,14 +32,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.7.0",
+      build = "2.7.25",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.7.0",
+      manifestVersion = "2.7.25",
       setupProfileScope = "gen1",
-      parentVersion = "2.6.98",
-      parentSha256 = "4b5834bb54ff2cc4564ed62057210185c7619ceea1735ff50f1aa4cb97419cd0",
+      parentVersion = "2.7.24",
+      parentSha256 = "749f5cbbca56113278b17a492f15429c32fb628f6510be1d673ff64e95d7817b",
       compatibilityApi = 32,
       diagnosticsApi = 1,
   }
@@ -54,7 +54,8 @@ return function(mod)
   }
   mod.exports.__beta26.featureHealth = {
       api = 1, ACTIVE = "ACTIVE", DEGRADED = "DEGRADED",
-      UNAVAILABLE = "UNAVAILABLE", features = {},
+      UNAVAILABLE = "UNAVAILABLE", PENDING = "PENDING",
+      NOT_APPLICABLE = "N/A", features = {},
   }
   mod.exports.__beta26.hookRegistry = { api = 1, hooks = {} }
 
@@ -62,7 +63,8 @@ return function(mod)
       feature = tostring(feature or "unknown")
       state = tostring(state or "ACTIVE")
       if state ~= "ACTIVE" and state ~= "DEGRADED"
-          and state ~= "UNAVAILABLE" then state = "DEGRADED" end
+          and state ~= "UNAVAILABLE" and state ~= "PENDING"
+          and state ~= "N/A" then state = "DEGRADED" end
       local row = mod.exports.__beta26.featureHealth.features[feature] or {
           feature = feature, transitions = 0,
       }
@@ -157,9 +159,17 @@ return function(mod)
       row.attempts = row.attempts + 1
       row.feature, row.required, row.mode = feature, required,
           tostring(spec.mode or "installer")
-      row.edition = (mod.exports.__beta26.Dev and mod.exports.__beta26.Dev.gameId
-          and select(2, pcall(mod.exports.__beta26.Dev.gameId,
-              currentGame or mod.game))) or nil
+      row.edition = nil
+      row.edition_probe_error = nil
+      if mod.exports.__beta26.Dev and mod.exports.__beta26.Dev.gameId then
+          local okEdition, editionOrError = pcall(
+              mod.exports.__beta26.Dev.gameId, currentGame or mod.game)
+          if okEdition then
+              row.edition = editionOrError
+          else
+              row.edition_probe_error = tostring(editionOrError)
+          end
+      end
       local function fail(reason)
           reason = tostring(reason or "unknown_error")
           row.ok, row.status, row.error = false, "FAIL", reason
@@ -179,8 +189,8 @@ return function(mod)
           row.note = reason
           health.failures[name] = nil
           health.skipped[name] = kind .. ":" .. reason
-          mod.exports.__beta26.noteFeatureHealth(feature, "ACTIVE",
-              kind .. ":" .. reason, name)
+          mod.exports.__beta26.noteFeatureHealth(feature, kind,
+              reason, name)
           return true, kind, reason
       end
       if type(fn) ~= "function" then return fail("installer_not_function") end
@@ -732,10 +742,34 @@ return function(mod)
       end,
   }
 
+  -- 2.7.7: loading shipped split modules is a required Mod API file-read use,
+  -- distinct from optional diagnostic source introspection. Gen1Recomp exposes
+  -- mod:read(relative) for files in this mod; arbitrary require() of mod-local
+  -- files is not the public module-loading contract. Centralize the required
+  -- read/compile boundary so failures are explicit and never confused with the
+  -- fail-soft policy for later source-lint rereads.
+  local function loadRequiredModuleChunk(path)
+      path = tostring(path or "")
+      local okRead, source, readErr = pcall(mod.read, mod, path)
+      if not okRead then
+          error("required Nuzlocke module read failed (" .. path .. "): "
+              .. tostring(source), 2)
+      end
+      if type(source) ~= "string" then
+          error("required Nuzlocke module unavailable (" .. path .. "): "
+              .. tostring(readErr or "mod:read returned no source"), 2)
+      end
+      local chunk, loadErr = load(source, "@mods/nuzlocke/" .. path)
+      if type(chunk) ~= "function" then
+          error("required Nuzlocke module compile failed (" .. path .. "): "
+              .. tostring(loadErr or "unknown compile error"), 2)
+      end
+      return chunk
+  end
+
   -- 2.5.80: isolate the shadow migration store first; transaction orchestration
   -- remains in main.lua until exact-engine historical-save tests protect a larger move.
-  assert(load(mod:read("save_migration.lua"),
-      "@mods/nuzlocke/save_migration.lua"))()(mod, {
+  loadRequiredModuleChunk("save_migration.lua")()(mod, {
       copy = compatPublicCopy,
       SAVE_SCHEMA_KEY = SAVE_SCHEMA_KEY,
       SAVE_MIGRATION_KEY = SAVE_MIGRATION_KEY,
@@ -4574,8 +4608,7 @@ return function(mod)
   -- 2.5.80: external transfer/import mods can mark a Pokémon as a Stadium
   -- prize without inventing a fake map location. Stadium 1/2 are optional
   -- origin metadata under the shared STADIUM PRIZE acquisition source.
-  assert(load(mod:read("stadium_provenance.lua"),
-      "@mods/nuzlocke/stadium_provenance.lua"))()(mod, {
+  loadRequiredModuleChunk("stadium_provenance.lua")()(mod, {
       setPokemonOrigin = setPokemonOrigin,
       canWrite = function()
           return type(mod.exports.__beta26.canWriteNuzlockeSave) == "function"
@@ -5916,8 +5949,7 @@ return function(mod)
   -- enforcement, menus, presets, compatibility APIs, and save semantics
   -- continue consuming the same objects.
   ---------------------------------------------------------------------
-  local RuleCatalog = assert(load(mod:read("rule_catalog.lua"),
-      "@mods/nuzlocke/rule_catalog.lua"))()(mod, { Strings = Strings })
+  local RuleCatalog = loadRequiredModuleChunk("rule_catalog.lua")()(mod, { Strings = Strings })
   LEGENDARIES = RuleCatalog.LEGENDARIES
   MYTHICALS = RuleCatalog.MYTHICALS
   PSEUDOS = RuleCatalog.PSEUDOS
@@ -9141,8 +9173,7 @@ return function(mod)
   -- 2.5.82: behavior-preserving extraction from main.lua. Keep live game/save
   -- state behind getters so the module never captures a stale lifecycle value.
   ---------------------------------------------------------------------
-  assert(load(mod:read("public_interop.lua"),
-      "@mods/nuzlocke/public_interop.lua"))()(mod, {
+  loadRequiredModuleChunk("public_interop.lua")()(mod, {
       currentGame = function() return currentGame end,
       currentSave = function() return currentSave end,
       defaultRuleValue = defaultRuleValue,
@@ -9219,8 +9250,7 @@ return function(mod)
   ---------------------------------------------------------------------
   -- RANDOMIZER RUNTIME (2.6.18 MODULE)
   ---------------------------------------------------------------------
-  local RandomizerRuntime = assert(load(mod:read("randomizer_runtime.lua"),
-      "@mods/nuzlocke/randomizer_runtime.lua"))()(mod, {
+  local RandomizerRuntime = loadRequiredModuleChunk("randomizer_runtime.lua")()(mod, {
       getCurrentGame = function() return currentGame end,
       getCurrentSave = function() return currentSave end,
       getNewGameRulesSnapshot = function() return newGameRulesSnapshot end,
@@ -9249,9 +9279,11 @@ return function(mod)
   ---------------------------------------------------------------------
   -- WORLD BUILDING / FLAVOR (2.6.18 MODULE)
   ---------------------------------------------------------------------
-  local WorldBuilding = assert(load(mod:read("world_building.lua"),
-      "@mods/nuzlocke/world_building.lua"))()(mod, {
+  local WorldBuilding = loadRequiredModuleChunk("world_building.lua")()(mod, {
       Strings = Strings, defaultRuleValue = defaultRuleValue,
+      saveBlocked = function()
+          return mod.exports.__beta26.saveWritePauseReason() ~= nil
+      end,
   })
   local worldTier = WorldBuilding.worldTier
 
@@ -9722,27 +9754,62 @@ return function(mod)
       return true
   end
 
-  local function worldMessage(game, tier1, tier2, tier3)
-      local tier = worldTier(game)
-      if tier <= 0 then return false end
-      local message = tier == 1 and tier1 or (tier == 2 and (tier2 or tier1) or (tier3 or tier2 or tier1))
+  local function worldMessageText(tier, tier1, tier2, tier3, critical)
+      tier = math.max(0, math.min(3, math.floor(tonumber(tier) or 0)))
+      -- World Building OFF suppresses optional flavor, never consequential
+      -- enforcement/state-change feedback. Critical feedback deliberately uses
+      -- the plain Tier-1 wording at T0 rather than escalating presentation.
+      if tier <= 0 then
+          return critical == true and tier1 or nil
+      end
+      return tier == 1 and tier1
+          or (tier == 2 and (tier2 or tier1) or (tier3 or tier2 or tier1))
+  end
+
+  local function worldMessage(game, tier1, tier2, tier3, critical)
+      local message = worldMessageText(
+          worldTier(game), tier1, tier2, tier3, critical)
       return message and mod.exports.__beta26.pushWorldText(game, message) or false
   end
 
-  local function worldMechanic(game, key, tier1, tier2, tier3)
+  local function worldMechanic(game, key, tier1, tier2, tier3, critical)
       local tier = worldTier(game)
-      if tier <= 0 then return false end
+      if tier <= 0 and critical ~= true then return false end
       if key then
           local flags = worldFlags()
           -- One gameplay/story event speaks once for the life of the save.
           -- Changing World Building tiers later must not replay the same beat.
           if flags[key] then return false end
-          if not worldMessage(game, tier1, tier2, tier3) then return false end
+          if not worldMessage(game, tier1, tier2, tier3, critical) then
+              return false
+          end
           flags[key] = true
           mod.save:set("nuzlocke_world_flags", flags)
           return true
       end
-      return worldMessage(game, tier1, tier2, tier3)
+      return worldMessage(game, tier1, tier2, tier3, critical)
+  end
+
+  mod.exports.__beta26.worldCriticalFeedbackAudit = function()
+      local report = { ok = true, checked = 0, failures = {} }
+      local function expect(id, actual, expected)
+          report.checked = report.checked + 1
+          if actual ~= expected then
+              report.ok = false
+              report.failures[#report.failures + 1] = tostring(id)
+          end
+      end
+      expect("t0_optional_off",
+          worldMessageText(0, "plain", "mid", "rich", false), nil)
+      expect("t0_critical_plain",
+          worldMessageText(0, "plain", "mid", "rich", true), "plain")
+      expect("t1_plain",
+          worldMessageText(1, "plain", "mid", "rich", false), "plain")
+      expect("t2_mid",
+          worldMessageText(2, "plain", "mid", "rich", false), "mid")
+      expect("t3_rich",
+          worldMessageText(3, "plain", "mid", "rich", false), "rich")
+      return report
   end
 
   ---------------------------------------------------------------------
@@ -13922,7 +13989,7 @@ return function(mod)
 
   -- 2.5.80: Run History is isolated to reduce main.lua size while preserving
   -- the same public API and lifecycle boundaries.
-  assert(load(mod:read("run_history.lua"), "@mods/nuzlocke/run_history.lua"))()(mod, {
+  loadRequiredModuleChunk("run_history.lua")()(mod, {
       saveBlocked = function() return saveSchemaTooNew or saveMigrationError ~= nil end,
       countTrackerCatches = countTrackerCatches,
       currentGame = function() return currentGame or mod.game end,
@@ -13982,8 +14049,7 @@ return function(mod)
 
   -- 2.5.80: the large read-only Dev assertion surface is isolated from
   -- gameplay code. It receives only the state accessors needed for diagnostics.
-  assert(load(mod:read("dev_diagnostics.lua"),
-      "@mods/nuzlocke/dev_diagnostics.lua"))()(mod, {
+  loadRequiredModuleChunk("dev_diagnostics.lua")()(mod, {
       currentGame = function() return currentGame or mod.game end,
       SAVE_SCHEMA_KEY = SAVE_SCHEMA_KEY,
       CURRENT_SAVE_SCHEMA = CURRENT_SAVE_SCHEMA,
@@ -14011,8 +14077,7 @@ return function(mod)
   -- 2.5.80: Release Safety is an isolated diagnostic module. Runtime source
   -- introspection is fail-soft; unavailable package reads may warn but may not
   -- prevent a supported engine from loading the mod.
-  assert(load(mod:read("release_safety.lua"),
-      "@mods/nuzlocke/release_safety.lua"))()(mod, {
+  loadRequiredModuleChunk("release_safety.lua")()(mod, {
       compatCapabilities = COMPAT_CAPABILITIES,
       packagePaths = {
           "CHANGELOG.md", "README.md", "RELEASE_NOTES.md",
@@ -14035,8 +14100,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.6.98",
-      expectedParentSha256 = "4b5834bb54ff2cc4564ed62057210185c7619ceea1735ff50f1aa4cb97419cd0",
+      expectedParentVersion = "2.7.24",
+      expectedParentSha256 = "749f5cbbca56113278b17a492f15429c32fb628f6510be1d673ff64e95d7817b",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -14052,6 +14117,7 @@ return function(mod)
           ["rule_catalog.lua"] = "maximumBstPresetValues",
           ["public_interop.lua"] = "nuzlocke",
           ["acquisition_catalog.lua"] = "buildGiftLookup",
+          ["stadium_provenance.lua"] = "nuzlocke_acquisition_provenance",
           ["trainer_rewards.lua"] = "function M.activeGuardAudit",
       },
   })
@@ -14727,7 +14793,8 @@ return function(mod)
           end)
 
       -- Hook health remains the detailed engine-facing view. Feature Health is
-      -- the stable three-state summary for support/UI/API consumers.
+      -- the stable support/UI/API summary; installer-originated N/A/PENDING
+      -- states remain distinct rather than being mislabeled ACTIVE.
       if type(mod.exports.__beta26.noteFeatureHealth) == "function" then
           for _, row in ipairs(rows) do
               if row.state == "HEALTHY" then
@@ -15423,8 +15490,7 @@ return function(mod)
   -- 2.5.89: behavior-preserving extraction from main.lua. Dynamic game state
   -- stays behind an injected getter; save-schema constants are passed by value.
   ---------------------------------------------------------------------
-  assert(load(mod:read("dev_report.lua"),
-      "@mods/nuzlocke/dev_report.lua"))()(mod, {
+  loadRequiredModuleChunk("dev_report.lua")()(mod, {
       currentGame = function() return currentGame end,
       SAVE_SCHEMA_KEY = SAVE_SCHEMA_KEY,
       CURRENT_SAVE_SCHEMA = CURRENT_SAVE_SCHEMA,
@@ -16023,8 +16089,7 @@ return function(mod)
   ---------------------------------------------------------------------
   -- F. TOKEN / FORGIVENESS (2.6.18 MODULE)
   ---------------------------------------------------------------------
-  assert(load(mod:read("forgiveness.lua"),
-      "@mods/nuzlocke/forgiveness.lua"))()(mod, {
+  loadRequiredModuleChunk("forgiveness.lua")()(mod, {
       Strings = Strings, Identity = Identity, ROUTE_ORDER = ROUTE_ORDER,
       areaKey = areaKey, caughtAreas = caughtAreas,
       defaultRuleValue = defaultRuleValue,
@@ -16041,6 +16106,7 @@ return function(mod)
       getCurrentGame = function() return currentGame end,
       getCurrentSave = function() return currentSave end,
       engineBoxConstants = mod.exports.__beta26.engineBoxConstants,
+      GameplayTransactions = mod.exports.__beta26.GameplayTransactions,
   })
 
   ---------------------------------------------------------------------
@@ -18438,8 +18504,7 @@ return function(mod)
   ---------------------------------------------------------------------
   -- CLASSIC NUZLOCKE UI / TRACKER PRESENTATION (2.6.17 MODULE)
   ---------------------------------------------------------------------
-  local ClassicUI = assert(load(mod:read("classic_ui.lua"),
-      "@mods/nuzlocke/classic_ui.lua"))()(mod, {
+  local ClassicUI = loadRequiredModuleChunk("classic_ui.lua")()(mod, {
       Strings = Strings,
       getCurrentGame = function() return currentGame end,
       getCurrentSave = function() return currentSave end,
@@ -18527,6 +18592,13 @@ return function(mod)
       local result = next(game, items)
       if type(result) ~= "table" then
           result = items
+      end
+
+      -- Fresh-game SETUP and NEW GAME/CONTINUE staging belong only to a real
+      -- title session. The embedded Save Editor may expose title-like rows but
+      -- must remain untouched so it cannot stage a gameplay setup profile.
+      if mod.exports.__beta26.isSaveEditorSession() then
+          return result
       end
 
       local goldMode = mod.exports.__beta26.runtimeIsGen2(game)
@@ -18680,8 +18752,12 @@ return function(mod)
   -- another long-lived top-level local.
   do
       mod.exports.__beta26.installGoldTitleSetupAdapter = function()
-          if mod.exports.__beta26.isSaveEditorSession() then return true end
-          if not mod.exports.__beta26.runtimeIsGen2(nil) then return true end
+          if mod.exports.__beta26.isSaveEditorSession() then
+              return false, "not_applicable", "save-editor session"
+          end
+          if not mod.exports.__beta26.runtimeIsGen2(nil) then
+              return false, "not_applicable", "non-Gen2 edition"
+          end
 
           local okMenu, MainMenu = pcall(require, "src.ui.gen2.MainMenu")
           if not okMenu or type(MainMenu) ~= "table"
@@ -20527,8 +20603,7 @@ return function(mod)
   -- and deterministic fallback lookup helpers. Transaction enforcement stays
   -- in main.lua; only the read-only source catalog is modularized here.
   ---------------------------------------------------------------------
-  assert(load(mod:read("acquisition_catalog.lua"),
-      "@mods/nuzlocke/acquisition_catalog.lua"))()(mod, {
+  loadRequiredModuleChunk("acquisition_catalog.lua")()(mod, {
       getGameVersion = getGameVersion,
   })
 
@@ -21218,6 +21293,18 @@ return function(mod)
 
       local source = tostring(ev.source or ""):lower()
 
+      -- Strong Pokémon-level provenance always beats source-less species
+      -- heuristics. A Pokémon already marked as a real Stadium import must
+      -- never be reclassified as a vanilla gift/trade merely because its
+      -- species is deterministic in the base game.
+      local existingStadium = type(mon) == "table"
+          and (mon.nuzlockeAcquisitionSource == "stadium_prize"
+              or mon.nuzlockeEncounterSource == "STADIUM_PRIZE"
+              or mon.nuzlockeOrigin == "STADIUM_PRIZE")
+      if existingStadium then
+          return
+      end
+
       local rawLoc = ev.location or ev.mapId or ev.area
           or (game and game.overworld and game.overworld.map
               and game.overworld.map.id)
@@ -21308,7 +21395,8 @@ return function(mod)
               worldMechanic(game, "gift_post_denied:" .. tostring(species),
                   "This gift conflicts with your Nuzlocke rules.",
                   "Gift received through an external path.\nReview your rules before using it.",
-                  "A mod bypassed the normal gift transaction gate.\nThe Pokemon was preserved instead of deleting data.")
+                  "A mod bypassed the normal gift transaction gate.\nThe Pokemon was preserved instead of deleting data.",
+                  true)
               return
           end
           mod.exports.__beta26.registerSpecialCatch(species, giftArea, "gift", mon)
@@ -21327,7 +21415,8 @@ return function(mod)
               worldMechanic(game, "trade_post_denied:" .. tostring(species),
                   "This trade conflicts with your Nuzlocke rules.",
                   "Trade completed through an external path.\nThe Pokemon was preserved instead of risking data loss.",
-                  "A mod bypassed the normal trade gate.\nNo destructive rollback was attempted.")
+                  "A mod bypassed the normal trade gate.\nNo destructive rollback was attempted.",
+                  true)
               return
           end
           mod.exports.__beta26.registerSpecialCatch(species, tradeArea, "trade", mon)
@@ -22654,6 +22743,7 @@ return function(mod)
       nextEliteFourCapInfo = nextEliteFourCapInfo,
       runHistory = mod.exports.__beta26.RunHistory,
       scalePercentFloor = mod.exports.__beta26.scalePercentFloor,
+      GameplayTransactions = mod.exports.__beta26.GameplayTransactions,
   })
 
   -- 2.6.59: Rare Candy -> current level cap.
@@ -22819,6 +22909,14 @@ return function(mod)
       })
   end
 
+  local function rareCandyExecuteTransaction(id, payload, txApi)
+      txApi = txApi or TX
+      if not (txApi and type(txApi.execute) == "function") then
+          return false, "tx_unavailable"
+      end
+      return txApi.execute(id, "rare_candy_step", payload)
+  end
+
   function RareCandyToCap.transactionIdentitySelfTest()
       local function copyValue(value, seen)
           if type(value) ~= "table" then return value end
@@ -22850,11 +22948,29 @@ return function(mod)
       local id1 = rareCandyTxnId(mon, 1, seq1)
       -- Revisiting the exact same Pokémon state must still create a fresh id.
       local id2 = rareCandyTxnId(mon, 1, seq2)
+      local fakeTx = {
+          execute = function()
+              return false, "synthetic_transaction_failure"
+          end,
+      }
+      local failOk, failReason =
+          rareCandyExecuteTransaction("selftest", {}, fakeTx)
+      local unavailableOk, unavailableReason =
+          rareCandyExecuteTransaction("selftest", {}, {})
+
       local ok = seq1 == 1 and seq2 == 2 and id1 ~= id2
           and id1:find("rare_candy_to_cap:v2:", 1, true) == 1
           and id2:find("rare_candy_to_cap:v2:", 1, true) == 1
-      return { ok=ok, failures=ok and {} or {"rare_candy_attempt_id_reuse"},
-          first=id1, second=id2 }
+          and failOk == false
+          and failReason == "synthetic_transaction_failure"
+          and unavailableOk == false
+          and unavailableReason == "tx_unavailable"
+      return { ok=ok, failures=ok and {} or {
+              "rare_candy_attempt_id_or_tx_reason"
+          },
+          first=id1, second=id2,
+          failure_reason=tostring(failReason),
+          unavailable=tostring(unavailableReason) }
   end
 
   function RareCandyToCap.step(game, mon, generation)
@@ -22883,8 +22999,7 @@ return function(mod)
           before_count = count,
           intended_cap = cap,
       }
-      local ok, detail = TX and TX.execute
-          and TX.execute(id, "rare_candy_step", payload) or false, "tx_unavailable"
+      local ok, detail = rareCandyExecuteTransaction(id, payload)
       if not ok then return false, detail end
       local result = RareCandyToCap.transient[id]
       RareCandyToCap.transient[id] = nil
@@ -23557,7 +23672,7 @@ return function(mod)
             })
             local t1, t2, t3 = mod.exports.__beta26.worldRuleTriplet(
                 game, "failed_encounter")
-            worldMechanic(game, "failed:" .. tostring(key), t1, t2, t3)
+            worldMechanic(game, "failed:" .. tostring(key), t1, t2, t3, true)
         end
   
         -- 2.5.40: failed encounters resolve normally. F. TOKEN is now a
@@ -24731,7 +24846,10 @@ return function(mod)
     mod.exports.__beta26.pruneFieldPoisonDeaths = function(party, deaths)
         if type(party) ~= "table" or type(deaths) ~= "table" then return end
         for i = #party, 1, -1 do
-            if deaths[party[i]] == true then table.remove(party, i) end
+            if deaths[party[i]] == true
+                and party[i].nuzlockeForgivenessArchivePending ~= true then
+                table.remove(party, i)
+            end
         end
     end
 
@@ -24835,8 +24953,7 @@ return function(mod)
     ---------------------------------------------------------------------
     -- COMPETITIVE BATTLE CLAUSES (2.6.17 MODULE)
     ---------------------------------------------------------------------
-    assert(load(mod:read("battle_clauses.lua"),
-        "@mods/nuzlocke/battle_clauses.lua"))()(mod, {
+    loadRequiredModuleChunk("battle_clauses.lua")()(mod, {
         Strings = Strings,
         getCurrentGame = function() return currentGame end,
         installOwnedMethodWrapper = installOwnedMethodWrapper,
@@ -25135,7 +25252,8 @@ return function(mod)
                     -- Remove the dead mon before vanilla's playerMonFainted()
                     -- checks for a usable party. This prevents the normal
                     -- blackout routine from healing/restoring a dead member.
-                    if self.game and self.game.save and self.game.save.party then
+                    if self.game and self.game.save and self.game.save.party
+                        and mon.nuzlockeForgivenessArchivePending ~= true then
                         for i, partyMon in ipairs(self.game.save.party) do
                             if partyMon == mon then
                                 table.remove(self.game.save.party, i)
@@ -27761,8 +27879,7 @@ return function(mod)
     -- LATE RUNTIME / GOLD-SILVER ADAPTERS (2.6.17 MODULE)
     ---------------------------------------------------------------------
     lateRuntimeDeps2639.hasHealthyParty = hasHealthyParty
-    return assert(load(mod:read("late_runtime.lua"),
-        "@mods/nuzlocke/late_runtime.lua"))()(mod, lateRuntimeDeps2639)
+    return loadRequiredModuleChunk("late_runtime.lua")()(mod, lateRuntimeDeps2639)
   end
   mod.exports.__beta26._lateRuntimeInit()
   mod.exports.__beta26._lateRuntimeInit = nil

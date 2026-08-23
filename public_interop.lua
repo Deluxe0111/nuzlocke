@@ -169,6 +169,16 @@ return function(mod, deps)
         end
 
         local Acquisition = {}
+        -- A begin() decision is authoritative for the matching acquisition
+        -- attempt. Keep it by context identity so commit() does not repeat
+        -- mutable preflight checks (notably PC capacity after the new Pokemon
+        -- itself has consumed the last free slot).
+        local acquisitionPreflight = setmetatable({}, { __mode = "k" })
+        -- Explicit preflight handoff uses an opaque one-shot token. The
+        -- authoritative decision stays internal so a compatibility provider
+        -- cannot manufacture or mutate `allowed`, `pcLock`, `rule`, etc.
+        local acquisitionDecisionTokens = setmetatable({}, { __mode = "k" })
+
         Acquisition.KINDS = {
             wild=true, gift=true, trade=true, starter=true, scripted=true,
             editor=true, summon=true, quest=true, forced=true, wonder_trade=true,
@@ -410,28 +420,89 @@ return function(mod, deps)
         end
 
         function Acquisition.begin(context)
+            context = type(context) == "table" and context or {}
             local result = Acquisition.evaluate(context)
+            local authoritative = deps.copy(result)
+            acquisitionPreflight[context] = authoritative
+
+            local token = {}
+            acquisitionDecisionTokens[token] = deps.copy(authoritative)
+            -- The token is intentionally opaque; callers may retain and pass
+            -- it back, but all decision fields remain Nuzlocke-owned.
+            result.decision_token = token
+
             Interop.emit("acquisition_evaluated", {context=context, result=result})
             return result
         end
 
         function Acquisition.commit(context)
             context = type(context) == "table" and context or {}
-            local result = Acquisition.evaluate(context)
+            -- Consume the exact begin() decision when the provider preserves
+            -- its context object. Legacy callers that skip begin() still get
+            -- a fresh evaluation.
+            local result = acquisitionPreflight[context]
+            acquisitionPreflight[context] = nil
+            if type(result) ~= "table" then
+                result = Acquisition.evaluate(context)
+            end
             if result.allowed then
                 if result.pcLock == true then
                     local game = context.game or getCurrentGame() or mod.game
                     local mon = type(context.mon) == "table" and context.mon
                         or (type(context.pokemon) == "table" and context.pokemon or nil)
                     local locker = mod.exports.__beta26.lockProgressionCatchInPc
-                    if mon and type(locker) == "function" then
-                        pcall(locker, game, mon,
-                            result.pcLockReason or "progression_exception")
+                    if type(mon) ~= "table" or type(locker) ~= "function" then
+                        result.allowed = false
+                        result.rule = "progression_pc_lock_failed"
+                        result.reason = "progression_pc_lock_failed"
+                        return result
+                    end
+                    local okLock, locked = pcall(locker, game, mon,
+                        result.pcLockReason or "progression_exception")
+                    if not okLock or locked ~= true then
+                        result.allowed = false
+                        result.rule = "progression_pc_lock_failed"
+                        result.reason = "progression_pc_lock_failed"
+                        return result
                     end
                 end
                 Interop.emit("acquisition_committed", {context=context, result=result})
             end
             return result
+        end
+
+        -- Providers that rebuild their context table between preflight and
+        -- commit pass the opaque token issued by begin(). For compatibility,
+        -- passing the begin() result itself is accepted only as a carrier for
+        -- its opaque `decision_token`; caller-authored decision fields are
+        -- never trusted.
+        function Acquisition.commitDecision(context, decision)
+            context = type(context) == "table" and context or {}
+
+            local token = decision
+            if type(decision) == "table"
+                and acquisitionDecisionTokens[decision] == nil then
+                token = decision.decision_token
+            end
+
+            local authoritative = type(token) == "table"
+                and acquisitionDecisionTokens[token] or nil
+            if type(authoritative) ~= "table" then
+                return {
+                    allowed = false,
+                    kind = Acquisition.classify(context),
+                    species = tostring(context.species or context.pokemonId
+                        or context.id or ""):upper(),
+                    rule = "invalid_decision_token",
+                    reason = "invalid_decision_token",
+                }
+            end
+
+            -- One-shot authorization: consume the token before commit so a
+            -- provider cannot replay one allowed decision for later catches.
+            acquisitionDecisionTokens[token] = nil
+            acquisitionPreflight[context] = deps.copy(authoritative)
+            return Acquisition.commit(context)
         end
 
         local ItemAPI = {}
@@ -695,6 +766,56 @@ return function(mod, deps)
             Interop.emit("registry_changed", {kind=kind or "all", revision=Registry.revision, game=game or getCurrentGame() or mod.game, source=source or "nuzlocke"})
         end
         function Registry.getRevision() return Registry.revision end
+        local function registryRandomizerOwned(game, ruleKey,
+            delegationFn, saveGet)
+            delegationFn = delegationFn or externalRuleDelegation
+            saveGet = saveGet or function(key, fallback)
+                return mod.save:get(key, fallback)
+            end
+            local delegated = delegationFn
+                and delegationFn(ruleKey, game) or nil
+            return not delegated and saveGet(ruleKey, false) == true
+        end
+
+        function Registry.contextConsistencyAudit()
+            local requestedGame = { __context_audit = "requested" }
+            local seen = {}
+            local function fakeDelegation(key, game)
+                seen[#seen + 1] = { key = key, game = game }
+                return key == "random_field_items"
+            end
+            local function fakeSaveGet(key)
+                return key == "random_encounter_tables"
+                    or key == "random_field_items"
+                    or key == "random_learnsets"
+            end
+            local encounters = registryRandomizerOwned(
+                requestedGame, "random_encounter_tables",
+                fakeDelegation, fakeSaveGet)
+            local fieldItems = registryRandomizerOwned(
+                requestedGame, "random_field_items",
+                fakeDelegation, fakeSaveGet)
+            local learnsets = registryRandomizerOwned(
+                requestedGame, "random_learnsets",
+                fakeDelegation, fakeSaveGet)
+            local sameContext = #seen == 3
+            for _, row in ipairs(seen) do
+                sameContext = sameContext
+                    and row.game == requestedGame
+            end
+            local ok = sameContext
+                and encounters == true
+                and fieldItems == false
+                and learnsets == true
+            return {
+                ok = ok,
+                failures = ok and {} or {
+                    "registry_describe_randomizer_context"
+                },
+                checked = #seen,
+            }
+        end
+
         function Registry.describe(game)
             game = game or getCurrentGame() or mod.game
             return {
@@ -702,9 +823,12 @@ return function(mod, deps)
                 pokemon=game and game.data and game.data.pokemon or nil,
                 encounters=Registry.effectiveEncounters(game),
                 moves=game and game.data and game.data.moves or nil,
-                randomEncounters=(not (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", getCurrentGame() or mod.game)) and mod.save:get("random_encounter_tables", false) == true),
-                randomFieldItems=(not (externalRuleDelegation and externalRuleDelegation("random_field_items", getCurrentGame() or mod.game)) and mod.save:get("random_field_items", false) == true),
-                randomLearnsets=(not (externalRuleDelegation and externalRuleDelegation("random_learnsets", getCurrentGame() or mod.game)) and mod.save:get("random_learnsets", false) == true),
+                randomEncounters=registryRandomizerOwned(
+                    game, "random_encounter_tables"),
+                randomFieldItems=registryRandomizerOwned(
+                    game, "random_field_items"),
+                randomLearnsets=registryRandomizerOwned(
+                    game, "random_learnsets"),
                 encounterInformation=Registry.encounterInformationPolicy(game),
                 fieldItemInformation=Registry.fieldItemInformationPolicy(game),
             }

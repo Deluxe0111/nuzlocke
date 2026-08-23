@@ -20,6 +20,51 @@ return function(mod, deps)
   local getCurrentGame = assert(deps.getCurrentGame, "forgiveness requires getCurrentGame")
   local getCurrentSave = assert(deps.getCurrentSave, "forgiveness requires getCurrentSave")
   local engineBoxConstants = assert(deps.engineBoxConstants, "forgiveness requires engineBoxConstants")
+  local TX = assert(deps.GameplayTransactions, "forgiveness requires GameplayTransactions")
+
+  local function checkedSaveSet(key, value)
+      local ok, result = pcall(mod.save.set, mod.save, key, value)
+      if not ok then return false, tostring(result) end
+      if result == false then return false, "store_rejected_write" end
+      return true
+  end
+
+  local function runHistoryHasDedupe(game, dedupe)
+      dedupe = tostring(dedupe or "")
+      if dedupe == "" then return false end
+      local history = mod.exports.__beta26.RunHistory
+      if type(history) ~= "table" or type(history.hasDedupe) ~= "function" then
+          return nil, "run_history_query_unavailable"
+      end
+      local ok, present, detail = pcall(history.hasDedupe, game, dedupe)
+      if not ok then return nil, "run_history_query_error:" .. tostring(present) end
+      if present == nil then return nil, tostring(detail or "run_history_unavailable") end
+      return present == true, detail
+  end
+
+  local function ensureForgivenessHistory(game, mode, target, payload, tokens)
+      local dedupe = tostring(payload and payload.history_dedupe or "")
+      if dedupe == "" then return false, "missing_history_dedupe" end
+      local present, presentErr = runHistoryHasDedupe(game, dedupe)
+      if present == nil then return false, presentErr end
+      if present then return true end
+      local history = mod.exports.__beta26.RunHistory
+      if type(history) ~= "table"
+          or type(history.recordForgivenessUse) ~= "function" then
+          return false, "run_history_unavailable"
+      end
+      local ok, result, detail = pcall(history.recordForgivenessUse,
+          game, mode, target, {
+              tokens = tokens, source = "bag", dedupe = dedupe,
+          })
+      if not ok then return false, "run_history_error:" .. tostring(result) end
+      if result ~= true and tostring(detail or "") ~= "duplicate" then
+          return false, "run_history_rejected:" .. tostring(detail or result)
+      end
+      local persisted, persistedErr = runHistoryHasDedupe(game, dedupe)
+      if persisted == nil then return false, persistedErr end
+      return persisted == true, persisted and nil or "run_history_not_persisted"
+  end
   ---------------------------------------------------------------------
   -- FORGIVENESS TOKEN ITEM / REVIVAL ARCHIVE (2.5.40)
   --
@@ -76,7 +121,13 @@ return function(mod, deps)
           -- generation-specific fields rather than reconstructing a species.
           mon = snapshot(mon),
       }
-      mod.save:set("route_forgiveness_dead_archive", archive)
+      local okArchive, archiveErr =
+          checkedSaveSet("route_forgiveness_dead_archive", archive)
+      if not okArchive then
+          mon.nuzlockeForgivenessArchivePending = true
+          return false, "archive_write:" .. tostring(archiveErr)
+      end
+      mon.nuzlockeForgivenessArchivePending = nil
       return true, id
   end
 
@@ -177,31 +228,47 @@ return function(mod, deps)
       return rows
   end
 
-  mod.exports.__beta26.reopenFailedEncounterWithForgiveness = function(game, requestedKey)
+  local function areaHasFailedProjection(game, key)
+      local states = mod.exports.__beta26.encounterStates()
+      if type(states) == "table" and states[key] ~= nil then return true end
+      local ledger = mod.save:get("encounter_area_state_ledger", {})
+      if type(ledger) ~= "table" then return false end
+      for ledgerKey, row in pairs(ledger) do
+          if type(row) == "table" and row.status == "FAILED" then
+              local physical = routeKey(row.encounterMapId)
+                  or routeKey(ledgerKey) or row.encounterMapId
+              local base = mod.exports.__beta26.projectEncounterArea(physical)
+                  or physical
+              local projected = mod.exports.__beta26.projectGoldEncounterArea(
+                  game, base, row) or base
+              if (routeKey(projected) or projected) == key then return true end
+          end
+      end
+      return false
+  end
+
+  local function applyForgivenessArea(game, requestedKey, txCtx)
       game = game or getCurrentGame() or mod.game
       local rewards = mod.exports.__beta26.TrainerRewards
-      if not (rewards and rewards.forgivenessEnabled
-          and rewards.forgivenessEnabled(game, nil)) then
-          return false, Strings("Route Forgiveness is not active.")
-      end
-      if rewards.forgivenessTokens() <= 0 then
-          return false, Strings("You have no F. TOKEN.")
+      if not txCtx then
+          if not (rewards and rewards.forgivenessEnabled
+              and rewards.forgivenessEnabled(game, nil)) then
+              return false, Strings("Route Forgiveness is not active.")
+          end
+          if rewards.forgivenessTokens() <= 0 then
+              return false, Strings("You have no F. TOKEN.")
+          end
       end
       local key = requestedKey
-      if key == nil then
-          key = areaKey(game, nil)
-      end
+      if key == nil then key = areaKey(game, nil) end
       key = routeKey(key) or key
-      local eligible, reason, normalized =
-          mod.exports.__beta26.forgivenessAreaEligible(game, key)
-      if not eligible then return false, reason end
-      key = normalized or key
+      if not txCtx then
+          local eligible, reason, normalized =
+              mod.exports.__beta26.forgivenessAreaEligible(game, key)
+          if not eligible then return false, reason end
+          key = normalized or key
+      end
 
-      -- FAILED state is projected from a physical-map ledger. Forgiveness
-      -- spends against the SELECTED logical encounter slot. If disabled area
-      -- splits merge several physical rows into that one logical slot, clear
-      -- every FAILED row projecting into it so the slot truly reopens and
-      -- cannot re-close after a reproject/load.
       local states = mod.exports.__beta26.encounterStates()
       local ledger = mod.save:get("encounter_area_state_ledger", {})
       if type(ledger) ~= "table" then ledger = {} end
@@ -219,30 +286,56 @@ return function(mod, deps)
           end
       end
       states[key] = nil
-      mod.save:set("encounter_states", states)
-      mod.save:set("encounter_area_state_ledger", ledger)
+      local okStates, errStates = checkedSaveSet("encounter_states", states)
+      if not okStates then return false, "encounter_states_write:" .. tostring(errStates) end
+      local okLedger, errLedger =
+          checkedSaveSet("encounter_area_state_ledger", ledger)
+      if not okLedger then
+          return false, "encounter_ledger_write:" .. tostring(errLedger)
+      end
       local last = mod.save:get("last_failed_encounter", {})
       if type(last) == "table"
           and (routeKey(last.area) or last.area) == key then
-          mod.save:set("last_failed_encounter", {})
+          local okLast, errLast =
+              checkedSaveSet("last_failed_encounter", {})
+          if not okLast then
+              return false, "last_failed_write:" .. tostring(errLast)
+          end
       end
       pcall(mod.exports.__beta26.reprojectEncounterAreas)
-      rewards.setForgivenessTokens(rewards.forgivenessTokens() - 1)
-      pcall(mod.exports.__beta26.RunHistory.recordForgivenessUse, game, "area", key, {
-          tokens = rewards.forgivenessTokens(), source = "bag",
-      })
+
+      local beforeTokens = math.max(0, math.floor(tonumber(
+          txCtx and txCtx.before_tokens) or rewards.forgivenessTokens()))
+      local afterTokens = math.max(0, beforeTokens - 1)
+      local liveTokens = rewards.forgivenessTokens()
+      if liveTokens == beforeTokens then
+          if rewards.setForgivenessTokens(afterTokens) ~= true then
+              return false, Strings("The F. TOKEN could not be committed safely.")
+          end
+      elseif liveTokens ~= afterTokens then
+          return false, Strings("F. TOKEN state changed during recovery.")
+      end
+      if txCtx then
+          local okHistory, historyErr = ensureForgivenessHistory(
+              game, "area", key, txCtx, afterTokens)
+          if not okHistory then
+              return false, "run_history:" .. tostring(historyErr)
+          end
+      end
       return true, Strings("F. TOKEN used.\n%s is open again.", routeName(key))
   end
 
-  mod.exports.__beta26.reviveWithForgiveness = function(game, pokemonId)
+  local function applyForgivenessRevive(game, pokemonId, txCtx)
       game = game or getCurrentGame() or mod.game
       local rewards = mod.exports.__beta26.TrainerRewards
-      if not (rewards and rewards.forgivenessEnabled
-          and rewards.forgivenessEnabled(game, nil)) then
-          return false, Strings("Route Forgiveness is not active.")
-      end
-      if rewards.forgivenessTokens() <= 0 then
-          return false, Strings("You have no F. TOKEN.")
+      if not txCtx then
+          if not (rewards and rewards.forgivenessEnabled
+              and rewards.forgivenessEnabled(game, nil)) then
+              return false, Strings("Route Forgiveness is not active.")
+          end
+          if rewards.forgivenessTokens() <= 0 then
+              return false, Strings("You have no F. TOKEN.")
+          end
       end
       local wanted = tostring(pokemonId or "")
       local archive = mod.exports.__beta26.forgivenessDeadArchive()
@@ -279,7 +372,10 @@ return function(mod, deps)
               end)
       end
       mon = physical or mon
-      if type(mon) ~= "table" or mon.nuzlockeDead ~= true then
+      if type(mon) ~= "table" then
+          return false, Strings("That fallen Pokemon cannot be restored.")
+      end
+      if not txCtx and mon.nuzlockeDead ~= true then
           return false, Strings("That fallen Pokemon cannot be restored.")
       end
 
@@ -418,7 +514,11 @@ return function(mod, deps)
                   row.revivedByForgiveness = true
               end
           end
-          mod.save:set("nuzlocke_history", history)
+          local okHistoryWrite, historyWriteErr =
+              checkedSaveSet("nuzlocke_history", history)
+          if not okHistoryWrite then
+              return false, "nuzlocke_history_write:" .. tostring(historyWriteErr)
+          end
       end
       local log = trackerLog()
       for _, entries in pairs(log) do
@@ -438,20 +538,178 @@ return function(mod, deps)
               end
           end
       end
-      mod.save:set("tracker_log", log)
+      local okTracker, trackerErr = checkedSaveSet("tracker_log", log)
+      if not okTracker then
+          return false, "tracker_log_write:" .. tostring(trackerErr)
+      end
       if type(mod.exports.__beta26.syncTrackerDeathProjection) == "function" then
           pcall(mod.exports.__beta26.syncTrackerDeathProjection)
       end
       archive[wanted] = nil
-      mod.save:set("route_forgiveness_dead_archive", archive)
-      rewards.setForgivenessTokens(rewards.forgivenessTokens() - 1)
-      pcall(mod.exports.__beta26.RunHistory.recordForgivenessUse, game, "revive", wanted, {
-          tokens = rewards.forgivenessTokens(), source = "bag",
-      })
+      local okArchive, archiveErr =
+          checkedSaveSet("route_forgiveness_dead_archive", archive)
+      if not okArchive then
+          return false, "dead_archive_write:" .. tostring(archiveErr)
+      end
+      local beforeTokens = math.max(0, math.floor(tonumber(
+          txCtx and txCtx.before_tokens) or rewards.forgivenessTokens()))
+      local afterTokens = math.max(0, beforeTokens - 1)
+      local liveTokens = rewards.forgivenessTokens()
+      if liveTokens == beforeTokens then
+          if rewards.setForgivenessTokens(afterTokens) ~= true then
+              return false, Strings("The F. TOKEN could not be committed safely.")
+          end
+      elseif liveTokens ~= afterTokens then
+          return false, Strings("F. TOKEN state changed during recovery.")
+      end
+      if txCtx then
+          local okHistory, historyErr = ensureForgivenessHistory(
+              game, "revive", wanted, txCtx, afterTokens)
+          if not okHistory then
+              return false, "run_history:" .. tostring(historyErr)
+          end
+      end
       local name = tostring(mon.nickname or mon.species or "Pokemon")
       local suffix = physicalBox and Strings("\nSent to PC Box %d.", physicalBox)
           or ""
       return true, Strings("F. TOKEN used.\n%s was revived!", name) .. suffix
+  end
+
+  local function findForgivenessPhysical(game, wanted)
+      local save = game and game.save
+      if type(save) ~= "table" then return nil end
+      local function same(candidate)
+          if type(candidate) ~= "table" then return false end
+          local id = Identity.pokemonIdentity(candidate)
+          return id ~= nil and tostring(id) == tostring(wanted)
+      end
+      for _, candidate in ipairs(save.party or {}) do
+          if same(candidate) then return candidate end
+      end
+      local found
+      mod.exports.__beta26.forEachExistingSaveBox(save, function(box)
+          for _, candidate in ipairs(box) do
+              if same(candidate) then found = candidate; return false end
+          end
+      end)
+      return found
+  end
+
+  if type(TX.register) == "function" then
+      TX.register("forgiveness_area_v1", {
+          probe = function(payload)
+              local game = getCurrentGame() or mod.game
+              local rewards = mod.exports.__beta26.TrainerRewards
+              if type(rewards) ~= "table" then return "unknown", "rewards_unavailable" end
+              local key = routeKey(payload and payload.area_key) or (payload and payload.area_key)
+              local before = math.max(0, math.floor(tonumber(payload and payload.before_tokens) or 0))
+              local after = math.max(0, before - 1)
+              local tokens = rewards.forgivenessTokens()
+              local failed = areaHasFailedProjection(game, key)
+              local historyOk, historyErr = runHistoryHasDedupe(
+                  game, payload and payload.history_dedupe)
+              if historyOk == nil then return "unknown", tostring(historyErr) end
+              if not failed and tokens == after and historyOk then
+                  return "applied"
+              end
+              if (tokens == before or tokens == after) then return "not_applied" end
+              return "unknown", "forgiveness_area_state_ambiguous"
+          end,
+          perform = function(payload)
+              local game = getCurrentGame() or mod.game
+              return applyForgivenessArea(game, payload and payload.area_key, payload)
+          end,
+      })
+      TX.register("forgiveness_revive_v1", {
+          probe = function(payload)
+              local game = getCurrentGame() or mod.game
+              local rewards = mod.exports.__beta26.TrainerRewards
+              if type(rewards) ~= "table" then return "unknown", "rewards_unavailable" end
+              local wanted = tostring(payload and payload.pokemon_id or "")
+              local before = math.max(0, math.floor(tonumber(payload and payload.before_tokens) or 0))
+              local after = math.max(0, before - 1)
+              local tokens = rewards.forgivenessTokens()
+              local archive = mod.exports.__beta26.forgivenessDeadArchive()
+              local physical = findForgivenessPhysical(game, wanted)
+              local archived = type(archive[wanted]) == "table"
+              local revived = type(physical) == "table"
+                  and physical.nuzlockeDead ~= true and not archived
+              local historyOk, historyErr = runHistoryHasDedupe(
+                  game, payload and payload.history_dedupe)
+              if historyOk == nil then return "unknown", tostring(historyErr) end
+              if revived and tokens == after and historyOk then
+                  return "applied"
+              end
+              if (tokens == before or tokens == after)
+                  and (archived or type(physical) == "table") then
+                  return "not_applied"
+              end
+              return "unknown", "forgiveness_revive_state_ambiguous"
+          end,
+          perform = function(payload)
+              local game = getCurrentGame() or mod.game
+              return applyForgivenessRevive(game, payload and payload.pokemon_id, payload)
+          end,
+      })
+  end
+
+  mod.exports.__beta26.reopenFailedEncounterWithForgiveness = function(game, requestedKey)
+      game = game or getCurrentGame() or mod.game
+      local rewards = mod.exports.__beta26.TrainerRewards
+      if not (rewards and rewards.forgivenessEnabled
+          and rewards.forgivenessEnabled(game, nil)) then
+          return false, Strings("Route Forgiveness is not active.")
+      end
+      if rewards.forgivenessTokens() <= 0 then
+          return false, Strings("You have no F. TOKEN.")
+      end
+      local key = requestedKey
+      if key == nil then key = areaKey(game, nil) end
+      key = routeKey(key) or key
+      local eligible, reason, normalized =
+          mod.exports.__beta26.forgivenessAreaEligible(game, key)
+      if not eligible then return false, reason end
+      key = normalized or key
+      local attempt = TX.nextSequence("forgiveness_area_v1")
+      if attempt == nil then return false, Strings("F. TOKEN transaction unavailable.") end
+      local id = table.concat({ "forgiveness_area", "v1", tostring(key), tostring(attempt) }, ":")
+      local ok, err = TX.execute(id, "forgiveness_area_v1", {
+          area_key = key, before_tokens = rewards.forgivenessTokens(),
+          history_dedupe = id,
+      })
+      if ok ~= true then return false, Strings("F. TOKEN could not be used safely: %s", tostring(err)) end
+      return true, Strings("F. TOKEN used.\n%s is open again.", routeName(key))
+  end
+
+  mod.exports.__beta26.reviveWithForgiveness = function(game, pokemonId)
+      game = game or getCurrentGame() or mod.game
+      local rewards = mod.exports.__beta26.TrainerRewards
+      if not (rewards and rewards.forgivenessEnabled
+          and rewards.forgivenessEnabled(game, nil)) then
+          return false, Strings("Route Forgiveness is not active.")
+      end
+      if rewards.forgivenessTokens() <= 0 then
+          return false, Strings("You have no F. TOKEN.")
+      end
+      local wanted = tostring(pokemonId or "")
+      local archive = mod.exports.__beta26.forgivenessDeadArchive()
+      local physical = findForgivenessPhysical(game, wanted)
+      local record = archive[wanted]
+      local candidate = physical or (type(record) == "table" and record.mon or nil)
+      if type(candidate) ~= "table" or candidate.nuzlockeDead ~= true then
+          return false, Strings("That fallen Pokemon cannot be restored.")
+      end
+      local attempt = TX.nextSequence("forgiveness_revive_v1")
+      if attempt == nil then return false, Strings("F. TOKEN transaction unavailable.") end
+      local id = table.concat({ "forgiveness_revive", "v1", wanted, tostring(attempt) }, ":")
+      local ok, err = TX.execute(id, "forgiveness_revive_v1", {
+          pokemon_id = wanted, before_tokens = rewards.forgivenessTokens(),
+          history_dedupe = id,
+      })
+      if ok ~= true then return false, Strings("F. TOKEN could not be used safely: %s", tostring(err)) end
+      local mon = findForgivenessPhysical(game, wanted)
+      local name = tostring(mon and (mon.nickname or mon.species) or "Pokemon")
+      return true, Strings("F. TOKEN used.\n%s was revived!", name)
   end
 
   mod.content.screens:register("NuzlockeForgivenessArea", {
@@ -874,6 +1132,43 @@ return function(mod, deps)
       end,
   })
 
+
+  mod.exports.__beta26.reconcileForgivenessDeathArchive = function(game)
+      game = game or getCurrentGame() or mod.game
+      local save = game and game.save or getCurrentSave()
+      if type(save) ~= "table" or not mod.exports.__beta26.canWriteNuzlockeSave(game) then
+          return false, "save_unavailable"
+      end
+      local recovered = 0
+      local function reconcileContainer(container)
+          if type(container) ~= "table" then return end
+          for i = #container, 1, -1 do
+              local mon = container[i]
+              if type(mon) == "table" and mon.nuzlockeDead == true
+                  and mon.nuzlockeForgivenessArchivePending == true then
+                  local ok = mod.exports.__beta26.archiveForgivenessDeath(game, mon)
+                  if ok == true then
+                      table.remove(container, i)
+                      recovered = recovered + 1
+                  end
+              end
+          end
+      end
+      reconcileContainer(save.party)
+      mod.exports.__beta26.forEachExistingSaveBox(save, function(box)
+          reconcileContainer(box)
+      end)
+      return true, recovered
+  end
+
+  mod.events:on("game.ready", function(ev)
+      pcall(mod.exports.__beta26.reconcileForgivenessDeathArchive,
+          (type(ev) == "table" and ev.game) or getCurrentGame() or mod.game)
+  end)
+  mod.events:on("save.loaded", function(ev)
+      pcall(mod.exports.__beta26.reconcileForgivenessDeathArchive,
+          (type(ev) == "table" and ev.game) or getCurrentGame() or mod.game)
+  end)
 
   return true
 end

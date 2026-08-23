@@ -1,3 +1,197 @@
+# 2.7.25 — 2.7.x release promotion
+
+- Promotes exact 2.7.24 as the 2.7.x release build.
+- Carries forward the completed second/third-pass hardening, documentation audit, Gen1Recomp 0.2.20 source audit, and Run History normalization persistence fix.
+- Release promotion itself changes only version/provenance/release documentation.
+- No new gameplay semantics, Randomizer algorithms/mappings, Save Schema, or public API version changes.
+
+# 2.7.24 — Documentation audit and Run History baseline repair
+
+- Performs a full shipped-document audit and restores current-state documentation roles.
+- Removes duplicated release timelines from README/API/Compatibility/User Guide while preserving full history in CHANGELOG.
+- Restores the missing 2.7.17 CHANGELOG entry.
+- Reconciles current API/package/version, World Building, Randomizer ownership, Stadium provenance, transaction, and runtime-evidence wording.
+- Persists normalized malformed Run History baseline catch/death counters and adds Release Safety regression coverage.
+- No challenge-rule, Randomizer algorithm/mapping, provider ownership, Save Schema, or public API version changes.
+
+# 2.7.23 — Public registry context consistency
+
+- Makes `Registry.describe(game)` use its resolved game context for Randomizer delegation/ownership fields.
+- Adds a focused context-consistency audit and Release Safety coverage.
+- No Randomizer or gameplay semantics changed.
+
+# 2.7.22 — Transaction failure visibility and future-journal preservation
+
+- Preserves actual Rare Candy `TX.execute()` failure reasons.
+- Adds Rare Candy failure-reason pass-through regression coverage.
+- Makes transaction journal mutators fail closed on future schema versions.
+- Extends transaction self-test across advance/checkpoint/targeted-clear/broad-clear future-journal cases.
+- No gameplay semantics changed.
+
+# 2.7.21 — Critical World feedback + pass-scoped encounter profiling
+
+- Restores plain critical feedback at World Building T0 for external gift denial, external trade denial, and failed-encounter area consumption.
+- Keeps ordinary World Building flavor suppressed at T0.
+- Hoists encounter evolution-profile construction to balanced apply/report pass boundaries.
+- Preserves zero profile construction for CHAOS.
+- Adds Release Safety/semantic tripwires for critical call sites and profile sharing.
+- No Randomizer algorithm or mapping changes.
+
+# 2.7.20 — Randomizer diagnostic/presentation consistency
+
+- Accepts `disabled` as a valid Randomizer projection state.
+- Shows Randomizer OPEN/BLIND policy for learnset-only Nuzlocke-owned runs.
+- Adds Randomizer projection ownership to Release Safety.
+- No Randomizer algorithm or mapping changes.
+
+# 2.7.19 — Stadium provenance precedence and release coverage
+
+- Makes authoritative Stadium Pokémon provenance outrank heuristic vanilla gift/trade inference.
+- Tracks importer-provider identity separately from Stadium origin and exposes provider ambiguity.
+- Auto-detected Stadium imports inherit provider ID only when exactly one importer provider is active.
+- Adds Stadium provenance module/API ownership checks to Release Safety.
+- No acquisition catalog data or ordinary gameplay semantics changed.
+
+# 2.7.18 — Public acquisition and persistence identity hardening
+
+- Replaces caller-trusted acquisition decision tables with opaque one-shot Nuzlocke-issued decision tokens.
+- Requires Gameplay Transaction receipt identity to match both ID and kind.
+- Adds receipt-kind collision coverage to the transaction self-test.
+- Preserves Run History forward-compatibility errors through public `list()` and `report()` reads.
+- No ordinary gameplay semantics changed.
+
+# 2.7.17 — Persistence-integrity repairs
+
+- Centralizes authoritative Run History dedupe queries behind the Run History API.
+- Makes league progression and required Run History evidence one recoverable semantic transaction.
+- Checks Elite Four progression persistence.
+- Makes Route Forgiveness death archival fail closed and reconciles archive-pending dead Pokémon before physical cleanup.
+- No rule defaults, Randomizer mappings, Save Schema, or ordinary challenge semantics changed.
+
+# 2.7.16 — Title setup context and World Building status consistency
+
+- Suppresses the live title SETUP/staging hook in Save Editor sessions.
+- Reports the Gen 2 title adapter as N/A in Save Editor and on non-Gen2 editions.
+- Keeps independent World Building state visible in NUZ STATUS while Nuzlocke is OFF.
+- Leaves the dormant legacy title fallback deferred.
+- No gameplay semantics changed.
+
+# 2.7.15 — Installer, transaction, and migration integrity
+
+- Reports Battle Clauses as N/A in Save Editor sessions.
+- Enforces future Gameplay Transaction versions directly in `TX.execute()`.
+- Adds a transaction self-test for future-version direct execution.
+- Makes Permanent Rule Lock semantic reconciliation use checked save writes and propagate migration failure.
+- Makes dormant Permanent Rule Seal reconciliation require acknowledged durable persistence.
+- Surfaces game-ready permanent-lock reconciliation failures in Feature Health.
+- No ordinary gameplay semantics changed.
+
+# 2.7.14 — Run History and NZR6 integrity hardening
+
+- Fails closed on future Run History sub-schema versions instead of downgrading them.
+- Rebuilds and audits the retained-event dedupe index when stale, missing, or fabricated.
+- Preserves Run History `ensure()` failure reasons through `append()`.
+- Enforces exact NZR6 payload length and zero-padding validation.
+- Leaves NZR4/NZR5 legacy decoder compatibility unchanged.
+- No gameplay semantics changed.
+
+# 2.7.13 — World Building independence and Randomizer disabled-state health
+
+- Removes the unintended World Building dependency on the Nuzlocke master switch.
+- Routes World Building dialogue rotation through the safe-write boundary with session fallback.
+- Treats disabled Encounter/Learnset Randomizers as N/A instead of false failure when no restoration is owed.
+- Preserves restoration requirements for an existing Nuzlocke-owned Randomizer snapshot.
+- No gameplay-rule defaults or Randomizer algorithms/mappings changed.
+
+# 2.7.12 — Optional UI provider lifecycle hardening
+
+- Clears stale Pokegear capability exports whenever the installation session is retired.
+- Protects Pokegear provider calls and reports lifecycle registration health explicitly.
+- Makes Pokegear provider health exact-edition aware.
+- Strengthens Modern UI registration identity to provider handle + exports table + register function.
+- Reports Modern UI lifecycle registration outcomes through Feature Health.
+- Classic UI semantics remain unchanged.
+
+# 2.7.11 — Acquisition commit continuity and Stadium provenance authority
+
+- Preserves a public acquisition's authoritative `begin()` result through matching `commit()`.
+- Adds explicit `commitDecision(context, decision)` for providers that reconstruct context tables.
+- Restricts automatic Stadium origin selection to importer-capable providers and reports multi-importer origin ambiguity.
+- Keeps exact running edition authoritative while preserving importer/source edition separately.
+- No gameplay-rule defaults, Randomizer mappings, Save Schema, or acquisition catalog entries changed.
+
+# 2.7.10 — Version-numbering governance update
+
+- Adds the project-wide 2.8.x zero-padded patch-numbering convention: `2.8.00`, `2.8.01`, ... `2.8.09`, `2.8.10`, `2.8.11`, and onward.
+- Preserves strict immediate-parent lineage requirements.
+- No gameplay or runtime semantics changed.
+
+# 2.7.9 — Transaction verification and history reconciliation
+
+- Requires a post-`perform()` reconciliation probe to prove `applied` before Gameplay Transactions advance to `performed`.
+- Makes Forgiveness reroll/revival and Gym Leader F. TOKEN transaction writes fail closed on rejected authoritative save writes.
+- Moves Forgiveness Run History materialization inside the transaction's reconciliation contract so an interruption after gameplay mutation cannot permanently omit the event.
+- Extends the transaction self-test with a false-success handler that must not receive a committed receipt.
+- No rule defaults, Randomizer mappings, Save Schema, provider ownership, or ordinary challenge semantics changed.
+
+# 2.7.8 — Installer and feature-health state consistency
+
+- Preserves N/A and PENDING across `safeInstall()` and Feature Health instead of converting skipped installers into ACTIVE features.
+- Reports `gen2.install_all` as N/A outside Gen 2 and during save-editor sessions.
+- Adds Release Safety cross-surface validation for installer/feature-health state consistency.
+- No challenge semantics, rule defaults, Randomizer mappings, Save Schema, or provider ownership changed.
+
+# 2.7.7 — Loader contract, install-health, and F. TOKEN normalization
+
+- Centralizes required split-module reads/compilation with explicit required-module errors while keeping diagnostic rereads fail-soft.
+- Prevents `safeInstall()` from recording an edition-probe exception string as the edition.
+- Clamps malformed F. TOKEN inventory/mirror values to 0–99 before transaction payloads can observe them.
+- No rule defaults, Randomizer mappings, Save Schema, or unrelated gameplay semantics changed.
+
+# 2.7.6 — Runtime/installer observability hardening
+
+- Fail-soft optional presentation module loading.
+- Observable Gen 2 install orchestration.
+- Aggregated Randomizer apply results and lifecycle health.
+- Core Battle Clause hook-session verification.
+
+# 2.7.5 — Compatibility and diagnostics lifecycle hardening
+
+- Rebinds Modern UI registration when the active provider instance changes.
+- Makes Pokegear lifecycle installation session-based and independent of optional `api.get()`.
+- Fixes NZR6 derived-result consistency reconstruction.
+- Makes World Building and DEV source-introspection diagnostics fail soft when `mod:read()` is unavailable.
+- Aligns stored-state Run History sequence validation with the repaired journal invariant.
+
+# 2.7.4 — Forgiveness transaction and Run History recovery hardening
+
+- Journals F. TOKEN encounter rerolls and revivals through Gameplay Transactions with durable attempt identities and idempotent recovery.
+- Journals Gym Leader F. TOKEN awards so the token and permanent Leader ledger cannot diverge across interruption.
+- Repairs Run History `next_seq` from retained event chronology and audits absent/invalid sequence state.
+- No rule defaults, Randomizer mappings, Save Schema, or unrelated gameplay semantics changed.
+
+# 2.7.3 — Acquisition fail-closed and Stadium provenance hardening
+
+- Progression-PC acquisition commits now fail closed unless the required permanent PC lock succeeds; missing Pokemon/locker, thrown lock operations, and explicit false returns no longer emit a successful committed acquisition.
+- Stadium provenance marking now replaces the complete Stadium provenance tuple so a later v1-compatible mark cannot retain stale origin/provider/edition metadata.
+- Stadium compatibility diagnostics now default `presentation_only` from importer capability, preventing importer rows from also being mislabeled presentation-only unless explicitly overridden.
+- No rule defaults, Randomizer mappings, Save Schema, or unrelated gameplay behavior changed.
+
+# 2.7.2 — Classic status ownership and installer observability
+
+- Corrected classic NUZ STATUS Randomizer presentation so externally delegated visible Field Item randomization no longer shows dormant Nuzlocke RNG/Field Item Balance/Field Item Repetition state.
+- Randomizer Info OPEN/BLIND status now appears for Nuzlocke-owned Field Item-only runs, matching the documented Randomizer Info scope.
+- Hardened the dormant `title_setup_compat.lua` fallback installer: installer exceptions and unavailable hooks are now logged instead of disappearing behind bare `pcall`. The module remains dormant under the current main path.
+- No Randomizer generation/mapping, gameplay legality, save-schema, provider-ownership, or rule-default semantics changed.
+
+# 2.7.1 — Transaction and Release Safety hardening
+
+- Fixed Gameplay Transaction recovery so a durable committed receipt is authoritative before handler availability is checked.
+- Extended the transaction self-test to cover receipt-written/journal-leftover recovery with the historical handler deliberately absent.
+- Made save-pause-helper and Lua-unpack full-package audits fail soft when package source introspection is unavailable.
+- Expanded bare exported-installer `pcall` lint from a three-file list to every readable shipped Lua module in the authoritative package inventory.
+- No gameplay rule/default, Randomizer mapping, Save Schema, or compatibility-ownership changes.
+
 # 2.7.0 — Release promotion
 
 - Promotes exact runtime-confirmed 2.6.98 to release as a strict child of `4b5834bb54ff2cc4564ed62057210185c7619ceea1735ff50f1aa4cb97419cd0`.

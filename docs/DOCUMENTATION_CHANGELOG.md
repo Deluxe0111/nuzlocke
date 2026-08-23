@@ -1,5 +1,28 @@
-# Documentation Changelog — 2.7.0
-- 2.7.0: Promoted runtime-confirmed 2.6.98 to release, refreshed all current-build documentation headers, and rewrote release notes around changes since release build 2.6.0.
+# Documentation Changelog — 2.7.25
+- 2.7.25: Promoted the audited 2.7.24 documentation set to the 2.7.x release build and replaced checkpoint wording with release wording; no gameplay/API documentation contract changed.
+- 2.7.24: Performed a full shipped-document audit; restored README/API/Compatibility/User Guide to their current-state roles, removed duplicated release timelines from those documents, reconciled current transaction/Randomizer/Stadium/World Building context language, restored missing 2.7.17 history to CHANGELOG, source-audited Gen1Recomp 0.2.20, and documented the Run History baseline-normalization persistence hardening.
+- 2.7.23: Documented `Registry.describe(game)` exact-context Randomizer ownership and its regression audit.
+- 2.7.22: Documented Rare Candy transaction error pass-through and future-version protection for transaction journal mutators.
+- 2.7.21: Documented critical World Building T0 feedback, pass-scoped encounter profiling, CHAOS zero-build behavior, and regression tripwires.
+- 2.7.20: Documented valid Randomizer `disabled` projection state, learnset-only OPEN/BLIND status visibility, and Release Safety projection audit coverage.
+- 2.7.19: Documented authoritative Stadium source precedence, importer-provider ambiguity/identity, and Release Safety Stadium API coverage.
+- 2.7.18: Documented opaque acquisition decision tokens, ID+kind transaction receipt identity, and forward-compatible Run History public read errors.
+- 2.7.17: Documented authoritative Run History dedupe queries, transactional league progression/history, checked E4 writes, and fail-closed Forgiveness death archival.
+- 2.7.16: Documented Save Editor title-hook isolation, Gen 2 title adapter N/A contexts, and World Building visibility while Nuzlocke is OFF.
+- 2.7.15: Documented Save Editor Battle Clause N/A state, direct transaction-version enforcement, and checked Permanent Rule Lock migration writes.
+- 2.7.14: Documented future Run History fail-closed behavior, retained-event dedupe validation, and strict NZR6 payload/padding validation.
+- 2.7.13: Documented World Building master-switch independence, safe cosmetic persistence, and disabled Randomizer N/A lifecycle state.
+- 2.7.12: Documented stale Pokegear capability teardown, observable provider-registration health, and stronger Modern UI provider identity binding.
+- 2.7.11: Documented acquisition begin/commit continuity, explicit decision handoff, importer-only Stadium origin detection, ambiguity handling, and exact-edition provenance.
+- 2.7.10: Added the future 2.8.x zero-padded patch-numbering convention.
+- 2.7.9: Documented mandatory post-perform transaction verification, checked Forgiveness/reward writes, and transaction-bound Run History reconciliation.
+- 2.7.8: Documented N/A/PENDING feature-health preservation, Gen 2 aggregate-install N/A semantics, and Release Safety consistency validation.
+- 2.7.7: Clarified required module-loading vs diagnostic reread policy and documented install-health/F. TOKEN normalization repairs.
+- 2.7.5: Documented Modern UI/Pokegear lifecycle repairs, NZR6 decoding, fail-soft source diagnostics, and Run History audit alignment.
+- 2.7.4: Documented crash-atomic Forgiveness/Gym token transactions and Run History sequence recovery.
+- 2.7.3: Documented fail-closed progression-PC acquisition commit behavior and Stadium provenance/diagnostic corrections.
+- 2.7.2: Documented classic status ownership/info fixes and dormant title/setup installer observability hardening.
+- 2.7.1: Documented receipt-before-handler transaction recovery, fail-soft package-source audits, and full-inventory bare-installer audit coverage.
 - 2.6.96: Restored role-specific first-line current-build headers and exactly one canonical current-version CHANGELOG heading after the 2.6.95 packaging drift.
 - 2.6.95: Documented the Randomizer rival-sync diagnostic closure/order runtime repair.
 - 2.6.94: Documented full-package Lua unpack compatibility audit coverage and detector self-tests.

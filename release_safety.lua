@@ -409,7 +409,7 @@ return function(mod, deps)
       end
     end
     local function savePauseHelperScopeAudit()
-        local report = { ok=true, checked=0, failures={} }
+        local report = { ok=true, checked=0, failures={}, skipped={} }
 
         local function hasBareSavePauseCall(text)
             if type(text) ~= "string" then return false end
@@ -440,11 +440,14 @@ return function(mod, deps)
         -- modules. Every present and future shipped Lua module is now covered.
         for _, path in ipairs(deps.packagePaths or {}) do
             if tostring(path):match("%.lua$") then
-                local text = mod:read(path)
+                local text, readErr = safeRead(path)
                 report.checked = report.checked + 1
                 if type(text) ~= "string" then
-                    report.ok = false
-                    report.failures[#report.failures + 1] = path .. ":unreadable"
+                    -- Source introspection is diagnostic-only. A launcher may
+                    -- legitimately deny mod:read(); absence of source must not
+                    -- turn a gameplay-safe install into a Release Safety fail.
+                    report.skipped[#report.skipped + 1] =
+                        path .. ":source_unavailable:" .. tostring(readErr)
                 elseif hasBareSavePauseCall(text) then
                     report.ok = false
                     report.failures[#report.failures + 1] = path .. ":bare_save_pause_helper"
@@ -456,7 +459,7 @@ return function(mod, deps)
     mod.exports.__beta26.savePauseHelperScopeAudit = savePauseHelperScopeAudit
 
     local function luaUnpackCompatibilityAudit()
-        local report = { ok=true, checked=0, failures={} }
+        local report = { ok=true, checked=0, failures={}, skipped={} }
 
         local function unpackCompatibilityFailure(text)
             if type(text) ~= "string" then return nil end
@@ -497,11 +500,11 @@ return function(mod, deps)
         -- guard and would miss the exact regression class after modularization.
         for _, path in ipairs(deps.packagePaths or {}) do
             if tostring(path):match("%.lua$") then
-                local text = mod:read(path)
+                local text, readErr = safeRead(path)
                 report.checked = report.checked + 1
                 if type(text) ~= "string" then
-                    report.ok = false
-                    report.failures[#report.failures + 1] = path .. ":unreadable"
+                    report.skipped[#report.skipped + 1] =
+                        path .. ":source_unavailable:" .. tostring(readErr)
                 else
                     local failure = unpackCompatibilityFailure(text)
                     if failure ~= nil then
@@ -533,7 +536,16 @@ return function(mod, deps)
     run("rule_defaults", mod.exports.__beta26.auditNewRuleDefaults)
     run("rule_registry", mod.exports.__beta26.ruleRegistry and mod.exports.__beta26.ruleRegistry.audit)
     run("compat_contract", mod.exports.__beta26.compatContractAudit)
+    run("registry_describe_context_consistency",
+      mod.exports.nuzlocke and mod.exports.nuzlocke.registry
+        and mod.exports.nuzlocke.registry.contextConsistencyAudit)
     run("semantic_behavior_regressions", mod.exports.__beta26.semanticBehaviorRegressionAudit)
+    run("world_critical_feedback",
+      mod.exports.__beta26.worldCriticalFeedbackAudit)
+    run("randomizer_projection_ownership",
+      mod.exports.__beta26.randomizerProjectionAudit)
+    run("randomizer_encounter_profile_builds",
+      mod.exports.__beta26.randomizerEncounterProfileBuildAudit)
     run("pure_helpers", mod.exports.__beta26.pureHelperAudit)
     run("public_documentation", mod.exports.__beta26.publicDocumentationAudit)
     run("package_drift", mod.exports.__beta26.packageDriftAudit)
@@ -576,6 +588,9 @@ return function(mod, deps)
 
     run("save_schema_descriptor", mod.exports.__beta26.saveSchemaDescriptor and mod.exports.__beta26.saveSchemaDescriptor.audit)
     run("save_migration_integrity", mod.exports.__beta26.saveUpgrade and mod.exports.__beta26.saveUpgrade.audit)
+    run("run_history_baseline_normalization",
+      mod.exports.__beta26.RunHistory
+        and mod.exports.__beta26.RunHistory.baselineNormalizationAudit)
     run("gameplay_transaction_exactly_once",
       mod.exports.__beta26.GameplayTransactions and mod.exports.__beta26.GameplayTransactions.selfTest)
     run("rare_candy_transaction_identity",
@@ -593,21 +608,160 @@ return function(mod, deps)
       local detail = "install_api=" .. tostring(install and install.api)
         .. " feature_api=" .. tostring(health and health.api)
       add("feature_health_contract", valid, detail)
+
+      if valid then
+        local consistency = { ok=true, checked=0, failures={} }
+        local expectedState = {
+          ACTIVE = "ACTIVE",
+          ["N/A"] = "N/A",
+          PENDING = "PENDING",
+        }
+        for name, attempt in pairs(install.attempts or {}) do
+          local feature = tostring(attempt.feature or name)
+          local featureRow = health.features and health.features[feature] or nil
+          -- Compare only when this installer is still the latest owner of the
+          -- feature-health row. Hook health or another installer may legally
+          -- supersede the same feature later in the lifecycle.
+          if type(featureRow) == "table"
+              and tostring(featureRow.source or "") == tostring(name) then
+            consistency.checked = consistency.checked + 1
+            local status = tostring(attempt.status or "")
+            local expected = expectedState[status]
+            if status == "FAIL" then
+              expected = attempt.required == true and "UNAVAILABLE" or "DEGRADED"
+            end
+            if expected ~= nil and tostring(featureRow.state or "") ~= expected then
+              consistency.ok = false
+              consistency.failures[#consistency.failures + 1] =
+                string.format("%s:%s->%s expected=%s",
+                  tostring(name), status, tostring(featureRow.state), expected)
+            end
+          end
+        end
+        add("feature_health_consistency", consistency.ok,
+          string.format("checked=%d failures=%d%s",
+            consistency.checked, #consistency.failures,
+            #consistency.failures > 0
+              and (" first=" .. tostring(consistency.failures[1])) or ""),
+          true)
+      else
+        add("feature_health_consistency", false,
+          "feature/install health contract unavailable", true)
+      end
+    end
+
+    do
+      local stadium = mod.exports.nuzlocke_acquisition_provenance
+      local stadiumBeta = mod.exports.__beta26
+          and mod.exports.__beta26.StadiumPrize or nil
+      local sameApi = type(stadium) == "table" and stadium == stadiumBeta
+      local methodsOk = sameApi
+          and tonumber(stadium.version) == 2
+          and type(stadium.mark) == "function"
+          and type(stadium.markImported) == "function"
+          and type(stadium.describe) == "function"
+          and type(stadium.compatibilitySnapshot) == "function"
+      add("stadium_provenance_contract", methodsOk,
+          string.format("same_api=%s version=%s mark=%s imported=%s describe=%s snapshot=%s",
+            tostring(sameApi), tostring(type(stadium) == "table" and stadium.version or nil),
+            tostring(type(stadium) == "table" and type(stadium.mark) or "nil"),
+            tostring(type(stadium) == "table" and type(stadium.markImported) or "nil"),
+            tostring(type(stadium) == "table" and type(stadium.describe) or "nil"),
+            tostring(type(stadium) == "table" and type(stadium.compatibilitySnapshot) or "nil")))
     end
 
     local mainSource, mainErr = safeRead("main.lua")
     if mainSource then
       run("dead_fallback_lint", mod.exports.__beta26.deadFallbackAudit, mainSource)
-      local installerSources = { mainSource }
-      for _, installerPath in ipairs({ "battle_clauses.lua", "late_runtime.lua" }) do
+
+      -- Consequential enforcement/state feedback must stay visible at World
+      -- Building T0, while ordinary flavor remains opt-in. These source-level
+      -- checks protect the exact three call sites that have regressed before.
+      local giftCritical =
+        mainSource:find('worldMechanic(game, "gift_post_denied:', 1, true)
+          ~= nil
+        and mainSource:find(
+          'deleting data.",\n                  true)', 1, true) ~= nil
+      local tradeCritical =
+        mainSource:find('worldMechanic(game, "trade_post_denied:', 1, true)
+          ~= nil
+        and mainSource:find(
+          'rollback was attempted.",\n                  true)', 1, true) ~= nil
+      local failedCritical =
+        mainSource:find(
+          'worldMechanic(game, "failed:" .. tostring(key), t1, t2, t3, true)',
+          1, true) ~= nil
+      local criticalOk = giftCritical and tradeCritical and failedCritical
+      local optionalStillOptional =
+        mainSource:find(
+          'local function worldMechanic(game, key, tier1, tier2, tier3, critical)',
+          1, true) ~= nil
+        and mainSource:find(
+          'if tier <= 0 and critical ~= true then return false end',
+          1, true) ~= nil
+      add("world_critical_callsite_contract", criticalOk and optionalStillOptional,
+        "gift/trade/failed critical=" .. tostring(criticalOk)
+          .. " optional_t0_suppressed=" .. tostring(optionalStillOptional))
+    else
+      add("dead_fallback_lint", false,
+        "source introspection unavailable: " .. tostring(mainErr), false)
+      add("world_critical_callsite_contract", false,
+        "source introspection unavailable: " .. tostring(mainErr), false)
+    end
+
+    local randomizerSource, randomizerErr =
+      safeRead("randomizer_runtime.lua")
+    if randomizerSource then
+      local threaded =
+        randomizerSource:find(
+          "game, node, original, pool, balance, sharedProfile", 1, true) ~= nil
+        and randomizerSource:find(
+          "game, leaf, pool, pokemon, groupUsage, repetition, sharedProfile",
+          1, true) ~= nil
+        and randomizerSource:find(
+          "encounterProfileForPass(game, balance, perfStats)", 1, true) ~= nil
+        and randomizerSource:find(
+          "groupUsage, repetition,\n                  sharedProfile)", 1, true)
+          ~= nil
+        and randomizerSource:find(
+          "game, node, original, pool, balance, sharedProfile)", 1, true)
+          ~= nil
+      local chaosCheap =
+        randomizerSource:find(
+          "if balance <= 0 then return nil end", 1, true) ~= nil
+      add("randomizer_profile_pass_invariant",
+        threaded and chaosCheap,
+        "shared_profile_threaded=" .. tostring(threaded)
+          .. " chaos_zero_build=" .. tostring(chaosCheap))
+    else
+      add("randomizer_profile_pass_invariant", false,
+        "source introspection unavailable: " .. tostring(randomizerErr), false)
+    end
+
+    -- 2.7.1: installer lint follows the authoritative shipped Lua inventory.
+    -- A hand-maintained list silently lost coverage whenever installers moved
+    -- into a new split module. Unreadable package source remains diagnostic
+    -- only, matching the package_read contract below.
+    local installerSources = {}
+    local installerReadable = 0
+    for _, installerPath in ipairs(deps.packagePaths or {}) do
+      if tostring(installerPath):match("%.lua$") then
         local installerSource = safeRead(installerPath)
-        if installerSource then installerSources[#installerSources + 1] = installerSource end
+        if installerSource then
+          installerReadable = installerReadable + 1
+          installerSources[#installerSources + 1] =
+            "\n-- release-safety source: " .. tostring(installerPath) .. "\n"
+              .. installerSource
+        end
       end
+    end
+    if installerReadable > 0 then
       run("bare_installer_pcall",
         mod.exports.__beta26.bareInstallerPcallAudit,
         table.concat(installerSources, "\n"))
     else
-      add("dead_fallback_lint", false, "source introspection unavailable: " .. tostring(mainErr), false)
+      add("bare_installer_pcall", false,
+        "source introspection unavailable for shipped Lua modules", false)
     end
     run("save_pause_helper_scope", mod.exports.__beta26.savePauseHelperScopeAudit)
     run("lua_unpack_compat", mod.exports.__beta26.luaUnpackCompatibilityAudit)

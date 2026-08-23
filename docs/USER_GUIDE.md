@@ -1,10 +1,9 @@
-# Nuzlocke User Guide — 2.7.0
-2.7.0 promotes runtime-confirmed 2.6.98 to release. The final shared constructor repair restores the affected Setup / NUZ RULES opening path; gameplay behavior is otherwise unchanged from 2.6.98.
-2.6.96 repairs a Release Safety documentation packaging failure when opening NUZ RULES; gameplay behavior is unchanged.
-2.6.95 repairs the diagnostic failure that could appear when opening NUZ RULES. Gameplay behavior is unchanged.
-2.6.94 is an internal Release Safety hardening release; user-facing gameplay behavior is unchanged.
+# Nuzlocke User Guide — 2.7.25
 
+2.7.25 is a release promotion only. Player-facing rule behavior is unchanged from exact 2.7.24.
 This guide describes **what the mod does now**. Historical changes belong in `CHANGELOG.md`.
+
+World Building remains independent of the Nuzlocke master switch as a presentation feature. Encounter/Learnset Randomizer subsystems use explicit disabled/delegated/applied lifecycle states, and Randomizer information policy is shown whenever Nuzlocke owns at least one supported Randomizer surface, including learnset-only runs.
 
 ## Getting started
 
@@ -214,4 +213,4 @@ When a finite Nuzlocke level cap is active, using a Rare Candy on a Pokémon can
 
 ### World Building tiers and rule explanations
 
-World Building changes presentation only. A blocked action always receives a clear rule explanation even when World Building is OFF. T1 uses the plain explanation, T2 adds personality, and T3 may use region-aware contextual dialogue. Some T3 messages have deterministic variety; this presentation selection does not consume or alter gameplay RNG.
+World Building changes presentation only; it does not decide legality. Optional flavor is suppressed when World Building is OFF. Consequential enforcement/state-change feedback must remain understandable at T0: the protected critical paths use their plain Tier-1 wording instead of disappearing. T2 adds personality, and T3 may use region-aware contextual dialogue. Some T3 messages have deterministic variety; this presentation selection does not consume or alter gameplay RNG.

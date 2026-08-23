@@ -299,6 +299,14 @@ return function(mod, deps)
     local state = mod.exports.__beta26.ModernUiIntegration
     state.contract = mod.exports.gen1ModernUi
 
+    local function noteProviderHealth(status, reason)
+        local beta = mod.exports and mod.exports.__beta26
+        if beta and type(beta.noteFeatureHealth) == "function" then
+            pcall(beta.noteFeatureHealth, "integration.modern_ui_provider",
+                status, reason, "modern_ui_integration")
+        end
+    end
+
     function state.tryRegister(gameHint)
         local game = mod.game
         if type(gameHint) == "table" then
@@ -313,17 +321,20 @@ return function(mod, deps)
         -- adapter. Lifecycle events retry once the active game is known.
         if not game then
             state.active = false
+            state.status = "PENDING"
             state.lastError = "game not ready"
             return false, state.lastError
         end
         if type(deps.isGen2) ~= "function" then
             state.active = false
+            state.status = "DEGRADED"
             state.lastError = "generation resolver unavailable"
             return false, state.lastError
         end
         local okGen2, gen2 = pcall(deps.isGen2, game)
         if not okGen2 then
             state.active = false
+            state.status = "PENDING"
             state.lastError = "generation unresolved"
             return false, state.lastError
         end
@@ -332,31 +343,52 @@ return function(mod, deps)
             -- historical registration marker, but make every adapter callback
             -- inert while Gen 2 is active.
             state.active = false
+            state.status = "N/A"
             state.lastError = "gen1 only"
             return false, state.lastError
         end
 
-        -- Retry until successful, then never register the same adapter twice.
-        if state.registered then
-            state.active = true
-            state.lastError = nil
-            return true
-        end
-
+        -- Re-discover the provider on every lifecycle retry. A successful
+        -- registration is only authoritative for the exact provider handle
+        -- that accepted it; provider reload/replacement must re-register.
         local ui = provider()
         if not ui then
+            state.registered = false
+            state.registeredProvider = nil
+            state.registeredExports = nil
+            state.registeredRegisterAdapter = nil
             state.active = false
+            state.status = "PENDING"
+            state.providerId = nil
             state.lastError = "provider unavailable"
             return false, state.lastError
         end
+        local exports = ui.exports
+        local registerAdapter = type(exports) == "table"
+            and exports.registerAdapter or nil
+        if state.registered
+            and state.registeredProvider == ui
+            and state.registeredExports == exports
+            and state.registeredRegisterAdapter == registerAdapter then
+            state.active = true
+            state.status = "ACTIVE"
+            state.providerId = "gen1_modern_ui"
+            state.lastError = nil
+            return true
+        end
+        state.registered = false
+        state.registeredProvider = nil
+        state.registeredExports = nil
+        state.registeredRegisterAdapter = nil
 
         local ok, registered, reason = pcall(
-            ui.exports.registerAdapter, {
+            registerAdapter, {
                 owner = mod.id or "nuzlocke",
                 contract = mod.exports.gen1ModernUi,
             })
         if not ok then
             state.active = false
+            state.status = "DEGRADED"
             state.providerId = nil
             state.lastError = tostring(registered)
             return false, state.lastError
@@ -366,13 +398,21 @@ return function(mod, deps)
         -- provider-side early return cannot leave us reporting a phantom link.
         if registered ~= true then
             state.registered = false
+            state.registeredProvider = nil
+            state.registeredExports = nil
+            state.registeredRegisterAdapter = nil
             state.active = false
+            state.status = "DEGRADED"
             state.providerId = nil
             state.lastError = tostring(reason or "registration refused")
             return false, state.lastError
         end
         state.registered = true
+        state.registeredProvider = ui
+        state.registeredExports = exports
+        state.registeredRegisterAdapter = registerAdapter
         state.active = true
+        state.status = "ACTIVE"
         state.providerId = "gen1_modern_ui"
         state.lastError = nil
         return true
@@ -391,8 +431,26 @@ return function(mod, deps)
                 pcall(kerning.install)
             end
         end)
-        mod.events:on("mods.loaded", function(ev) pcall(state.tryRegister, ev) end)
-        mod.events:on("game.ready", function(ev) pcall(state.tryRegister, ev) end)
-        mod.events:on("save.loaded", function(ev) pcall(state.tryRegister, ev) end)
+        local function retryRegister(ev)
+            local ok, registered, reason = pcall(state.tryRegister, ev)
+            if not ok then
+                state.active = false
+                state.status = "DEGRADED"
+                state.lastError = tostring(registered)
+                noteProviderHealth("DEGRADED",
+                    "provider registration exception: " .. tostring(registered))
+                return false
+            end
+            if registered == true then
+                noteProviderHealth("ACTIVE", "provider registration active")
+                return true
+            end
+            noteProviderHealth(state.status or "DEGRADED",
+                tostring(reason or state.lastError or "registration unavailable"))
+            return false
+        end
+        mod.events:on("mods.loaded", retryRegister)
+        mod.events:on("game.ready", retryRegister)
+        mod.events:on("save.loaded", retryRegister)
     end
 end

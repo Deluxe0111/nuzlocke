@@ -418,7 +418,8 @@ return function(mod, deps)
                 Strings("Johto remembers %s.\nAnother name enters the Nuzlocke ledger.", monLabel))
   
             local party = game.save and game.save.party
-            if type(party) == "table" then
+            if type(party) == "table"
+                and mon.nuzlockeForgivenessArchivePending ~= true then
                 for i = #party, 1, -1 do
                     if party[i] == mon then
                         table.remove(party, i)
@@ -3383,29 +3384,38 @@ return function(mod, deps)
         end
 
         function G2.installAll()
-            if mod.exports.__beta26.isSaveEditorSession() then return true end
-            if not G2.isGen2() then return end
+            if mod.exports.__beta26.isSaveEditorSession() then
+                return false, "not_applicable", "save-editor session"
+            end
+            if not G2.isGen2() then
+                return false, "not_applicable", "non-Gen2 edition"
+            end
             local attempt = mod.exports.__beta26.attemptInstall
-            attempt("gen2.battle_rule_pager", G2.installBattleRulePager)
-            attempt("gen2.capture_gate", G2.installCaptureGate)
-            attempt("gen2.nickname_gate", G2.installNicknameGate)
-            attempt("gen2.mart_gate", G2.installMartGate)
-            attempt("gen2.held_item_gate", G2.installHeldItemGate)
-            attempt("gen2.field_item_gate", G2.installFieldItemGate)
-            attempt("gen2.rare_candy_to_cap", G2.installRareCandyToCap)
-            attempt("gen2.catch_tutorial_skip", G2.installCatchTutorialSkip)
-            attempt("gen2.headbutt_tracking", G2.installHeadbuttTracking)
-            attempt("gen2.random_starter_transaction", G2.installRandomStarterTransaction)
-            attempt("gen2.gift_tracking", G2.installGiftTracking)
-            attempt("gen2.trade_gate", G2.installTradeGate)
-            attempt("gen2.static_tracking", G2.installStaticTracking)
-            attempt("gen2.gambling_gate", G2.installGamblingGate)
-            attempt("gen2.whiteout_gate", G2.installWhiteoutGate)
-            attempt("gen2.field_poison_permadeath", G2.installFieldPoisonPermadeathGate)
-            attempt("gen2.whiteout_recovery_pc", mod.exports.__beta26.installWhiteoutRecoveryPcGate)
+            local allOk = true
+            local function checked(name, fn)
+                local ok = attempt(name, fn)
+                if ok ~= true then allOk = false end
+            end
+            checked("gen2.battle_rule_pager", G2.installBattleRulePager)
+            checked("gen2.capture_gate", G2.installCaptureGate)
+            checked("gen2.nickname_gate", G2.installNicknameGate)
+            checked("gen2.mart_gate", G2.installMartGate)
+            checked("gen2.held_item_gate", G2.installHeldItemGate)
+            checked("gen2.field_item_gate", G2.installFieldItemGate)
+            checked("gen2.rare_candy_to_cap", G2.installRareCandyToCap)
+            checked("gen2.catch_tutorial_skip", G2.installCatchTutorialSkip)
+            checked("gen2.headbutt_tracking", G2.installHeadbuttTracking)
+            checked("gen2.random_starter_transaction", G2.installRandomStarterTransaction)
+            checked("gen2.gift_tracking", G2.installGiftTracking)
+            checked("gen2.trade_gate", G2.installTradeGate)
+            checked("gen2.static_tracking", G2.installStaticTracking)
+            checked("gen2.gambling_gate", G2.installGamblingGate)
+            checked("gen2.whiteout_gate", G2.installWhiteoutGate)
+            checked("gen2.field_poison_permadeath", G2.installFieldPoisonPermadeathGate)
+            checked("gen2.whiteout_recovery_pc", mod.exports.__beta26.installWhiteoutRecoveryPcGate)
             -- Gen 2 NUZ STATUS is provided by ui.start_menu.items + screens registry.
             -- Do not install the legacy TrainerCard monkey patch.
-            return next(mod.exports.__beta26.installHealth.failures or {}) == nil
+            return allOk
         end
   
         -- 2.3.10: Gen 2 adapters install at game.ready/save.loaded.
@@ -3416,15 +3426,30 @@ return function(mod, deps)
     -- Gen 2-only presentation provider. No hard dependency, no PHONE fork,
     -- and no rule enforcement lives in this module.
     -----------------------------------------------------------------
-    assert(load(
-        mod:read("pokegear_integration.lua"),
-        "@mods/nuzlocke/pokegear_integration.lua"
-    ))(mod, {
-        translate = function(text, ...)
-            return Strings(text, ...)
-        end,
-        ruleDefault = defaultRuleValue,
-    })
+    local function loadOptionalPresentationModule(healthName, path, deps)
+        return mod.exports.__beta26.attemptInstall(healthName, function()
+            local okRead, source = pcall(mod.read, mod, path)
+            if not okRead or type(source) ~= "string" or source == "" then
+                return false, "pending", "package source unavailable: " .. tostring(path)
+            end
+            local chunk, loadErr = load(source, "@mods/nuzlocke/" .. tostring(path))
+            if type(chunk) ~= "function" then
+                return false, tostring(loadErr or "module_load_failed")
+            end
+            local okRun, result = pcall(chunk, mod, deps)
+            if not okRun then return false, tostring(result) end
+            if result == false then return false, "module_returned_false" end
+            return true
+        end)
+    end
+
+    loadOptionalPresentationModule("integration.pokegear_module",
+        "pokegear_integration.lua", {
+            translate = function(text, ...)
+                return Strings(text, ...)
+            end,
+            ruleDefault = defaultRuleValue,
+        })
 
     -----------------------------------------------------------------
     -- OPTIONAL GEN1 MODERN UI PRESENTATION
@@ -3433,18 +3458,16 @@ return function(mod, deps)
     -- native custom screens remain the fallback if no compatible UI
     -- presenter is active.
     -----------------------------------------------------------------
-    assert(load(
-        mod:read("modern_ui_integration.lua"),
-        "@mods/nuzlocke/modern_ui_integration.lua"
-    ))(mod, {
-        translate = function(text, ...)
-            return Strings(text, ...)
-        end,
-        isGen2 = mod.exports.__beta26.runtimeIsGen2,
-        getCurrentGame = function()
-            return getCurrentGame()
-        end,
-    })
+    loadOptionalPresentationModule("integration.modern_ui_module",
+        "modern_ui_integration.lua", {
+            translate = function(text, ...)
+                return Strings(text, ...)
+            end,
+            isGen2 = mod.exports.__beta26.runtimeIsGen2,
+            getCurrentGame = function()
+                return getCurrentGame()
+            end,
+        })
 
     -----------------------------------------------------------------
     -- beta.30.1.21: MOD COMPAT / TRACKER CONTEXT / ADAPTIVE PRESENTATION
@@ -4276,45 +4299,73 @@ return function(mod, deps)
 
     -- Permanent Rule Seal is monotonic. Configuration UI can still be viewed,
     -- but no lifecycle/default pass may clear a lock once committed.
+    local function permanentRuleLockSaveSet(key, value)
+        local ok, result = pcall(mod.save.set, mod.save, key, value)
+        if not ok then return false, "write_error:" .. tostring(result) end
+        if result == false then return false, "store_rejected_write:" .. tostring(key) end
+        return true
+    end
+
     local function enforcePermanentRuleLock(payload)
-        if saveBlocked() then return end
+        if saveBlocked() then return false, "save_blocked" end
         if mod.exports.__beta26.permanentRuleSealWip then
             -- Restore the historical reversible Rule Lock when an older save
             -- has rules_locked but no irreversible seal marker. Then clear the
             -- dormant Permanent Rule Seal's old effective key as before.
             if mod.save:get("rules_locked", false) == true
                 and mod.save:get("rules_permanently_locked", false) ~= true then
-                mod.save:set("rule_lock", true)
+                local okRule, ruleErr =
+                    permanentRuleLockSaveSet("rule_lock", true)
+                if not okRule then return false, ruleErr end
             end
-            mod.save:set("rules_locked", false)
-            return
+            local okLocked, lockedErr =
+                permanentRuleLockSaveSet("rules_locked", false)
+            if not okLocked then return false, lockedErr end
+            return true
         end
         local game = type(payload) == "table" and payload.game
             or getCurrentGame() or mod.game
         local sealed = mod.exports.__beta26.readPermanentRuleSeal(game)
         if sealed == true then
-            mod.save:set("rules_locked", true)
-            mod.save:set("rules_permanently_locked", true)
             -- Heal/migrate older saves that only had the mod.save marker by
-            -- ensuring the durable playthrough mirror exists too.
-            pcall(mod.exports.__beta26.persistPermanentRuleSeal, game)
+            -- ensuring the durable playthrough mirror exists too. Persistence
+            -- must be acknowledged before the semantic upgrade may succeed.
+            local okPersist, persistErr =
+                mod.exports.__beta26.persistPermanentRuleSeal(game)
+            if okPersist ~= true then
+                return false, "seal_persist:" .. tostring(persistErr)
+            end
+            local okLocked, lockedErr =
+                permanentRuleLockSaveSet("rules_locked", true)
+            if not okLocked then return false, lockedErr end
+            local okPermanent, permanentErr =
+                permanentRuleLockSaveSet("rules_permanently_locked", true)
+            if not okPermanent then return false, permanentErr end
         end
+        return true
     end
     mod.exports.__beta26.registerSaveUpgradeStep("semantic",
         "permanent_rule_lock_reconciliation", function(ctx)
-            enforcePermanentRuleLock(ctx)
-            return true
+            return enforcePermanentRuleLock(ctx)
         end)
-    mod.events:on("game.ready", enforcePermanentRuleLock)
+    mod.events:on("game.ready", function(payload)
+        local ok, detail = enforcePermanentRuleLock(payload)
+        if ok == false and detail ~= "save_blocked"
+            and type(mod.exports.__beta26.noteFeatureHealth) == "function" then
+            mod.exports.__beta26.noteFeatureHealth(
+                "permanent_rule_lock_reconciliation", "DEGRADED",
+                tostring(detail), "permanent_rule_lock_reconciliation")
+        end
+    end)
   
     -- Forgiveness Token shop metadata is published beside the shop bridge above.
     mod.events:on("game.ready", function(payload)
-        pcall(G2.installAll)
+        mod.exports.__beta26.attemptInstall("gen2.install_all", G2.installAll)
         pcall(G2.reconcileRandomStarterProvenance,
             type(payload) == "table" and payload.game or getCurrentGame() or mod.game)
     end)
     mod.events:on("save.loaded", function(payload)
-        pcall(G2.installAll)
+        mod.exports.__beta26.attemptInstall("gen2.install_all", G2.installAll)
         pcall(G2.reconcileRandomStarterProvenance,
             type(payload) == "table" and payload.game or getCurrentGame() or mod.game)
     end)
@@ -4322,7 +4373,7 @@ return function(mod, deps)
         -- Gold NEW GAME replaces the mod.save backing before Oak/Elm scripts
         -- run. Revalidate the native starter transaction wrapper at that exact
         -- lifecycle boundary instead of waiting for a later save.loaded.
-        pcall(G2.installAll)
+        mod.exports.__beta26.attemptInstall("gen2.install_all", G2.installAll)
     end)
     end
 

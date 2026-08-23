@@ -10,6 +10,7 @@ return function(mod, opts)
     local MAP_ID = "nuzlocke_map_status"
     local RADIO_ID = "nuzlocke_radio_world"
     local installedApi = nil
+    local installSession = nil
     local installCount = 0
 
     local function ruleDefault(key, fallback)
@@ -416,6 +417,33 @@ return function(mod, opts)
         if line and line ~= "" then api.helpers.text(gear, fit(line, 18), 1, 11) end
     end
 
+    local function noteProviderHealth(state, reason)
+        local beta = mod.exports and mod.exports.__beta26
+        if beta and type(beta.noteFeatureHealth) == "function" then
+            pcall(beta.noteFeatureHealth, "integration.pokegear_provider",
+                state, reason, "pokegear_integration")
+        end
+    end
+
+    local function clearCapabilityExport()
+        mod.exports.pokegear_cards = nil
+    end
+
+    local function retireSession()
+        if type(installSession) == "table" then
+            for _, fn in ipairs({
+                installSession.unradio,
+                installSession.unmap,
+                installSession.unregisterCard,
+            }) do
+                if type(fn) == "function" then pcall(fn) end
+            end
+        end
+        installSession = nil
+        installedApi = nil
+        clearCapabilityExport()
+    end
+
     local function activeApi()
         local ok, handle = pcall(mod.find, "pokegear_cards")
         if not ok or not handle then return nil end
@@ -429,14 +457,35 @@ return function(mod, opts)
     end
 
     local function tryInstall()
+        if mod.game and not isGen2(mod.game) then
+            retireSession()
+            return false, "not_applicable"
+        end
         local api = activeApi()
-        if not api then return false end
-        if installedApi == api and type(api.get) == "function"
-            and api.get(CARD_ID) and api.get(MAP_ID) and api.get(RADIO_ID) then
-            return true
+        if not api then
+            retireSession()
+            return false, "provider unavailable"
         end
 
-        local unregisterCard, cardErr = api.register({
+        if type(installSession) == "table" and installSession.api == api then
+            if type(api.get) ~= "function" then
+                return true
+            end
+            local okGet, card, map, radio = pcall(function()
+                return api.get(CARD_ID), api.get(MAP_ID), api.get(RADIO_ID)
+            end)
+            if okGet and card and map and radio then
+                return true
+            end
+            retireSession()
+            if not okGet then
+                return false, "provider get failed: " .. tostring(card)
+            end
+        elseif type(installSession) == "table" then
+            retireSession()
+        end
+
+        local okCard, unregisterCard, cardErr = pcall(api.register, {
             id = CARD_ID,
             label = "NUZ",
             icon = api.DEFAULT_ICON,
@@ -446,7 +495,12 @@ return function(mod, opts)
             draw = function(gear) drawCard(api, gear) end,
             update = function(gear, input) updateCard(api, gear, input) end,
         })
+        if not okCard then
+            cardErr = unregisterCard
+            unregisterCard = nil
+        end
         if not unregisterCard then
+            clearCapabilityExport()
             if mod.log and mod.log.warn then
                 mod.log:warn("[Nuzlocke:Pokegear] card registration failed: %s",
                     tostring(cardErr))
@@ -454,7 +508,7 @@ return function(mod, opts)
             return false
         end
 
-        local unmap, mapErr = api.append({
+        local okMap, unmap, mapErr = pcall(api.append, {
             host = "map",
             id = MAP_ID,
             kind = "overlay",
@@ -463,8 +517,13 @@ return function(mod, opts)
             visible = function(gear) return isGen2(gear and gear.game) end,
             draw = function(gear) drawMapOverlay(api, gear) end,
         })
+        if not okMap then
+            mapErr = unmap
+            unmap = nil
+        end
         if not unmap then
             pcall(unregisterCard)
+            clearCapabilityExport()
             if mod.log and mod.log.warn then
                 mod.log:warn("[Nuzlocke:Pokegear] map overlay failed: %s",
                     tostring(mapErr))
@@ -472,7 +531,7 @@ return function(mod, opts)
             return false
         end
 
-        local unradio, radioErr = api.append({
+        local okRadio, unradio, radioErr = pcall(api.append, {
             host = "radio",
             id = RADIO_ID,
             kind = "overlay",
@@ -485,9 +544,14 @@ return function(mod, opts)
             end,
             draw = function(gear) drawRadioOverlay(api, gear) end,
         })
+        if not okRadio then
+            radioErr = unradio
+            unradio = nil
+        end
         if not unradio then
             pcall(unmap)
             pcall(unregisterCard)
+            clearCapabilityExport()
             if mod.log and mod.log.warn then
                 mod.log:warn("[Nuzlocke:Pokegear] radio overlay failed: %s",
                     tostring(radioErr))
@@ -496,6 +560,12 @@ return function(mod, opts)
         end
 
         installedApi = api
+        installSession = {
+            api = api,
+            unregisterCard = unregisterCard,
+            unmap = unmap,
+            unradio = unradio,
+        }
         installCount = installCount + 1
         mod.exports.pokegear_cards = {
             apiVersion = 1,
@@ -512,11 +582,30 @@ return function(mod, opts)
         return true
     end
 
-    -- 2.3.12: optional provider discovery begins at lifecycle events below.
+    local function retryInstall()
+        local ok, installed, reason = pcall(tryInstall)
+        if not ok then
+            clearCapabilityExport()
+            noteProviderHealth("DEGRADED",
+                "provider registration exception: " .. tostring(installed))
+            return false
+        end
+        if installed == true then
+            noteProviderHealth("ACTIVE", "provider registration active")
+            return true
+        end
+        local detail = tostring(reason or "provider unavailable")
+        local state = detail == "not_applicable" and "N/A"
+            or (detail == "provider unavailable" and "PENDING" or "DEGRADED")
+        noteProviderHealth(state, detail)
+        return false
+    end
+
+    -- Optional provider discovery begins at lifecycle events below.
     if mod.events and type(mod.events.on) == "function" then
-        mod.events:on("mods.loaded", function() pcall(tryInstall) end)
-        mod.events:on("game.ready", function() pcall(tryInstall) end)
-        mod.events:on("save.loaded", function() pcall(tryInstall) end)
+        mod.events:on("mods.loaded", retryInstall)
+        mod.events:on("game.ready", retryInstall)
+        mod.events:on("save.loaded", retryInstall)
     end
 
     return {

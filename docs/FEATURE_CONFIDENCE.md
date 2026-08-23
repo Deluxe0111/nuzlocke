@@ -1,5 +1,28 @@
-# Feature Confidence — 2.7.0
-- **2.7.0 release promotion / 2.6.98 Setup + NUZ RULES repair:** RUNTIME PASS for the user-reported affected flow. 2.6.97 Release Safety is also Runtime PASS.
+# Feature Confidence — 2.7.25
+- **2.7.25 release promotion:** STATIC/SEMANTIC/INTEGRITY PASS inherited from exact 2.7.24 plus release-provenance validation. 2.7.25 itself remains RUNTIME TEST REQUIRED until separately exercised.
+- **2.7.24 documentation audit + Run History baseline persistence:** Static/Semantic PASS; documentation was reconciled to current shipped contracts and malformed baseline-counter persistence is covered by a pure Release Safety audit. Runtime behavior of ordinary gameplay is unchanged; malformed-save normalization remains Runtime TEST REQUIRED if exercised against a real edited/legacy save.
+- **2.7.23 Public Interop context consistency:** Static/Semantic PASS; multi-context compatibility inspection remains Runtime TEST REQUIRED.
+- **2.7.22 transaction failure/future-journal hardening:** Static/Semantic PASS; Rare Candy transaction-error propagation and future-journal helper rejection remain Runtime TEST REQUIRED.
+- **2.7.21 World critical feedback / encounter profile hoisting:** Static/Semantic PASS; T0 critical messaging and balanced Randomizer apply/info timing remain Runtime TEST REQUIRED.
+- **2.7.20 Randomizer diagnostic/presentation consistency:** Static/Semantic PASS; disabled projection audit and learnset-only NUZ STATUS rendering remain Runtime TEST REQUIRED.
+- **2.7.19 Stadium provenance precedence/provider identity:** Static/Semantic PASS; Stadium import + deterministic gift/trade species and multi-provider runtime smoke remain TEST REQUIRED.
+- **2.7.18 acquisition/receipt/Run History API hardening:** Static/Semantic PASS; provider decision-handoff, receipt-collision, and future-history public-read runtime smoke remain TEST REQUIRED.
+- **2.7.17 persistence-integrity repairs:** Static/Semantic PASS; forced interruption/rejected-write progression and death-archive recovery remain Runtime TEST REQUIRED.
+- **2.7.16 title/status integration fixes:** Static/Semantic PASS; Save Editor title isolation, R/B/Y N/A, Gold active adapter, and master-OFF World Building status remain Runtime TEST REQUIRED.
+- **2.7.15 installer/transaction/migration integrity:** Static/Semantic PASS; Save Editor health, future-journal, and rejected-write migration runtime smoke remain TEST REQUIRED.
+- **2.7.14 Run History/NZR6 integrity:** Static/Semantic PASS; malformed/future-history and malformed-code runtime smoke remains TEST REQUIRED.
+- **2.7.13 World Building/Randomizer lifecycle fixes:** Static/Semantic PASS; master-OFF World Building and early-lifecycle disabled-Randomizer runtime smoke remain TEST REQUIRED.
+- **2.7.12 optional UI lifecycle hardening:** Static/Semantic PASS; provider reload/replacement runtime smoke remains TEST REQUIRED.
+- **2.7.11 acquisition/Stadium interaction fixes:** Static/Semantic PASS; final-slot progression catch and Stadium-provider combinations remain Runtime TEST REQUIRED.
+- **2.7.10:** Governance/documentation-only; no runtime behavior changed from 2.7.9.
+- **2.7.9 transaction verification / Forgiveness history reconciliation:** Static/Semantic PASS; forced interruption/recovery remains Runtime TEST REQUIRED.
+- **2.7.8 installer/feature-health consistency:** Static/Semantic PASS; cross-edition runtime diagnostic smoke remains TEST REQUIRED.
+- **2.7.7 loader/diagnostic/token-normalization repairs:** Static/Semantic PASS; Runtime TEST REQUIRED.
+- **2.7.5 compatibility/diagnostic repairs:** Static/Semantic PASS; external-provider reload and denied-source-read runtime smoke remain recommended.
+- **2.7.4 Forgiveness transaction / Run History repairs:** Static/Semantic PASS; interruption recovery remains runtime-test-required.
+- **2.7.3 progression-PC commit + Stadium provenance repairs:** Static/Semantic PASS; focused runtime tests remain required for progression exception storage and external Stadium importer integrations.
+- **2.7.2 classic Randomizer status ownership/info presentation:** Static/Semantic PASS; runtime coexistence presentation smoke TEST REQUIRED.
+- **2.7.1 transaction / Release Safety repairs:** STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED. Existing 2.7.0/2.6.98 runtime evidence remains protected.
 - **2.6.96 documentation/header packaging repair:** STATIC/SEMANTIC PASS — RUNTIME RETEST REQUIRED. Release Safety header expectations are restored without changing gameplay.
 - **2.6.95 NUZ RULES diagnostic repair:** STATIC/SEMANTIC PASS — RUNTIME RETEST REQUIRED. The rival-sync audit now closes over its intended local helper.
 - **2.6.94 Lua unpack audit scope:** STATIC/SEMANTIC PASS — RUNTIME REQUIRED. All shipped Lua modules are now scanned through the authoritative package inventory.
@@ -47,7 +70,7 @@ A feature can be strong on one axis and still require testing on the other.
 | SafeInstall v2 | STATIC/SOURCE PASS — RUNTIME REQUIRED | PROVIDER TEST REQUIRED | Existing Gen2 installer calls route through the compatibility alias; explicit false returns now produce diagnostic failure. |
 | Hook Registry v1 | STATIC/SOURCE PASS — RUNTIME REQUIRED | PROVIDER TEST REQUIRED | Existing owner-aware wrappers feed owner/previous/wrapper/priority/mode metadata where available. Legitimate interposition remains non-fatal. |
 | Feature Health v1 | STATIC/SOURCE PASS — RUNTIME REQUIRED | PROVIDER TEST REQUIRED | Stable ACTIVE/DEGRADED/UNAVAILABLE summary exposed through Dev snapshots/API. |
-| Gen1Recomp 0.2.19 engine profile | STATIC/SOURCE PASS — RUNTIME REQUIRED | PROVIDER TEST REQUIRED | 2.6.56 source audit remains inherited; 2.6.57 does not alter the audited engine profile. |
+| Gen1Recomp 0.2.20 engine profile | STATIC/SOURCE PASS — RUNTIME REQUIRED | PROVIDER TEST REQUIRED | 0.2.19→0.2.20: 6 commits / 26 files reviewed. Session teardown is stronger and Gold/Silver gain label-keyed ROM text; no Nuzlocke source migration or Mod API bump is required. Exact-edition runtime smoke remains required. |
 
 ## Protected historical runtime evidence
 

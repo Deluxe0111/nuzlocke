@@ -202,7 +202,13 @@ return function(mod, deps)
       id, kind = tostring(id or ""), tostring(kind or "")
       if id == "" then return false, "missing_id" end
       if kind == "" then return false, "missing_kind" end
-      if txReceipt(store, id) ~= nil then return false, "already_committed" end
+      local receipt = txReceipt(store, id)
+      if type(receipt) == "table" then
+          if tostring(receipt.kind or "") ~= kind then
+              return false, "receipt_kind_mismatch"
+          end
+          return false, "already_committed"
+      end
       local current = txGet(store, TX.storage_key, nil)
       if type(current) == "table" then
           if tostring(current.id or "") == id
@@ -221,13 +227,22 @@ return function(mod, deps)
       return true, deps.copy(txn)
   end
 
-  function TX.advance(id, state, detail, opts)
-      local store = txStore(opts)
-      local txn = txGet(store, TX.storage_key, nil)
+  local function txValidateMutableJournal(txn, id)
       if type(txn) ~= "table" then return false, "missing_transaction" end
       if tostring(txn.id or "") ~= tostring(id or "") then
           return false, "transaction_mismatch"
       end
+      if tonumber(txn.version) ~= TX.api then
+          return false, "newer_transaction"
+      end
+      return true
+  end
+
+  function TX.advance(id, state, detail, opts)
+      local store = txStore(opts)
+      local txn = txGet(store, TX.storage_key, nil)
+      local valid, validErr = txValidateMutableJournal(txn, id)
+      if not valid then return false, validErr end
       txn.state = tostring(state or txn.state or "intent")
       txn.detail = detail and tostring(detail) or nil
       local ok, err = txSet(store, TX.storage_key, txn)
@@ -241,10 +256,8 @@ return function(mod, deps)
   function TX.checkpoint(id, key, value, opts)
       local store = txStore(opts)
       local txn = txGet(store, TX.storage_key, nil)
-      if type(txn) ~= "table" then return false, "missing_transaction" end
-      if tostring(txn.id or "") ~= tostring(id or "") then
-          return false, "transaction_mismatch"
-      end
+      local valid, validErr = txValidateMutableJournal(txn, id)
+      if not valid then return false, validErr end
       key = tostring(key or "")
       if key == "" then return false, "missing_checkpoint_key" end
       if type(txn.payload) ~= "table" then txn.payload = {} end
@@ -258,8 +271,15 @@ return function(mod, deps)
       local store = txStore(opts)
       local txn = txGet(store, TX.storage_key, nil)
       if type(txn) ~= "table" then return true end
-      if id ~= nil and tostring(txn.id or "") ~= tostring(id) then
-          return false, "transaction_mismatch"
+      if id == nil then
+          -- Even broad cleanup must not delete a journal from a newer
+          -- transaction schema that this build cannot safely interpret.
+          if tonumber(txn.version) ~= TX.api then
+              return false, "newer_transaction"
+          end
+      else
+          local valid, validErr = txValidateMutableJournal(txn, id)
+          if not valid then return false, validErr end
       end
       return txSet(store, TX.storage_key, nil)
   end
@@ -275,19 +295,28 @@ return function(mod, deps)
   function TX.execute(id, kind, payload, opts)
       opts = type(opts) == "table" and opts or {}
       local store = txStore(opts)
-      local handler = TX.handlers[tostring(kind or "")]
-      if type(handler) ~= "table" then return false, "handler_unavailable" end
-      if txReceipt(store, id) ~= nil then
-          -- A crash can occur after the durable receipt is written but before
-          -- the pending journal is cleared.  The receipt is authoritative:
-          -- clear only a matching leftover journal and never replay the effect.
+      -- 2.7.1: a durable committed receipt is authoritative even if the
+      -- transaction handler no longer exists in this build. A crash can occur
+      -- after the receipt is persisted but before the matching journal is
+      -- cleared; requiring a handler first would turn a proven completed
+      -- transaction into a false save-blocking handler_unavailable failure.
+      local receipt = txReceipt(store, id)
+      if type(receipt) == "table" then
+          local requestedKind = tostring(kind or "")
+          if tostring(receipt.kind or "") ~= requestedKind then
+              return false, "receipt_kind_mismatch"
+          end
           local leftover = txGet(store, TX.storage_key, nil)
-          if type(leftover) == "table" and tostring(leftover.id or "") == tostring(id) then
+          if type(leftover) == "table"
+              and tostring(leftover.id or "") == tostring(id)
+              and tostring(leftover.kind or "") == requestedKind then
               local clearOk, clearErr = TX.clear(id, opts)
               if not clearOk then return false, clearErr end
           end
           return true, "already_committed"
       end
+      local handler = TX.handlers[tostring(kind or "")]
+      if type(handler) ~= "table" then return false, "handler_unavailable" end
       local okBegin, txn = TX.begin(id, kind, payload, opts)
       if not okBegin then
           if txn == "already_committed" then return true, txn end
@@ -295,6 +324,12 @@ return function(mod, deps)
       end
       txn = txGet(store, TX.storage_key, txn)
       if type(txn) ~= "table" then return false, "journal_missing_after_begin" end
+      -- Every coordinator entry point owns the same forward-version boundary.
+      -- Do not reinterpret a future journal using this build's transaction
+      -- state/payload semantics, even when execute() is called directly.
+      if tonumber(txn.version) ~= TX.api then
+          return false, "newer_transaction"
+      end
 
       if txn.state == "intent" then
           local status, probeDetail = txProbe(handler, txn.payload, txn, opts)
@@ -312,6 +347,24 @@ return function(mod, deps)
               if performResult == false then
                   return false, tostring(performDetail or "perform_rejected")
               end
+              -- 2.7.9: handler success is not proof that the durable mutation
+              -- reached its declared final state. Reload the journal so any
+              -- checkpoints written by perform() are visible, then require
+              -- the same reconciliation probe to prove APPLIED before a
+              -- performed/committed receipt can ever be minted.
+              txn = txGet(store, TX.storage_key, txn)
+              if type(txn) ~= "table" then
+                  return false, "journal_missing_after_perform"
+              end
+              local verified, verifyDetail =
+                  txProbe(handler, txn.payload, txn, opts)
+              if verified == nil then return false, verifyDetail end
+              if verified ~= "applied" then
+                  return false, verified == "unknown"
+                      and "post_perform_reconciliation_unknown"
+                      or "post_perform_not_applied"
+              end
+              probeDetail = verifyDetail or performDetail or probeDetail
           end
           local advanced, advanceErr = TX.advance(id, "performed", probeDetail, opts)
           if not advanced then return false, advanceErr end
@@ -343,8 +396,9 @@ return function(mod, deps)
       local txn = txGet(txStore(opts), TX.storage_key, nil)
       if type(txn) ~= "table" then return true, "clean" end
       if tonumber(txn.version) ~= 1 then return false, "newer_transaction" end
-      local handler = TX.handlers[tostring(txn.kind or "")]
-      if type(handler) ~= "table" then return false, "handler_unavailable" end
+      -- TX.execute resolves the durable receipt before consulting the current
+      -- handler table. This lets a receipt-proven completed transaction clean
+      -- up a stale journal even if its historical handler was later retired.
       return TX.execute(txn.id, txn.kind, txn.payload, opts)
   end
 
@@ -441,7 +495,10 @@ return function(mod, deps)
           version=1, id="selftest:fresh", kind="__selftest_once",
           state="committed", payload={ token="B" },
       })
+      local savedSelfTestHandler = TX.handlers.__selftest_once
+      TX.handlers.__selftest_once = nil
       local okReceiptCleanup, receiptCleanup = TX.recover(opts)
+      TX.handlers.__selftest_once = savedSelfTestHandler
       -- Same-tick clobber protection: a different transaction cannot begin
       -- while another intent owns the single durable journal.
       local okBusyBegin = TX.begin("selftest:busy-a", "__selftest_once",
@@ -457,6 +514,71 @@ return function(mod, deps)
       TX.clear("selftest:checkpoint", opts)
       local seq1 = TX.nextSequence("selftest_attempts", opts)
       local seq2 = TX.nextSequence("selftest_attempts", opts)
+      TX.register("__selftest_unverified", {
+          probe = function() return "not_applied" end,
+          perform = function() return true end,
+      })
+      local unverifiedOk, unverifiedReason = TX.execute(
+          "selftest:unverified", "__selftest_unverified", {}, opts)
+      local unverifiedReceipt = txReceipt(store, "selftest:unverified")
+      TX.clear("selftest:unverified", opts)
+      TX.handlers.__selftest_unverified = nil
+
+      local futureTxn = {
+          version = TX.api + 1,
+          id = "selftest:future",
+          kind = "__selftest",
+          state = "intent",
+          payload = {},
+      }
+      local futureWriteOk = txSet(store, TX.storage_key, futureTxn)
+      local futureOk, futureReason =
+          TX.execute("selftest:future", "__selftest", {}, opts)
+      local futureAfterExecute = txGet(store, TX.storage_key, nil)
+
+      local futureAdvanceOk, futureAdvanceReason =
+          TX.advance("selftest:future", "performed", "must_not_write", opts)
+      local futureAfterAdvance = txGet(store, TX.storage_key, nil)
+
+      local futureCheckpointOk, futureCheckpointReason =
+          TX.checkpoint("selftest:future", "must_not_write", true, opts)
+      local futureAfterCheckpoint = txGet(store, TX.storage_key, nil)
+
+      local futureClearOk, futureClearReason =
+          TX.clear("selftest:future", opts)
+      local futureAfterClear = txGet(store, TX.storage_key, nil)
+
+      local futureBroadClearOk, futureBroadClearReason =
+          TX.clear(nil, opts)
+      local futureAfterBroadClear = txGet(store, TX.storage_key, nil)
+
+      -- Test-only cleanup: current code must preserve the opaque future
+      -- journal, so the harness removes it directly before later cases.
+      txSet(store, TX.storage_key, nil)
+
+      -- A receipt for one transaction kind must never authorize or clear a
+      -- different pending kind merely because an ID collided.
+      local collisionReceipt = txReceipts(store)
+      collisionReceipt.by_id["selftest:collision"] = {
+          id = "selftest:collision", kind = "__selftest",
+          build = "selftest", state = "committed",
+      }
+      collisionReceipt.order[#collisionReceipt.order + 1] =
+          "selftest:collision"
+      local collisionReceiptOk =
+          txSet(store, TX.receipts_key, collisionReceipt)
+      local collisionPending = {
+          version = TX.api, id = "selftest:collision",
+          kind = "__selftest_other", state = "intent", payload = {},
+      }
+      local collisionPendingOk =
+          txSet(store, TX.storage_key, collisionPending)
+      local collisionOk, collisionReason = TX.execute(
+          "selftest:collision", "__selftest_other", {}, opts)
+      local collisionStillPending =
+          txGet(store, TX.storage_key, nil)
+      TX.clear("selftest:collision", opts)
+
       local ok = okRecover == true and okReplay == true
           and replay == "already_committed" and okFresh == true and applied == 1
           and okReceiptCleanup == true and receiptCleanup == "already_committed"
@@ -465,11 +587,47 @@ return function(mod, deps)
           and okCheckpoint == true and checkpointed
           and checkpointed.payload and checkpointed.payload.native_effect_returned == true
           and seq1 == 1 and seq2 == 2
+          and unverifiedOk == false
+          and unverifiedReason == "post_perform_not_applied"
+          and unverifiedReceipt == nil
+          and futureWriteOk == true
+          and futureOk == false
+          and futureReason == "newer_transaction"
+          and type(futureAfterExecute) == "table"
+          and tonumber(futureAfterExecute.version) == TX.api + 1
+          and futureAdvanceOk == false
+          and futureAdvanceReason == "newer_transaction"
+          and type(futureAfterAdvance) == "table"
+          and tostring(futureAfterAdvance.state or "") == "intent"
+          and futureCheckpointOk == false
+          and futureCheckpointReason == "newer_transaction"
+          and type(futureAfterCheckpoint) == "table"
+          and type(futureAfterCheckpoint.payload) == "table"
+          and futureAfterCheckpoint.payload.must_not_write == nil
+          and futureClearOk == false
+          and futureClearReason == "newer_transaction"
+          and type(futureAfterClear) == "table"
+          and futureBroadClearOk == false
+          and futureBroadClearReason == "newer_transaction"
+          and type(futureAfterBroadClear) == "table"
+          and collisionReceiptOk == true
+          and collisionPendingOk == true
+          and collisionOk == false
+          and collisionReason == "receipt_kind_mismatch"
+          and type(collisionStillPending) == "table"
+          and tostring(collisionStillPending.kind or "") == "__selftest_other"
       TX.handlers.__selftest_once = nil
       return { ok=ok, failures=ok and {} or {"exactly_once_recovery"},
           applied=applied, replay=tostring(replay), busy=tostring(busyReason),
           receipt_cleanup=tostring(receiptCleanup),
-          checkpoint=tostring(okCheckpoint), sequence=tostring(seq1) .. ":" .. tostring(seq2) }
+          checkpoint=tostring(okCheckpoint), sequence=tostring(seq1) .. ":" .. tostring(seq2),
+          unverified=tostring(unverifiedReason),
+          future=tostring(futureReason),
+          future_advance=tostring(futureAdvanceReason),
+          future_checkpoint=tostring(futureCheckpointReason),
+          future_clear=tostring(futureClearReason),
+          future_broad_clear=tostring(futureBroadClearReason),
+          collision=tostring(collisionReason) }
   end
 
   return mod.exports.__beta26.saveUpgrade.newShadowStore

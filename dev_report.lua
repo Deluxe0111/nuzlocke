@@ -102,6 +102,9 @@ return function(mod, deps)
       "rule_effectiveness", "randomizer_integrity",
   }
 
+  local REPORT_CODE_NZR6_PAYLOAD_CHARS = 33
+  local REPORT_CODE_NZR6_MEANINGFUL_BITS = 164
+
   local REPORT_CODE_RANDOMIZER_STATUS = {
       INACTIVE=0, PASS=1, WARN=2, ERROR=3, DELEGATED=4,
       PAUSED=5, UNAVAILABLE=6, FALLBACK=7,
@@ -224,8 +227,20 @@ return function(mod, deps)
       if format ~= 4 and format ~= 5 and format ~= 6 then
           return nil, "unsupported_report_code"
       end
-      local bits, err = reportCodeBitsFromBase32(raw:sub(6))
+      local payload = raw:sub(6):gsub("[^0-9A-Z]", "")
+      if format == 6 and #payload ~= REPORT_CODE_NZR6_PAYLOAD_CHARS then
+          return nil, "invalid_payload_length"
+      end
+      local bits, err = reportCodeBitsFromBase32(payload)
       if not bits then return nil, err end
+      if format == 6 then
+          if #bits ~= REPORT_CODE_NZR6_PAYLOAD_CHARS * 5 then
+              return nil, "invalid_payload_bits"
+          end
+          if bits:sub(REPORT_CODE_NZR6_MEANINGFUL_BITS + 1) ~= "0" then
+              return nil, "invalid_padding"
+          end
+      end
       local pos = 1
       local out = { format=format, raw=raw }
       out.major, pos = reportCodeReadBits(bits, pos, 8)
@@ -318,7 +333,7 @@ return function(mod, deps)
       out.consistency = {}
       out.consistent = true
       for id, ok in pairs(derived) do
-          if format == 5 then
+          if format >= 5 then
               out.results[id] = ok
               out.consistency[id] = true
           else
