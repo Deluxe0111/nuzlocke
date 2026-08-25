@@ -4580,7 +4580,7 @@ return function(mod, deps)
           end
 
           function self:draw()
-              -- 2.8.06: Gen II-only tracker cards. Long area names get two
+              -- 2.8.07: Gen II-only tracker cards. Long area names get two
               -- left-column rows; the right column stacks state/species/source.
               -- Do not expose compact O/C/F diagnostics as unexplained header text.
               if mod.exports.__beta26.runtimeIsGen2(self.game) then

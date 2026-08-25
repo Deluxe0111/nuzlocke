@@ -1,13 +1,31 @@
+## 2.8.09
+- Crystal/Gen II Randomizer UI: Shop Balance and TM Compatibility now render semantic values instead of raw 0/1/2 in the Setup/Rules value lane.
+- Gen II Randomizer rows are grouped parent -> children without changing Red/Blue/Yellow menu ordering. Existing dependency visibility remains authoritative, so children appear under their parent only while active.
+- Gen II No Center Heal now intercepts the Nurse at the pre-script talk seam and replaces the vanilla nurse conversation with the Nuzlocke refusal instead of appending the refusal after native dialogue.
+- Gen II battle-item hardening: the field-only `useItem` PartyMenu chooser repair no longer claims any chooser while a Gen II BattleState is present on the stack. Battle PACK/item lifecycle is returned to Gen1Recomp's native battle owner.
+- 2.8.07 Trainer Randomizer rematerialization and 2.8.08 hidden-field-item randomization are preserved unchanged.
 
-## 2.8.06
+## 2.8.09
+- Focused Crystal/Gen II item-randomizer follow-up.
+- Random Field Items now owns both native visible item balls and native hidden BGEVENT_ITEM pickups in Gen II.
+- Hidden pickups use deterministic exact-edition/map/event identities and retain all progression/key/HM protection.
+- Provider-defined hidden-item sources remain unclaimed unless they explicitly opt into Nuzlocke ownership.
+- Trainer Randomizer materialization fix from 2.8.07 is preserved unchanged.
+- Battle-item freezing, starter-image presentation, and broader death-message timing remain separate follow-up issues.
+
+## 2.8.09
+Focused Crystal/Gen II Trainer Randomizer hotfix. Gen II trainer parties are already materialized Mon records; 2.8.06 changed only the species id, leaving stale identity/stats/moves from the authored Pokemon. 2.8.09 rebuilds randomized trainer members through Gen1Recomp native Gen II Mon construction at the authored level.
+
+
+## 2.8.09
 Focused Gen II presentation follow-up. NUZ STATUS and ENC TRACKER were reworked from Crystal runtime screenshots; Gen I menu layouts were deliberately left untouched. Encounter cards now retain state/species/source information and allocate more room to long area names. This release also records the post-result messaging contract: Nuzlocke feedback must not reveal an allowed action's unresolved outcome.
-# Nuzlocke 2.8.06
+# Nuzlocke 2.8.09
 
 Gen II UI cleanup follow-up plus a poison-whiteout hardening pass. Tracker, Nuz Status, Run History, and Mod Compat now use denser, bounded layouts that better fill the native 160x144 frame. Crystal party-target item use and Randomizer behavior remain unchanged from their runtime-PASS 2.8.03 implementation.
 
-# Nuzlocke 2.8.06 — Gen II UI Hardening
+# Nuzlocke 2.8.09 — Gen II UI Hardening
 
-2.8.06 is a strict child of exact 2.8.03 and focuses on the Nuzlocke-owned Gen II utility screens. NUZ STATUS, MOD COMPAT, ENC TRACKER, and DEV REPORT now share a more consistent centered-title, bounded-content, and footer layout. DEV REPORT opens on readable semantic summary data instead of opaque report-code strings. No gameplay/randomizer/item-use behavior is intentionally changed.
+2.8.09 is a strict child of exact 2.8.03 and focuses on the Nuzlocke-owned Gen II utility screens. NUZ STATUS, MOD COMPAT, ENC TRACKER, and DEV REPORT now share a more consistent centered-title, bounded-content, and footer layout. DEV REPORT opens on readable semantic summary data instead of opaque report-code strings. No gameplay/randomizer/item-use behavior is intentionally changed.
 
 # Nuzlocke 2.8.03 — Corrective Build
 

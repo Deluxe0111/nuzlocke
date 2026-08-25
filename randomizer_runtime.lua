@@ -4140,6 +4140,12 @@ return function(mod, deps)
           end
           if kind == "HIDDEN" or kind == "BG_EVENT"
               or kind == "HIDDEN_ITEM" or kind == "BGEVENT" then
+              -- 2.8.08: native Gen II hidden pickups are now an explicit
+              -- Nuzlocke-owned Random Field Items source. Provider-defined
+              -- hidden sources remain opt-in rather than being claimed globally.
+              if context.nuzlockeOwnedHidden == true then
+                  return { owned=true, kind="HIDDEN", reason=nil }
+              end
               return {
                   owned=false, kind="HIDDEN",
                   reason="hidden_item_not_owned",
@@ -6400,8 +6406,48 @@ return function(mod, deps)
               end
               usedSpecies[choice] = true
               if choice ~= "" and choice ~= original then
-                  mon.species = choice
-                  changed = true
+                  if mod.exports.__beta26.runtimeIsGen2(game) then
+                      -- 2.8.07: Gen II trainer.party is already an array of
+                      -- native Mon records.  Changing only .species leaves the
+                      -- copied name/types/stats/moves from the authored species
+                      -- in place, so the battle can still present/behave like
+                      -- the original trainer Pokemon.  Rebuild the selected
+                      -- species through Gen1Recomp's native Mon constructor at
+                      -- the exact authored level, preserving only trainer-safe
+                      -- intrinsic state. Difficulty runs after this wrapper and
+                      -- can then adapt its own moves/items/stats normally.
+                      local okMon, Gen2Mon = pcall(require, "src.battle.gen2.Mon")
+                      local built = okMon and type(Gen2Mon) == "table"
+                          and type(Gen2Mon.new) == "function"
+                          and Gen2Mon.new(game and game.data, choice, level, {
+                              dvs = mon.dvs,
+                              statExp = mon.statExp,
+                              item = mon.item,
+                              happiness = mon.happiness,
+                              pokerus = mon.pokerus,
+                              shiny = mon.shiny,
+                          }) or nil
+                      if type(built) == "table" then
+                          node[key] = built
+                          mon = built
+                          changed = true
+                      else
+                          -- Fail closed to the old projection only when the
+                          -- native builder is genuinely unavailable; record a
+                          -- diagnostic so runtime testing is actionable.
+                          mon.species = choice
+                          local sync = okMon and Gen2Mon and Gen2Mon.syncIdentity
+                          if type(sync) == "function" then pcall(sync, mon, game and game.data) end
+                          local refresh = okMon and Gen2Mon and Gen2Mon.refreshStats
+                          if type(refresh) == "function" then pcall(refresh, mon, game and game.data) end
+                          mod.exports.__beta26.lastGen2TrainerRandomizerError =
+                              "native_mon_builder_unavailable:" .. tostring(choice)
+                          changed = true
+                      end
+                  else
+                      mon.species = choice
+                      changed = true
+                  end
               end
           end
       end

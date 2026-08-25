@@ -619,6 +619,63 @@ return function(mod, deps)
                 return nil, tostring(values[1] or "")
             end
 
+            -- 2.8.09: Center refusal belongs at the interaction seam, BEFORE
+            -- the standard PokecenterNurseScript opens its vanilla welcome/
+            -- yes-no dialogue. Gen1Recomp's Gen2Compat facade dispatches
+            -- OverworldController.talkTo from World:interactBody after the NPC
+            -- is resolved; returning true suppresses the built-in script path.
+            local okOW, Overworld = pcall(require, "src.world.OverworldController")
+            if okOW and type(Overworld) == "table"
+                and type(Overworld.talkTo) == "function" then
+                local session = Overworld.__nuzlockeGen2CenterTalkSession2809
+                if type(session) == "table" and session.owner ~= mod
+                    and Overworld.talkTo == session.wrapper
+                    and type(session.previous) == "function" then
+                    Overworld.talkTo = session.previous
+                    session = nil
+                end
+                if not (type(session) == "table" and session.owner == mod
+                    and Overworld.talkTo == session.wrapper) then
+                    local previousTalk = Overworld.talkTo
+                    local talkWrapper
+                    talkWrapper = function(world, npc, ...)
+                        local game = (world and world.game)
+                            or getCurrentGame() or mod.game
+                        local kind = classify({ overworld = world }, game)
+                        local sprite = npc and npc.def and npc.def.sprite
+                        local spriteName = tostring(sprite or ""):upper()
+                        local isNurse = spriteName == "SPRITE_NURSE"
+                            or tonumber(sprite) == 0x37
+                        if kind == "center" and isNurse
+                            and mod.exports.__beta26.ruleActive(
+                                game, "no_poke_center") then
+                            if npc and type(npc.facePlayer) == "function"
+                                and world and world.player then
+                                pcall(npc.facePlayer, npc, world.player)
+                            end
+                            if npc then npc.frozen = true end
+                            local message = mod.exports.__beta26.worldRuleText(
+                                game, "no_poke_center")
+                            if world and type(world.showText) == "function" then
+                                world:showText(message, function()
+                                    if npc then npc.frozen = false end
+                                end)
+                            else
+                                if npc then npc.frozen = false end
+                                mod.exports.__beta26.pushWorldText(game, message)
+                            end
+                            return true
+                        end
+                        return previousTalk(world, npc, ...)
+                    end
+                    Overworld.talkTo = talkWrapper
+                    Overworld.__nuzlockeGen2CenterTalkSession2809 = {
+                        owner = mod, previous = previousTalk,
+                        wrapper = talkWrapper,
+                    }
+                end
+            end
+
             mod.hooks:wrap("script.command", function(next, ctx, name, args, cmd)
                 if not (ctx and ctx.generation == 2 and G2.isGen2())
                     or name ~= "special" then
@@ -4152,7 +4209,7 @@ return function(mod, deps)
                         return T.fit(Strings(tostring(text or "")), 16 * 8)
                     end
 
-                    -- 2.8.06 Gen II-only status hierarchy: keep counters
+                    -- 2.8.07 Gen II-only status hierarchy: keep counters
                     -- compact, then dedicate full-width rows to variable text.
                     Chrome.print(fitRow(("CAUGHT %d   LOST %d"):format(caught, lost)), 2, 4)
                     Chrome.print(fitRow(("DEATHS %d   TOKENS %d"):format(deaths, tokens)), 2, 5)
@@ -4973,7 +5030,19 @@ return function(mod, deps)
                     local prompt = type(incoming) == "table" and incoming.prompt or nil
                     local nativeUsePrompt = PartyMenu.PROMPTS
                         and PartyMenu.PROMPTS.useItem or nil
-                    local useItemChooser = G2.isGen2(game)
+                    local inBattle = false
+                    local stack = game and game.stack
+                    if stack and type(stack.states) == "table" then
+                        for _, state in ipairs(stack.states) do
+                            if type(state) == "table" and state.battle ~= nil
+                                and (state.phase ~= nil or state.tutorial ~= nil
+                                    or state.contest ~= nil) then
+                                inBattle = true
+                                break
+                            end
+                        end
+                    end
+                    local useItemChooser = G2.isGen2(game) and not inBattle
                         and (prompt == "useItem"
                             or (nativeUsePrompt ~= nil and prompt == nativeUsePrompt))
                     if not useItemChooser then

@@ -1,4 +1,4 @@
--- Nuzlocke 2.8.06
+-- Nuzlocke 2.8.09
 -- Full release, strict child of exact packaged 2.8.04. Repairs the Gen2 Pack
 -- party-consumable commit seam at the authoritative live party slot and retunes
 -- five-stage held UP/DOWN navigation. Protected TOOLS profile semantics, World
@@ -35,11 +35,11 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.06",
+      build = "2.8.09",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.06",
+      manifestVersion = "2.8.09",
       setupProfileScope = "gen1",
       parentVersion = "2.8.04",
       parentSha256 = "0c5f98230ac6149f7ddfe37139ab4d28dfcd94ed8e7f9ee0e6d55832b9a66676",
@@ -9819,42 +9819,79 @@ return function(mod)
       local function installGoldFieldItems(game)
           local okHidden, HiddenItems = pcall(
               require, "src.world.gen2.HiddenItems")
-          if not okHidden or type(HiddenItems) ~= "table"
-              or type(HiddenItems.ballPickupScript) ~= "function" then
+          if not okHidden or type(HiddenItems) ~= "table" then
               return false
           end
-          return installOwnedMethodWrapper(
-              HiddenItems, "__nuzlockeRandomFieldItemSession2525",
-              "ballPickupScript", function(previous)
-                  return function(item, quantity, objectId, sfxId, ...)
-                      local liveGame = currentGame or mod.game
-                      if mod.save:get("random_field_items", false) ~= true
-                          or saveSchemaTooNew then
-                          return previous(item, quantity, objectId, sfxId, ...)
+
+          local installed = false
+
+          if type(HiddenItems.ballPickupScript) == "function" then
+              local okBall = installOwnedMethodWrapper(
+                  HiddenItems, "__nuzlockeRandomFieldItemBallSession2808",
+                  "ballPickupScript", function(previous)
+                      return function(item, quantity, objectId, sfxId, ...)
+                          local liveGame = currentGame or mod.game
+                          if mod.save:get("random_field_items", false) ~= true
+                              or saveSchemaTooNew then
+                              return previous(item, quantity, objectId, sfxId, ...)
+                          end
+                          local world = liveGame and liveGame.world
+                          local mapId = world and world.map and world.map.id
+                              or "UNKNOWN"
+                          local edition = tostring(getGameVersion() or "GOLD"):upper()
+                          local legacyPrefix = edition == "SILVER" and "silver"
+                              or edition == "CRYSTAL" and "crystal" or "gold"
+                          local slot = table.concat({
+                              legacyPrefix, tostring(mapId), "obj", tostring(objectId or "?")
+                          }, ":")
+                          local choice = fieldItemChoice(liveGame, item, slot, {
+                              sourceId=tostring(objectId or "?"),
+                              objectId=tostring(objectId or "?"),
+                              mapId=tostring(mapId),
+                              sourceKind="VISIBLE",
+                          })
+                          return previous(choice, quantity, objectId, sfxId, ...)
                       end
-                      local world = liveGame and liveGame.world
-                      local mapId = world and world.map and world.map.id
-                          or "UNKNOWN"
-                      -- 2.7.50 Phase J #3: preserve Gold's historical Randomizer-v1
-                      -- semantic slot byte-for-byte, but give Silver fresh ALLOW
-                      -- placements an exact-edition namespace. Existing persisted
-                      -- canonical mappings remain authoritative, so already-seen
-                      -- sources do not reroll on upgrade.
-                      local edition = tostring(getGameVersion() or "GOLD"):upper()
-                      local legacyPrefix = edition == "SILVER" and "silver"
-                          or edition == "CRYSTAL" and "crystal" or "gold"
-                      local slot = table.concat({
-                          legacyPrefix, tostring(mapId), "obj", tostring(objectId or "?")
-                      }, ":")
-                      local choice = fieldItemChoice(liveGame, item, slot, {
-                          sourceId=tostring(objectId or "?"),
-                          objectId=tostring(objectId or "?"),
-                          mapId=tostring(mapId),
-                          sourceKind="VISIBLE",
-                      })
-                      return previous(choice, quantity, objectId, sfxId, ...)
-                  end
-              end)
+                  end)
+              installed = okBall == true or installed
+          end
+
+          -- 2.8.09: HiddenItems.pickupScript is the native BGEVENT_ITEM path.
+          -- It was previously omitted from Random Field Items entirely.
+          if type(HiddenItems.pickupScript) == "function" then
+              local okHiddenPickup = installOwnedMethodWrapper(
+                  HiddenItems, "__nuzlockeRandomHiddenItemSession2808",
+                  "pickupScript", function(previous)
+                      return function(item, event, ...)
+                          local liveGame = currentGame or mod.game
+                          if mod.save:get("random_field_items", false) ~= true
+                              or saveSchemaTooNew then
+                              return previous(item, event, ...)
+                          end
+                          local world = liveGame and liveGame.world
+                          local mapId = world and world.map and world.map.id
+                              or "UNKNOWN"
+                          local edition = tostring(getGameVersion() or "GOLD"):upper()
+                          local prefix = edition == "SILVER" and "silver"
+                              or edition == "CRYSTAL" and "crystal" or "gold"
+                          local sourceId = tostring(event or "?")
+                          local slot = table.concat({
+                              prefix, tostring(mapId), "hidden", sourceId
+                          }, ":")
+                          local choice = fieldItemChoice(liveGame, item, slot, {
+                              sourceId=sourceId,
+                              eventId=sourceId,
+                              mapId=tostring(mapId),
+                              sourceKind="HIDDEN",
+                              nuzlockeOwnedHidden=true,
+                          })
+                          return previous(choice, event, ...)
+                      end
+                  end)
+              installed = okHiddenPickup == true or installed
+          end
+
+          return installed
       end
 
       local function installRandomFieldItems(game)
@@ -17531,6 +17568,69 @@ return function(mod)
           end
 
           local allItemList = H.buildFlatItemList(preGame, goldMode)
+
+          -- 2.8.09: Gen II-only Randomizer menu organization. Keep the
+          -- Red/Blue/Yellow layout/order untouched, but on Gold/Silver/Crystal
+          -- place each child immediately after its owning parent. Hidden child
+          -- rows still use the existing dependency contract below, so turning a
+          -- parent OFF removes its whole cluster without losing stored values.
+          if goldMode then
+              local randomizerOrder = {
+                  randomizer_preset=10, randomizer_seed=20, randomizer_info_policy=30,
+                  random_starter=100, random_starter_style=101,
+                  random_starter_balance=102, random_starter_trio_typing=103,
+                  random_starter_rerolls=104,
+                  random_encounter_tables=200, random_species_generation=201,
+                  random_encounter_balance=202, random_encounter_repetition=203,
+                  random_encounter_diversity_strength=204,
+                  random_field_items=300, random_field_item_balance=301,
+                  random_field_item_repetition=302,
+                  random_learnsets=400, random_learnset_generation=401,
+                  random_learnset_stab=402,
+                  random_trainers=500, random_trainer_balance=501,
+                  random_trainer_diversity=502, random_trainer_theme=503,
+                  random_evolutions=600, random_evolution_balance=601,
+                  random_shops=700, random_shop_balance=701,
+                  random_tms=800, random_tm_compatibility=801,
+                  random_gift_items=900,
+              }
+              local rebuilt = {}
+              local i = 1
+              while i <= #allItemList do
+                  local row = allItemList[i]
+                  if row and row.isHeader
+                      and sectionKey(row) == "RANDOMIZER" then
+                      rebuilt[#rebuilt + 1] = row
+                      i = i + 1
+                      local block = {}
+                      while i <= #allItemList
+                          and not (allItemList[i] and allItemList[i].isHeader) do
+                          block[#block + 1] = allItemList[i]
+                          i = i + 1
+                      end
+                      for order, candidate in ipairs(block) do
+                          candidate.__nuzRandomizerOriginalOrder2809 = order
+                      end
+                      table.sort(block, function(a, b)
+                          local ak = a and a.rule and a.rule.key
+                          local bk = b and b.rule and b.rule.key
+                          local ar = randomizerOrder[ak] or 10000
+                          local br = randomizerOrder[bk] or 10000
+                          if ar ~= br then return ar < br end
+                          return (a.__nuzRandomizerOriginalOrder2809 or 0)
+                              < (b.__nuzRandomizerOriginalOrder2809 or 0)
+                      end)
+                      for _, candidate in ipairs(block) do
+                          candidate.__nuzRandomizerOriginalOrder2809 = nil
+                          rebuilt[#rebuilt + 1] = candidate
+                      end
+                  else
+                      rebuilt[#rebuilt + 1] = row
+                      i = i + 1
+                  end
+              end
+              allItemList = rebuilt
+          end
           local collapseSurface = (preGame and "setup:" or "rules:")
               .. (goldMode and "gold" or "rby")
           collapsedConfigSections[collapseSurface] =
@@ -19634,6 +19734,14 @@ return function(mod)
                               Font.draw(marqueePixelText(
                                   mod.exports.__beta26.maximumBstDisplayLabel(val),
                                   42, self.marqueeTime), 112 + valueShift, drawY)
+                          elseif key == "random_shop_balance" then
+                              Font.draw(marqueePixelText(
+                                  ({ [0]="CHAOS", [1]="PRICE", [2]="BALANCED" })[tonumber(val) or 2] or "BALANCED",
+                                  50, self.marqueeTime), 104 + valueShift, drawY)
+                          elseif key == "random_tm_compatibility" then
+                              Font.draw(marqueePixelText(
+                                  ({ [0]="MOVE", [1]="SLOT", [2]="FULL" })[tonumber(val) or 0] or "MOVE",
+                                  50, self.marqueeTime), 104 + valueShift, drawY)
                           else
                               Font.draw(numberText, 118 + valueShift, drawY)
                           end
@@ -25491,7 +25599,7 @@ return function(mod)
                 encounterTime = battle.nuzlockeEncounterTime,
                 roamerSpecies = battle.nuzlockeRoamerSpecies,
             })
-            -- 2.8.06: do not reveal a failed-encounter outcome while the
+            -- 2.8.09: do not reveal a failed-encounter outcome while the
             -- battle's native result presentation may still be resolving.
             -- Queue consequential feedback for the first overworld step.
             mod.exports.__beta26.pendingPostResultFeedback =
