@@ -1,6 +1,8 @@
-## 2.8.02 hotfix
+## 2.8.03 corrective build
 
-2.8.02 is a strict child of exact 2.8.01. It fixes live/staged Randomizer dependency refresh in Setup and NUZ RULES: enabling Random Trainers now immediately reveals Trainer Balance, Trainer Diversity, and Trainer Theme without closing/reopening the screen. The refresh audit also covers the other Randomizer parent/child relationships that use the same dynamic-row contract. The known Gen II party-target item-use defect remains unresolved.
+2.8.03 retries the two major Gen II defects still under investigation: party-target item use after selecting a Pokémon, and last-usable-party overworld poison whiteout timing. The item path now intercepts the actual target-selection A press before compatibility callbacks; the poison path pre-arms Nuzlocke wipe state before any synchronous native warp.
+
+The Gen II Randomizer configuration surface is also fully audited: all current Randomizer toggles and dependent sub-options are eligible to appear in Setup/NUZ RULES, and every declarative Randomizer parent has an immediate live refresh trigger. Runtime confirmation is still required for the two Gen II gameplay repairs.
 
 ## 2.8.01 hotfix
 

@@ -1,4 +1,4 @@
--- Nuzlocke 2.8.02
+-- Nuzlocke 2.8.03
 -- Full release, strict child of exact packaged 2.7.106. Repairs the Gen2 Pack
 -- party-consumable commit seam at the authoritative live party slot and retunes
 -- five-stage held UP/DOWN navigation. Protected TOOLS profile semantics, World
@@ -35,14 +35,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.02",
+      build = "2.8.03",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.02",
+      manifestVersion = "2.8.03",
       setupProfileScope = "gen1",
-      parentVersion = "2.8.01",
-      parentSha256 = "74ada31575d1b4d9235403e894be359842e9b5f0a76044b450be7f751c5860d9",
+      parentVersion = "2.8.02",
+      parentSha256 = "b9058576184a889e5a5cf8f31dc990e387fda66dead6cc25f9f11db3b29f3338",
       compatibilityApi = 34,
       diagnosticsApi = 1,
   }
@@ -13363,6 +13363,7 @@ return function(mod)
       gold_starting_money = true,
       gold_starting_pokeballs = true,
       gold_starting_rare_candies = true,
+      randomizer_preset = true,
       randomizer_seed = true,
       random_starter = true,
       random_starter_style = true,
@@ -13384,7 +13385,14 @@ return function(mod)
       random_trainer_diversity = true,
       random_trainer_theme = true,
       random_evolutions = true,
+      random_evolution_balance = true,
+      random_shops = true,
+      random_shop_balance = true,
+      random_tms = true,
+      random_tm_compatibility = true,
+      random_gift_items = true,
       random_learnset_generation = true,
+      random_learnset_stab = true,
       physical_special_split = true,
       badge_boosts = true,
       evolution_limit = true,
@@ -14855,8 +14863,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.8.01",
-      expectedParentSha256 = "74ada31575d1b4d9235403e894be359842e9b5f0a76044b450be7f751c5860d9",
+      expectedParentVersion = "2.8.02",
+      expectedParentSha256 = "b9058576184a889e5a5cf8f31dc990e387fda66dead6cc25f9f11db3b29f3338",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",

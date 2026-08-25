@@ -1,8 +1,12 @@
-# 2.8.02 — Randomizer child-row refresh hotfix
+# 2.8.03 — Gen II item/poison retry + Randomizer surface audit
 
-Strict child of exact 2.8.01 (`74ada31575d1b4d9235403e894be359842e9b5f0a76044b450be7f751c5860d9`). Crystal runtime confirmed `Random Trainers` appeared after 2.8.01, but its dependent Trainer Balance / Trainer Diversity / Trainer Theme rows did not appear immediately when the parent was enabled. The config screen was rebuilding dependent rows for only a subset of Randomizer parents. 2.8.02 aligns the refresh trigger with the existing dependency visibility contract so Trainer children and the other dependent Randomizer rows rebuild immediately when their owning parent changes.
+Strict child of exact 2.8.02 (`b9058576184a889e5a5cf8f31dc990e387fda66dead6cc25f9f11db3b29f3338`). This corrective build makes another targeted attempt at the two major Gen II runtime defects under active investigation and completes a full Gen II Randomizer configuration-surface audit.
 
-The known Gen II party-target item-use defect remains unresolved and unchanged. The 2.8.01 field-poison hotfix and published 2.8.00 scrolling/profile/T3 behavior are preserved.
+- **Gen II party-target items:** the exact `useItem` chooser instance now intercepts a non-CANCEL A press before native PartyMenu update/compatibility callbacks can swallow it. The selected index is resolved to the authoritative live save-party slot, legality is rechecked, and the existing native `ItemEffects` transaction runs from that early input seam. Item-effect exceptions are captured into `lastGen2PartyItemError` and surface a DEV REPORT message instead of silently returning to the Pack. Specialized PP/evolution-stone/TM/HM paths remain unchanged.
+- **Gen II field poison wipe timing:** Whiteout/Blackout is now pre-armed before the native poison-faint handler runs so a synchronous native spawn warp can see the Nuzlocke decision. The post-prune independent wipe check remains as fallback, while a decision consumed by a synchronous warp is not re-armed onto a later unrelated warp.
+- **Randomizer Setup/Rules audit:** all 30 current Randomizer parent/child controls are now included in the Gen II rule surface. This restores previously omitted Preset, Shops/Shop Balance, TMs/TM Compatibility, Gift Items, Evolution Balance, and Learnset STAB rows in addition to the Trainer controls fixed in 2.8.01/2.8.02. Every declarative Randomizer parent dependency is also covered by the live dependent-row refresh trigger.
+
+Runtime certification remains required, especially Crystal Potion/vitamin/Rare Candy use and final-party-member overworld poison faint.
 
 # 2.8.01 — Gen II trainer-option + field-poison hotfix
 

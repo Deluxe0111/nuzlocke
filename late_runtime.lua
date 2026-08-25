@@ -1023,8 +1023,14 @@ return function(mod, deps)
                                 return mon, slot
                             end
                             local function effect(mon)
-                                local result = ItemEffects.useOnMon(row.id, mon,
-                                    game.data)
+                                local okUse, result = pcall(ItemEffects.useOnMon,
+                                    row.id, mon, game.data)
+                                if not okUse then
+                                    mod.exports.__beta26.lastGen2PartyItemError =
+                                        tostring(result)
+                                    say(Strings("Gen II item effect error. See DEV REPORT."))
+                                    return false
+                                end
                                 if type(result) ~= "table" then
                                     result = { used = false,
                                         text = Strings("It won't have any effect.") }
@@ -1046,50 +1052,43 @@ return function(mod, deps)
                                 return true
                             end
 
-                            Screens.push(game, "Gen2PartyMenu", {
-                                prompt = "useItem",
-                                onCancel = function()
-                                    if game.stack and type(game.stack.pop) == "function" then
-                                        game.stack:pop()
-                                    end
-                                end,
-                                onChoose = function(index, chooserMon)
-                                    -- Pop only the chooser we just opened. The PACK
-                                    -- remains immediately underneath it.
-                                    if game.stack and type(game.stack.pop) == "function" then
-                                        game.stack:pop()
-                                    end
-                                    local mon = resolveLiveMon(index, chooserMon)
-                                    if type(mon) ~= "table" then return end
-                                    G2.canonicalizeOwnedPokemonSpecies(game, mon)
+                            local function chooseTarget(index, chooserMon)
+                                -- Pop only the chooser we just opened. The PACK
+                                -- remains immediately underneath it.
+                                if game.stack and type(game.stack.pop) == "function" then
+                                    game.stack:pop()
+                                end
+                                local mon = resolveLiveMon(index, chooserMon)
+                                if type(mon) ~= "table" then return end
+                                G2.canonicalizeOwnedPokemonSpecies(game, mon)
 
-                                    -- Recheck target-sensitive legality here. The
-                                    -- Pack-level check above intentionally has no
-                                    -- target and therefore cannot enforce a live
-                                    -- level-cap decision on Rare Candy.
-                                    local allowed, decision = evaluateItemUsePolicy(
-                                        game, game.data, game.save, row.id, mon,
-                                        { inBattle = false,
-                                          overworld = self.world,
-                                          generation = 2,
-                                          target = mon })
-                                    if allowed == false then
-                                        presentDenied(decision)
-                                        return
-                                    end
+                                -- Recheck target-sensitive legality here. The
+                                -- Pack-level check above intentionally has no
+                                -- target and therefore cannot enforce a live
+                                -- level-cap decision on Rare Candy.
+                                local allowed, decision = evaluateItemUsePolicy(
+                                    game, game.data, game.save, row.id, mon,
+                                    { inBattle = false,
+                                      overworld = self.world,
+                                      generation = 2,
+                                      target = mon })
+                                if allowed == false then
+                                    presentDenied(decision)
+                                    return
+                                end
 
-                                    -- Preserve Rare Candy-to-cap when a finite cap
-                                    -- exists, but ordinary/no-cap candy is just the
-                                    -- same one-item engine effect as every other
-                                    -- simple family at this seam.
-                                    if action == "candy"
-                                        and mod.save:get("no_rare_candy_use", false) ~= true then
-                                        local RC = mod.exports.__beta26.RareCandyToCap
-                                        if type(RC) == "table"
-                                            and type(RC.plan) == "function"
-                                            and type(RC.step) == "function" then
-                                            local count, cap = RC.plan(game.save, mon)
-                                            if cap and count and count > 1 then
+                                -- Preserve Rare Candy-to-cap when a finite cap
+                                -- exists, but ordinary/no-cap candy is just the
+                                -- same one-item engine effect as every other
+                                -- simple family at this seam.
+                                if action == "candy"
+                                    and mod.save:get("no_rare_candy_use", false) ~= true then
+                                    local RC = mod.exports.__beta26.RareCandyToCap
+                                    if type(RC) == "table"
+                                        and type(RC.plan) == "function"
+                                        and type(RC.step) == "function" then
+                                        local count, cap = RC.plan(game.save, mon)
+                                        if cap and count and count > 1 then
                                                 local function resultForLevel(level)
                                                     local def = game.data and game.data.pokemon
                                                         and game.data.pokemon[mon.species]
@@ -1159,13 +1158,51 @@ return function(mod, deps)
                                                             end
                                                         end }))
                                                 end
-                                                return
-                                            end
+                                            return
                                         end
                                     end
-                                    effect(mon)
+                                end
+                                effect(mon)
+                            end
+
+                            local chooser = Screens.push(game, "Gen2PartyMenu", {
+                                prompt = "useItem",
+                                onCancel = function()
+                                    if game.stack and type(game.stack.pop) == "function" then
+                                        game.stack:pop()
+                                    end
                                 end,
+                                onChoose = chooseTarget,
                             })
+
+                            -- 2.8.03: intercept the target A press on this exact
+                            -- chooser instance BEFORE PartyMenu's own update can
+                            -- pass through compatibility/submenu callbacks. Every
+                            -- previous attempt reached this screen but lost the
+                            -- transaction after the pick. The native-looking list
+                            -- remains; only a non-CANCEL A press is owned here.
+                            if type(chooser) == "table" and type(chooser.update) == "function" then
+                                local previousChooserUpdate = chooser.update
+                                chooser.update = function(screen, dt, ...)
+                                    local input = screen and screen.game and screen.game.input
+                                    local partyNow = type(screen.party) == "table" and screen.party or liveParty
+                                    local idx = math.floor(tonumber(screen.index) or 0)
+                                    local cancel = idx < 1 or idx > #partyNow
+                                    local aEdge = input and type(input.pressed) == "table"
+                                        and input.pressed.a == true
+                                    if aEdge and not cancel then
+                                        if type(input.wasPressed) == "function" then
+                                            input:wasPressed("a")
+                                        end
+                                        if type(screen.storeCursor) == "function" then
+                                            pcall(screen.storeCursor, screen)
+                                        end
+                                        chooseTarget(idx, partyNow[idx])
+                                        return
+                                    end
+                                    return previousChooserUpdate(screen, dt, ...)
+                                end
+                            end
                             return true
                         end
                     end
@@ -4595,9 +4632,32 @@ return function(mod, deps)
                             end
                         end
 
+                        -- 2.8.03: pre-arm a predicted wipe BEFORE the native
+                        -- poison handler runs. Gen1Recomp may perform its spawn
+                        -- warp synchronously inside poisonFaintScript; 2.8.01
+                        -- armed Nuzlocke only after `previous` returned, which is
+                        -- too late for the warp wrapper to see the pending
+                        -- Whiteout/Blackout decision. HP has already reached 0 on
+                        -- event.fainted slots, so the live-party health check is
+                        -- authoritative here without pruning them first.
+                        local predictedWipe = active(game, nil)
+                            and not hasHealthyParty(game)
+                        local nativeWipeBefore = type(event) == "table"
+                            and event.whiteout == true
+                        local prearmedWipe = false
+                        if self and active(game, nil)
+                            and (predictedWipe or nativeWipeBefore) then
+                            local decision, counts =
+                                mod.exports.__beta26.whiteoutDecision(game)
+                            self.__nuzlockeFieldPoisonWhiteoutPending = decision
+                            self.__nuzlockeFieldPoisonWhiteoutCounts = counts
+                            prearmedWipe = true
+                        end
+
                         -- Gold's native handler synchronously sets up the
-                        -- poison-faint happiness/text chain. Prune afterward so
-                        -- that presentation still names the real fainted slots.
+                        -- poison-faint happiness/text chain (and may warp on a
+                        -- whiteout). Prune afterward so that presentation still
+                        -- names the real fainted slots.
                         local result = previous(self, event, ...)
 
                         if #fainted > 0 then
@@ -4628,10 +4688,23 @@ return function(mod, deps)
                             and event.whiteout == true
                         if self and active(game, nil)
                             and (nativeWipe or computedWipe) then
-                            local decision, counts =
-                                mod.exports.__beta26.whiteoutDecision(game)
-                            self.__nuzlockeFieldPoisonWhiteoutPending = decision
-                            self.__nuzlockeFieldPoisonWhiteoutCounts = counts
+                            -- If the pre-armed decision disappeared while the
+                            -- native handler ran, the synchronous warp wrapper
+                            -- already consumed it. Do not re-arm stale state for
+                            -- the next unrelated warp. Otherwise retain the
+                            -- pre-armed decision, or create one for a wipe that
+                            -- only became observable after pruning.
+                            local handledDuringNative = prearmedWipe
+                                and self.__nuzlockeFieldPoisonWhiteoutPending == nil
+                            if handledDuringNative then return result end
+                            local decision = self.__nuzlockeFieldPoisonWhiteoutPending
+                            local counts = self.__nuzlockeFieldPoisonWhiteoutCounts
+                            if decision == nil then
+                                decision, counts =
+                                    mod.exports.__beta26.whiteoutDecision(game)
+                                self.__nuzlockeFieldPoisonWhiteoutPending = decision
+                                self.__nuzlockeFieldPoisonWhiteoutCounts = counts
+                            end
 
                             -- If the engine failed to mark the wipe, no later
                             -- native spawn warp is guaranteed to arrive for our

@@ -1,8 +1,10 @@
-# Nuzlocke 2.8.02 — Hotfix Release Notes
+# Nuzlocke 2.8.03 — Corrective Build
 
-2.8.02 fixes dynamic Randomizer child-option visibility in Setup and NUZ RULES. In Crystal/Gen II, enabling **Random Trainers** now immediately exposes **Trainer Balance**, **Trainer Diversity**, and **Trainer Theme**. The same refresh correction is applied to the other Randomizer parent/child rows that use dynamic visibility. No Trainer Randomizer generation logic was changed.
+2.8.03 is a strict child of exact 2.8.02. It makes another focused attempt at the unresolved Gen II party-target item transaction by owning the selected-target A press before the normal PartyMenu callback chain, and it pre-arms Gen II field-poison Whiteout/Blackout state before the native poison handler can synchronously warp.
 
-The known Gen II party-target item-use defect remains unresolved.
+The Gen II Randomizer Setup/NUZ RULES surface was also audited against the complete current Randomizer catalog. All 30 Randomizer controls now pass the Gen II allowlist, including Preset, Shops, Shop Balance, TMs, TM Compatibility, Gift Items, Evolution Balance, Learnset STAB, Trainer Balance/Diversity/Theme, and the existing starter/encounter/learnset controls. Parent-dependent rows are covered by live refresh triggers.
+
+**Runtime test required:** Gen II party-target items and the final-party-member poison-faint/whiteout path are not marked fixed until runtime confirmation.
 
 # Nuzlocke 2.8.01 — Hotfix Release Notes
 
