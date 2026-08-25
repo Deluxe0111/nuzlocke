@@ -4614,16 +4614,40 @@ return function(mod, deps)
                                 party, deaths)
                         end
 
-                        -- StepEvents already decided whether this exact poison
-                        -- step is a whole-party wipe. Keep Whiteout independent
-                        -- from Permadeath and intercept only the later spawn warp
-                        -- after Gold's native poison-faint/whiteout text runs.
-                        if self and type(event) == "table"
-                            and event.whiteout == true and active(game, nil) then
+                        -- 2.8.01: do not trust event.whiteout as the sole wipe
+                        -- signal. Crystal runtime proved the last usable party
+                        -- member can die from field poison while Gen1Recomp leaves
+                        -- event.whiteout false, allowing play to continue. After
+                        -- Nuzlocke records/prunes poison deaths, independently
+                        -- evaluate the live party. Native event.whiteout remains a
+                        -- valid signal, but a party with no healthy member is also
+                        -- a wipe.
+                        local computedWipe = active(game, nil)
+                            and not hasHealthyParty(game)
+                        local nativeWipe = type(event) == "table"
+                            and event.whiteout == true
+                        if self and active(game, nil)
+                            and (nativeWipe or computedWipe) then
                             local decision, counts =
                                 mod.exports.__beta26.whiteoutDecision(game)
                             self.__nuzlockeFieldPoisonWhiteoutPending = decision
                             self.__nuzlockeFieldPoisonWhiteoutCounts = counts
+
+                            -- If the engine failed to mark the wipe, no later
+                            -- native spawn warp is guaranteed to arrive for our
+                            -- warp wrapper to intercept. The destructive branch
+                            -- therefore ends the run here after the native poison
+                            -- handler has returned. A survivable Whiteout asks the
+                            -- native Gen2 spawn owner to perform its ordinary warp;
+                            -- the installed warp wrapper then handles recovery text.
+                            if computedWipe and not nativeWipe then
+                                if decision == "blackout" then
+                                    mod.exports.__beta26.finishFieldWhiteoutRun(game)
+                                elseif decision == "survive"
+                                    and type(self.warpToSpawn) == "function" then
+                                    pcall(self.warpToSpawn, self)
+                                end
+                            end
                         end
                         return result
                     end

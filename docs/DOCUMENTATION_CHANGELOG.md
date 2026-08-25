@@ -1,4 +1,6 @@
-# Documentation Changelog — 2.8.00
+# Documentation Changelog — 2.8.01
+- 2.8.01: Documented restored Gen II Trainer Randomizer controls, independent post-poison wipe detection, and the unchanged Gen II party-target item-use known issue.
+
 
 - 2.8.00: Packaged the requested full release; documented authoritative-live-slot Gen2 party-consumable commit ownership, target-sensitive legality recheck, preservation of specialized item paths, and the slower five-stage Setup/Rules navigation curve.
 

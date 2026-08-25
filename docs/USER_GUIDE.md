@@ -1,4 +1,7 @@
-# Nuzlocke User Guide — 2.8.00
+# Nuzlocke User Guide — 2.8.01
+## 2.8.01 hotfix note
+Gold/Silver/Crystal Setup and NUZ RULES again expose Random Trainers plus Trainer Balance, Trainer Diversity, and Trainer Theme. When an overworld poison tick kills the final usable party Pokémon, Nuzlocke now independently evaluates Whiteout/Blackout instead of relying only on the engine's whiteout flag. The known Gen II party-item-use issue remains open.
+
 
 ## 2.8.00 runtime note
 

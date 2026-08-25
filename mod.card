@@ -5,6 +5,8 @@ return {
   tags = { "ruleset", "hardcore", "quality-of-life", "ui" },
   differences = {
     changed = {
+      "2.8.02 hotfix makes Randomizer child rows refresh immediately when their parent option changes, including Trainer Balance/Diversity/Theme after Random Trainers is enabled.",
+      "2.8.01 hotfix restores Gen-2 Trainer Randomizer Setup/Rules options and independently detects last-usable-party field-poison wipes so they cannot silently continue.",
       "2.8.00 full release moves Gen-2 simple party-consumable commit ownership to the Pack seam using the authoritative live save-party slot and native ItemEffects, and slightly slows the five-stage Setup/Rules navigation ramp.",
       "2.7.106 repairs the shared Gen-2 post-selection consumable seam for healing/status/revive items, vitamins, and Rare Candy using native ItemEffects, and retunes held Setup/Rules navigation to five-stage acceleration.",
       "2.7.105 fixes the confirmed Gen-2 party-item chooser-mode regression so USE-on-Pokemon screens stay direct choosers, and adds held UP/DOWN auto-repeat to Nuzlocke Setup/Rules while preserving SELECT section jumps.",

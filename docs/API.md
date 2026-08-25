@@ -1,4 +1,7 @@
-# Nuzlocke API — 2.8.00
+# Nuzlocke API — 2.8.01
+## 2.8.01 API note
+No public API version changes. This hotfix changes only Gen II rule visibility and Nuzlocke-owned field-poison wipe reconciliation.
+
 
 ## 2.8.00 API note
 

@@ -1,4 +1,7 @@
-# Nuzlocke Compatibility — 2.8.00
+# Nuzlocke Compatibility — 2.8.01
+## 2.8.01 Gen II hotfix compatibility
+Trainer Randomizer configuration is restored to the Gen II allowlist without changing trainer randomization runtime ownership. Field-poison wipe detection now derives from the live post-prune party state as well as the engine event flag, preserving the existing native spawn-warp/recovery seam when Whiteout survives.
+
 
 ## 2.8.00 Gen2 party-item compatibility
 

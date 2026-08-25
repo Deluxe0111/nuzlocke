@@ -1,3 +1,17 @@
+# 2.8.02 — Randomizer child-row refresh hotfix
+
+Strict child of exact 2.8.01 (`74ada31575d1b4d9235403e894be359842e9b5f0a76044b450be7f751c5860d9`). Crystal runtime confirmed `Random Trainers` appeared after 2.8.01, but its dependent Trainer Balance / Trainer Diversity / Trainer Theme rows did not appear immediately when the parent was enabled. The config screen was rebuilding dependent rows for only a subset of Randomizer parents. 2.8.02 aligns the refresh trigger with the existing dependency visibility contract so Trainer children and the other dependent Randomizer rows rebuild immediately when their owning parent changes.
+
+The known Gen II party-target item-use defect remains unresolved and unchanged. The 2.8.01 field-poison hotfix and published 2.8.00 scrolling/profile/T3 behavior are preserved.
+
+# 2.8.01 — Gen II trainer-option + field-poison hotfix
+
+Strict child of exact published 2.8.00 (`16d2c356639d4a5b90f9f775e258c12aeadc517711fe68f542356b747443adfe`). Crystal runtime confirmed the Trainer Randomizer controls were absent from Setup/NUZ RULES because all four trainer rows were omitted from the Gen II rule allowlist. This hotfix restores `random_trainers`, `random_trainer_balance`, `random_trainer_diversity`, and `random_trainer_theme`; child controls retain their established dependency on Random Trainers being ON.
+
+A separate Crystal report confirmed that the final usable party Pokémon could faint from overworld poison and gameplay would continue. The Gen II poison adapter previously trusted Gen1Recomp's `event.whiteout` flag as the sole wipe signal. 2.8.01 now independently checks the live party after Nuzlocke records/prunes poison deaths. If no healthy party member remains, the normal Nuzlocke Whiteout/Blackout decision is armed even when the engine flag is absent; a destructive Blackout ends the run immediately after the native poison handler returns, while a survivable Whiteout requests the native Gen II spawn warp and keeps recovery ownership on the existing warp seam.
+
+The known Gen II party-target item-use defect remains unresolved and unchanged. Existing 2.8.00 scrolling/profile/T3 behavior is preserved.
+
 # 2.8.00 — Full release: Gen2 party-item commit repair + refined progressive navigation
 
 Strict child of exact 2.7.106 (`10b482d6e535d318ff6b4e7ada052dac4fdd269ec6b4e2ac5fbf27368babb092`). This is the requested 2.8.00 full-release package. Crystal runtime on 2.7.106 confirms the Gen2 `useItem` target chooser itself works but healing items, vitamins, and Rare Candy still return to the Pack without committing their effects. 2.8.00 therefore moves the simple-consumable repair to the earlier Pack USE seam: after Nuzlocke legality checks it opens the native Gen2 party chooser, resolves the selected index back to the authoritative live `game.save.party[index]` record, executes Gen1Recomp's own merged `ItemEffects` result on that live record, consumes the item, and presents the native result. Target-sensitive legality is rechecked after selection. PP items, evolution stones, TMs/HMs, battle items, and non-party field items stay on their specialized existing paths. Rare Candy-to-cap remains available when a finite cap exists.

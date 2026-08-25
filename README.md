@@ -1,3 +1,11 @@
+## 2.8.02 hotfix
+
+2.8.02 is a strict child of exact 2.8.01. It fixes live/staged Randomizer dependency refresh in Setup and NUZ RULES: enabling Random Trainers now immediately reveals Trainer Balance, Trainer Diversity, and Trainer Theme without closing/reopening the screen. The refresh audit also covers the other Randomizer parent/child relationships that use the same dynamic-row contract. The known Gen II party-target item-use defect remains unresolved.
+
+## 2.8.01 hotfix
+
+2.8.01 is a strict child of exact published 2.8.00. It restores the four Trainer Randomizer controls to the Gen II Setup/NUZ RULES surface (`Random Trainers`, `Trainer Balance`, `Trainer Diversity`, `Trainer Theme`) and hardens Gold/Silver/Crystal overworld poison-faint handling so Nuzlocke independently detects a wipe after poison deaths are recorded/pruned instead of trusting `event.whiteout` alone. The known Gen II party-target item-use defect remains unresolved and is not changed by this hotfix.
+
 ## 2.8.00 full release
 
 2.8.00 is a strict child of exact 2.7.106 and is packaged as the requested full release. The remaining Crystal party-item defect is attacked at the Pack commit boundary rather than by another Pokémon-structure or Game2 callback patch: simple party consumables now target the authoritative live party slot and execute Gen1Recomp's own Gen2 ItemEffects after Nuzlocke legality checks. Healing/status/revive items, vitamins, and Rare Candy use this path; PP items, stones, TMs/HMs and non-party field items retain their specialized owners. The Setup/NUZ RULES held-scroll curve is also slowed slightly with a gentler five-stage ramp. Profile Save/Load behavior remains protected runtime PASS and World Building still defaults to T3.

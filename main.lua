@@ -1,4 +1,4 @@
--- Nuzlocke 2.8.00
+-- Nuzlocke 2.8.02
 -- Full release, strict child of exact packaged 2.7.106. Repairs the Gen2 Pack
 -- party-consumable commit seam at the authoritative live party slot and retunes
 -- five-stage held UP/DOWN navigation. Protected TOOLS profile semantics, World
@@ -35,14 +35,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.00",
+      build = "2.8.02",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.00",
+      manifestVersion = "2.8.02",
       setupProfileScope = "gen1",
-      parentVersion = "2.7.106",
-      parentSha256 = "10b482d6e535d318ff6b4e7ada052dac4fdd269ec6b4e2ac5fbf27368babb092",
+      parentVersion = "2.8.01",
+      parentSha256 = "74ada31575d1b4d9235403e894be359842e9b5f0a76044b450be7f751c5860d9",
       compatibilityApi = 34,
       diagnosticsApi = 1,
   }
@@ -13379,6 +13379,10 @@ return function(mod)
       randomizer_info_policy = true,
       random_species_generation = true,
       random_learnsets = true,
+      random_trainers = true,
+      random_trainer_balance = true,
+      random_trainer_diversity = true,
+      random_trainer_theme = true,
       random_evolutions = true,
       random_learnset_generation = true,
       physical_special_split = true,
@@ -14851,8 +14855,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.7.106",
-      expectedParentSha256 = "10b482d6e535d318ff6b4e7ada052dac4fdd269ec6b4e2ac5fbf27368babb092",
+      expectedParentVersion = "2.8.01",
+      expectedParentSha256 = "74ada31575d1b4d9235403e894be359842e9b5f0a76044b450be7f751c5860d9",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -17993,9 +17997,24 @@ return function(mod)
               end
 
               local function refreshDependentRows(changedKey, preferred)
+                  -- 2.8.02: every parent used by rebuildVisibleItems must
+                  -- invalidate the visible-row projection immediately. 2.8.01
+                  -- restored the Gen II Trainer Randomizer rows to the catalog
+                  -- allowlist, but changing Random Trainers did not rebuild the
+                  -- already-open Setup/Rules list, so Balance/Diversity/Theme
+                  -- stayed hidden until the screen was reconstructed. Keep this
+                  -- trigger set aligned with hiddenByRandomizerParent above.
                   if changedKey ~= "random_starter"
+                      and changedKey ~= "random_starter_rerolls"
                       and changedKey ~= "random_encounter_tables"
+                      and changedKey ~= "random_encounter_repetition"
+                      and changedKey ~= "random_field_items"
                       and changedKey ~= "random_learnsets"
+                      and changedKey ~= "random_trainers"
+                      and changedKey ~= "random_evolutions"
+                      and changedKey ~= "random_shops"
+                      and changedKey ~= "random_tms"
+                      and changedKey ~= "random_gift_items"
                       and changedKey ~= "type_lock_mode"
                       and changedKey ~= "type_lock_draft"
                       and changedKey ~= "no_catching"

@@ -1,3 +1,15 @@
+# Nuzlocke 2.8.02 — Hotfix Release Notes
+
+2.8.02 fixes dynamic Randomizer child-option visibility in Setup and NUZ RULES. In Crystal/Gen II, enabling **Random Trainers** now immediately exposes **Trainer Balance**, **Trainer Diversity**, and **Trainer Theme**. The same refresh correction is applied to the other Randomizer parent/child rows that use dynamic visibility. No Trainer Randomizer generation logic was changed.
+
+The known Gen II party-target item-use defect remains unresolved.
+
+# Nuzlocke 2.8.01 — Hotfix Release Notes
+
+2.8.01 is a focused strict-child hotfix from exact published 2.8.00. It restores the missing Trainer Randomizer options in Gold/Silver/Crystal Setup and NUZ RULES, and fixes the Nuzlocke-side wipe decision for overworld poison deaths when the last usable party Pokémon faints but Gen1Recomp does not report `event.whiteout`.
+
+**Known issue unchanged:** Gen II party-target healing items, vitamins, Rare Candy, and similar consumables can still return to the Pack after target selection without applying.
+
 # Nuzlocke 2.8.00 — Release Notes
 
 2.8.00 is the full-release package requested from the exact 2.7.106 parent. It carries forward the 2.7.x rule/UI/randomizer/compatibility work and adds one focused release repair for the outstanding Crystal party-item transaction plus a final navigation-feel adjustment.

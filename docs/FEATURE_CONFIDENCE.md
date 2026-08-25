@@ -1,4 +1,9 @@
-# Feature Confidence — 2.8.00
+# Feature Confidence — 2.8.01
+## 2.8.01 runtime targets
+- Crystal Trainer Randomizer options: **2.8.00 FAIL / missing; 2.8.01 STATIC FIX — RUNTIME REQUIRED**.
+- Crystal last-usable-party overworld poison faint: **2.8.00 FAIL / continued play; 2.8.01 STATIC FIX — RUNTIME REQUIRED**.
+- Gen II party-target item use: **KNOWN FAIL / unchanged in 2.8.01**.
+
 
 ## 2.8.00 runtime targets
 
