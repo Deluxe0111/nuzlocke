@@ -1,4 +1,110 @@
-# Nuzlocke API — 2.7.28
+# Nuzlocke API — 2.8.00
+
+## 2.8.00 API note
+
+No public compatibility API version bump. The Gen2 party-consumable repair is internal: Nuzlocke's Pack legality seam now resolves a selected `useItem` party index back to the live save-party record before invoking Gen1Recomp's merged Gen2 ItemEffects. Existing public item-legality/provider surfaces remain unchanged.
+
+## 2.7.106 API note
+
+No public Compatibility API, Diagnostics API, Save Schema, or Randomizer algorithm version changes. The Gen2 repair is internal runtime ownership for simple party consumables and uses Gen1Recomp's existing `src.core.gen2.ItemEffects` and Game2 services. PP items and evolution stones remain native specialized paths. Five-stage Setup/Rules hold acceleration is screen-local input behavior.
+
+## 2.7.105 API note
+
+No public Compatibility API, Diagnostics API, Save Schema, or Randomizer algorithm version changes. The Gen2 repair is an internal PartyMenu constructor contract guard for the native `useItem` chooser. The read-only `gen2PartyRecordHealth` probe remains internal; the 2.7.104 automatic full-record materializer/repair snapshots are retired. Setup/Rules held navigation is screen-local input behavior and does not add an API surface.
+
+## 2.7.104 API note
+
+No public Compatibility API, Diagnostics API, Save Schema, or Randomizer algorithm version changes. A private/read-only `gen2PartyRecordHealth` diagnostic and last-repair snapshot are added under the existing internal beta export namespace for runtime diagnosis only.
+
+## 2.7.103 API note
+
+No public compatibility API contract changes. The Gen2 repair is an internal engine-ownership routing correction at the native Pack/Game2 boundary.
+
+## 2.7.102 API note
+
+No public Compatibility API, Diagnostics API, Save Schema, or Randomizer algorithm version changes. The Gen2 party-item repair is an internal representation-normalization seam; Saved Setup Preset persistence continues to use the existing installation-scoped cache contract.
+
+## 2.7.101 API note
+
+Nuzlocke public API numbers are unchanged. The engine source/documentation compatibility marker advances to **0.2.25** while the minimum remains `>=0.2.24 <2.0.0`. Gen1Recomp 0.2.25 adds read-only imported-version dataset views; this build records that capability but does not use it to replace active-game transaction authority.
+
+# Nuzlocke API — 2.7.85
+
+## 2.7.85 API / ownership notes
+
+No public API or schema version changes. Compatibility API remains 34, Diagnostics API remains 1, and Save Schema remains 5. Crystal's starter presentation now explicitly fails open to the engine-owned native POKEPIC/cry callbacks; Nuzlocke retains transaction ownership only at the existing shared GIVEPOKE/tracker seam. DEV stored-state validation derives expected Randomizer registry sizes from exported live registries rather than hardcoded historical counts.
+
+
+
+## 2.7.84 API / ownership notes
+
+No Nuzlocke public API number changes: Compatibility API remains 34 and Diagnostics API remains 1. The engine compatibility marker advances to **0.2.24**, the minimum engine becomes `>=0.2.24 <2.0.0`, and the explicit manifest target set becomes Red/Blue/Yellow/Gold/Silver/Crystal. Crystal is tagged internally as `stage = "ALPHA"`; exact edition remains `crystal`, generation remains 2, and shared Gen-2 providers/adapters are reused only where the underlying engine contract is common.
+
+Upstream `mod.developer` remains the engine-owned developer signal. `mod.world:activeBlockAt()` and `map.occupancy_allowed` are recorded as useful Gen-1 map-safety seams but are not new Nuzlocke API surfaces. `battle.field_residual` remains intentionally unused until Gen-2 parity exists. `src.ui.OptionRows` remains forbidden on Gen-2 Nuzlocke UI, and direct `src.script.Commands` use remains a Gen-1-only compatibility boundary.
+
+
+## 2.7.83 API / ownership notes
+
+No public API version changes. Compatibility API remains 34 and Diagnostics API remains 1. The new loadout and Difficulty selectors consume existing internal `LockePreset.preview/apply`, `difficultyProfileSummary()`, `difficultyImpactChanges()`, and `difficultyStackWarning()` ownership rather than adding a parallel configuration API. Manual Gen-2 time is a Nuzlocke-owned UI action over the engine's native `src.core.gen2.Clock`; it does not introduce a new clock provider contract.
+
+
+## 2.7.82 API / ownership notes
+
+No public API version changes in 2.7.82: Compatibility API remains 34 and Diagnostics API remains 1. `releaseSafetyAudit()` is retained as an internal/build-process capability but is no longer executed or inserted into player-facing `Dev.selfTest()` results. Internal report-code/fingerprint helpers are retained for compatibility/testing but normal/exported Dev text no longer depends on or renders them. Gen-2 adapter installation now accepts the exact lifecycle Game through `G2.installAll(game)` internally; this is an ownership/lifecycle repair, not a new public provider surface.
+
+
+## Gen1Recomp 0.2.21 compatibility surface
+
+The source-audited engine profile is 0.2.21. Mod API remains 2. `mod.developer` is recorded as engine-owned diagnostic metadata and is intentionally separate from Nuzlocke's `dev_mode`. Gen2 clock integration prefers native `Clock.hostMinutes()` / `hostWeekday()` and writes only through `Clock.setTime()` / `setWeekday()`. `battle.field_residual` is noted as available on Gen1 but is not adopted by Nuzlocke in this build.
+
+## 2.7.80 internal transaction/clock behavior
+
+No public API or save-schema version changes. 2.7.80 adds internal Gen-2 pending Elm transaction finalization, native clock integration, and Rare Candy batch-cancellation state only. Compatibility API remains 34 and Diagnostics API remains 1.
+
+## 2.7.79 internal Gen-2 starter authority
+
+No public API/schema version changes. 2.7.79 changes internal shared Gen-2 Elm transaction classification, proven-starter story reconciliation, reachability diagnostics, and presentation helpers only; Compatibility API remains 34 and Diagnostics API remains 1.
+
+
+No public API/schema version changes. 2.7.77 changes internal Gen-2 UI/script/randomizer integration only; Compatibility API remains 34 and Diagnostics API remains 1.
+
+
+## 2.7.78 internal recovery behavior
+
+No public API/schema version changes. 2.7.78 changes internal starter identity normalization and cross-edition Recover Catches availability only; Compatibility API remains 34 and Diagnostics API remains 1.
+## 2.7.76 internal Gen-2 diagnostics
+
+No public API/schema version changes. 2.7.76 adds internal Gen-2 adapter reachability diagnostics only.
+
+## 2.7.66 rule-availability audit, pass 2
+
+- Continues the rule-availability audit in a deliberately small pass.
+- Yellow no longer exposes Random Starter `Trio Typing` as a native rule because Yellow does not natively use the three-choice starter slate; an explicit compatible `starter_trio` provider can make it available.
+- Encounter-slot modifiers now depend on `One Per Area`: Failed Encounters, Dupes, Gen II roamer/egg/contest policies, Town Catches, and area/time/headbutt split controls become dormant while area encounter limits are OFF.
+- Type Locke now exposes/effects only the lanes selected by its mode. Catch Draft is hidden while Type Locke is OFF; manual type lanes are hidden/inert during Catch Draft; DUO through HEXA progressively reveal only the required lanes.
+- Stored values are preserved while dormant and return when their prerequisite becomes applicable again.
+- Release Safety extends the exact-edition/dependency source tripwire for these relationships.
+
+
+# Nuzlocke API — 2.7.65
+
+## Rule availability contract — Compatibility API 34 / 2.7.65
+
+`ruleNativeAvailableForEdition(rule, edition)`, `ruleAvailableForGame(rule, game)`, and `ruleOperationalState(key, preGame, game)` expose the shared availability/dependency decision used by configuration UI and effective gameplay reads. Hidden dependent/superseded values remain stored but resolve neutral while inactive.
+
+## Compatibility owner preferences — API 33 / 2.7.64
+
+The compatibility surface exposes live owner-choice helpers used by MOD COMPAT: `compatOwnerPreference(capability)`, `setCompatOwnerPreference(capability, value)`, and `compatOwnerChoices(capability, nativeOwner)`. Choices are derived only from the native owner plus providers discovered through advertised capability contracts. Preferences are save-local and default to `auto`.
+
+Provider consumers continue to resolve through the normal live compatibility resolver; selecting a provider is therefore functional rather than display-only. Missing or inactive pinned providers fail open to `auto`.
+
+## 2.7.57 presentation API addendum
+
+`mod.exports.nuzlocke_ui_system` / `mod.exports.__beta26.UiSystem` is an experimental presentation-only API (v3). It exposes provider-neutral logical-surface policies plus live-font typography helpers for measured fit, wrapping, right-edge alignment, semantic rows, and notice models. These APIs carry no gameplay authority and remains internal and may evolve without public-API stability guarantees.
+
+# Nuzlocke API — 2.7.57
+
+This build does not change Compatibility API, Diagnostics API, Run History API/storage, Randomizer public API/algorithm, or Save Schema versions. It adds an internal/exported experimental `nuzlocke_ui_system` presentation object for Nuzlocke-owned screens; it is not yet a stable third-party compatibility API and must not be treated as one until explicitly versioned/promoted.
 
 2.7.27 adds internal Learnset Randomizer hard-safety and soft semantic weighting only. Public API versions remain unchanged; providers can opt moves out through existing randomizable/protection metadata and should expose usable move records with a non-empty name and positive PP.
 2.7.25 is a release promotion only. Public API versions and the provider/developer contract are unchanged from exact 2.7.24.
@@ -26,7 +132,7 @@ The public interop capability resolver recognizes explicit ownership providers f
 - `field_item_randomizer_provider`
 - `learnset_randomizer_provider`
 
-These provider capabilities are ownership/coexistence signals rather than permission to bypass Nuzlocke legality. A provider should advertise ownership only while it actually controls the overlapping mechanic. 2.6.90 adds `field_item_randomizer_provider`; it does not change Compatibility API 32 because the legacy `nuzlocke_compat` function surface is unchanged.
+These provider capabilities are ownership/coexistence signals rather than permission to bypass Nuzlocke legality. A provider should advertise ownership only while it actually controls the overlapping mechanic. 2.6.90 adds `field_item_randomizer_provider`; it does not change Compatibility API 32 because the legacy `nuzlocke_compat` function surface was unchanged during build development.
 
 ### Compatibility API 32 — Field Item information
 
@@ -197,3 +303,7 @@ The 0.2.19 → 0.2.20 delta changes no public Nuzlocke provider API requirement 
 Gen1Recomp's `modOptions` store is installation/options state rather than Pokémon save progress. Engine tests explicitly round-trip `modOptions.nuzlocke` through the flat `options.lua` store and verify Gold reads/writes the same flat store as Gen 1.
 
 For Nuzlocke preset design, however, the public API boundary matters: `mod.options` exposes `define(schema)` and `get(key)`, but no runtime `set` method. The in-game/launcher option manager owns writes and persistence. Supported schema row types are toggle, choice, number, and text. Therefore a future named Saved Setup Presets feature should not reach behind the public facade or mutate engine internals merely to write arbitrary preset blobs. Keep the existing working setup-profile persistence until a supported writable installation-scoped API is available, or represent a deliberately bounded preset surface as normal engine-owned option rows.
+
+## Experimental presentation API
+
+`nuzlocke_ui_system` apiVersion 2 is test-only. It adds screen policies and logical layout contexts. It is not yet a stable public compatibility API.

@@ -224,9 +224,15 @@ return function(mod, deps)
 
       if type(mod.exports.__beta26.randomizerStreamRegistryAudit) == "function" then
           local ok, streamReport = pcall(mod.exports.__beta26.randomizerStreamRegistryAudit)
+          local expectedStreams = type(mod.exports.__beta26.randomizerStreamNames) == "function"
+              and #mod.exports.__beta26.randomizerStreamNames() or nil
           check("randomizer_stream_registry", ok and type(streamReport) == "table"
-              and streamReport.ok == true and tonumber(streamReport.count) == 5, true,
-              ok and table.concat(streamReport.failures or {}, ",") or tostring(streamReport))
+              and streamReport.ok == true and expectedStreams ~= nil
+              and tonumber(streamReport.count) == expectedStreams, true,
+              ok and ("count=" .. tostring(streamReport.count)
+                  .. "/" .. tostring(expectedStreams) .. " "
+                  .. table.concat(streamReport.failures or {}, ","))
+                  or tostring(streamReport))
       else
           check("randomizer_stream_registry", false, false, "missing")
       end
@@ -234,7 +240,9 @@ return function(mod, deps)
       if type(mod.exports.__beta26.randomizerStreamIsolationAudit) == "function" then
           local ok, isolation = pcall(mod.exports.__beta26.randomizerStreamIsolationAudit)
           check("randomizer_stream_isolation", ok and type(isolation) == "table"
-              and isolation.ok == true and tonumber(isolation.checked) == 45, true,
+              and isolation.ok == true and tonumber(isolation.checked) ==
+                  ((type(mod.exports.__beta26.randomizerStreamNames) == "function"
+                      and #mod.exports.__beta26.randomizerStreamNames() or 0) * 9), true,
               ok and table.concat(isolation.failures or {}, ",") or tostring(isolation))
       else
           check("randomizer_stream_isolation", false, false, "missing")
@@ -242,9 +250,15 @@ return function(mod, deps)
 
       if type(mod.exports.__beta26.randomizerSourceMapAudit) == "function" then
           local ok, sourceMaps = pcall(mod.exports.__beta26.randomizerSourceMapAudit)
+          local expectedStreams = type(mod.exports.__beta26.randomizerStreamNames) == "function"
+              and #mod.exports.__beta26.randomizerStreamNames() or nil
           check("randomizer_source_maps", ok and type(sourceMaps) == "table"
-              and sourceMaps.ok == true and tonumber(sourceMaps.count) == 5, true,
-              ok and table.concat(sourceMaps.failures or {}, ",") or tostring(sourceMaps))
+              and sourceMaps.ok == true and expectedStreams ~= nil
+              and tonumber(sourceMaps.count) == expectedStreams, true,
+              ok and ("count=" .. tostring(sourceMaps.count)
+                  .. "/" .. tostring(expectedStreams) .. " "
+                  .. table.concat(sourceMaps.failures or {}, ","))
+                  or tostring(sourceMaps))
       else
           check("randomizer_source_maps", false, false, "missing")
       end
@@ -260,9 +274,21 @@ return function(mod, deps)
 
       if type(mod.exports.__beta26.randomizerProjectionAudit) == "function" then
           local ok, projection = pcall(mod.exports.__beta26.randomizerProjectionAudit)
+          local expectedProjectionCount = nil
+          if type(mod.exports.__beta26.randomizerProjectionRegistry) == "function" then
+              local okRegistry, registry = pcall(mod.exports.__beta26.randomizerProjectionRegistry)
+              if okRegistry and type(registry) == "table" then
+                  expectedProjectionCount = 0
+                  for _ in pairs(registry) do expectedProjectionCount = expectedProjectionCount + 1 end
+              end
+          end
           check("randomizer_projection_ownership", ok and type(projection) == "table"
-              and projection.ok == true and tonumber(projection.count) == 2, true,
-              ok and table.concat(projection.failures or {}, ",") or tostring(projection))
+              and projection.ok == true and expectedProjectionCount ~= nil
+              and tonumber(projection.count) == expectedProjectionCount, true,
+              ok and ("count=" .. tostring(projection.count)
+                  .. "/" .. tostring(expectedProjectionCount) .. " "
+                  .. table.concat(projection.failures or {}, ","))
+                  or tostring(projection))
       else
           check("randomizer_projection_ownership", false, false, "missing")
       end
@@ -281,8 +307,11 @@ return function(mod, deps)
               mod.exports.__beta26.randomizerCompatibilitySnapshot, mod.game)
           local rows = ok and type(snapshot) == "table"
               and snapshot.rows or nil
+          -- The compatibility snapshot is intentionally extensible: new
+          -- Randomizer subsystems add rows. Validate the live shape rather
+          -- than freezing an old mechanic count into player diagnostics.
           check("randomizer_external_compat",
-              type(rows) == "table" and #rows == 4,
+              type(rows) == "table" and #rows > 0,
               true,
               ok and ("mechanics=" .. tostring(type(rows) == "table"
                   and #rows or 0)) or tostring(snapshot))
@@ -457,6 +486,14 @@ return function(mod, deps)
           check("randomizer_starter_preferences", false, false, "missing")
       end
 
+      if type(mod.exports.__beta26.randomizerItemEconomyRegressionAudit) == "function" then
+          local okH, reportH = pcall(mod.exports.__beta26.randomizerItemEconomyRegressionAudit, mod.game)
+          check("randomizer_phase_h_economy_progression", okH and type(reportH)=="table" and reportH.ok==true, false,
+              okH and type(reportH)=="table" and table.concat(reportH.failures or {}, ",") or tostring(reportH))
+      else
+          check("randomizer_phase_h_economy_progression", false, false, "missing")
+      end
+
       if type(mod.exports.__beta26.randomizerStarterInfo) == "function" then
           local before = type(mod.exports.__beta26.randomizerConstraintDiagnostics) == "function"
               and #mod.exports.__beta26.randomizerConstraintDiagnostics() or 0
@@ -507,7 +544,7 @@ return function(mod, deps)
           end
       end
 
-      for _, scope in ipairs({ "gen1", "gold", "silver" }) do
+      for _, scope in ipairs({ "gen1", "gold", "silver", "crystal" }) do
           local profile = mod.save:get("__nuzlocke_staged_new_game_profile:" .. scope, nil)
           if profile ~= nil then
               check("staged_profile_" .. scope, type(profile) == "table", true)
@@ -654,17 +691,22 @@ return function(mod, deps)
           end
       end
   
-      -- 2.5.59: repeat the dead-fallback source lint in DEV diagnostics so
-      -- unreachable fallback dialogue is visible in reports as well as being
-      -- blocked by the module-load release gate.
+      -- 2.5.59 / 2.7.60: repeat the dead-fallback source lint in DEV
+      -- diagnostics. Presentation/source drift is diagnostic at startup and
+      -- promotion-blocking in Release Safety, not a reason to brick loading.
       local deadFallbackAudit = mod.exports.__beta26.deadFallbackAudit
       if type(deadFallbackAudit) == "function" then
           local mainSource = safeDiagnosticSource("main.lua")
-          local okFallback, fallbackReport = true, nil
-          if mainSource then
-              okFallback, fallbackReport = pcall(deadFallbackAudit, mainSource)
+          local worldSource = safeDiagnosticSource("world_building.lua")
+          local combinedSource = mainSource
+          if combinedSource and worldSource then
+              combinedSource = combinedSource .. "\n" .. worldSource
           end
-          if mainSource and (not okFallback or type(fallbackReport) ~= "table"
+          local okFallback, fallbackReport = true, nil
+          if combinedSource then
+              okFallback, fallbackReport = pcall(deadFallbackAudit, combinedSource)
+          end
+          if combinedSource and (not okFallback or type(fallbackReport) ~= "table"
               or fallbackReport.ok ~= true) then
               local detail = not okFallback and tostring(fallbackReport)
                   or table.concat(fallbackReport and fallbackReport.failures or {}, ", ")
@@ -686,6 +728,24 @@ return function(mod, deps)
           end
       end
   
+
+      local maximumBstMessageDetailAudit =
+          mod.exports.__beta26.maximumBstMessageDetailAudit
+      if type(maximumBstMessageDetailAudit) == "function" then
+          local worldSource = safeDiagnosticSource("world_building.lua")
+          if worldSource then
+              local okDetail, detailReport = pcall(
+                  maximumBstMessageDetailAudit, worldSource)
+              if not okDetail or type(detailReport) ~= "table"
+                  or detailReport.ok ~= true then
+                  local detail = not okDetail and tostring(detailReport)
+                      or table.concat(detailReport and detailReport.failures or {}, ", ")
+                  warn("maximum_bst_message_detail",
+                      detail ~= "" and detail or "audit failed")
+              end
+          end
+      end
+
       local safeStopWrites = mod.exports.__beta26.safeStopWriteReport()
       if tonumber(safeStopWrites.total or 0) > 0 then
           warn("safe_stop_write_attempt",

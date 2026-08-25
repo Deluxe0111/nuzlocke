@@ -11,6 +11,261 @@ return function(mod, deps)
   -- 2.6.1: executable shape/contract assertions for the two public
   -- compatibility surfaces. This validates only the stable core that exists
   -- before later gameplay-specific aliases are installed.
+  -- 2.7.62: cross-generation semantic seam tripwire. Public coverage may
+  -- claim RBYGS only when the shipped Gen 2 adapter visibly installs the
+  -- corresponding semantic owners. This is intentionally source-based and
+  -- promotion-facing; runtime evidence remains edition-specific.
+  mod.exports.__beta26.gen2SemanticSeamAudit = function()
+    local report = { ok = true, checked = 0, failures = {} }
+    local late = safeRead("late_runtime.lua") or ""
+    local main = safeRead("main.lua") or ""
+    local battle = safeRead("battle_clauses.lua") or ""
+    local randomizer = safeRead("randomizer_runtime.lua") or ""
+    local required = {
+      healing_service = { late, { "function G2.installHealingServiceGate", "specialName ~= \"HealParty\"", "gen2.healing_service_gate" } },
+      mart = { late, { "function G2.installMartGate", "gen2.mart_gate" } },
+      capture = { late, { "function G2.installCaptureGate", "gen2.capture_gate" } },
+      nickname = { late, { "function G2.installNicknameGate", "gen2.nickname_gate" } },
+      gift = { late, { "function G2.installGiftTracking", "gen2.gift_tracking" } },
+      trade = { late, { "function G2.installTradeGate", "gen2.trade_gate" } },
+      static = { late, { "function G2.installStaticTracking", "gen2.static_tracking" } },
+      held_item = { late, { "function G2.installHeldItemGate", "gen2.held_item_gate" } },
+      field_item = { late, { "function G2.installFieldItemGate", "gen2.field_item_gate" } },
+      whiteout = { late, { "function G2.installWhiteoutGate", "gen2.whiteout_gate" } },
+      daycare = { main, { "src.core.gen2.Breeding", "Breeding.canDeposit", "src.ui.gen2.DayCareMenu" } },
+      pc_lock = { main, { "src.ui.gen2.BoxMenu", "checkSpaceInDestination", "askRelease" } },
+      battle_status = { battle, { "src.battle.gen2.Battle", "gen2.sleep", "gen2.status" } },
+      battle_stages = { battle, { "gen2.evasion", "gen2.stat_drops", "gen2.setup" } },
+      randomizer_gen2 = { randomizer, { "GEN2", "gen2" } },
+    }
+    for id, row in pairs(required) do
+      report.checked = report.checked + 1
+      local src, needles = row[1], row[2]
+      local ok = true
+      for _, needle in ipairs(needles) do
+        if not src:find(needle, 1, true) then ok = false break end
+      end
+      if not ok then
+        report.ok = false
+        report.failures[#report.failures + 1] = id
+      end
+    end
+    return report
+  end
+
+
+  -- 2.7.94: protect the runtime-bisected Random Starter contract. The first
+  -- known-bad build (2.7.45) coupled starter eligibility to the shared
+  -- generation Species Pool. Starters must remain isolated from that filter
+  -- while encounters/trainers/evolutions retain it.
+  mod.exports.__beta26.randomStarterSpeciesPoolIsolationAudit = function()
+    local randomizer = safeRead("randomizer_runtime.lua") or ""
+    local catalog = safeRead("rule_catalog.lua") or ""
+    local report = { ok=true, checked=0, failures={} }
+    local function expect(id, ok)
+      report.checked = report.checked + 1
+      if not ok then
+        report.ok=false
+        report.failures[#report.failures+1]=id
+      end
+    end
+    expect("starter_candidate_pool_isolated",
+      randomizer:find('randomSpeciesPoolAllows(def, 0)', 1, true) ~= nil)
+    expect("starter_shared_pool_comment",
+      randomizer:find('Random Starter deliberately ignores the shared', 1, true) ~= nil)
+    expect("species_subsystem_excludes_starter",
+      randomizer:find('local function speciesRandomizerConfigured()', 1, true) ~= nil
+        and randomizer:find('return mod.save:get("random_encounter_tables", false) == true', 1, true) ~= nil)
+    expect("catalog_species_parents_exclude_starter",
+      catalog:find('local speciesParents = {\n      "random_encounter_tables", "random_trainers", "random_evolutions",', 1, true) ~= nil)
+    return report
+  end
+
+  -- 2.7.63: Gen II Tracker MAP must not silently fall back to the Gen I
+  -- seeded route catalog, and Difficulty changes must remain pre-confirmed.
+  mod.exports.__beta26.gen2TrackerPresentationAudit = function()
+    local src = safeRead("classic_ui.lua") or ""
+    local required = {
+      "local function gen2DisplayOrder",
+      "data.gen2Constants",
+      "constants.mapOrder",
+      "NEW_BARK_TOWN",
+      "gen2Allowed",
+      "GEN1_SEED_IDS",
+      "tracker_map_render",
+    }
+    local report = { ok = true, checked = #required, failures = {} }
+    for _, needle in ipairs(required) do
+      if not src:find(needle, 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = "missing " .. needle
+      end
+    end
+    return report
+  end
+
+  -- 2.7.64: MOD COMPAT ownership controls must remain capability-backed,
+  -- persisted as preferences, confirmation-gated for gameplay-impacting
+  -- changes, and wired into actual provider resolution rather than display only.
+  mod.exports.__beta26.compatOwnerControlAudit = function()
+    local main = safeRead("main.lua") or ""
+    local late = safeRead("late_runtime.lua") or ""
+    local required = {
+      { main, "COMPAT_PROVIDER_CANDIDATES" },
+      { main, "compat_owner_preferences" },
+      { main, "compatOwnerPreference" },
+      { main, "setCompatOwnerPreference" },
+      { main, "compatOwnerChoices" },
+      { main, 'preference == "nuzlocke" or preference == "engine"' },
+      { late, "controlCapability" },
+      { late, "ownerProposal" },
+      { late, "applyOwnerPreference" },
+      { late, 'title = "OWNER WARNING"' },
+      { late, 'wasPressed("left")' },
+      { late, 'wasPressed("right")' },
+    }
+    local report = { ok=true, checked=#required, failures={} }
+    for _, row in ipairs(required) do
+      if not row[1]:find(row[2], 1, true) then
+        report.ok=false
+        report.failures[#report.failures+1] = "missing " .. row[2]
+      end
+    end
+    return report
+  end
+
+  -- 2.7.65: rule availability must remain wired into both configuration
+  -- presentation and effective rule reads; edition-only mechanics must not
+  -- regress back into every-game rows.
+  mod.exports.__beta26.ruleAvailabilitySourceAudit = function()
+    local main = safeRead("main.lua") or ""
+    local catalog = safeRead("rule_catalog.lua") or ""
+    local required = {
+      { main, "ruleAvailableForGame" },
+      { main, "ruleOperationalState" },
+      { main, "hiddenByOperationalContract" },
+      { main, 'screens:register("NuzlockeDifficultyReview"' },
+      { main, 'difficultyImpactChanges("vanilla"' },
+      { main, 'proposedId = nextId' },
+      { main, 'title = "DIFFICULTY WARNING"' },
+      { main, "ruleNativeAvailableForEdition" },
+      { catalog, 'key = "overworld_encounters", default = false, nativeEditions = {}, capabilityGate = "overworld_encounters"' },
+      { catalog, 'key = "safari_zone_splits", default = 0, nativeEditions = { red=true, blue=true, yellow=true }' },
+      { catalog, 'key = "infinite_rare_candies", default = false, rbyOnly = true' },
+      { catalog, 'key = "random_starter_trio_typing", default = 0, nativeEditions = { red=true, blue=true, gold=true, silver=true, crystal=true }, capabilityGate = "starter_trio"' },
+      { catalog, 'type_lock_secondary=2' },
+      { catalog, 'local auditedAllSix = {' },
+      { catalog, '"physical_special_split", "badge_boosts", "ohko_clause"' },
+      { catalog, 'byKey.evasion_clause.suppressedBy' },
+      { catalog, 'capabilityGate = "pokegear_radio"' },
+      { catalog, 'capabilityGate = "cherrygrove_tour"' },
+      { catalog, 'key = "shop_restrictions", default = 0' },
+      { main, 'CURRENT_SAVE_SCHEMA = 5' },
+      { main, 'pendingNewGameRules.shop_restrictions' },
+      { main, 'mod.save:set("shop_restrictions"' },
+      { catalog, '"gold_bug_contest_mode",' },
+      { catalog, 'requiresRule' },
+      { catalog, 'requiresAll' },
+      { catalog, 'suppressedBy' },
+    }
+    local report = { ok=true, checked=#required, failures={} }
+    for _, row in ipairs(required) do
+      if not row[1]:find(row[2], 1, true) then
+        report.ok=false
+        report.failures[#report.failures+1] = "missing " .. row[2]
+      end
+    end
+    return report
+  end
+
+  -- 2.7.70: the old always-on battle encounter badge is intentionally
+  -- retired, while post-failure encounter feedback is consequential and must
+  -- remain available at every World Building tier.
+  mod.exports.__beta26.encounterFeedbackContractAudit = function()
+    local main = safeRead("main.lua") or ""
+    local catalog = safeRead("rule_catalog.lua") or ""
+    local world = safeRead("world_building.lua") or ""
+    local report = { ok=true, checked=0, failures={} }
+    local function expect(id, ok)
+      report.checked = report.checked + 1
+      if not ok then
+        report.ok=false
+        report.failures[#report.failures+1]=id
+      end
+    end
+    expect("indicator_rule_retired",
+      catalog:find('key = "encounter_spend_indicator"', 1, true) == nil)
+    expect("battle_hud_not_installed",
+      main:find("installEncounterSpendHUD", 1, true) == nil
+        and main:find("ui.encounter_spend_hud", 1, true) == nil)
+    expect("semantic_projection_retained",
+      main:find("encounterSpendIndicator = function", 1, true) ~= nil)
+    expect("failed_feedback_helper",
+      main:find("emitFailedEncounterFeedback", 1, true) ~= nil)
+    expect("failed_feedback_called",
+      main:find("emitFailedEncounterFeedback(game, key)", 1, true) ~= nil)
+    expect("failed_feedback_critical",
+      main:find('worldMechanic(game, "failed:" .. tostring(area), t1, t2, t3, true)', 1, true) ~= nil)
+    expect("failed_catalog_plain",
+      world:find('failed_encounter = {', 1, true) ~= nil
+        and world:find("Encounter failed. That area's chance is spent.", 1, true) ~= nil)
+    return report
+  end
+
+  -- 2.7.71: generic T3 World Building messages must not append a
+  -- run-summary page. Recap context belongs only on explicitly recap-oriented
+  -- surfaces/events.
+  mod.exports.__beta26.t3RunContextIsolationAudit = function()
+    local world = safeRead("world_building.lua") or ""
+    local report = { ok=true, checked=2, failures={} }
+    if world:find("runContextLine", 1, true) ~= nil then
+      report.ok=false
+      report.failures[#report.failures+1]="runContextLine still present"
+    end
+    if world:find('text = tostring(text) .. "\\f" .. context', 1, true) ~= nil then
+      report.ok=false
+      report.failures[#report.failures+1]="generic T3 context page append still present"
+    end
+    return report
+  end
+
+  -- 2.7.72: shared UI must degrade explicit WIDE safely and must not
+  -- re-fit Tracker text whose selected-row marquee is already finalized.
+  mod.exports.__beta26.sharedUiOwnershipAudit = function()
+    local ui = safeRead("nuzlocke_ui_system.lua") or ""
+    local classic = safeRead("classic_ui.lua") or ""
+    local report = { ok=true, checked=4, failures={} }
+    local function expect(id, ok)
+      if not ok then report.ok=false; report.failures[#report.failures+1]=id end
+    end
+    expect("wide_no_forced_304", ui:find('elseif mode == "wide" then',1,true) == nil)
+    expect("wide_claim_resolved",
+      ui:find('(mode == "adaptive" or mode == "wide")',1,true) ~= nil
+      and ui:find('state.layoutContext.mode == "wide"',1,true) ~= nil)
+    expect("row_prefitted_optout", ui:find("row.preFitted ~= true",1,true) ~= nil)
+    expect("tracker_selected_prefitted",
+      select(2, classic:gsub("preFitted=selected","")) >= 2)
+    return report
+  end
+
+  mod.exports.__beta26.difficultyImpactWarningAudit = function()
+    local src = safeRead("main.lua") or ""
+    local required = {
+      "difficultyImpactChanges",
+      "DIFFICULTY WARNING",
+      "applyDifficultyChange",
+      "if yes then applyDifficultyChange() end",
+    }
+    local report = { ok = true, checked = #required, failures = {} }
+    for _, needle in ipairs(required) do
+      if not src:find(needle, 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = "missing " .. needle
+      end
+    end
+    return report
+  end
+
   mod.exports.__beta26.compatContractAudit = function()
     local report = { ok = true, checked = 0, failures = {} }
     local function check(id, condition, detail)
@@ -249,7 +504,7 @@ return function(mod, deps)
       local manifestVersion = manifest:match('"version"%s*:%s*"([^"]+)"')
       check("manifest_version", manifestVersion == buildText, manifestVersion)
       check("manifest_mod_api", manifest:find('"api"%s*:%s*2') ~= nil)
-      check("manifest_engine_range", manifest:find('"game_version"%s*:%s*">=0%.1%.86 <2%.0%.0"') ~= nil)
+      check("manifest_engine_range", manifest:find('"game_version"%s*:%s*">=0%.2%.24 <2%.0%.0"') ~= nil)
       local expectedGames = deps.expectedGames or {}
       local cursor = 1
       for _, game in ipairs(expectedGames) do
@@ -266,30 +521,50 @@ return function(mod, deps)
       report.skipped[#report.skipped + 1] = "manifest.json"
     end
 
-    -- Documents have different jobs. Do not force every file into a changelog-
-    -- shaped version heading; verify the exact role-specific current header.
-    local expectedDocHeaders = {
-      ["README.md"] = "# Nuzlocke " .. buildText,
-      ["CHANGELOG.md"] = "# " .. buildText,
-      ["RELEASE_NOTES.md"] = "# Nuzlocke " .. buildText .. " — Release Notes",
-      ["docs/API.md"] = "# Nuzlocke API — " .. buildText,
-      ["docs/COMPATIBILITY.md"] = "# Nuzlocke Compatibility — " .. buildText,
-      ["docs/DOCUMENTATION_CHANGELOG.md"] = "# Documentation Changelog — " .. buildText,
-      ["docs/FEATURE_CONFIDENCE.md"] = "# Feature Confidence — " .. buildText,
-      ["docs/USER_GUIDE.md"] = "# Nuzlocke User Guide — " .. buildText,
+    -- 2.7.82: document roles own their header contracts. Release Safety is a
+    -- build-time process check, so it accepts the package's maintained role
+    -- formats rather than assuming every document begins with one obsolete
+    -- universal heading shape.
+    local function docHeaderMatches(path, firstLine)
+      local escaped = buildText:gsub("%.", "%%.")
+      if path == "README.md" then
+        return firstLine == "# Nuzlocke " .. buildText
+          or firstLine:match("^## " .. escaped .. "%f[%D]") ~= nil
+      elseif path == "CHANGELOG.md" then
+        return firstLine == "# " .. buildText
+          or firstLine:find("# " .. buildText .. " — ", 1, true) == 1
+          or firstLine == "## " .. buildText
+          or firstLine:find("## " .. buildText .. " — ", 1, true) == 1
+      elseif path == "RELEASE_NOTES.md" then
+        return firstLine == "# Nuzlocke " .. buildText .. " — Release Notes"
+          or firstLine == "## " .. buildText
+          or firstLine:find("## " .. buildText .. " — ", 1, true) == 1
+      elseif path == "docs/API.md" then
+        return firstLine == "# Nuzlocke API — " .. buildText
+      elseif path == "docs/COMPATIBILITY.md" then
+        return firstLine == "# Nuzlocke Compatibility — " .. buildText
+      elseif path == "docs/DOCUMENTATION_CHANGELOG.md" then
+        return firstLine == "# Documentation Changelog — " .. buildText
+          or firstLine == "## " .. buildText
+          or firstLine:find("## " .. buildText .. " — ", 1, true) == 1
+      elseif path == "docs/FEATURE_CONFIDENCE.md" then
+        return firstLine == "# Feature Confidence — " .. buildText
+      elseif path == "docs/USER_GUIDE.md" then
+        return firstLine == "# Nuzlocke User Guide — " .. buildText
+      end
+      return false
+    end
+    local expectedDocPaths = {
+      "README.md", "CHANGELOG.md", "RELEASE_NOTES.md", "docs/API.md",
+      "docs/COMPATIBILITY.md", "docs/DOCUMENTATION_CHANGELOG.md",
+      "docs/FEATURE_CONFIDENCE.md", "docs/USER_GUIDE.md",
     }
-    for path, expectedHeader in pairs(expectedDocHeaders) do
+    for _, path in ipairs(expectedDocPaths) do
       local content = safeRead(path)
       if content then
         local firstLine = content:match("^%s*([^\r\n]+)") or ""
-        local headerMatches = firstLine == expectedHeader
-        if path == "CHANGELOG.md" then
-          -- Changelog headings may append a descriptive release title after
-          -- the exact current build, e.g. "# 2.6.68 — Diagnostics repair".
-          headerMatches = firstLine == expectedHeader
-            or firstLine:find(expectedHeader .. " — ", 1, true) == 1
-        end
-        check("doc_current_header_" .. path, headerMatches, firstLine)
+        check("doc_current_header_" .. path,
+          docHeaderMatches(path, firstLine), firstLine)
         local staleBanner = nil
         for line in content:gmatch("[^\r\n]+") do
           if line:find("Current build:", 1, true) then
@@ -301,9 +576,11 @@ return function(mod, deps)
           staleBanner and ("stale=" .. staleBanner) or "ok")
         if path == "CHANGELOG.md" then
           local count = 0
-          local base = "# " .. buildText
           for line in content:gmatch("[^\r\n]+") do
-            if line == base or line:find(base .. " — ", 1, true) == 1 then
+            if line == "# " .. buildText
+              or line:find("# " .. buildText .. " — ", 1, true) == 1
+              or line == "## " .. buildText
+              or line:find("## " .. buildText .. " — ", 1, true) == 1 then
               count = count + 1
             end
           end
@@ -383,6 +660,71 @@ return function(mod, deps)
         end
       end
     end
+    return report
+  end
+
+  -- 2.7.84: Gen1Recomp 0.2.24-era compatibility tripwire. This is deliberately
+  -- source-based and narrow: protect the exact six-edition manifest, Gen2
+  -- clock/DST integration, semantic options markers, engine developer signal,
+  -- and the upstream OptionRows Gen2 trap without migrating unrelated seams.
+  mod.exports.__beta26.gen1Recomp024Audit = function()
+    local report = { ok = true, checked = 0, failures = {}, skipped = {} }
+    local function check(id, condition)
+      report.checked = report.checked + 1
+      if condition then return end
+      report.ok = false
+      report.failures[#report.failures + 1] = id
+    end
+    local main = safeRead("main.lua")
+    local late = safeRead("late_runtime.lua")
+    local manifest = safeRead("manifest.json")
+    if main then
+      check("audited_0_2_25", main:find('recompCompatAudited = "0.2.25"', 1, true) ~= nil)
+      check("engine_developer_signal", main:find("Dev.engineDeveloper = mod.developer == true", 1, true) ~= nil)
+      local markerCount = 0
+      for _ in main:gmatch("isModOptions%s*=%s*true") do markerCount = markerCount + 1 end
+      if late then for _ in late:gmatch("isModOptions%s*=%s*true") do markerCount = markerCount + 1 end end
+      check("options_screen_markers", markerCount == 3)
+    else
+      report.skipped[#report.skipped + 1] = "main.lua"
+    end
+    if late then
+      check("clock_host_minutes", late:find("Clock.hostMinutes", 1, true) ~= nil)
+      check("clock_host_weekday", late:find("Clock.hostWeekday", 1, true) ~= nil)
+      check("dst_set_branch", late:find('clockCommand == "initialsetdstflag"', 1, true) ~= nil)
+      check("dst_clear_branch", late:find('clockCommand == "initialcleardstflag"', 1, true) ~= nil)
+      check("dst_bit_clear", late:find("save.rtc.dst = false", 1, true) ~= nil)
+    else
+      report.skipped[#report.skipped + 1] = "late_runtime.lua"
+    end
+    if manifest then
+      local block = manifest:match('"games"%s*:%s*%[([^%]]*)%]') or ""
+      local games = {}
+      for g in block:gmatch('"([^"]+)"') do games[#games + 1] = g end
+      check("exact_six_editions", table.concat(games, ",") == "red,blue,yellow,gold,silver,crystal")
+      check("crystal_alpha_declared", main and main:find('stage = "ALPHA"', 1, true) ~= nil)
+    else
+      report.skipped[#report.skipped + 1] = "manifest.json"
+    end
+    local optionRowsModule = "src.ui.Option" .. "Rows"
+    local optionRowsForbidden = 'require("' .. optionRowsModule .. '")'
+    local optionRowsFound = false
+    for _, path in ipairs(deps.packagePaths or {}) do
+      if tostring(path):match("%.lua$") then
+        local text = safeRead(path)
+        if text and text:find(optionRowsForbidden, 1, true) then
+          optionRowsFound = true break
+        end
+      end
+    end
+    check("gen2_optionrows_trap_absent", not optionRowsFound)
+    -- src.script.Commands is a valid Gen-1 dependency used by protected R/B/Y
+    -- tutorial/heal seams. The Gen-2 compatibility trap is using it while a
+    -- shared Gen-2 runtime is active, so protect the explicit runtime guard and
+    -- the documented refusal rather than banning the module package-wide.
+    check("gen2_commands_trap_guarded",
+      main and main:find("require src.script.Commands for Gen2", 1, true) ~= nil
+        and main:find("not mod.exports.__beta26.runtimeIsGen2(game)", 1, true) ~= nil)
     return report
   end
 
@@ -518,6 +860,107 @@ return function(mod, deps)
     end
     mod.exports.__beta26.luaUnpackCompatibilityAudit = luaUnpackCompatibilityAudit
 
+    -- 2.7.54: catch the historical Lua footgun where an earlier function calls
+    -- a helper declared later with `local function name(...)` but no explicit
+    -- forward declaration. Lua resolves that earlier reference through _ENV,
+    -- so the mistake can silently become a nil/foreign global at runtime.
+    local function forwardLocalReferenceAudit()
+        local report = { ok=true, checked=0, failures={}, skipped={} }
+
+        local function stripLine(line)
+            line = tostring(line or "")
+            local out, quote, escaped = {}, nil, false
+            local i = 1
+            while i <= #line do
+                local c = line:sub(i, i)
+                local n = line:sub(i, i + 1)
+                if quote then
+                    if escaped then escaped = false
+                    elseif c == "\\" then escaped = true
+                    elseif c == quote then quote = nil end
+                    out[#out + 1] = " "
+                elseif n == "--" then
+                    break
+                elseif c == "\"" or c == "'" then
+                    quote = c
+                    out[#out + 1] = " "
+                else
+                    out[#out + 1] = c
+                end
+                i = i + 1
+            end
+            return table.concat(out)
+        end
+
+        local function scan(path, text)
+            local lines, declarations = {}, {}
+            for raw in (tostring(text) .. "\n"):gmatch("(.-)\n") do
+                lines[#lines + 1] = stripLine(raw)
+            end
+            for lineNo, line in ipairs(lines) do
+                local name = line:match("%f[%a]local%s+function%s+([%a_][%w_]*)%s*%(")
+                if name and declarations[name] == nil then declarations[name] = lineNo end
+            end
+            for name, declLine in pairs(declarations) do
+                local forward = false
+                for lineNo = 1, declLine - 1 do
+                    local line = lines[lineNo]
+                    if line:match("%f[%a]local%s+" .. name .. "%f[^%w_]") then
+                        forward = true
+                        break
+                    end
+                    local at = line:find(name, 1, true)
+                    while at do
+                        local before = at > 1 and line:sub(at - 1, at - 1) or ""
+                        local after = line:sub(at + #name):match("^%s*(.)") or ""
+                        local prefixOk = before == "" or not before:match("[%w_%.:]")
+                        if prefixOk and after == "(" then
+                            report.ok = false
+                            report.failures[#report.failures + 1] = path .. ":"
+                                .. tostring(lineNo) .. ":forward_local_call:" .. name
+                            break
+                        end
+                        at = line:find(name, at + #name, true)
+                    end
+                    if not report.ok and report.failures[#report.failures]
+                        and report.failures[#report.failures]:find(":" .. name, 1, true) then break end
+                end
+                report.checked = report.checked + 1
+            end
+        end
+
+        -- Exact regression fixture: no forward declaration must fail; an
+        -- explicit `local helper` before the caller must pass.
+        local before = #report.failures
+        scan("selftest_bad", "local function caller() helper() end\nlocal function helper() end")
+        if #report.failures == before then
+            report.ok = false
+            report.failures[#report.failures + 1] = "selftest:missed_forward_local_call"
+        else
+            table.remove(report.failures)
+            report.ok = true
+        end
+        before = #report.failures
+        scan("selftest_good", "local helper\nlocal function caller() helper() end\nhelper = function() end")
+        if #report.failures ~= before then
+            report.ok = false
+            report.failures[#report.failures + 1] = "selftest:false_positive_forward_declaration"
+        end
+
+        for _, path in ipairs(deps.packagePaths or {}) do
+            if tostring(path):match("%.lua$") and path ~= "release_safety.lua" then
+                local text, readErr = safeRead(path)
+                if type(text) == "string" then
+                    scan(path, text)
+                else
+                    report.skipped[#report.skipped + 1] = path .. ":source_unavailable:" .. tostring(readErr)
+                end
+            end
+        end
+        return report
+    end
+    mod.exports.__beta26.forwardLocalReferenceAudit = forwardLocalReferenceAudit
+
     local function run(id, fn, arg)
       if type(fn) ~= "function" then add(id, false, "audit unavailable"); return nil end
       local ok, result
@@ -536,6 +979,11 @@ return function(mod, deps)
     run("rule_defaults", mod.exports.__beta26.auditNewRuleDefaults)
     run("rule_registry", mod.exports.__beta26.ruleRegistry and mod.exports.__beta26.ruleRegistry.audit)
     run("compat_contract", mod.exports.__beta26.compatContractAudit)
+    run("gen2_semantic_seams", mod.exports.__beta26.gen2SemanticSeamAudit)
+    run("gen1recomp_0_2_24", mod.exports.__beta26.gen1Recomp024Audit)
+    run("gen2_tracker_map_order", mod.exports.__beta26.gen2TrackerPresentationAudit)
+    run("difficulty_impact_warning", mod.exports.__beta26.difficultyImpactWarningAudit)
+    run("compat_owner_controls", mod.exports.__beta26.compatOwnerControlAudit)
     run("late_runtime_message_dependencies",
       mod.exports.__beta26.lateRuntimeMessageDependencyAudit)
     run("registry_describe_context_consistency",
@@ -546,10 +994,14 @@ return function(mod, deps)
       mod.exports.__beta26.worldCriticalFeedbackAudit)
     run("randomizer_projection_ownership",
       mod.exports.__beta26.randomizerProjectionAudit)
+    run("random_starter_species_pool_isolation",
+      mod.exports.__beta26.randomStarterSpeciesPoolIsolationAudit)
     run("randomizer_encounter_profile_builds",
       mod.exports.__beta26.randomizerEncounterProfileBuildAudit)
     run("randomizer_learnset_phase_e_foundation",
       mod.exports.__beta26.randomizerLearnsetPhaseEFoundationAudit)
+    run("randomizer_learnset_diagnostics",
+      mod.exports.__beta26.randomizerLearnsetDiagnosticAudit)
     run("pure_helpers", mod.exports.__beta26.pureHelperAudit)
     run("public_documentation", mod.exports.__beta26.publicDocumentationAudit)
     run("package_drift", mod.exports.__beta26.packageDriftAudit)
@@ -675,8 +1127,11 @@ return function(mod, deps)
     end
 
     local mainSource, mainErr = safeRead("main.lua")
+    local worldSource, worldErr = safeRead("world_building.lua")
     if mainSource then
-      run("dead_fallback_lint", mod.exports.__beta26.deadFallbackAudit, mainSource)
+      local deadFallbackSource = mainSource
+      if worldSource then deadFallbackSource = deadFallbackSource .. "\n" .. worldSource end
+      run("dead_fallback_lint", mod.exports.__beta26.deadFallbackAudit, deadFallbackSource)
 
       -- Consequential enforcement/state feedback must stay visible at World
       -- Building T0, while ordinary flavor remains opt-in. These source-level
@@ -769,9 +1224,40 @@ return function(mod, deps)
     end
     run("save_pause_helper_scope", mod.exports.__beta26.savePauseHelperScopeAudit)
     run("lua_unpack_compat", mod.exports.__beta26.luaUnpackCompatibilityAudit)
+    run("forward_local_references", mod.exports.__beta26.forwardLocalReferenceAudit)
+    run("external_save_reconciliation", mod.exports.__beta26.externalSaveReconciliationAudit)
     run("catalog_snapshot", mod.exports.__beta26.catalogSnapshotAudit)
+    run("randomizer_whole_regression", mod.exports.__beta26.randomizerWholeRegressionAudit, deps.game or mod.game)
+    run("randomizer_seed_reproducibility_matrix", mod.exports.__beta26.randomizerSeedReproducibilityMatrix)
+    run("randomizer_release_documentation", mod.exports.__beta26.randomizerReleaseDocumentationAudit)
+    for _, path in ipairs({"README.md", "CHANGELOG.md", "RELEASE_NOTES.md", "docs/DOCUMENTATION_CHANGELOG.md", "docs/USER_GUIDE.md"}) do
+      local content, err = safeRead(path)
+      if type(content) == "string" then
+        add("doc_build_marker:" .. path, content:find(mod.exports.__beta26.build, 1, true) ~= nil,
+          "build=" .. tostring(mod.exports.__beta26.build))
+      else
+        add("doc_build_marker:" .. path, false, "source unavailable: " .. tostring(err), false)
+      end
+    end
     run("world_building_delivery",
       mod.exports.__beta26.worldBuildingDeliveryAudit)
+    run("failed_encounter_feedback_tiers",
+      mod.exports.__beta26.failedEncounterFeedbackTierAudit)
+    run("encounter_feedback_contract",
+      mod.exports.__beta26.encounterFeedbackContractAudit)
+    run("t3_run_context_isolation",
+      mod.exports.__beta26.t3RunContextIsolationAudit)
+    run("shared_ui_ownership",
+      mod.exports.__beta26.sharedUiOwnershipAudit)
+    if worldSource then
+      run("maximum_bst_message_detail",
+        mod.exports.__beta26.maximumBstMessageDetailAudit, worldSource)
+    else
+      add("maximum_bst_message_detail", false,
+        "source introspection unavailable: " .. tostring(worldErr), false)
+    end
+    run("rule_availability_contract", mod.exports.__beta26.ruleAvailabilityAudit)
+    run("rule_availability_source", mod.exports.__beta26.ruleAvailabilitySourceAudit)
     run("cross_table_invariants", mod.exports.__beta26.crossTableInvariantAudit)
 
     local rewardsSource, rewardsErr = safeRead("trainer_rewards.lua")

@@ -719,8 +719,6 @@ return function(mod, deps)
               game = game,
               screenId = "NuzlockeForgivenessArea",
               isOpaque = true,
-              uiModLayout = "classic",
-              keepClassicUi = true,
               rows = mod.exports.__beta26.forgivenessAreaRows(game),
               index = 1,
               scroll = 0,
@@ -734,6 +732,7 @@ return function(mod, deps)
           self.presentationStateOwner = "nuzlocke"
           self.presentationNativeFallback = true
           self.__nuzlockeOwnsForgivenessLayout = true
+          mod.exports.__beta26.UiSystem.applyLayout(self, "centered", ctx and ctx.parent)
 
           local function clamp()
               local count = #self.rows
@@ -851,10 +850,15 @@ return function(mod, deps)
               if mod.exports.__beta26.runtimeIsGen2(game) then
                   local Chrome = require("src.ui.gen2.Chrome")
                   Chrome.clear(); Chrome.box(0,0,20,18)
-                  Chrome.print(Strings("REROLL AREA"), 4, 1)
+                  local GoldFont = require("src.render.Font")
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, "REROLL AREA")
                   if self.notice then
-                      Chrome.printWrapped(self.notice, 2, 5, 16, 6)
-                      Chrome.print(Strings("A/B:BACK"), 5, 15)
+                      local GoldFont = require("src.render.Font")
+                      local notice = mod.exports.__beta26.UiSystem.notice(
+                          "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                      mod.exports.__beta26.UiSystem.gen2Notice(Chrome, GoldFont, notice, {
+                          x = 2, y = 4, widthCols = 16, footerRow = 15,
+                      })
                       return
                   end
                   if self.phase == "confirm" then
@@ -889,9 +893,9 @@ return function(mod, deps)
               Font.drawBox(0,0,20,18)
               Font.draw(Strings("REROLL AREA"), 36, 10)
               if self.notice then
-                  local lines=wrapText(tostring(self.notice),16); local y=34
-                  for i=1,math.min(#lines,6) do Font.draw(lines[i],16,y); y=y+12 end
-                  Font.draw(Strings("A/B:BACK"),48,122)
+                  local notice = mod.exports.__beta26.UiSystem.notice(
+                      "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                  mod.exports.__beta26.UiSystem.gen1Notice(Font, notice, 160)
                   return
               end
               if self.phase == "confirm" then
@@ -931,8 +935,6 @@ return function(mod, deps)
               game = game,
               screenId = "NuzlockeForgivenessItem",
               isOpaque = true,
-              uiModLayout = "classic",
-              keepClassicUi = true,
               cursor = 1,
               ctx = ctx or {},
               notice = nil,
@@ -942,6 +944,7 @@ return function(mod, deps)
           self.presentationStateOwner = "nuzlocke"
           self.presentationNativeFallback = true
           self.__nuzlockeOwnsForgivenessLayout = true
+          mod.exports.__beta26.UiSystem.applyLayout(self, "centered", self.ctx and self.ctx.parent)
           function self:update(dt)
               if self.notice then
                   if game.input:wasPressed("a") or game.input:wasPressed("b") then
@@ -985,16 +988,22 @@ return function(mod, deps)
                   local Chrome = require("src.ui.gen2.Chrome")
                   Chrome.clear(); Chrome.box(0, 0, 20, 18)
                   Chrome.print(Strings("F. TOKEN"), 6, 2)
+                  local GoldFont = require("src.render.Font")
                   if self.notice then
-                      Chrome.printWrapped(self.notice, 2, 5, 16, 6)
-                      Chrome.print(Strings("A/B:BACK"), 5, 15)
+                      local notice = mod.exports.__beta26.UiSystem.notice(
+                          "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                      mod.exports.__beta26.UiSystem.gen2Notice(Chrome, GoldFont, notice, {
+                          x = 2, y = 4, widthCols = 16, footerRow = 15,
+                      })
                       return
                   end
                   Chrome.printWrapped(Strings("Choose how to spend it."), 2, 5, 16, 2)
-                  if self.cursor == 1 then Chrome.cursor(2, 8) end
-                  if self.cursor == 2 then Chrome.cursor(2, 10) end
-                  Chrome.print(Strings("REROLL ENCOUNTER"), 3, 8)
-                  Chrome.print(Strings("REVIVE POKEMON"), 3, 10)
+                  mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
+                      label = "REROLL ENCOUNTER", focused = self.cursor == 1,
+                  }, { x = 3, y = 8, rightCol = 18 })
+                  mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
+                      label = "REVIVE POKEMON", focused = self.cursor == 2,
+                  }, { x = 3, y = 10, rightCol = 18 })
                   Chrome.print(Strings("TOKENS %d", tokens), 4, 13)
                   Chrome.print(Strings("B:CANCEL"), 4, 15)
                   return
@@ -1009,21 +1018,19 @@ return function(mod, deps)
               Font.drawBox(0, 0, 20, 18)
               Font.draw(Strings("F. TOKEN"), 48, 10)
               if self.notice then
-                  local lines = wrapText(tostring(self.notice), 16)
-                  local y = 34
-                  for i = 1, math.min(#lines, 6) do
-                      Font.draw(lines[i], 16, y)
-                      y = y + 12
-                  end
-                  Font.draw(Strings("A/B:BACK"), 48, 122)
+                  local notice = mod.exports.__beta26.UiSystem.notice(
+                      "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                  mod.exports.__beta26.UiSystem.gen1Notice(Font, notice, 160)
               else
                   Font.draw(Strings("Choose how to"), 24, 34)
                   Font.draw(Strings("spend it."), 40, 46)
                   local Theme = require("src.ui.Theme")
-                  if self.cursor == 1 then Font.drawCode(Theme.cursor, 12, 70) end
-                  if self.cursor == 2 then Font.drawCode(Theme.cursor, 12, 86) end
-                  Font.draw(Strings("REROLL ENCOUNTER"), 30, 70)
-                  Font.draw(Strings("REVIVE POKEMON"), 30, 86)
+                  mod.exports.__beta26.UiSystem.gen1Row(Font, Theme, {
+                      label = "REROLL ENCOUNTER", focused = self.cursor == 1,
+                  }, { x = 30, y = 70, right = 148 })
+                  mod.exports.__beta26.UiSystem.gen1Row(Font, Theme, {
+                      label = "REVIVE POKEMON", focused = self.cursor == 2,
+                  }, { x = 30, y = 86, right = 148 })
                   Font.draw(Strings("TOKENS %d", tokens), 48, 108)
                   Font.draw(Strings("B:CANCEL"), 48, 122)
               end
@@ -1038,8 +1045,6 @@ return function(mod, deps)
               game = game,
               screenId = "NuzlockeForgivenessRevive",
               isOpaque = true,
-              uiModLayout = "classic",
-              keepClassicUi = true,
               ctx = ctx or {},
               rows = (ctx and ctx.rows) or {},
               index = 1,
@@ -1051,6 +1056,7 @@ return function(mod, deps)
           self.presentationStateOwner = "nuzlocke"
           self.presentationNativeFallback = true
           self.__nuzlockeOwnsForgivenessLayout = true
+          mod.exports.__beta26.UiSystem.applyLayout(self, "centered", self.ctx and self.ctx.parent)
           function self:update(dt)
               if self.notice then
                   if game.input:wasPressed("a") or game.input:wasPressed("b") then
@@ -1082,18 +1088,23 @@ return function(mod, deps)
                   local Chrome = require("src.ui.gen2.Chrome")
                   Chrome.clear(); Chrome.box(0,0,20,18)
                   Chrome.print(Strings("REVIVE WHO?"), 5, 2)
+                  local GoldFont = require("src.render.Font")
                   if self.notice then
-                      Chrome.printWrapped(self.notice,2,5,16,6)
-                      Chrome.print(Strings("A/B:BACK"),5,15)
+                      local notice = mod.exports.__beta26.UiSystem.notice(
+                          "INFO", "REVIVE", self.notice, "A/B:BACK")
+                      mod.exports.__beta26.UiSystem.gen2Notice(Chrome, GoldFont, notice, {
+                          x = 2, y = 4, widthCols = 16, footerRow = 15,
+                      })
                       return
                   end
                   for n=1,5 do
                       local i=self.scroll+n; local row=self.rows[i]
                       if row then
-                          if i==self.index then Chrome.cursor(1,4+n*2) end
-                          Chrome.print(string.format("%s L%s", row.name,
-                              row.level and tostring(math.floor(row.level)) or "?"),
-                              2,4+n*2)
+                          mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
+                              label = row.name,
+                              value = "L" .. (row.level and tostring(math.floor(row.level)) or "?"),
+                              focused = i == self.index,
+                          }, { x = 2, y = 4 + n * 2, rightCol = 18 })
                       end
                   end
                   Chrome.print(Strings("B:CANCEL"),5,16)
@@ -1105,23 +1116,20 @@ return function(mod, deps)
               Font.drawBox(0,0,20,18)
               Font.draw(Strings("REVIVE WHO?"),36,10)
               if self.notice then
-                  local lines = wrapText(tostring(self.notice), 16)
-                  local y = 34
-                  for i = 1, math.min(#lines, 6) do
-                      Font.draw(lines[i], 16, y); y = y + 12
-                  end
-                  Font.draw(Strings("A/B:BACK"),48,122)
+                  local notice = mod.exports.__beta26.UiSystem.notice(
+                      "INFO", "REVIVE", self.notice, "A/B:BACK")
+                  mod.exports.__beta26.UiSystem.gen1Notice(Font, notice, 160)
               else
                   for n=1,5 do
                       local i=self.scroll+n; local row=self.rows[i]
                       if row then
                           local y = 38 + n * 14
-                          if i == self.index then
-                              Font.drawCode((require("src.ui.Theme")).cursor, 12, y)
-                          end
-                          local label=string.format("%s L%s", row.name,
-                              row.level and tostring(math.floor(row.level)) or "?")
-                          Font.draw(label,30,y)
+                          mod.exports.__beta26.UiSystem.gen1Row(
+                              Font, require("src.ui.Theme"), {
+                                  label = row.name,
+                                  value = "L" .. (row.level and tostring(math.floor(row.level)) or "?"),
+                                  focused = i == self.index,
+                              }, { x = 30, y = y, right = 148 })
                       end
                   end
                   Font.draw(Strings("B: CANCEL"),48,122)

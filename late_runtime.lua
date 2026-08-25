@@ -18,6 +18,7 @@ return function(mod, deps)
   local activeCompatProvider = assert(deps.activeCompatProvider, "late_runtime requires activeCompatProvider")
   local wrapText = assert(deps.wrapText, "late_runtime requires wrapText")
   local ALL_ROUTES = assert(deps.ALL_ROUTES, "late_runtime requires ALL_ROUTES")
+  local GEN1_SEED_IDS = assert(deps.GEN1_SEED_IDS, "late_runtime requires GEN1_SEED_IDS")
   local registerArea = assert(deps.registerArea, "late_runtime requires registerArea")
   local routeName = assert(deps.routeName, "late_runtime requires routeName")
   local caughtAreas = assert(deps.caughtAreas, "late_runtime requires caughtAreas")
@@ -574,6 +575,79 @@ return function(mod, deps)
             return true
         end
   
+        -- 2.7.62: Gold/Silver Pokemon Center and Mom healing both execute
+        -- through the Gen 2 VM's `special HealParty` command, not Gen 1's
+        -- `heal_party` command. Gate that semantic command before the native
+        -- special runs so the party cannot heal and the remainder of the nurse/
+        -- Mom heal script cannot play its success animation/dialogue. Story
+        -- heals elsewhere (including the first-rival continuation) remain native.
+        function G2.installHealingServiceGate()
+            if not G2.isGen2() then return false end
+            if G2._healingServiceHook then return true end
+            G2._healingServiceHook = true
+
+            local function classify(ctx, game)
+                -- 2.7.101 / 0.2.25: Gen 2 script contexts can identify a map
+                -- through the live map id while imported maps also retain a
+                -- semantic label/name on the map definition. Check all public
+                -- semantic identities instead of assuming map.id is textual.
+                local values = { G2.contextMapId(ctx, game) }
+                local map = (ctx and ctx.overworld and ctx.overworld.map)
+                    or (game and game.world and game.world.map)
+                    or (game and game.overworld and game.overworld.map)
+                local def = map and map.def
+                values[#values + 1] = def and def.label
+                values[#values + 1] = def and def.id
+                values[#values + 1] = def and def.name
+                values[#values + 1] = ctx and ctx.mapId
+                values[#values + 1] = ctx and ctx.map
+                for _, raw in ipairs(values) do
+                    local mapId = tostring(raw or ""):upper():gsub("[^A-Z0-9]", "_")
+                    if mapId == "PLAYERS_HOUSE_1F"
+                        or (mapId:find("PLAYER", 1, true)
+                            and mapId:find("HOUSE", 1, true)) then
+                        return "mom", mapId
+                    end
+                    if mapId:find("POKECENTER", 1, true)
+                        or mapId:find("POKEMON_CENTER", 1, true)
+                        or mapId:find("POKE_CENTER", 1, true)
+                        or (mapId:find("CENTER", 1, true)
+                            and not mapId:find("GAME", 1, true)) then
+                        return "center", mapId
+                    end
+                end
+                return nil, tostring(values[1] or "")
+            end
+
+            mod.hooks:wrap("script.command", function(next, ctx, name, args, cmd)
+                if not (ctx and ctx.generation == 2 and G2.isGen2())
+                    or name ~= "special" then
+                    return next(ctx, name, args, cmd)
+                end
+                local vm = ctx.vm
+                local specialId = (cmd and (cmd.special or cmd.id))
+                    or (type(args) == "table" and args[1])
+                local specialName = vm and type(vm.specialName) == "function"
+                    and vm:specialName(specialId) or nil
+                local semanticSpecial = tostring(specialName or "")
+                    :lower():gsub("[^a-z]", "")
+                if semanticSpecial ~= "healparty" then
+                    return next(ctx, name, args, cmd)
+                end
+
+                local game = (ctx and ctx.game) or getCurrentGame() or mod.game
+                local kind = classify(ctx, game)
+                local key = kind == "center" and "no_poke_center"
+                    or (kind == "mom" and "no_mom_heal" or nil)
+                if key and mod.exports.__beta26.ruleActive(game, key) then
+                    showRuleMessage(ctx, mod.exports.__beta26.worldRuleText(game, key))
+                    return "end"
+                end
+                return next(ctx, name, args, cmd)
+            end, 11000)
+            return true
+        end
+
         function G2.installMartGate()
             local runtimeGame = getCurrentGame() or mod.game
             if not G2.isGen2(runtimeGame) then return false end
@@ -664,6 +738,34 @@ return function(mod, deps)
                     }
                 end
   
+                wrapMethod("buildEntries", function(previous)
+                    return function(self, ...)
+                        local result = previous(self, ...)
+                        if mod.save:get("random_shops", false) ~= true
+                            or self.martType == "BARGAIN"
+                            or type(mod.exports.__beta26.randomizeShopStock) ~= "function" then
+                            return result
+                        end
+                        local authored = {}
+                        for _, entry in ipairs(self.entries or {}) do
+                            authored[#authored + 1] = entry.id
+                        end
+                        local randomized = mod.exports.__beta26.randomizeShopStock(
+                            self.game or runtimeGame, authored,
+                            { kind="GEN2_MART", martId=self.martId, id=tostring(self.martId) })
+                        local items = self.items or {}
+                        for i, id in ipairs(randomized or {}) do
+                            local def = items[id]
+                            if self.entries and self.entries[i] and def then
+                                self.entries[i].id = id
+                                self.entries[i].name = def.name or id
+                                self.entries[i].price = def.price or 0
+                            end
+                        end
+                        return result
+                    end
+                end)
+
                 wrapMethod("enterBuy", function(previous)
                     return function(self, ...)
                         if denied(self, "no_buying") then
@@ -827,6 +929,12 @@ return function(mod, deps)
                     local game = self.game or (self.world and self.world.game)
                         or getCurrentGame() or mod.game
                     local data = game and game.data or { items = self.items }
+
+                    -- 2.7.104: keep Nuzlocke's legality decision at the Pack
+                    -- seam, but do not replace Gen1Recomp's native Pack -> World ->
+                    -- Game2 dispatch. 2.7.103's direct Game2:usePartyItem routing
+                    -- did not repair the live Crystal failure and is therefore
+                    -- retired rather than stacked with another interception.
                     local allowed, decision = evaluateItemUsePolicy(
                         game, data, game and game.save, row.id, nil,
                         { inBattle = false,
@@ -844,6 +952,222 @@ return function(mod, deps)
                         self.message = messages or { Strings("Item use is blocked!") }
                         self.nuzlockeItemUseBlocked = code
                         return
+                    end
+                end
+                -- 2.8.00: Crystal runtime proved the shared Game2 post-selection
+                -- callback chain can still swallow every simple party consumable
+                -- after the target chooser returns. Own those one-target FIELD
+                -- families directly at the Pack seam instead: legality above is
+                -- still authoritative, the chooser stays native, but the selected
+                -- slot is resolved back to game.save.party[index] before the
+                -- engine ItemEffects mutation runs. PP items, evolution stones,
+                -- TMs/HMs and all non-party field items keep the previous/native
+                -- route below.
+                if row and not inBattle and not self.give then
+                    local game = self.game or (self.world and self.world.game)
+                        or getCurrentGame() or mod.game
+                    local okEffects, ItemEffects = pcall(require,
+                        "src.core.gen2.ItemEffects")
+                    local okScreens, Screens = pcall(require, "src.ui.Screens")
+                    if game and okEffects and type(ItemEffects) == "table"
+                        and type(ItemEffects.partyAction) == "function"
+                        and type(ItemEffects.useOnMon) == "function"
+                        and okScreens and type(Screens) == "table" then
+                        local action = ItemEffects.partyAction(row.id,
+                            game.data)
+                        local simple = action == "heal" or action == "status"
+                            or action == "revive" or action == "vitamin"
+                            or action == "candy"
+                        if simple then
+                            local liveParty = game.save and game.save.party or {}
+                            if type(liveParty) ~= "table" or #liveParty == 0 then
+                                return previous(self, ...)
+                            end
+
+                            local TextBox = require("src.render.TextBox")
+                            local function rebuildPack()
+                                if type(self.rebuild) == "function" then
+                                    self:rebuild()
+                                end
+                            end
+                            local function consume(itemId)
+                                if type(game.consumeItem) == "function" then
+                                    game:consumeItem(itemId)
+                                elseif game.save and game.save.inventory then
+                                    local have = tonumber(game.save.inventory[itemId]) or 0
+                                    have = have - 1
+                                    game.save.inventory[itemId] = have > 0 and have or nil
+                                end
+                                rebuildPack()
+                            end
+                            local function say(text, onDone, opts)
+                                if type(game.say) == "function" then
+                                    return game:say(text, onDone, opts)
+                                end
+                                if game.stack and type(game.stack.push) == "function" then
+                                    return game.stack:push(TextBox.new(game, text,
+                                        onDone, opts))
+                                end
+                            end
+                            local function presentDenied(decision)
+                                local _, messages = ItemPolicy.present(game, decision,
+                                    { inBattle = false, overworld = self.world })
+                                if type(messages) == "table" and #messages > 0 then
+                                    self.message = messages
+                                end
+                            end
+                            local function resolveLiveMon(index, chooserMon)
+                                local slot = math.floor(tonumber(index) or 0)
+                                local mon = slot >= 1 and liveParty[slot] or nil
+                                if type(mon) ~= "table" then mon = chooserMon end
+                                return mon, slot
+                            end
+                            local function effect(mon)
+                                local result = ItemEffects.useOnMon(row.id, mon,
+                                    game.data)
+                                if type(result) ~= "table" then
+                                    result = { used = false,
+                                        text = Strings("It won't have any effect.") }
+                                end
+                                if not result.used then
+                                    say(result.text or Strings("It won't have any effect."))
+                                    return false
+                                end
+                                consume(row.id)
+                                if action == "candy"
+                                    and type(game.afterRareCandy) == "function" then
+                                    say(result.text, function()
+                                        game:afterRareCandy(mon, result)
+                                    end, result.sfx
+                                        and TextBox.soundOpts(game, result.sfx) or nil)
+                                else
+                                    say(result.text or Strings("Item used."))
+                                end
+                                return true
+                            end
+
+                            Screens.push(game, "Gen2PartyMenu", {
+                                prompt = "useItem",
+                                onCancel = function()
+                                    if game.stack and type(game.stack.pop) == "function" then
+                                        game.stack:pop()
+                                    end
+                                end,
+                                onChoose = function(index, chooserMon)
+                                    -- Pop only the chooser we just opened. The PACK
+                                    -- remains immediately underneath it.
+                                    if game.stack and type(game.stack.pop) == "function" then
+                                        game.stack:pop()
+                                    end
+                                    local mon = resolveLiveMon(index, chooserMon)
+                                    if type(mon) ~= "table" then return end
+                                    G2.canonicalizeOwnedPokemonSpecies(game, mon)
+
+                                    -- Recheck target-sensitive legality here. The
+                                    -- Pack-level check above intentionally has no
+                                    -- target and therefore cannot enforce a live
+                                    -- level-cap decision on Rare Candy.
+                                    local allowed, decision = evaluateItemUsePolicy(
+                                        game, game.data, game.save, row.id, mon,
+                                        { inBattle = false,
+                                          overworld = self.world,
+                                          generation = 2,
+                                          target = mon })
+                                    if allowed == false then
+                                        presentDenied(decision)
+                                        return
+                                    end
+
+                                    -- Preserve Rare Candy-to-cap when a finite cap
+                                    -- exists, but ordinary/no-cap candy is just the
+                                    -- same one-item engine effect as every other
+                                    -- simple family at this seam.
+                                    if action == "candy"
+                                        and mod.save:get("no_rare_candy_use", false) ~= true then
+                                        local RC = mod.exports.__beta26.RareCandyToCap
+                                        if type(RC) == "table"
+                                            and type(RC.plan) == "function"
+                                            and type(RC.step) == "function" then
+                                            local count, cap = RC.plan(game.save, mon)
+                                            if cap and count and count > 1 then
+                                                local function resultForLevel(level)
+                                                    local def = game.data and game.data.pokemon
+                                                        and game.data.pokemon[mon.species]
+                                                    local learned = {}
+                                                    for _, entry in ipairs(def and def.levelMoves or {}) do
+                                                        if tonumber(entry.level) == tonumber(level) then
+                                                            learned[#learned + 1] = entry.move
+                                                        end
+                                                    end
+                                                    local name = mon.nickname or mon.name
+                                                        or (def and def.name) or mon.species or "POKEMON"
+                                                    return { used = true, level = level,
+                                                        learned = learned,
+                                                        sfx = "Sfx_DexFanfare5079",
+                                                        text = ("%s grew to\nlevel %d!")
+                                                            :format(name, level) }
+                                                end
+                                                local function useOne(onDone)
+                                                    local okStep, result = RC.step(game, mon, 2)
+                                                    if not okStep then
+                                                        say(Strings("Rare Candy batch stopped safely."))
+                                                        return
+                                                    end
+                                                    result = type(result) == "table" and result
+                                                        or resultForLevel(mon.level)
+                                                    rebuildPack()
+                                                    say(result.text, function()
+                                                        if type(game.afterRareCandy) == "function" then
+                                                            game:afterRareCandy(mon, result, onDone)
+                                                        elseif onDone then
+                                                            onDone()
+                                                        end
+                                                    end, result.sfx
+                                                        and TextBox.soundOpts(game, result.sfx) or nil)
+                                                end
+                                                local function continueBatch()
+                                                    if type(RC.stopRequested) == "function"
+                                                        and RC.stopRequested(game) then
+                                                        if type(RC.finishBatch) == "function" then
+                                                            RC.finishBatch(game)
+                                                        end
+                                                        say(Strings("Candy batch stopped."))
+                                                        return
+                                                    end
+                                                    local remaining = RC.plan(game.save, mon)
+                                                    if not remaining or remaining <= 0 then
+                                                        if type(RC.finishBatch) == "function" then
+                                                            RC.finishBatch(game)
+                                                        end
+                                                        rebuildPack()
+                                                        return
+                                                    end
+                                                    useOne(continueBatch)
+                                                end
+                                                if game.stack and type(game.stack.push) == "function" then
+                                                    game.stack:push(TextBox.new(game,
+                                                        Strings("Use %d RARE CANDIES?\nTarget: Lv.%d",
+                                                            count, cap), nil,
+                                                        { choice = function(yes)
+                                                            if yes then
+                                                                if type(RC.beginBatch) == "function" then
+                                                                    RC.beginBatch(game)
+                                                                end
+                                                                continueBatch()
+                                                            else
+                                                                effect(mon)
+                                                            end
+                                                        end }))
+                                                end
+                                                return
+                                            end
+                                        end
+                                    end
+                                    effect(mon)
+                                end,
+                            })
+                            return true
+                        end
                     end
                 end
                 return previous(self, ...)
@@ -877,6 +1201,16 @@ return function(mod, deps)
             local wrapper
             wrapper = function(self, itemId, ...)
                 local extraArgs = { ... }
+                -- 2.7.105: the 2.7.104 full-record mutation was disproven by
+                -- runtime evidence. Return to the narrow representation repair:
+                -- native Gen2 ItemEffects keys pokemon data by mon.species, so
+                -- canonicalize that semantic key without rebuilding the Pokemon.
+                local game = self and (self.game or self) or getCurrentGame() or mod.game
+                local party = self and self.save and self.save.party
+                    or game and game.save and game.save.party or {}
+                for _, owned in ipairs(type(party) == "table" and party or {}) do
+                    G2.canonicalizeOwnedPokemonSpecies(game, owned)
+                end
                 if tostring(itemId or "") ~= "RARE_CANDY" then
                     return previous(self, itemId,
                         unpackValues(extraArgs))
@@ -890,7 +1224,7 @@ return function(mod, deps)
                     or type(RC.step) ~= "function" then
                     return previous(self, itemId, ...)
                 end
-                local party = self.save and self.save.party or {}
+                party = self.save and self.save.party or party
                 if #party == 0 then return previous(self, itemId, ...) end
                 local Screens = require("src.ui.Screens")
                 local TextBox = require("src.render.TextBox")
@@ -944,8 +1278,16 @@ return function(mod, deps)
                         end
 
                         local function continueBatch()
+                            if RC.stopRequested(self) then
+                                RC.finishBatch(self)
+                                self:say(Strings("Candy batch stopped."))
+                                return
+                            end
                             local remaining = RC.plan(self.save, mon)
-                            if remaining <= 0 then return end
+                            if remaining <= 0 then
+                                RC.finishBatch(self)
+                                return
+                            end
                             useOne(continueBatch)
                         end
 
@@ -956,7 +1298,9 @@ return function(mod, deps)
                             Strings("Use %d RARE CANDIES?\nTarget: Lv.%d",
                                 count, cap),
                             nil, { choice = function(yes)
-                                if yes then continueBatch()
+                                if yes then
+                                    RC.beginBatch(self)
+                                    continueBatch()
                                 else useOne() end
                             end }))
                     end,
@@ -1040,21 +1384,191 @@ return function(mod, deps)
             if found then return found, "box" end
         end
   
+        local ELM_STARTER_BY_INDEX = {
+            [152] = "CHIKORITA",
+            [155] = "CYNDAQUIL",
+            [158] = "TOTODILE",
+        }
+        local ELM_STARTER_INDEX = {
+            CHIKORITA = 152,
+            CYNDAQUIL = 155,
+            TOTODILE = 158,
+        }
+
+        local function gen2PokemonRegistry(game)
+            local data = game and game.data
+            local pokemon = data and data.pokemon
+            if type(pokemon) == "table" and next(pokemon) ~= nil then
+                return pokemon, data
+            end
+            local okData, CoreData = pcall(require, "src.core.Data")
+            if okData and type(CoreData) == "table"
+                and type(CoreData.pokemon) == "table" then
+                return CoreData.pokemon, CoreData
+            end
+            return nil, data
+        end
+
         function G2.speciesKey(game, value)
             if value == nil then return "" end
+            if type(value) == "table" then
+                value = value.species or value.id or value.key
+                    or value.name or value.index
+            end
+            if value == nil then return "" end
+
             local raw = tostring(value):upper()
-            if tonumber(value) and game and game.data
-                and type(game.data.pokemon) == "table" then
-                for id, def in pairs(game.data.pokemon) do
-                    if type(def) == "table"
-                        and tonumber(def.index) == tonumber(value) then
-                        return tostring(id):upper()
+            local numeric = tonumber(value)
+            local pokemon, data = gen2PokemonRegistry(game)
+
+            -- Public Gen-2 pokemon registry contract: semantic ids are string
+            -- keys; the cartridge species byte is row.index. Resolve that
+            -- direct authority before any optional generated constant table.
+            if numeric and type(pokemon) == "table" then
+                for id, def in pairs(pokemon) do
+                    if type(def) == "table" and tonumber(def.index) == numeric then
+                        if type(id) == "string" and id ~= "" then
+                            return id:upper()
+                        end
+                        local label = def.id or def.species or def.key
+                            or def.internalName or def.internal_name or def.name
+                        if type(label) == "string" and label ~= "" then
+                            return label:upper()
+                        end
                     end
                 end
             end
+
+            local constants = type(data) == "table" and data.gen2Constants or nil
+            local order = type(constants) == "table" and constants.speciesOrder or nil
+            if numeric and type(order) == "table" then
+                local ordered = order[math.floor(numeric)]
+                if type(ordered) == "string" and ordered ~= "" then
+                    return ordered:upper()
+                end
+            end
+
+            -- Elm's three GIVEPOKE operands are stable cartridge species ids,
+            -- not a legality whitelist. This exact fallback preserves mandatory
+            -- story transaction identity even if a future/early loader exposes
+            -- neither registry metadata authority at the instant the script runs.
+            if numeric and ELM_STARTER_BY_INDEX[math.floor(numeric)] then
+                return ELM_STARTER_BY_INDEX[math.floor(numeric)]
+            end
+
+            -- Canonical string ids are already the public registry vocabulary.
+            if type(pokemon) == "table" then
+                local direct = pokemon[raw]
+                if type(direct) == "table" then return raw end
+            end
             return raw
         end
-  
+
+
+        -- 2.7.102: normalize concrete owned Gen2 records at the native
+        -- party-item boundary as well as at Elm finalization. Gen1Recomp's
+        -- ItemEffects resolves pokemon data by the semantic table key, while
+        -- older/randomized awards may still carry a numeric cartridge operand
+        -- in mon.species. This is representation repair only: species identity,
+        -- stats, moves, ownership, provenance, and item policy are unchanged.
+        function G2.canonicalizeOwnedPokemonSpecies(game, mon)
+            if type(mon) ~= "table" then return false end
+            local actual = G2.speciesKey(game, mon.species)
+            if actual == "" then return false end
+            local pokemon = gen2PokemonRegistry(game)
+            if type(pokemon) ~= "table" or type(pokemon[actual]) ~= "table" then
+                return false
+            end
+            if tostring(mon.species or "") ~= actual then
+                mon.species = actual
+            end
+            if mon.name == nil or mon.name == "" then
+                mon.name = pokemon[actual].name or actual
+            end
+            return true
+        end
+
+        -- 2.7.105: retain the read-only record-health probe from the
+        -- 2.7.104 investigation, but retire the automatic full-record
+        -- materializer. Runtime evidence proved the failure occurs in chooser
+        -- mode before ItemEffects reaches the Pokemon record.
+        function G2.gen2PartyRecordHealth(game, mon)
+            game = game or getCurrentGame() or mod.game
+            local species = type(mon) == "table" and G2.speciesKey(game, mon.species) or ""
+            local def = game and game.data and game.data.pokemon
+                and game.data.pokemon[species] or nil
+            local missing = {}
+            local function need(ok, name) if not ok then missing[#missing + 1] = name end end
+            need(type(mon) == "table", "mon")
+            if type(mon) == "table" then
+                need(species ~= "" and type(def) == "table", "species")
+                need(type(mon.level) == "number", "level")
+                need(type(mon.dvs) == "table", "dvs")
+                need(type(mon.statExp) == "table", "statExp")
+                need(type(mon.stats) == "table", "stats")
+                need(type(mon.maxHp) == "number", "maxHp")
+                need(type(mon.hp) == "number", "hp")
+                need(type(mon.moves) == "table", "moves")
+                need(mon.isEgg ~= true, "isEgg")
+            end
+            return { ok = #missing == 0, species = species, missing = missing }
+        end
+        mod.exports.__beta26.gen2PartyRecordHealth = G2.gen2PartyRecordHealth
+
+        function G2.speciesIndex(game, value)
+            if value == nil then return nil end
+            local numeric = tonumber(value)
+            if numeric then return math.floor(numeric) end
+
+            local key = G2.speciesKey(game, value)
+            if key == "" then return nil end
+            local pokemon, data = gen2PokemonRegistry(game)
+
+            if type(pokemon) == "table" then
+                local direct = pokemon[key]
+                if type(direct) == "table" and tonumber(direct.index) then
+                    return math.floor(tonumber(direct.index))
+                end
+                for id, def in pairs(pokemon) do
+                    if type(def) == "table" then
+                        local label = type(id) == "string" and id or
+                            (def.id or def.species or def.key
+                                or def.internalName or def.internal_name
+                                or def.name)
+                        if tostring(label or ""):upper() == key
+                            and tonumber(def.index) then
+                            return math.floor(tonumber(def.index))
+                        end
+                    end
+                end
+            end
+
+            local constants = type(data) == "table" and data.gen2Constants or nil
+            local order = type(constants) == "table" and constants.speciesOrder or nil
+            if type(order) == "table" then
+                for index, species in pairs(order) do
+                    if tostring(species or ""):upper() == key
+                        and tonumber(index) then
+                        return math.floor(tonumber(index))
+                    end
+                end
+            end
+
+            return ELM_STARTER_INDEX[key]
+        end
+
+        function G2.isElmStarterOperand(game, value)
+            local key = G2.speciesKey(game, value)
+            local index = tonumber(value)
+            if key == "CHIKORITA" or key == "CYNDAQUIL" or key == "TOTODILE" then
+                return true, key
+            end
+            if index and ELM_STARTER_BY_INDEX[math.floor(index)] then
+                return true, ELM_STARTER_BY_INDEX[math.floor(index)]
+            end
+            return false, key
+        end
+
         function G2.contextMapId(ctx, game)
             return tostring(
                 (ctx and ctx.overworld and ctx.overworld.map
@@ -1073,6 +1587,111 @@ return function(mod, deps)
             return mapId == "ELMS_LAB"
                 or (mapId:find("ELM", 1, true) ~= nil
                     and mapId:find("LAB", 1, true) ~= nil)
+        end
+
+        -- 2.7.80 reconstruction: native Gen-2 clock authority. Clock.setTime /
+        -- setWeekday remain the only writes; host interpretation prefers the
+        -- engine helpers and falls back to Lua local time only when unavailable.
+        function G2.applySystemClock(game, reason)
+            game = game or getCurrentGame() or mod.game
+            local save = game and game.save
+            if not (G2.isGen2(game) and save) then return false end
+            local okClock, Clock = pcall(require, "src.core.gen2.Clock")
+            if not okClock or type(Clock) ~= "table"
+                or type(Clock.setTime) ~= "function"
+                or type(Clock.setWeekday) ~= "function" then return false end
+            local minutes
+            if type(Clock.hostMinutes) == "function" then
+                local ok, value = pcall(Clock.hostMinutes)
+                if ok then minutes = tonumber(value) end
+            end
+            if not minutes then
+                local now = os.date("*t")
+                minutes = (tonumber(now.hour) or 0) * 60 + (tonumber(now.min) or 0)
+            end
+            local weekday
+            if type(Clock.hostWeekday) == "function" then
+                local ok, value = pcall(Clock.hostWeekday)
+                if ok then weekday = tonumber(value) end
+            end
+            if weekday == nil then
+                local now = os.date("*t")
+                weekday = ((tonumber(now.wday) or 1) - 1) % 7
+            end
+            local totalMinutes = math.floor(minutes) % 1440
+            local okTime = pcall(Clock.setTime, save,
+                math.floor(totalMinutes / 60), totalMinutes % 60)
+            local okDay = pcall(Clock.setWeekday, save, math.floor(weekday) % 7)
+            if okTime and okDay then
+                -- Host local time is already DST-adjusted. Never layer the
+                -- cartridge DST bit on top while Nuzlocke owns system time.
+                save.rtc = type(save.rtc) == "table" and save.rtc or {}
+                save.rtc.dst = false
+                save.nuzlockeSystemClockLastHostMinute = math.floor(minutes)
+                save.nuzlockeSystemClockReason = tostring(reason or "sync")
+                pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                    "system_clock_sync", save.nuzlockeSystemClockReason)
+                return true
+            end
+            return false
+        end
+
+        function G2.systemDateTimeEnabled(game)
+            game = game or getCurrentGame() or mod.game
+            if not G2.isGen2(game) then return false end
+            local save = game and game.save
+            return (save and save.nuzlockeSystemDateTime == true)
+                or (type(mod.exports.__beta26.systemDateTimeRequested) == "function"
+                    and mod.exports.__beta26.systemDateTimeRequested(game) == true)
+        end
+
+        function G2.systemClockSyncEnabled(game)
+            game = game or getCurrentGame() or mod.game
+            return G2.isGen2(game)
+                and mod.save:get("system_clock_sync", false) == true
+        end
+
+        -- Defensive fallback for engines/paths that still instantiate the
+        -- native InitClock screen after the preferred Oak/Mom skip seams. It
+        -- auto-confirms the host values rather than stalling on manual input.
+        function G2.installSystemClockFallback()
+            local okInit, InitClock = pcall(require, "src.ui.gen2.InitClock")
+            if not okInit or type(InitClock) ~= "table"
+                or type(InitClock.new) ~= "function" then return false end
+            return installOwnedMethodWrapper(
+                InitClock, "__nuzlockeSystemClockSession2680", "new",
+                function(previousNew)
+                    return function(game, opts, ...)
+                        if not G2.systemDateTimeEnabled(game) then
+                            return previousNew(game, opts, ...)
+                        end
+                        local copied = {}
+                        if type(opts) == "table" then
+                            for k, v in pairs(opts) do copied[k] = v end
+                        end
+                        copied.autoConfirm = true
+                        local okClock, Clock = pcall(require, "src.core.gen2.Clock")
+                        if okClock and type(Clock) == "table" then
+                            local minutes
+                            if type(Clock.hostMinutes) == "function" then
+                                local okM, value = pcall(Clock.hostMinutes)
+                                if okM then minutes = tonumber(value) end
+                            end
+                            if minutes ~= nil then
+                                minutes = math.floor(minutes) % 1440
+                                copied.hour = math.floor(minutes / 60)
+                                copied.minute = minutes % 60
+                            end
+                            if type(Clock.hostWeekday) == "function" then
+                                local okD, value = pcall(Clock.hostWeekday)
+                                if okD and tonumber(value) ~= nil then
+                                    copied.day = math.floor(tonumber(value)) % 7
+                                end
+                            end
+                        end
+                        return previousNew(game, copied, ...)
+                    end
+                end)
         end
   
         -- Elm's three Poke Balls preview their vanilla species with POKEPIC and
@@ -1098,9 +1717,7 @@ return function(mod, deps)
                 and original ~= "TOTODILE" then return false end
 
             local choice = mod.exports.__beta26.selectRandomStarter(game, original)
-            local def = game.data and game.data.pokemon
-                and game.data.pokemon[choice]
-            local index = type(def) == "table" and tonumber(def.index) or nil
+            local index = G2.speciesIndex(game, choice)
             if not index then return false end
 
             local vmState = ctx and ctx.vm and G2._randomStarterVmStates
@@ -1108,11 +1725,66 @@ return function(mod, deps)
             if type(vmState) ~= "table" then return false end
             vmState.previewChoices = vmState.previewChoices or {}
             vmState.previewChoices[original] = choice
+            vmState.lastElmOriginal = original
+            vmState.lastElmChoice = choice
             vmState.pendingPresentation = {
                 op = name, original = original, choice = choice,
                 index = index, game = game,
             }
             return true
+        end
+
+        -- 2.7.77 reconstruction: Elm's three confirmation text rows are
+        -- presentation-only and may name the randomized starter without mutating
+        -- the underlying yes/no, flags, movement, or GIVEPOKE transaction.
+        function G2.randomStarterElmConfirmation(game, ctx, name, args, cmd)
+            if not game or not randomStarterRuleEnabled(game)
+                or not G2.isElmLabContext(ctx, game) then return nil end
+            if name ~= "writetext" then return nil end
+            local textKey = tostring((cmd and cmd.text)
+                or (type(args) == "table" and args[1]) or "")
+            local vmState = ctx and ctx.vm and G2._randomStarterVmStates
+                and G2._randomStarterVmStates[ctx.vm] or nil
+            local pending = type(vmState) == "table" and vmState.confirmationPending or nil
+            local original
+            if textKey:find("TakeCyndaquilText", 1, true) then original = "CYNDAQUIL"
+            elseif textKey:find("TakeTotodileText", 1, true) then original = "TOTODILE"
+            elseif textKey:find("TakeChikoritaText", 1, true) then original = "CHIKORITA"
+            elseif type(pending) == "table" then
+                -- 2.7.79: Gold/Silver may expose different text identifiers.
+                -- The actually rendered randomized portrait therefore arms the
+                -- next Elm confirmation as one-shot presentation authority.
+                original = tostring(pending.original or ""):upper()
+            else return nil end
+
+            local choice
+            if type(pending) == "table"
+                and tostring(pending.original or ""):upper() == original
+                and randomStarterChoiceValid(game, pending.choice) then
+                choice = tostring(pending.choice):upper()
+            else
+                choice = mod.exports.__beta26.selectRandomStarter(game, original)
+            end
+            if not randomStarterChoiceValid(game, choice) then return nil end
+            if type(vmState) == "table" then vmState.confirmationPending = nil end
+            local choiceIndex = G2.speciesIndex(game, choice)
+            local pokemonData = game.data and game.data.pokemon
+            local def = type(pokemonData) == "table"
+                and (pokemonData[choice] or (choiceIndex and pokemonData[choiceIndex])) or nil
+            local display = tostring(type(def) == "table" and (def.name or choice) or choice)
+            local rawTypes = type(def) == "table" and (def.types or def.type) or nil
+            local types = {}
+            if type(rawTypes) == "table" then
+                for _, v in pairs(rawTypes) do
+                    if v ~= nil and tostring(v) ~= "" then types[#types + 1] = tostring(v):upper() end
+                end
+            elseif rawTypes ~= nil then
+                types[1] = tostring(rawTypes):upper()
+            end
+            local typeText = #types > 0 and types[1] or "UNKNOWN TYPE"
+            pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                "elm_confirmation_substitution", choice)
+            return "So, you want " .. display .. ", the " .. typeText .. " POKEMON?"
         end
 
         -- Gen 2-only NEW GAME QoL. Once the player says YES to the Guide Gent,
@@ -1192,7 +1864,7 @@ return function(mod, deps)
             if not okVm or type(Vm) ~= "table"
                 or type(Vm.new) ~= "function" then return false end
 
-            return installOwnedMethodWrapper(
+            local installed = installOwnedMethodWrapper(
                 Vm, "__nuzlockeRandomStarterTransactionSession2530", "new",
                 function(previousNew)
                     return function(scripts, text, events, hooks, ...)
@@ -1213,9 +1885,11 @@ return function(mod, deps)
                         local vmState = {
                             pendingElmStarter = nil,
                             pendingPresentation = nil,
+                            mandatoryStarter = nil,
                             previewChoices = {},
                             renderedPreviewChoices = {},
                             renderedCryChoices = {},
+                            confirmationPending = nil,
                         }
                         -- 2.5.79: native-callback fallback for Elm's three
                         -- starter previews. The preferred path remains the
@@ -1256,10 +1930,7 @@ return function(mod, deps)
                                 choice = mod.exports.__beta26.selectRandomStarter(
                                     game, original)
                             end
-                            local def = game.data and game.data.pokemon
-                                and game.data.pokemon[choice]
-                            local index = type(def) == "table"
-                                and tonumber(def.index) or nil
+                            local index = G2.speciesIndex(game, choice)
                             if not index then return nil end
                             vmState.previewChoices[original] = choice
                             vmState.lastPreviewSource = "native_fallback_" .. tostring(op)
@@ -1271,6 +1942,20 @@ return function(mod, deps)
 
                         if type(previousShowPic) == "function" then
                             patched.showPic = function(speciesIndex, ...)
+                                -- 2.7.86: Crystal Alpha reached Elm successfully but crashed
+                                -- on the first starter-ball interaction in 2.7.84. The new
+                                -- Crystal engine uses its own animated front-pic path, so do
+                                -- not substitute the native POKEPIC operand until that exact
+                                -- presentation contract is runtime-certified. The later
+                                -- GIVEPOKE transaction remains shared and may still randomize
+                                -- the awarded starter; this branch only fails open to the
+                                -- native Crystal portrait instead of risking a process crash.
+                                if tostring(getGameVersion() or ""):upper() == "CRYSTAL" then
+                                    vmState.pendingPresentation = nil
+                                    vmState.confirmationPending = nil
+                                    vmState.lastPreviewSource = "crystal_native_safe_pokepic"
+                                    return previousShowPic(speciesIndex, ...)
+                                end
                                 local pending = vmState.pendingPresentation
                                 vmState.pendingPresentation = nil
                                 if not (type(pending) == "table"
@@ -1285,6 +1970,11 @@ return function(mod, deps)
                                     and tonumber(pending.index) then
                                     local result = previousShowPic(pending.index, ...)
                                     vmState.renderedPreviewChoices[pending.original] = pending.choice
+                                    vmState.confirmationPending = {
+                                        original = pending.original,
+                                        choice = pending.choice,
+                                        game = pending.game or getCurrentGame() or mod.game,
+                                    }
                                     return result
                                 end
                                 vmState.lastPreviewSource = "vanilla_pokepic"
@@ -1293,6 +1983,11 @@ return function(mod, deps)
                         end
                         if type(previousCry) == "function" then
                             patched.cry = function(speciesIndex, ...)
+                                if tostring(getGameVersion() or ""):upper() == "CRYSTAL" then
+                                    vmState.pendingPresentation = nil
+                                    vmState.lastPreviewSource = "crystal_native_safe_cry"
+                                    return previousCry(speciesIndex, ...)
+                                end
                                 local pending = vmState.pendingPresentation
                                 vmState.pendingPresentation = nil
                                 if not (type(pending) == "table"
@@ -1331,55 +2026,84 @@ return function(mod, deps)
                             local original = observedOriginal
                             local choice
                             local isElmStarter = false
+                            local mandatory = vmState.mandatoryStarter
                             if type(pending) == "table"
                                 and pending.armed == true
                                 and starters[tostring(pending.original or ""):upper()] == true then
                                 original = tostring(pending.original):upper()
                                 choice = tostring(pending.choice or ""):upper()
                                 isElmStarter = true
+                            elseif type(mandatory) == "table" then
+                                original = tostring(mandatory.original or observedOriginal):upper()
+                                isElmStarter = true
                             else
                                 -- Compatibility fallback for VMs/script hooks
-                                -- created before the script-layer state map was
-                                -- available. This preserves 2.5.30 behavior.
-                                isElmStarter = G2.isGen2() and save
-                                    and #(save.party or {}) == 0
-                                    and starters[observedOriginal] == true
+                                -- created before the script-layer marker exists.
+                                local operandStarter, operandKey =
+                                    G2.isElmStarterOperand(game, speciesIndex)
+                                if operandStarter then observedOriginal = operandKey end
+                                isElmStarter = G2.isGen2(game) and save
+                                    and G2.isElmLabContext(nil, game)
+                                if isElmStarter and not operandStarter then
+                                    local remembered = tostring(vmState.lastElmOriginal or ""):upper()
+                                    if remembered == "CHIKORITA" or remembered == "CYNDAQUIL"
+                                        or remembered == "TOTODILE" then
+                                        observedOriginal = remembered
+                                    end
+                                end
                             end
 
+                            if isElmStarter then
+                                vmState.mandatoryStarter = nil
+                            end
                             local grantIndex = speciesIndex
                             if isElmStarter and randomStarterRuleEnabled(game) then
                                 -- A script-armed intent already owns the selected
                                 -- species. Never reroll it here: preview -> intent ->
                                 -- grant must remain one identity. Compatibility VMs
                                 -- without an armed intent may still resolve once.
-                                if not randomStarterChoiceValid(game, choice)
-                                    and type(pending) ~= "table" then
-                                    choice = mod.exports.__beta26.selectRandomStarter(
-                                        game, original)
+                                if not randomStarterChoiceValid(game, choice) then
+                                    local remembered = vmState.lastElmOriginal == original
+                                        and vmState.lastElmChoice or nil
+                                    if randomStarterChoiceValid(game, remembered) then
+                                        choice = tostring(remembered):upper()
+                                    else
+                                        choice = mod.exports.__beta26.selectRandomStarter(
+                                            game, original)
+                                    end
                                 end
-                                local def = game and game.data and game.data.pokemon
-                                    and game.data.pokemon[choice]
-                                local index = type(def) == "table"
-                                    and tonumber(def.index) or nil
+                                local index = G2.speciesIndex(game, choice)
                                 if index then grantIndex = index end
                             end
 
+                            local beforeGrant = G2.snapshotOwnedPokemon(save)
+                            if isElmStarter and randomStarterRuleEnabled(game) then
+                                G2._pendingElmStarterTransaction = {
+                                    game=game, save=save, original=original,
+                                    choice=choice, grantIndex=grantIndex,
+                                    before=beforeGrant,
+                                }
+                            end
+                            local receiptWindow
+                            if isElmStarter then
+                                receiptWindow = {
+                                    game = game, save = save, original = original,
+                                    choice = choice, grantIndex = grantIndex,
+                                }
+                                mod.exports.__beta26.__mandatoryStarterReceipt =
+                                    receiptWindow
+                            end
                             local mon = previousGive(grantIndex, level, item, ...)
+                            if mod.exports.__beta26.__mandatoryStarterReceipt
+                                == receiptWindow then
+                                mod.exports.__beta26.__mandatoryStarterReceipt = nil
+                            end
+                            if not mon then
+                                mon = G2.findNewOwnedPokemon(beforeGrant, save)
+                            end
                             if mon and isElmStarter
                                 and randomStarterRuleEnabled(game) then
-                                local actual = G2.speciesKey(
-                                    game, mon.species or grantIndex)
-                                if actual ~= "" then
-                                    local expected = tostring(choice or ""):upper()
-                                    mod.save:set("__nuzlocke_random_starter_preview_mismatch",
-                                        expected ~= "" and actual ~= expected)
-                                    mod.exports.__beta26.commitRandomStarter(
-                                        game, original, actual)
-                                    mod.exports.__beta26.StatRules.applyPlayer(
-                                        game, mon)
-                                    mod.exports.__beta26.registerStarterCatch(
-                                        actual, mon)
-                                end
+                                G2.completePendingElmStarter(mon)
                             end
                             return mon
                         end
@@ -1391,6 +2115,112 @@ return function(mod, deps)
                         return vm
                     end
                 end)
+
+            -- 2.7.80: deeper confirmation fallback. Some Gen-2 script paths do
+            -- not expose a useful writetext identifier through script.command;
+            -- the rendered randomized preview therefore arms exactly one native
+            -- Vm:showText replacement without touching choice/story commands.
+            if type(Vm.showText) == "function" then
+                installOwnedMethodWrapper(
+                    Vm, "__nuzlockeElmConfirmationShowTextSession2680", "showText",
+                    function(previousShowText)
+                        return function(self, textValue, ...)
+                            local state = G2._randomStarterVmStates
+                                and G2._randomStarterVmStates[self] or nil
+                            if type(state) == "table"
+                                and type(state.confirmationPending) == "table" then
+                                local game = state.confirmationPending.game
+                                    or getCurrentGame() or mod.game
+                                local replacement = G2.randomStarterElmConfirmation(
+                                    game, { vm=self }, "writetext", {}, {})
+                                if replacement then
+                                    return previousShowText(self, Strings(replacement), ...)
+                                end
+                            end
+                            return previousShowText(self, textValue, ...)
+                        end
+                    end)
+            end
+
+            -- 2.7.82: final presentation seam for the real native path observed
+            -- on Silver. Only a one-shot choice armed by the actually rendered
+            -- Elm portrait may rewrite a confirmation-like raw text box.
+            if type(Vm.showRaw) == "function" then
+                installOwnedMethodWrapper(
+                    Vm, "__nuzlockeElmConfirmationShowRawSession2782", "showRaw",
+                    function(previousShowRaw)
+                        return function(self, textValue, ...)
+                            local state = G2._randomStarterVmStates
+                                and G2._randomStarterVmStates[self] or nil
+                            local pending = type(state) == "table"
+                                and state.confirmationPending or nil
+                            if type(pending) == "table" then
+                                local game = pending.game or getCurrentGame() or mod.game
+                                local raw = tostring(textValue or "")
+                                local upper = raw:upper()
+                                local original = tostring(pending.original or ""):upper()
+                                local questionLike = raw:find("?", 1, true) ~= nil
+                                    and (upper:find(original, 1, true) ~= nil
+                                        or upper:find("POK", 1, true) ~= nil
+                                        or upper:find("WANT", 1, true) ~= nil)
+                                if G2.isGen2(game) and G2.isElmLabContext({ vm=self }, game)
+                                    and questionLike then
+                                    local replacement = G2.randomStarterElmConfirmation(
+                                        game, { vm=self }, "writetext", {}, {})
+                                    if replacement then
+                                        pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                                            "elm_confirmation_show_raw", pending.choice)
+                                        return previousShowRaw(self, Strings(replacement), ...)
+                                    end
+                                end
+                            end
+                            return previousShowRaw(self, textValue, ...)
+                        end
+                    end)
+            end
+            return installed == true
+        end
+
+        function G2.completePendingElmStarter(mon)
+            local tx = G2._pendingElmStarterTransaction
+            if type(tx) ~= "table" or type(mon) ~= "table" then return false end
+            local game = tx.game or getCurrentGame() or mod.game
+            if not (game and game.save == tx.save and G2.isGen2(game)) then return false end
+            local actual = G2.speciesKey(game, mon.species or tx.grantIndex)
+            if actual == "" then return false end
+            local expected = tostring(tx.choice or ""):upper()
+            mod.save:set("__nuzlocke_random_starter_preview_mismatch",
+                expected ~= "" and actual ~= expected)
+
+            -- 2.7.101: native Gen2 party-item effects index game.data.pokemon
+            -- directly by mon.species. The randomized GIVEPOKE transaction may
+            -- materialize the award with the numeric grant operand even though
+            -- G2.speciesKey correctly resolves it for presentation/provenance.
+            -- That leaves the mon playable but makes party-target consumables
+            -- unable to resolve species data. Canonicalize the concrete owned
+            -- record once, at the transaction finalization boundary.
+            G2.canonicalizeOwnedPokemonSpecies(game, mon)
+
+            mod.exports.__beta26.commitRandomStarter(game, tx.original, actual)
+            mod.exports.__beta26.StatRules.applyPlayer(game, mon)
+            mod.exports.__beta26.registerStarterCatch(actual, mon)
+            G2._pendingElmStarterTransaction = nil
+            pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                "elm_post_givepoke_finalized", actual)
+            return true
+        end
+
+        -- Native GIVEPOKE may return before the new party member is visible.
+        -- Resolve only the exact stored transaction on the next safe world step.
+        function G2.reconcileStarterRuntime(game)
+            game = game or getCurrentGame() or mod.game
+            if not (game and G2.isGen2(game) and game.save) then return false end
+            local tx = G2._pendingElmStarterTransaction
+            if type(tx) == "table" and tx.game == game and tx.save == game.save then
+                local mon = G2.findNewOwnedPokemon(tx.before or {}, game.save)
+                if mon then return G2.completePendingElmStarter(mon) end
+            end
+            return G2.reconcileRandomStarterProvenance(game)
         end
 
         function G2.randomStarterTransactionHealth(game)
@@ -1439,38 +2269,275 @@ return function(mod, deps)
             if G2._giftHook then return true end
             G2._giftHook = true
             mod.hooks:wrap("script.command", function(next, ctx, name, args, cmd)
-                if not (ctx and ctx.generation == 2 and G2.isGen2()) then
+                if not (ctx and G2.isGen2((ctx and ctx.game) or getCurrentGame() or mod.game)) then
                     return next(ctx, name, args, cmd)
                 end
   
                 local game = (ctx and ctx.game) or getCurrentGame() or mod.game
+                pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                    "script_command_adapter", tostring(name or "?"))
+
+                -- 2.7.82: own Mom's complete initial date/DST ladder when
+                -- System Date/Time is active. 0.2.21 may encode `special` with
+                -- a numeric pointer, so resolve it through the live VM rather
+                -- than comparing the raw operand with a semantic name.
+                local vm = ctx and ctx.vm or nil
+                G2._systemDateTimeVmStates = G2._systemDateTimeVmStates
+                    or setmetatable({}, { __mode = "k" })
+                local clockState = vm and G2._systemDateTimeVmStates[vm] or nil
+                if vm and type(clockState) ~= "table" then
+                    clockState = {}
+                    G2._systemDateTimeVmStates[vm] = clockState
+                end
+                local opName = tostring(name or ""):lower()
+                local specialName
+                if opName == "special" then
+                    local specialId = (cmd and (cmd.special or cmd.id))
+                        or (type(args) == "table" and args[1])
+                    if vm and type(vm.specialName) == "function" then
+                        local okName, resolved = pcall(vm.specialName, vm, specialId)
+                        if okName then specialName = resolved end
+                    end
+                    specialName = specialName or (type(specialId) == "string" and specialId or nil)
+                else
+                    specialName = tostring(name or "")
+                end
+                local clockCommand = tostring(specialName or name or "")
+                    :lower():gsub("[^a-z]", "")
+
+                -- 2.7.87 Crystal Alpha: Crystal's opening Mom script is the
+                -- canonical PlayersHouse1F SetDayOfWeek -> IsItDSTText ->
+                -- yesorno -> iffalse -> Initial(Set/Clear)DSTFlag -> yesorno
+                -- ladder. Runtime on 2.7.86 proved SetDayOfWeek could be
+                -- suppressed while ctx.vm was absent, leaving no VM-keyed
+                -- phase record and therefore still showing the DST prompt.
+                -- Track ONLY this exact Crystal/new-game script sequence by
+                -- save identity and semantic generated-text key; never match
+                -- translated English display text and never affect Mom's later
+                -- phone/banking yes/no prompts.
+                G2._crystalOpeningDstStates = G2._crystalOpeningDstStates
+                    or setmetatable({}, { __mode = "k" })
+                local exactEdition = tostring(getGameVersion() or ""):upper()
+                local dstOwner = game and game.save
+                local crystalDst = dstOwner
+                    and G2._crystalOpeningDstStates[dstOwner] or nil
+                local textKey = tostring(cmd and cmd.text or ""):upper()
+                local mapForClock = G2.contextMapId(ctx, game)
+                local crystalOpeningMap = mapForClock == "PLAYERS_HOUSE_1F"
+                    or (mapForClock:find("PLAYERS", 1, true)
+                        and mapForClock:find("HOUSE_1F", 1, true))
+
+                if G2.systemDateTimeEnabled(game)
+                    and dstOwner
+                    and exactEdition:find("CRYSTAL", 1, true)
+                    and crystalOpeningMap then
+                    if type(crystalDst) == "table"
+                        and crystalDst.phase == "dst_text"
+                        and (opName == "writetext" or opName == "farwritetext") then
+                        -- 2.7.101 / Gen1Recomp 0.2.25: begin from the semantic
+                        -- SetDayOfWeek command rather than relying on Crystal's
+                        -- generated text operand retaining an ISITDST label.
+                        -- The opening script's next text is the DST question.
+                        crystalDst.phase = "first_yesorno"
+                        pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                            "crystal_opening_dst_ladder", "semantic_prompt")
+                        return nil
+                    elseif (opName == "writetext" or opName == "farwritetext")
+                        and textKey:find("ISITDST", 1, true) then
+                        G2._crystalOpeningDstStates[dstOwner] = {
+                            phase = "first_yesorno",
+                        }
+                        pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                            "crystal_opening_dst_ladder", "prompt")
+                        return nil
+                    elseif type(crystalDst) == "table"
+                        and crystalDst.phase == "first_yesorno"
+                        and opName == "yesorno" then
+                        crystalDst.phase = "first_iffalse"
+                        return nil
+                    elseif type(crystalDst) == "table"
+                        and crystalDst.phase == "first_iffalse"
+                        and opName == "iffalse" then
+                        -- Falling through selects the native YES arm, but the
+                        -- special itself is swallowed below and System Clock
+                        -- owns the actual DST bit.
+                        crystalDst.phase = "dst_special"
+                        return nil
+                    elseif type(crystalDst) == "table"
+                        and crystalDst.phase == "dst_special"
+                        and (clockCommand == "initialsetdstflag"
+                            or clockCommand == "initialcleardstflag") then
+                        G2.applySystemClock(game, "crystal_opening_dst")
+                        if game and game.save then
+                            game.save.rtc = type(game.save.rtc) == "table"
+                                and game.save.rtc or {}
+                            game.save.rtc.dst = false
+                        end
+                        crystalDst.phase = "confirm_yesorno"
+                        return nil
+                    elseif type(crystalDst) == "table"
+                        and crystalDst.phase == "confirm_yesorno"
+                        and opName == "yesorno" then
+                        crystalDst.phase = "confirm_iffalse"
+                        return nil
+                    elseif type(crystalDst) == "table"
+                        and crystalDst.phase == "confirm_iffalse"
+                        and opName == "iffalse" then
+                        crystalDst.phase = "finish_jump"
+                        return nil
+                    elseif type(crystalDst) == "table"
+                        and crystalDst.phase == "finish_jump"
+                        and (opName == "sjump" or opName == "jump") then
+                        G2._crystalOpeningDstStates[dstOwner] = nil
+                        return next(ctx, name, args, cmd)
+                    end
+                end
+
+                if G2.systemDateTimeEnabled(game) then
+                    if clockCommand == "setdayofweek" then
+                        if game and game.save then game.save.nuzlockeSystemDateTime = true end
+                        G2.applySystemClock(game, "opening")
+                        if clockState then clockState.phase = "dst_text" end
+                        if dstOwner and exactEdition:find("CRYSTAL", 1, true)
+                            and crystalOpeningMap then
+                            G2._crystalOpeningDstStates[dstOwner] = { phase = "dst_text" }
+                        end
+                        pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                            "system_date_time_ladder", "set_day")
+                        return nil
+                    elseif clockState and clockState.phase == "dst_text"
+                        and (opName == "writetext" or opName == "farwritetext") then
+                        -- Skip the native DST question by transaction position,
+                        -- never by matching English ROM text.
+                        clockState.phase = "dst_choice"
+                        return nil
+                    elseif clockState and clockState.phase == "dst_choice"
+                        and opName == "yesorno" then
+                        -- NO selects the native clear-DST branch. Preserve the
+                        -- following iffalse branch by writing wScriptVar's model.
+                        vm.scriptVar = 0
+                        clockState.phase = "dst_special"
+                        return nil
+                    elseif clockState and clockState.phase == "dst_special"
+                        and (clockCommand == "initialsetdstflag"
+                            or clockCommand == "initialcleardstflag") then
+                        G2.applySystemClock(game, "opening_dst")
+                        if game and game.save then
+                            game.save.rtc = type(game.save.rtc) == "table"
+                                and game.save.rtc or {}
+                            game.save.rtc.dst = false
+                        end
+                        clockState.phase = "dst_confirm"
+                        pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                            "system_date_time_ladder", clockCommand)
+                        return nil
+                    elseif clockState and clockState.phase == "dst_confirm"
+                        and opName == "yesorno" then
+                        -- Auto-accept the hidden confirmation and then release
+                        -- ownership so native script control flow finishes.
+                        vm.scriptVar = 1
+                        clockState.phase = nil
+                        return nil
+                    elseif clockCommand == "initialsetdstflag"
+                        or clockCommand == "initialcleardstflag" then
+                        -- Defensive recovery if a launcher/translated script
+                        -- enters at the special without the earlier row state.
+                        G2.applySystemClock(game, "opening_dst_fallback")
+                        if game and game.save then
+                            game.save.rtc = type(game.save.rtc) == "table"
+                                and game.save.rtc or {}
+                            game.save.rtc.dst = false
+                        end
+                        return nil
+                    end
+                elseif clockState then
+                    clockState.phase = nil
+                end
+                -- 2.7.90: mandatory starter provenance is a same-script
+                -- transaction marker, not a species-registry guess. Elm's starter
+                -- scripts always present one of the three canonical starter
+                -- POKEPIC operands before the matching GIVEPOKE. Arm that exact
+                -- script run here even when map labels/currentGame are transient
+                -- during early NEW GAME. A declined ball cannot leak the marker
+                -- into another script because GIVEPOKE requires the same scriptKey.
+                local commandVmState = ctx and ctx.vm
+                    and G2._randomStarterVmStates
+                    and G2._randomStarterVmStates[ctx.vm] or nil
+                if name == "pokepic" and type(commandVmState) == "table" then
+                    local rawPreview = (cmd and (cmd.species or cmd.id))
+                        or (type(args) == "table" and args[1]) or nil
+                    local previewStarter, previewOriginal =
+                        G2.isElmStarterOperand(game, rawPreview)
+                    local party = game and game.save and game.save.party or {}
+                    if previewStarter and #party == 0 then
+                        commandVmState.mandatoryStarter = {
+                            scriptKey = ctx and ctx.scriptKey,
+                            original = previewOriginal,
+                            raw = rawPreview,
+                        }
+                    elseif commandVmState.mandatoryStarter
+                        and commandVmState.mandatoryStarter.scriptKey
+                            ~= (ctx and ctx.scriptKey) then
+                        commandVmState.mandatoryStarter = nil
+                    end
+                end
+
                 -- Presentation substitution is owned by the native VM callbacks
                 -- installed above. This call only arms their one-command intent;
                 -- the original generated script row is deliberately passed down.
                 G2.rewriteRandomStarterPresentation(game, ctx, name, args, cmd)
+                local elmText = G2.randomStarterElmConfirmation(game, ctx, name, args, cmd)
+                if elmText then
+                    return next(ctx, "rawtext", { elmText }, { text = elmText })
+                end
                 if G2.skipCherrygroveTourCommand(game, ctx, name, args, cmd) then
                     return nil
                 end
                 if name ~= "givepoke" then
                     return next(ctx, name, args, cmd)
                 end
-                local party = game and game.save and game.save.party or {}
-                local beforeCount = #party
+                pcall(mod.exports.__beta26.noteGen2AdapterReach, "givepoke", true)
                 local scriptedSpecies = (cmd and cmd.species)
                     or (type(args) == "table" and args[1]) or nil
-                local upper = G2.speciesKey(game, scriptedSpecies)
-                local isStarter = beforeCount == 0
-                    and G2.isElmLabContext(ctx, game)
-                    and (upper == "CHIKORITA" or upper == "CYNDAQUIL"
-                        or upper == "TOTODILE")
+                local starterOperand, upper =
+                    G2.isElmStarterOperand(game, scriptedSpecies)
+                local starterVmState = ctx and ctx.vm
+                    and G2._randomStarterVmStates
+                    and G2._randomStarterVmStates[ctx.vm] or nil
+                local mandatory = type(starterVmState) == "table"
+                    and starterVmState.mandatoryStarter or nil
+                local sameScriptMandatory = type(mandatory) == "table"
+                    and mandatory.scriptKey == (ctx and ctx.scriptKey)
+
+                -- One shared provenance marker now owns the mandatory transaction.
+                -- Same-script POKEPIC -> GIVEPOKE is sufficient evidence even if
+                -- early NEW GAME has no stable map label/currentGame yet.
+                local isStarter = G2.isGen2(game)
+                    and (sameScriptMandatory or G2.isElmLabContext(ctx, game))
+                if isStarter and sameScriptMandatory then
+                    local marked = tostring(mandatory.original or ""):upper()
+                    if marked ~= "" then
+                        upper = marked
+                        starterOperand = true
+                    end
+                elseif isStarter and not starterOperand
+                    and type(starterVmState) == "table" then
+                    local remembered = tostring(starterVmState.lastElmOriginal or ""):upper()
+                    if remembered == "CHIKORITA" or remembered == "CYNDAQUIL"
+                        or remembered == "TOTODILE" then
+                        upper = remembered
+                        starterOperand = true
+                    end
+                end
+                if isStarter then
+                    pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                        "elm_starter_recognition", upper)
+                end
 
                 -- 2.5.51: arm the private VM transaction state from the exact
                 -- Elm GIVEPOKE row. This ports the reliable identification from
                 -- the older working adapter without reviving its shared-row
                 -- mutation. The givePoke wrapper consumes this record once.
-                local starterVmState = ctx and ctx.vm
-                    and G2._randomStarterVmStates
-                    and G2._randomStarterVmStates[ctx.vm] or nil
                 local armedIntent
                 if isStarter and randomStarterRuleEnabled(game)
                     and type(starterVmState) == "table" then
@@ -1483,11 +2550,15 @@ return function(mod, deps)
                         and starterVmState.renderedPreviewChoices[upper] or nil
                     local intended = starterVmState.previewChoices
                         and starterVmState.previewChoices[upper] or nil
+                    local rememberedChoice = starterVmState.lastElmOriginal == upper
+                        and starterVmState.lastElmChoice or nil
                     local choice = randomStarterChoiceValid(game, rendered)
                         and tostring(rendered):upper()
                         or (randomStarterChoiceValid(game, intended)
                             and tostring(intended):upper()
-                            or mod.exports.__beta26.selectRandomStarter(game, upper))
+                            or (randomStarterChoiceValid(game, rememberedChoice)
+                                and tostring(rememberedChoice):upper()
+                                or mod.exports.__beta26.selectRandomStarter(game, upper)))
                     if randomStarterChoiceValid(game, choice) then
                         armedIntent = {
                             armed = true, original = upper, choice = choice,
@@ -1538,6 +2609,12 @@ return function(mod, deps)
                 if armedIntent and type(starterVmState) == "table"
                     and starterVmState.pendingElmStarter == armedIntent then
                     starterVmState.pendingElmStarter = nil
+                end
+                if isStarter and type(starterVmState) == "table"
+                    and type(starterVmState.mandatoryStarter) == "table"
+                    and starterVmState.mandatoryStarter.scriptKey
+                        == (ctx and ctx.scriptKey) then
+                    starterVmState.mandatoryStarter = nil
                 end
                 local mon = G2.findNewOwnedPokemon(before, game and game.save)
                 if not mon then return result end
@@ -1655,7 +2732,7 @@ return function(mod, deps)
             if G2._staticHook then return true end
             G2._staticHook = true
             mod.hooks:wrap("script.command", function(next, ctx, name, args, cmd)
-                if ctx and ctx.generation == 2 and G2.isGen2() then
+                if ctx and G2.isGen2((ctx and ctx.game) or getCurrentGame() or mod.game) then
                     if name == "loadwildmon" then
                         mod.exports.__beta26.pendingStaticEncounter = {
                             generation = 2,
@@ -1724,7 +2801,8 @@ return function(mod, deps)
             if not G2._gamblingScriptHook then
                 G2._gamblingScriptHook = true
                 mod.hooks:wrap("script.command", function(next, ctx, name, args, cmd)
-                    if ctx and ctx.generation == 2 and name == "special"
+                    if ctx and G2.isGen2((ctx and ctx.game) or getCurrentGame() or mod.game)
+                        and name == "special"
                         and mod.exports.__beta26.ruleActive(
                             getCurrentGame() or mod.game, "no_gambling") then
                         local vm = ctx.vm
@@ -1988,11 +3066,20 @@ return function(mod, deps)
         -- explicit so generic starter provenance/diagnostics never fall back
         -- to Red simply because the mechanics are shared with Gold.
         STARTERS_BY_VERSION.SILVER = STARTERS_BY_VERSION.GOLD
+        -- Crystal keeps the same canonical Johto trio; exact edition remains
+        -- separate for save/profile/evidence and ALPHA certification.
+        STARTERS_BY_VERSION.CRYSTAL = STARTERS_BY_VERSION.GOLD
   
         -- Keep the starter slot region-correct. R/B/Y retain PALLET_TOWN exactly.
         local beta21RegisterStarterCatch = mod.exports.__beta26.registerStarterCatch
-        mod.exports.__beta26.registerStarterCatch = function(species, mon)
-            if not G2.isGen2() then return beta21RegisterStarterCatch(species, mon) end
+        mod.exports.__beta26.registerStarterCatch = function(species, mon, opts)
+            if not G2.isGen2() then return beta21RegisterStarterCatch(species, mon, opts) end
+            -- 2.7.80: the narrowly-proven oldest-save cleanup is owned by the
+            -- identity-aware base registration path. Do not broaden this to
+            -- ordinary Gen-2 starter registration or species-only dedupe.
+            if type(opts) == "table" and opts.allowUniqueLegacyStarterCleanup == true then
+                return beta21RegisterStarterCatch(species, mon, opts)
+            end
             if not species then return false end
             local game = getCurrentGame() or mod.game
             species = G2.speciesKey(game, species)
@@ -2017,6 +3104,82 @@ return function(mod, deps)
                     mod.save:set("__nuzlocke_starter_pokemon_id", monId)
                 end
                 mod.save:set("__nuzlocke_starter_species", species)
+            end
+            return ok
+        end
+
+        -- 2.7.80: legacy Elm repair may use species only inside one explicitly
+        -- proven oldest-save shape: exactly one owned Pokemon plus an existing
+        -- NEW_BARK_TOWN STARTER/GIFT Tracker row for that same species. Modern
+        -- saves prefer exact stored Pokemon identity or row Pokemon identity.
+        function G2.reconcileLegacyElmStarter(game)
+            game = game or getCurrentGame() or mod.game
+            if not (game and G2.isGen2(game) and game.save) then return false end
+            local save = game.save
+            local owned = Identity.allCurrentMons(save)
+            local savedId = mod.save:get("__nuzlocke_starter_pokemon_id", nil)
+            local proven = nil
+            if savedId ~= nil then
+                for _, mon in ipairs(owned) do
+                    local monId = Identity.pokemonIdentity(mon)
+                    if monId ~= nil and tostring(monId) == tostring(savedId) then
+                        proven = mon
+                        break
+                    end
+                end
+            end
+
+            local rows = trackerLog()["NEW_BARK_TOWN"]
+            if not proven and type(rows) == "table" then
+                -- Prefer exact identity carried by the New Bark row.
+                for _, row in ipairs(rows) do
+                    if type(row) == "table" and row.pokemonId ~= nil then
+                        local kind = tostring(row.encounterType or row.encounterSource or ""):lower()
+                        if kind == "starter" or kind == "gift" then
+                            for _, mon in ipairs(owned) do
+                                local monId = Identity.pokemonIdentity(mon)
+                                if monId ~= nil and tostring(monId) == tostring(row.pokemonId) then
+                                    proven = mon
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    if proven then break end
+                end
+            end
+
+            if not proven and #owned == 1 and type(rows) == "table" then
+                -- Historical 2.6.80 exception: species equality becomes proof
+                -- only when the physical party and explicit New Bark starter
+                -- provenance are both unique. It is never a general dedupe key.
+                local only = owned[1]
+                local species = G2.speciesKey(game, only and only.species)
+                local matchingRows = 0
+                for _, row in ipairs(rows) do
+                    if type(row) == "table" then
+                        local kind = tostring(row.encounterType or row.encounterSource or ""):lower()
+                        if (kind == "starter" or kind == "gift")
+                            and G2.speciesKey(game, row.species) == species then
+                            matchingRows = matchingRows + 1
+                        end
+                    end
+                end
+                if matchingRows == 1 then proven = only end
+            end
+
+            if not proven then return false end
+            local species = G2.speciesKey(game, proven.species)
+            local ok = beta21RegisterStarterCatch(species, proven, {
+                allowUniqueLegacyStarterCleanup = true,
+            }) == true
+            if ok then
+                local monId = Identity.ensurePokemonIdentity(proven, save, "NORMAL")
+                if monId ~= nil then mod.save:set("__nuzlocke_starter_pokemon_id", monId) end
+                mod.save:set("__nuzlocke_starter_species", species)
+                pcall(mod.exports.__beta26.reconcileGen2ElmStarterStory, game, proven)
+                pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                    "elm_legacy_starter_reconciled", species)
             end
             return ok
         end
@@ -2344,7 +3507,8 @@ return function(mod, deps)
                     if save.inventory then save.inventory.MYSTERY_EGG = nil end
                     save.rival = save.rival or {}
                     if type(save.rival) == "table" then
-                        save.rival.name = getGameVersion() == "SILVER" and "GOLD" or "SILVER"
+                        local exact = getGameVersion()
+                        save.rival.name = exact == "SILVER" and "GOLD" or "SILVER"
                     end
                     -- Mr. Pokemon's house executes `blackoutmod
                     -- CHERRYGROVE_CITY` before this native checkpoint. Preserve
@@ -2378,6 +3542,11 @@ return function(mod, deps)
                     end
                     save.nuzlockeQuickStartNicknamePrompt = true
                     local function done(name)
+                        -- 2.7.101: Gen1Recomp 0.2.25's Gen2NamingScreen does not
+                        -- pop itself on END; native callers pop it from onDone.
+                        if gold and game and game.stack and type(game.stack.pop) == "function" then
+                            game.stack:pop()
+                        end
                         save.nuzlockeQuickStartNicknamePrompt = nil
                         name = tostring(name or "")
                         if name:find("%S") then
@@ -2442,6 +3611,65 @@ return function(mod, deps)
             return true
         end
 
+        -- 2.7.82: if the native Elm story event is already committed, the
+        -- concrete one-Pokemon party at zero badges is stronger completion
+        -- evidence than the earlier GIVEPOKE timing seams. This remains an
+        -- exact starter-transaction repair, never species-only catch recovery.
+        function G2.finalizeElmStarterFromStoryEvent(game)
+            if saveBlocked() then return false end
+            game = game or getCurrentGame() or mod.game
+            local save = game and game.save
+            if not (save and G2.isGen2(game)) then return false end
+            if currentBadgeCount(save) ~= 0 then return false end
+            local party = type(save.party) == "table" and save.party or {}
+            if #party ~= 1 or type(party[1]) ~= "table" then return false end
+
+            local world = game.world
+            local okFlags, FlagNames = pcall(require, "src.core.gen2.FlagNames")
+            local eventId = okFlags and type(FlagNames) == "table"
+                and type(FlagNames.events) == "table"
+                and FlagNames.events.EVENT_GOT_A_POKEMON_FROM_ELM or nil
+            if not (eventId and world and world.events
+                and type(world.events.get) == "function") then return false end
+            local okEvent, gotStarter = pcall(world.events.get, world.events, eventId)
+            if not okEvent or gotStarter ~= true then return false end
+
+            local mon = party[1]
+            local monId = Identity.pokemonIdentity(mon)
+                or Identity.ensurePokemonIdentity(mon, save, "NORMAL")
+            local monFp = Identity.fingerprint(mon)
+            local rows = trackerLog()["NEW_BARK_TOWN"]
+            if type(rows) == "table" then
+                for _, row in ipairs(rows) do
+                    if type(row) == "table" then
+                        local kind = tostring(row.encounterType
+                            or row.encounterSource or ""):lower()
+                        if kind == "starter" or kind == "gift" then
+                            if monId ~= nil and row.pokemonId ~= nil
+                                and tostring(row.pokemonId) == tostring(monId) then
+                                return false
+                            end
+                            if row.pokemonId == nil and monFp ~= nil
+                                and row.fingerprint ~= nil
+                                and tostring(row.fingerprint) == tostring(monFp) then
+                                return false
+                            end
+                        end
+                    end
+                end
+            end
+
+            local species = G2.speciesKey(game, mon.species)
+            if species == "" then return false end
+            mod.exports.__beta26.StatRules.applyPlayer(game, mon)
+            local ok = mod.exports.__beta26.registerStarterCatch(species, mon) == true
+            if ok then
+                pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                    "elm_story_event_starter_finalized", { species=species, pokemonId=monId })
+            end
+            return ok
+        end
+
         mod.events:on("world.stepped", function()
             local game = getCurrentGame() or mod.game
             local save = game and game.save
@@ -2449,6 +3677,34 @@ return function(mod, deps)
                 local ok, err = pcall(mod.exports.__beta26.applyQuickNuzlockeStart, game)
                 if not ok then
                     save.nuzlockeQuickStartError = tostring(err)
+                end
+            end
+            if game and G2.isGen2(game) then
+                pcall(G2.reconcileStarterRuntime, game)
+                pcall(G2.reconcileLegacyElmStarter, game)
+                pcall(G2.finalizeElmStarterFromStoryEvent, game)
+                if G2.systemDateTimeEnabled(game) and save
+                    and save.nuzlockeSystemDateTimeApplied ~= true then
+                    save.nuzlockeSystemDateTime = true
+                    if G2.applySystemClock(game, "new_game") then
+                        save.nuzlockeSystemDateTimeApplied = true
+                    end
+                end
+                if G2.systemClockSyncEnabled(game) and save then
+                    local okClock, Clock = pcall(require, "src.core.gen2.Clock")
+                    local hostMinute
+                    if okClock and type(Clock) == "table"
+                        and type(Clock.hostMinutes) == "function" then
+                        local okHost, value = pcall(Clock.hostMinutes)
+                        if okHost then hostMinute = math.floor(tonumber(value) or -1) end
+                    end
+                    if hostMinute == nil or hostMinute < 0 then
+                        local now = os.date("*t")
+                        hostMinute = (tonumber(now.hour) or 0) * 60 + (tonumber(now.min) or 0)
+                    end
+                    if save.nuzlockeSystemClockLastHostMinute ~= hostMinute then
+                        G2.applySystemClock(game, "continuous")
+                    end
                 end
             end
         end)
@@ -2510,9 +3766,25 @@ return function(mod, deps)
             local caught = caughtAreas()
             local log = trackerLog()
             local list = {}
+            local states = mod.save:get("encounter_states", {})
             for _, r in ipairs(ALL_ROUTES) do
-                if (seen[r.id] or caught[r.id] ~= nil or (type(log[r.id]) == "table" and #log[r.id] > 0))
-                    and areaAllowedByConfig(r) then
+                local hasEvidence = seen[r.id] == true
+                    or caught[r.id] ~= nil
+                    or (type(log[r.id]) == "table" and #log[r.id] > 0)
+                    or (type(states) == "table" and states[r.id] ~= nil)
+                local interior = tostring(r.id or ""):upper()
+                local ordinaryInterior = interior:find("HOUSE", 1, true)
+                    or interior:find("LAB", 1, true)
+                    or interior:find("MART", 1, true)
+                    or interior:find("CENTER", 1, true)
+                    or interior:find("GYM", 1, true)
+                    or interior:find("GATE", 1, true)
+                    or interior:find("BEDROOM", 1, true)
+                    or interior:find("ROOM", 1, true)
+                    or interior:find("OFFICE", 1, true)
+                local eligible = ((not GEN1_SEED_IDS[r.id]) or hasEvidence)
+                    and (not ordinaryInterior or hasEvidence)
+                if eligible and hasEvidence and areaAllowedByConfig(r) then
                     list[#list + 1] = r
                 end
             end
@@ -2585,12 +3857,11 @@ return function(mod, deps)
                     local label
                     if value == nil then
                         label = nil
-                    elseif rule.key == "nuzlocke_enabled" then
-                        label = nil
-                    elseif rule.key == "encounter_spend_indicator"
-                          or rule.key == "dev_mode" or rule.key == "catch_info"
+                    elseif rule.key == "nuzlocke_enabled"
+                        or rule.key == "dev_mode" or rule.key == "catch_info"
                         or rule.key == "stat_info" or rule.key == "move_info"
-                        or rule.key == "area_guide_enabled" then
+                        or rule.key == "area_guide_enabled"
+                        or rule.key == "battle_menu_ui" then
                         label = nil
                     elseif rule.key == "world_building_tier" then
                         local tier = tonumber(value) or 0
@@ -2621,13 +3892,9 @@ return function(mod, deps)
                         local mode = tonumber(value) or 0
                         if mode == 1 then label = Strings("No Fly")
                         elseif mode == 2 then label = Strings("No Fly+Teleport") end
-                    elseif rule.key == "automatic_running_shoes" then
+                    elseif rule.key == "run_surf" then
                         local mode = mod.exports.__beta26.movementAssistMode(value)
-                        if mode > 0 then label = Strings("Run %s", Strings(
-                            mod.exports.__beta26.movementAssistLabel(mode))) end
-                    elseif rule.key == "fast_surf" then
-                        local mode = mod.exports.__beta26.movementAssistMode(value)
-                        if mode > 0 then label = Strings("Surf %s", Strings(
+                        if mode > 0 then label = Strings("Run/Surf %s", Strings(
                             mod.exports.__beta26.movementAssistLabel(mode))) end
                     elseif rule.key == "shiny_clause" then
                         local mode = tonumber(value) or 0
@@ -2696,10 +3963,13 @@ return function(mod, deps)
                         local fieldItemsOwned = mod.save:get("random_field_items", false) == true
                         local learnsetsOwned = mod.save:get("random_learnsets", false) == true
                             and not (externalRuleDelegation and externalRuleDelegation("random_learnsets", getCurrentGame() or mod.game))
+                        local trainersOwned = mod.save:get("random_trainers", false) == true
+                        local evolutionsOwned = mod.save:get("random_evolutions", false) == true
+                        local shopsOwned = mod.save:get("random_shops", false) == true
                         local seed = type(mod.exports.__beta26.randomizerSeed) == "function"
                             and tonumber(mod.exports.__beta26.randomizerSeed(nil, false))
                             or tonumber(value) or 0
-                        if (starterOwned or encountersOwned or fieldItemsOwned or learnsetsOwned) and seed > 0 then
+                        if (starterOwned or encountersOwned or fieldItemsOwned or learnsetsOwned or trainersOwned or evolutionsOwned or shopsOwned) and seed > 0 then
                             label = Strings("RNG %08d v%d", seed, mod.exports.__beta26.randomizerAlgorithmVersion())
                         end
                     elseif rule.key == "random_starter_style" then
@@ -2725,6 +3995,10 @@ return function(mod, deps)
                         if mod.save:get("random_field_items", false) == true then
                             label = Strings("ItemRep %s", ({ [0]="ALLOW", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "ALLOW")
                         end
+                    elseif rule.key == "random_shop_balance" then
+                        if mod.save:get("random_shops", false) == true then
+                            label = Strings("Shops %s", ({ [0]="CHAOS", [1]="PRICE", [2]="BALANCED" })[tonumber(value) or 2] or "BALANCED")
+                        end
                     elseif rule.key == "random_encounter_balance" then
                         if mod.save:get("random_encounter_tables", false) == true
                             and not (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", getCurrentGame() or mod.game)) then
@@ -2743,7 +4017,12 @@ return function(mod, deps)
                         end
                     elseif rule.key == "randomizer_info_policy" then
                         if mod.save:get("random_encounter_tables", false) == true
-                            or mod.save:get("random_starter", false) == true then
+                            or mod.save:get("random_starter", false) == true
+                            or mod.save:get("random_field_items", false) == true
+                            or mod.save:get("random_learnsets", false) == true
+                            or mod.save:get("random_trainers", false) == true
+                            or mod.save:get("random_evolutions", false) == true
+                            or mod.save:get("random_shops", false) == true then
                             label = tonumber(value) == 1 and Strings("RNG BLIND") or Strings("RNG OPEN")
                         end
                     elseif rule.key == "gold_egg_encounter_mode" then
@@ -3383,11 +4662,350 @@ return function(mod, deps)
             return poisonInstalled and warpInstalled
         end
 
-        function G2.installAll()
+        -- 2.7.106: shared Gen2 party-consumable execution repair.
+        -- Crystal runtime proved the chooser itself now works, but after a
+        -- target is selected healing items, vitamins and Rare Candy all return
+        -- to the Pack without applying. Own only the simple one-target families
+        -- at this post-selection seam and invoke Gen1Recomp's ItemEffects
+        -- routines directly. PP restoration and evolution stones retain their
+        -- specialized native screens/animations through the previous owner.
+        function G2.installPartyConsumableExecution()
+            if not G2.isGen2() then return false end
+            local okGame, Game2 = pcall(require, "src.core.Game2")
+            local okEffects, ItemEffects = pcall(require, "src.core.gen2.ItemEffects")
+            local okScreens, Screens = pcall(require, "src.ui.Screens")
+            if not okGame or type(Game2) ~= "table"
+                or type(Game2.usePartyItem) ~= "function"
+                or not okEffects or type(ItemEffects) ~= "table"
+                or type(ItemEffects.partyAction) ~= "function"
+                or type(ItemEffects.useOnMon) ~= "function"
+                or not okScreens or type(Screens) ~= "table" then
+                return false
+            end
+
+            local session = Game2.__nuzlockePartyConsumableSession27106
+            if type(session) == "table" and session.owner == mod
+                and Game2.usePartyItem == session.wrapper then return true end
+            if type(session) == "table" and Game2.usePartyItem == session.wrapper
+                and type(session.previous) == "function" then
+                Game2.usePartyItem = session.previous
+            end
+
+            local previous = Game2.usePartyItem
+            local SIMPLE = {
+                heal = true, status = true, revive = true,
+                vitamin = true, candy = true,
+            }
+
+            local wrapper
+            wrapper = function(self, itemId, ...)
+                local action = ItemEffects.partyAction(itemId, self and self.data)
+                if not SIMPLE[action] then
+                    return previous(self, itemId, ...)
+                end
+                local party = self and self.save and self.save.party or {}
+                if type(party) ~= "table" or #party == 0 then
+                    return previous(self, itemId, ...)
+                end
+
+                -- Keep the narrow representation compatibility repair from
+                -- 2.7.105, but do not rebuild or replace the Pokemon record.
+                for _, owned in ipairs(party) do
+                    G2.canonicalizeOwnedPokemonSpecies(self, owned)
+                end
+
+                local TextBox = require("src.render.TextBox")
+                local function finishSimple(mon)
+                    local result = ItemEffects.useOnMon(itemId, mon, self.data)
+                    if type(result) ~= "table" then
+                        result = { used = false, text = Strings("It won't have any effect.") }
+                    end
+                    if not result.used then
+                        self:say(result.text or Strings("It won't have any effect."))
+                        return
+                    end
+                    if type(self.consumeItem) == "function" then
+                        self:consumeItem(itemId)
+                    end
+                    if action == "candy" and type(self.afterRareCandy) == "function" then
+                        self:say(result.text, function()
+                            self:afterRareCandy(mon, result)
+                        end, result.sfx and TextBox.soundOpts(self, result.sfx) or nil)
+                    else
+                        self:say(result.text or Strings("Item used."))
+                    end
+                end
+
+                local function finishCandy(mon)
+                    if mod.save:get("no_rare_candy_use", false) == true then
+                        return finishSimple(mon)
+                    end
+                    local RC = mod.exports.__beta26.RareCandyToCap
+                    if type(RC) ~= "table" or type(RC.plan) ~= "function"
+                        or type(RC.step) ~= "function" then
+                        return finishSimple(mon)
+                    end
+                    local count, cap = RC.plan(self.save, mon)
+                    -- No finite cap means one ordinary native candy. Crucially,
+                    -- execute it HERE on the already-selected mon instead of
+                    -- re-entering usePartyItem after the chooser has been popped.
+                    if not cap then return finishSimple(mon) end
+                    if count <= 0 then
+                        self:say(Strings("The level cap blocks that RARE CANDY."))
+                        return
+                    end
+
+                    local function resultForLevel(level)
+                        local def = self.data and self.data.pokemon
+                            and self.data.pokemon[mon.species]
+                        local learned = {}
+                        for _, entry in ipairs(def and def.levelMoves or {}) do
+                            if tonumber(entry.level) == tonumber(level) then
+                                learned[#learned + 1] = entry.move
+                            end
+                        end
+                        local name = mon.nickname or mon.name
+                            or (def and def.name) or mon.species or "POKEMON"
+                        return {
+                            used = true, level = level, learned = learned,
+                            sfx = "Sfx_DexFanfare5079",
+                            text = ("%s grew to\nlevel %d!"):format(name, level),
+                        }
+                    end
+
+                    local function useOne(onDone)
+                        local okStep, result = RC.step(self, mon, 2)
+                        if not okStep then
+                            self:say(Strings("Rare Candy batch stopped safely."))
+                            return
+                        end
+                        result = type(result) == "table" and result
+                            or resultForLevel(mon.level)
+                        self:say(result.text, function()
+                            self:afterRareCandy(mon, result, onDone)
+                        end, result.sfx and TextBox.soundOpts(self, result.sfx) or nil)
+                    end
+
+                    local function continueBatch()
+                        if RC.stopRequested(self) then
+                            RC.finishBatch(self)
+                            self:say(Strings("Candy batch stopped."))
+                            return
+                        end
+                        local remaining = RC.plan(self.save, mon)
+                        if remaining <= 0 then
+                            RC.finishBatch(self)
+                            return
+                        end
+                        useOne(continueBatch)
+                    end
+
+                    if count <= 1 then return useOne() end
+                    self.stack:push(TextBox.new(self,
+                        Strings("Use %d RARE CANDIES?\nTarget: Lv.%d", count, cap),
+                        nil, { choice = function(yes)
+                            if yes then
+                                RC.beginBatch(self)
+                                continueBatch()
+                            else
+                                useOne()
+                            end
+                        end }))
+                end
+
+                Screens.push(self, "Gen2PartyMenu", {
+                    prompt = "useItem",
+                    onCancel = function() self.stack:pop() end,
+                    onChoose = function(_, mon)
+                        self.stack:pop()
+                        if action == "candy" then
+                            finishCandy(mon)
+                        else
+                            finishSimple(mon)
+                        end
+                    end,
+                })
+                return true
+            end
+
+            Game2.usePartyItem = wrapper
+            Game2.__nuzlockePartyConsumableSession27106 = {
+                owner = mod, previous = previous, wrapper = wrapper,
+            }
+            return true
+        end
+
+        -- 2.7.105: Gen2 party-item chooser contract. Runtime on Crystal
+        -- proved that USE reached the correct "Use on which Pokemon?" screen,
+        -- but selecting the target opened the ordinary field Pokemon submenu
+        -- instead of invoking the chooser callback. A useItem PartyMenu is not
+        -- a field/submenu screen: force only that explicit prompt back to the
+        -- native direct-onChoose contract. Ordinary field Party menus, battle
+        -- party menus, TM/HM choosers, held-item menus, and NUZ INFO remain
+        -- untouched.
+        function G2.installPartyItemChooserContract()
+            local ok, PartyMenu = pcall(require, "src.ui.gen2.PartyMenu")
+            if not ok or type(PartyMenu) ~= "table"
+                or type(PartyMenu.new) ~= "function" then return false end
+            local session = PartyMenu.__nuzlockeUseItemChooserSession27105
+            if not (type(session) == "table" and session.owner == mod
+                and PartyMenu.new == session.wrapper) then
+                if type(session) == "table" and PartyMenu.new == session.wrapper
+                    and type(session.previous) == "function" then
+                    PartyMenu.new = session.previous
+                end
+                local previous = PartyMenu.new
+                local wrapper
+                wrapper = function(game, opts, ...)
+                    local incoming = opts
+                    local prompt = type(incoming) == "table" and incoming.prompt or nil
+                    local nativeUsePrompt = PartyMenu.PROMPTS
+                        and PartyMenu.PROMPTS.useItem or nil
+                    local useItemChooser = G2.isGen2(game)
+                        and (prompt == "useItem"
+                            or (nativeUsePrompt ~= nil and prompt == nativeUsePrompt))
+                    if not useItemChooser then
+                        return previous(game, incoming, ...)
+                    end
+
+                    -- Never mutate a caller-owned options table. A compatibility
+                    -- provider may reuse it after construction.
+                    local clean = {}
+                    for key, value in pairs(incoming or {}) do clean[key] = value end
+                    clean.submenu = false
+                    clean.battleSubmenu = false
+                    local screen = previous(game, clean, ...)
+                    if type(screen) == "table" then
+                        screen.wantsSubmenu = false
+                        screen.wantsBattleSubmenu = false
+                        screen.__nuzlockeUseItemChooser27105 = true
+                    end
+                    return screen
+                end
+                PartyMenu.new = wrapper
+                PartyMenu.__nuzlockeUseItemChooserSession27105 = {
+                    owner = mod, previous = previous, wrapper = wrapper,
+                }
+            end
+
+            -- Defense in depth: if a later compatibility wrapper re-enables
+            -- field-submenu mode after construction, the explicit useItem marker
+            -- still wins at the only method that could open that submenu. Route
+            -- the selection to the chooser callback instead of drawing actions.
+            if type(PartyMenu.openSubmenu) == "function" then
+                local openSession = PartyMenu.__nuzlockeUseItemOpenSession27105
+                if type(openSession) == "table"
+                    and PartyMenu.openSubmenu == openSession.wrapper
+                    and openSession.owner ~= mod
+                    and type(openSession.previous) == "function" then
+                    PartyMenu.openSubmenu = openSession.previous
+                end
+                openSession = PartyMenu.__nuzlockeUseItemOpenSession27105
+                if not (type(openSession) == "table" and openSession.owner == mod
+                    and PartyMenu.openSubmenu == openSession.wrapper) then
+                    local previousOpen = PartyMenu.openSubmenu
+                    local openWrapper
+                    openWrapper = function(self, ...)
+                        if self and self.__nuzlockeUseItemChooser27105 == true then
+                            local mon = type(self.party) == "table"
+                                and self.party[self.index] or nil
+                            if mon and type(self.onChoose) == "function" then
+                                return self.onChoose(self.index, mon)
+                            end
+                            return nil
+                        end
+                        return previousOpen(self, ...)
+                    end
+                    PartyMenu.openSubmenu = openWrapper
+                    PartyMenu.__nuzlockeUseItemOpenSession27105 = {
+                        owner = mod, previous = previousOpen, wrapper = openWrapper,
+                    }
+                end
+            end
+            return true
+        end
+
+        function G2.installPartySubmenuFallback()
+            -- 2.7.82: install the real Gen-2 PartyMenu wrapper without trusting
+            -- an early global edition snapshot. Exact-edition gating remains
+            -- inside submenuItems(), where self.game is authoritative.
+            local ok, PartyMenu = pcall(require, "src.ui.gen2.PartyMenu")
+            if not ok or type(PartyMenu) ~= "table"
+                or type(PartyMenu.submenuItems) ~= "function" then
+                ok, PartyMenu = pcall(require, "src.ui.PartyMenu")
+            end
+            if not ok or type(PartyMenu) ~= "table"
+                or type(PartyMenu.submenuItems) ~= "function" then return false end
+            local session = PartyMenu.__nuzlockeNuzInfoFallbackSession2677
+            if type(session) == "table" and session.owner == mod
+                and PartyMenu.submenuItems == session.wrapper then return true end
+            if type(session) == "table" and PartyMenu.submenuItems == session.wrapper
+                and type(session.previous) == "function" then
+                PartyMenu.submenuItems = session.previous
+            end
+            local previous = PartyMenu.submenuItems
+            local wrapper
+            wrapper = function(self, ...)
+                local out = previous(self, ...)
+                if type(out) ~= "table" then return out end
+                local game = (self and self.game) or getCurrentGame() or mod.game
+                if not G2.isGen2(game) then return out end
+                pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                    "party_native_submenu", { rows=#out })
+                if self and (self.battle ~= nil or self.isBattle == true
+                    or tostring(self.mode or ""):lower() == "battle") then return out end
+                local anyInfo = mod.save:get("catch_info", true) == true
+                    or mod.save:get("stat_info", true) == true
+                    or mod.save:get("move_info", true) == true
+                if not anyInfo then return out end
+                for _, row in ipairs(out) do
+                    if type(row) == "table" and (row.nuzlockeNuzInfo == true
+                        or row.id == "nuzlocke_nuz_info"
+                        or row.id == "nuzlocke_catch_info") then
+                        pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                            "party_shared_row_present", true)
+                        return out
+                    end
+                end
+                local mon = self and (self.mon or self.pokemon) or nil
+                if not mon and self and type(self.party) == "table" then
+                    local index = tonumber(self.index or self.cursor or self.partyIndex) or 1
+                    mon = self.party[index]
+                end
+                if type(mon) ~= "table" then return out end
+                local row = {
+                    id = "nuzlocke_nuz_info", nuzlockeNuzInfo = true,
+                    label = Strings("NUZ INFO"),
+                    onSelect = function()
+                        mod.ui.push(game, "NuzlockeCatchInfoScreen", { mon=mon })
+                    end,
+                }
+                local inserted = false
+                for i, existing in ipairs(out) do
+                    local label = tostring(type(existing) == "table"
+                        and (existing.label or existing.id) or existing or ""):upper()
+                    if label == "CANCEL" then
+                        table.insert(out, i, row); inserted = true; break
+                    end
+                end
+                if not inserted then table.insert(out, row) end
+                pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                    "party_fallback_inserted", true)
+                return out
+            end
+            PartyMenu.submenuItems = wrapper
+            PartyMenu.__nuzlockeNuzInfoFallbackSession2677 = {
+                owner=mod, previous=previous, wrapper=wrapper,
+            }
+            return true
+        end
+
+        function G2.installAll(game)
+            game = game or getCurrentGame() or mod.game
             if mod.exports.__beta26.isSaveEditorSession() then
                 return false, "not_applicable", "save-editor session"
             end
-            if not G2.isGen2() then
+            if not G2.isGen2(game) then
                 return false, "not_applicable", "non-Gen2 edition"
             end
             local attempt = mod.exports.__beta26.attemptInstall
@@ -3399,6 +5017,7 @@ return function(mod, deps)
             checked("gen2.battle_rule_pager", G2.installBattleRulePager)
             checked("gen2.capture_gate", G2.installCaptureGate)
             checked("gen2.nickname_gate", G2.installNicknameGate)
+            checked("gen2.healing_service_gate", G2.installHealingServiceGate)
             checked("gen2.mart_gate", G2.installMartGate)
             checked("gen2.held_item_gate", G2.installHeldItemGate)
             checked("gen2.field_item_gate", G2.installFieldItemGate)
@@ -3406,7 +5025,11 @@ return function(mod, deps)
             checked("gen2.catch_tutorial_skip", G2.installCatchTutorialSkip)
             checked("gen2.headbutt_tracking", G2.installHeadbuttTracking)
             checked("gen2.random_starter_transaction", G2.installRandomStarterTransaction)
+            checked("gen2.system_clock_fallback", G2.installSystemClockFallback)
             checked("gen2.gift_tracking", G2.installGiftTracking)
+            checked("gen2.party_item_chooser", G2.installPartyItemChooserContract)
+            checked("gen2.party_consumable_execution", G2.installPartyConsumableExecution)
+            checked("gen2.party_nuz_info_fallback", G2.installPartySubmenuFallback)
             checked("gen2.trade_gate", G2.installTradeGate)
             checked("gen2.static_tracking", G2.installStaticTracking)
             checked("gen2.gambling_gate", G2.installGamblingGate)
@@ -3615,9 +5238,12 @@ return function(mod, deps)
 
     mod.exports.__beta26.compat21.surfaceRows = function(game)
         local rows = {}
-        local function add(label, owner, detail)
+        local function add(label, owner, detail, controlCapability, nativeOwner, gameplayImpact)
             rows[#rows + 1] = {
                 label = label, owner = owner or "Nuzlocke", detail = detail,
+                controlCapability = controlCapability,
+                nativeOwner = nativeOwner,
+                gameplayImpact = gameplayImpact == true,
             }
         end
         local function delegated(key)
@@ -3631,7 +5257,7 @@ return function(mod, deps)
         local money = delegated("trainer_money_multiplier")
         local caps = delegated("level_cap_scope")
         local running = mod.exports.__beta26.qolTogglesOwnership(
-            "automatic_running_shoes", game)
+            "run_surf", game)
         local difficultyName = "Nuzlocke"
         local okDifficulty, options = pcall(mod.exports.__beta26.difficultyOptions)
         if okDifficulty and type(options) == "table" then
@@ -3714,19 +5340,29 @@ return function(mod, deps)
 
         add("DIFFICULTY", difficultyName,
             difficultyName == "VANILLA" and "VANILLA" or "ACTIVE PROFILE")
-        add("SPECIES DATA", compatOwner("species_metadata") or "Merged Registry",
-            compatOwner("species_metadata") and "EXTERNAL METADATA" or "NATIVE/MERGED")
-        add("POKEMON ID", compatOwner("pokemon_identity") or "Nuzlocke",
-            compatOwner("pokemon_identity") and "EXTERNAL IDENTITY" or "NATIVE")
-        add("ENCOUNTERS", compatOwner("encounters") or "Nuzlocke",
-            compatOwner("encounters") and "SHARED PROVIDER" or "NATIVE")
-        add("ESCAPE/WARPS", compatOwner("escape") or "Nuzlocke",
-            compatOwner("escape") and "SHARED PROVIDER" or "NATIVE")
+        local speciesOwner = compatOwner("species_metadata")
+        add("SPECIES DATA", speciesOwner or "Merged Registry",
+            speciesOwner and "EXTERNAL METADATA" or "NATIVE/MERGED",
+            "species_metadata", "Engine", true)
+        local identityOwner = compatOwner("pokemon_identity")
+        add("POKEMON ID", identityOwner or "Nuzlocke",
+            identityOwner and "EXTERNAL IDENTITY" or "NATIVE",
+            "pokemon_identity", "Nuzlocke", true)
+        local encounterOwner = compatOwner("encounters")
+        add("ENCOUNTERS", encounterOwner or "Nuzlocke",
+            encounterOwner and "SHARED PROVIDER" or "NATIVE",
+            "encounters", "Nuzlocke", true)
+        local escapeOwner = compatOwner("escape")
+        add("ESCAPE/WARPS", escapeOwner or "Nuzlocke",
+            escapeOwner and "SHARED PROVIDER" or "NATIVE",
+            "escape", "Nuzlocke", true)
+        local movementOwner = compatOwner("movement_speed")
         add("MOVEMENT", running and ("Nuzlocke + " .. tostring(
                 running.name or running.id or "QoL Toggles"))
-                or compatOwner("movement_speed") or "Nuzlocke",
+                or movementOwner or "Nuzlocke",
             running and "COMPOSED HOLD-B OVERLAP"
-                or (compatOwner("movement_speed") and "SHARED PROVIDER" or "NATIVE"))
+                or (movementOwner and "SHARED PROVIDER" or "NATIVE"),
+            running and nil or "movement_speed", "Nuzlocke", false)
         local okModern, modern = pcall(mod.find, "gen1_modern_ui")
         add("PRESENTATION",
             okModern and modern and not mod.exports.__beta26.runtimeIsGen2(game)
@@ -3766,6 +5402,59 @@ return function(mod, deps)
                 #notes > 0 and table.concat(notes, "+") or "SEMANTIC TEXT")
         end
         return rows
+    end
+
+    -- 2.7.64: capability-owner controls exposed through MOD COMPAT. Only rows
+    -- backed by a real provider contract receive controls; fixed policy and
+    -- presentation rows remain read-only. AUTO is always the safe default.
+    mod.exports.__beta26.compat21.ownerChoices = function(row)
+        row = type(row) == "table" and row or {}
+        local capability = row.controlCapability
+        if not capability or type(mod.exports.__beta26.compatOwnerChoices) ~= "function" then
+            return {}
+        end
+        local ok, choices = pcall(mod.exports.__beta26.compatOwnerChoices,
+            capability, row.nativeOwner or "Nuzlocke")
+        return ok and type(choices) == "table" and choices or {}
+    end
+
+    mod.exports.__beta26.compat21.ownerPreference = function(row)
+        row = type(row) == "table" and row or {}
+        if not row.controlCapability
+            or type(mod.exports.__beta26.compatOwnerPreference) ~= "function" then
+            return nil
+        end
+        local ok, value = pcall(mod.exports.__beta26.compatOwnerPreference,
+            row.controlCapability)
+        return ok and tostring(value or "auto") or "auto"
+    end
+
+    mod.exports.__beta26.compat21.ownerProposal = function(row, delta)
+        local choices = mod.exports.__beta26.compat21.ownerChoices(row)
+        if #choices < 2 then return nil end
+        local current = mod.exports.__beta26.compat21.ownerPreference(row) or "auto"
+        local index = 1
+        for i, choice in ipairs(choices) do
+            if tostring(choice.id) == current then index = i break end
+        end
+        local step = tonumber(delta) or 1
+        step = step < 0 and -1 or 1
+        index = ((index - 1 + step) % #choices) + 1
+        local choice = choices[index]
+        return choice and { id=tostring(choice.id), name=tostring(choice.name or choice.id),
+            capability=row.controlCapability, nativeOwner=row.nativeOwner,
+            gameplayImpact=row.gameplayImpact == true } or nil
+    end
+
+    mod.exports.__beta26.compat21.applyOwnerPreference = function(row, proposal)
+        row = type(row) == "table" and row or {}
+        proposal = type(proposal) == "table" and proposal or {}
+        if not row.controlCapability or proposal.capability ~= row.controlCapability
+            or type(mod.exports.__beta26.setCompatOwnerPreference) ~= "function" then
+            return false
+        end
+        return mod.exports.__beta26.setCompatOwnerPreference(
+            row.controlCapability, proposal.id or "auto") == true
     end
 
     -- Public merged species metadata surface. Providers may contribute partial
@@ -3853,6 +5542,7 @@ return function(mod, deps)
     -- MOD COMPAT SCREEN
     -----------------------------------------------------------------
     mod.content.screens:register("NuzlockeModCompatScreen", {
+        isModOptions = true,
         new = function(game)
             -- 2.1.22: R/B/Y uses the host's stable ListMenu for compatibility
             -- reporting. Yellow runtime showed the hand-drawn custom state
@@ -4083,9 +5773,58 @@ return function(mod, deps)
                 menu.__nuzCompatHelpPage = math.max(1,
                     math.floor(tonumber(rememberedCompat.helpPage) or 1))
                 menu.__nuzCompatHelpIndex = menu.index or 1
+
+                local function refreshCompatItems(self)
+                    local okNew, newRows = pcall(
+                        mod.exports.__beta26.compat21.surfaceRows, self.game)
+                    if not okNew or type(newRows) ~= "table" then return end
+                    for i, row in ipairs(newRows) do
+                        if items[i] and type(row) == "table" then
+                            items[i].right = tostring(row.owner or row.status or "")
+                            items[i].nuzlockeCompatRow = row
+                        end
+                    end
+                end
+
+                local function requestOwnerCycle(self, delta)
+                    local selected = items[self.index or 1]
+                    local row = selected and selected.nuzlockeCompatRow
+                    if not (type(row) == "table" and row.controlCapability) then
+                        return false
+                    end
+                    local proposal = mod.exports.__beta26.compat21.ownerProposal(row, delta)
+                    if not proposal then return true end
+                    local function apply()
+                        if mod.exports.__beta26.compat21.applyOwnerPreference(row, proposal) then
+                            refreshCompatItems(self)
+                            self.__nuzCompatHelpPage = 1
+                        end
+                    end
+                    if proposal.gameplayImpact then
+                        mod.ui.push(self.game, "NuzlockeLoadoutConfirm", {
+                            title = "OWNER WARNING",
+                            name = tostring(row.label or "COMPAT OWNER"),
+                            changes = {{
+                                from = tostring(row.owner or "AUTO"),
+                                to = tostring(proposal.name or proposal.id or "AUTO"),
+                                name = tostring(row.label or "OWNER"),
+                            }},
+                            onChoice = function(yes) if yes then apply() end end,
+                        })
+                    else
+                        apply()
+                    end
+                    return true
+                end
+
                 local baseUpdate = menu.update
                 menu.update = function(self, dt)
                     local before = self.index or 1
+                    if self.game.input:wasPressed("left") then
+                        if requestOwnerCycle(self, -1) then return end
+                    elseif self.game.input:wasPressed("right") then
+                        if requestOwnerCycle(self, 1) then return end
+                    end
                     -- Select is the engine action mapped to keyboard Tab on
                     -- the default desktop bindings. It is safe to consume here
                     -- because MOD COMPAT rows are informational, not actions.
@@ -4123,11 +5862,13 @@ return function(mod, deps)
                     local titleWidth = type(Font.width) == "function"
                         and Font.width(title) or (#tostring(title) * 8)
                     local titleX = math.max(8, math.floor((160 - titleWidth) / 2))
-                    Font.draw(title, titleX, 8)
-                    Font.draw(title, titleX + 1, 8)
+                    -- 2.7.95: give the title a full dedicated row and keep the
+                    -- column header away from its descenders/echo pixels.
+                    Font.draw(title, titleX, 7)
+                    Font.draw(title, titleX + 1, 7)
 
-                    Font.draw(Strings("RULE"), 20, 24)
-                    Font.draw(Strings("OWNER"), 94, 24)
+                    Font.draw(Strings("RULE"), 20, 25)
+                    Font.draw(Strings("OWNER"), 94, 25)
 
                     local scroll = self.scroll or 0
                     local cursor = self.index or 1
@@ -4136,7 +5877,7 @@ return function(mod, deps)
                         local index = scroll + slot
                         local item = items[index]
                         if not item then break end
-                        local y = 32 + (slot - 1) * 13
+                        local y = 35 + (slot - 1) * 13
                         local selected = index == cursor
                         if selected then
                             Font.drawCode(Theme.cursor, 8, y)
@@ -4148,10 +5889,15 @@ return function(mod, deps)
                     end
 
                     if scroll > 0 then
-                        Font.draw(Strings("^"), 148, 30)
+                        Font.draw(Strings("^"), 148, 32)
                     end
                     if scroll + pageSize < #items then
-                        Font.drawCode(Theme.moreArrow or 0xEE, 148, 86)
+                        -- Slow, calm blink: ~0.85s visible / ~0.85s hidden.
+                        local now = love.timer and love.timer.getTime
+                            and love.timer.getTime() or 0
+                        if (now % 1.70) < 0.85 then
+                            Font.drawCode(Theme.moreArrow or 0xEE, 148, 84)
+                        end
                     end
 
                     Font.drawBox(0, 12, 20, 6)
@@ -4159,6 +5905,11 @@ return function(mod, deps)
                     local selectedRow = selectedItem
                         and selectedItem.nuzlockeCompatRow or nil
                     local help = compatRelationshipHelp(selectedRow)
+                    if type(selectedRow) == "table" and selectedRow.controlCapability then
+                        local pref = mod.exports.__beta26.compat21.ownerPreference(selectedRow)
+                        help = "L/R OWNER. PREF " .. tostring(pref or "AUTO"):upper()
+                            .. ". " .. help
+                    end
                     local lines = compatWrapAll(help, 144)
                     local pages = math.max(1, math.ceil(#lines / 2))
                     local helpPage = math.max(1,
@@ -4170,10 +5921,10 @@ return function(mod, deps)
                         Font.draw(line, 8, 104 + i * 10)
                     end
                     if pages > 1 then
-                        Font.draw(Strings("SEL:%d/%d", helpPage, pages),
-                            96, 132)
+                        Font.draw(Strings("SEL %d/%d", helpPage, pages),
+                            94, 124)
                     else
-                        Font.draw(Strings("SELECT:INFO"), 72, 132)
+                        Font.draw(Strings("SELECT:INFO"), 70, 124)
                     end
                 end
 
@@ -4195,12 +5946,17 @@ return function(mod, deps)
                         index = cursor,
                         scroll = self.scroll or 0,
                         details = (function()
-                            local help = selected and compatRelationshipHelp(
-                                selected.nuzlockeCompatRow) or ""
+                            local row = selected and selected.nuzlockeCompatRow or nil
+                            local help = row and compatRelationshipHelp(row) or ""
+                            if type(row) == "table" and row.controlCapability then
+                                local pref = mod.exports.__beta26.compat21.ownerPreference(row)
+                                help = "L/R OWNER. PREF " .. tostring(pref or "AUTO"):upper()
+                                    .. ". " .. help
+                            end
                             return tostring(help)
                         end)(),
                         detailPage = self.__nuzCompatHelpPage or 1,
-                        footer = { Strings("SELECT/TAB: DETAIL PAGE"),
+                        footer = { Strings("L/R: OWNER  SELECT: DETAIL"),
                             Strings("B: BACK") },
                     }
                 end
@@ -4211,23 +5967,59 @@ return function(mod, deps)
             local rememberedCompat = uiRememberedScreen(game, "mod_compat")
             local self = {
                 game = game, screenId = "NuzlockeModCompatScreen",
-                isOpaque = true, scroll = math.max(0,
-                    math.floor(tonumber(rememberedCompat.scroll) or 0)),
+                isOpaque = true,
+                index = math.max(1, math.floor(tonumber(rememberedCompat.index) or 1)),
+                scroll = math.max(0, math.floor(tonumber(rememberedCompat.scroll) or 0)),
             }
+            local function requestGen2OwnerCycle(delta)
+                local rows = mod.exports.__beta26.compat21.surfaceRows(self.game)
+                local row = rows[self.index or 1]
+                if not (type(row) == "table" and row.controlCapability) then return false end
+                local proposal = mod.exports.__beta26.compat21.ownerProposal(row, delta)
+                if not proposal then return true end
+                local function apply()
+                    mod.exports.__beta26.compat21.applyOwnerPreference(row, proposal)
+                end
+                if proposal.gameplayImpact then
+                    mod.ui.push(self.game, "NuzlockeLoadoutConfirm", {
+                        title = "OWNER WARNING",
+                        name = tostring(row.label or "COMPAT OWNER"),
+                        changes = {{
+                            from = tostring(row.owner or "AUTO"),
+                            to = tostring(proposal.name or proposal.id or "AUTO"),
+                            name = tostring(row.label or "OWNER"),
+                        }},
+                        onChoice = function(yes) if yes then apply() end end,
+                    })
+                else
+                    apply()
+                end
+                return true
+            end
             function self:update()
                 if self.game.input:wasPressed("b") then
+                    rememberedCompat.index = self.index or 1
                     rememberedCompat.scroll = self.scroll or 0
                     self.game.stack:pop()
                     return
                 end
                 local rows = mod.exports.__beta26.compat21.surfaceRows(self.game)
-                local maxScroll = math.max(0, #rows - 5)
-                self.scroll = math.max(0, math.min(maxScroll, self.scroll or 0))
+                local count = #rows
+                self.index = math.max(1, math.min(math.max(1, count), self.index or 1))
                 if self.game.input:wasPressed("up") then
-                    self.scroll = math.max(0, self.scroll - 1)
+                    self.index = math.max(1, self.index - 1)
                 elseif self.game.input:wasPressed("down") then
-                    self.scroll = math.min(maxScroll, self.scroll + 1)
+                    self.index = math.min(math.max(1, count), self.index + 1)
+                elseif self.game.input:wasPressed("left") then
+                    if requestGen2OwnerCycle(-1) then return end
+                elseif self.game.input:wasPressed("right") then
+                    if requestGen2OwnerCycle(1) then return end
                 end
+                if self.index <= self.scroll then self.scroll = self.index - 1 end
+                if self.index > self.scroll + 5 then self.scroll = self.index - 5 end
+                local maxScroll = math.max(0, count - 5)
+                self.scroll = math.max(0, math.min(maxScroll, self.scroll or 0))
+                rememberedCompat.index = self.index or 1
                 rememberedCompat.scroll = self.scroll or 0
             end
             function self:draw()
@@ -4238,13 +6030,19 @@ return function(mod, deps)
                     Chrome.box(0, 0, 20, 18)
                     Chrome.print(Strings("MOD COMPAT"), 2, 1)
                     for slot = 1, 5 do
-                        local row = rows[self.scroll + slot]
+                        local index = self.scroll + slot
+                        local row = rows[index]
                         if not row then break end
                         local y = 3 + (slot - 1) * 2
+                        if index == self.index then Chrome.cursor(1, y) end
                         Chrome.print(Strings(row.label), 2, y)
-                        Chrome.print(Strings(row.owner), 2, y + 1)
+                        local owner = tostring(row.owner or "")
+                        if row.controlCapability then
+                            owner = owner .. " < >"
+                        end
+                        Chrome.print(Strings(owner), 2, y + 1)
                     end
-                    Chrome.print(Strings("B:BACK"), 13, 16)
+                    Chrome.print(Strings("L/R:OWNER B:BACK"), 2, 16)
                     return
                 end
                 local Font = require("src.render.Font")
@@ -4359,21 +6157,32 @@ return function(mod, deps)
     end)
   
     -- Forgiveness Token shop metadata is published beside the shop bridge above.
+    local function lifecycleGame(payload)
+        return type(payload) == "table" and payload.game
+            or getCurrentGame() or mod.game
+    end
     mod.events:on("game.ready", function(payload)
-        mod.exports.__beta26.attemptInstall("gen2.install_all", G2.installAll)
-        pcall(G2.reconcileRandomStarterProvenance,
-            type(payload) == "table" and payload.game or getCurrentGame() or mod.game)
+        local game = lifecycleGame(payload)
+        mod.exports.__beta26.attemptInstall("gen2.install_all", function()
+            return G2.installAll(game)
+        end)
+        pcall(G2.reconcileRandomStarterProvenance, game)
     end)
     mod.events:on("save.loaded", function(payload)
-        mod.exports.__beta26.attemptInstall("gen2.install_all", G2.installAll)
-        pcall(G2.reconcileRandomStarterProvenance,
-            type(payload) == "table" and payload.game or getCurrentGame() or mod.game)
+        local game = lifecycleGame(payload)
+        mod.exports.__beta26.attemptInstall("gen2.install_all", function()
+            return G2.installAll(game)
+        end)
+        pcall(G2.reconcileRandomStarterProvenance, game)
     end)
-    mod.events:on("save.created", function()
-        -- Gold NEW GAME replaces the mod.save backing before Oak/Elm scripts
-        -- run. Revalidate the native starter transaction wrapper at that exact
-        -- lifecycle boundary instead of waiting for a later save.loaded.
-        mod.exports.__beta26.attemptInstall("gen2.install_all", G2.installAll)
+    mod.events:on("save.created", function(payload)
+        -- Gold/Silver NEW GAME replaces the mod.save backing before Elm scripts
+        -- run. Revalidate using the exact lifecycle Game rather than a global
+        -- edition snapshot that can still belong to the previous session.
+        local game = lifecycleGame(payload)
+        mod.exports.__beta26.attemptInstall("gen2.install_all", function()
+            return G2.installAll(game)
+        end)
     end)
     end
 

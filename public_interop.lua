@@ -655,6 +655,17 @@ return function(mod, deps)
             }
         end
 
+        function Registry.itemEconomyDiagnostics(context)
+            context = type(context)=="table" and context or {}
+            local mode = math.max(0, math.min(1, math.floor(tonumber(
+                mod.save:get("randomizer_info_policy", 0)) or 0)))
+            local reveal = mode == 0
+            local info = type(mod.exports.__beta26.randomizerItemEconomyInfo) == "function"
+                and mod.exports.__beta26.randomizerItemEconomyInfo(
+                    context.game or getCurrentGame() or mod.game, reveal) or nil
+            return { policy = mode == 1 and "blind" or "open", info = info }
+        end
+
         function Registry.canRevealEncounterInformation(context)
             context = type(context)=="table" and context or {}
             local policy = Registry.encounterInformationPolicy(context.game)
@@ -1763,7 +1774,7 @@ return function(mod, deps)
             exp_post_distribution_seam=true, pc_policy=true,
             storage_transaction_policy=true, storage_swap_policy=true,
             encounter_entry_policy=true, encounter_information_policy=true,
-            encounter_selection_policy=true, encounter_spend_indicator=true,
+            encounter_selection_policy=true, encounter_spend_indicator=true, -- semantic projection only; built-in HUD retired
             final_encounter_registry=true,
             capture_mechanics=true, capture_policy=true, battle_information=true,
             quest_framework=true, quest_presentation=true, quest_content=true,
@@ -1786,8 +1797,8 @@ return function(mod, deps)
             held_item_battle_effect={rules={"no_held_items"},editions="GS+provider",seam="held_item.trigger/provider transient suppression",provider="held_items",evidence="source"},
             purchase_commit={rules={"no_buying"},editions="RBYGS",seam="mart purchase commit gates",provider="itemPolicy",evidence="source"},
             sale_commit={rules={"no_selling"},editions="RBYGS",seam="mart sale commit gates",provider="itemPolicy",evidence="source"},
-            center_heal={rules={"no_poke_center"},editions="RBYGS",seam="center/nurse dispatch gates",provider="service ownership",evidence="source"},
-            mom_heal={rules={"no_mom_heal"},editions="RBYGS",seam="mom heal dispatch gates",provider="service ownership",evidence="source"},
+            center_heal={rules={"no_poke_center"},editions="RBYGS",seam="R/B/Y nurse dispatch + Gen2 special HealParty gate",provider="service ownership",evidence="source"},
+            mom_heal={rules={"no_mom_heal"},editions="RBYGS",seam="R/B/Y Mom dispatch + Gen2 special HealParty gate",provider="service ownership",evidence="source"},
             static_capture={rules={"no_static_encounters"},editions="RBYGS",seam="static provenance + capture legality",provider="content.encounters",evidence="behavior"},
             encounter_randomization={rules={"random_encounter_tables"},editions="RBYGS",seam="Content.shouldRandomizeEncounter",provider="content randomizer policy",evidence="behavior"},
             learnset_randomization={rules={"random_learnsets"},editions="RBYGS",seam="Content.shouldRandomizeLearnset",provider="content randomizer policy",evidence="behavior"},

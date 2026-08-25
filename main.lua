@@ -1,5 +1,8 @@
--- Nuzlocke 2.7.28
--- Strict child of exact 2.7.27. Repairs inherited Gen2 initialization and fresh-title SETUP failures while preserving continued-game suppression.
+-- Nuzlocke 2.8.00
+-- Full release, strict child of exact packaged 2.7.106. Repairs the Gen2 Pack
+-- party-consumable commit seam at the authoritative live party slot and retunes
+-- five-stage held UP/DOWN navigation. Protected TOOLS profile semantics, World
+-- Building T3 default, Random Starter and tracker/compat behavior remain intact.
 -- Historical version lineage is maintained in CHANGELOG.md and docs/DOCUMENTATION_CHANGELOG.md.
 --
 -- Lineage:
@@ -32,15 +35,15 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.7.28",
+      build = "2.8.00",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.7.28",
+      manifestVersion = "2.8.00",
       setupProfileScope = "gen1",
-      parentVersion = "2.7.27",
-      parentSha256 = "cd6cd96f871a5f16f7c08a252ebbcfe7b557159d5f1cadad92590cba12f689cd",
-      compatibilityApi = 32,
+      parentVersion = "2.7.106",
+      parentSha256 = "10b482d6e535d318ff6b4e7ada052dac4fdd269ec6b4e2ac5fbf27368babb092",
+      compatibilityApi = 34,
       diagnosticsApi = 1,
   }
   -- 2.6.57: central fail-soft install / hook / feature-health foundation.
@@ -426,14 +429,14 @@ return function(mod)
   -- provider-neutral so presentation mods do not need hardcoded Nuzlocke
   -- screen-name heuristics and Nuzlocke does not need mod-id branches.
   mod.exports.nuzlocke_ui = {
-      api = 1,
+      api = 2,
       build = mod.exports.__beta26.build,
       stateOwner = "nuzlocke",
       screens = {
           NuzlockeConfigScreen = {
               role = "rules",
               stateOwner = "nuzlocke",
-              preferredLayout = "classic",
+              preferredLayout = "adaptive",
               nativeFallback = true,
               semanticAdapterSafe = true,
           },
@@ -454,28 +457,35 @@ return function(mod)
           NuzlockeForgivenessItem = {
               role = "forgiveness",
               stateOwner = "nuzlocke",
-              preferredLayout = "classic",
+              preferredLayout = "centered",
               nativeFallback = true,
               semanticAdapterSafe = false,
           },
           NuzlockeForgivenessRevive = {
               role = "forgiveness_revive",
               stateOwner = "nuzlocke",
-              preferredLayout = "classic",
+              preferredLayout = "centered",
               nativeFallback = true,
               semanticAdapterSafe = false,
           },
           NuzlockeForgivenessArea = {
               role = "forgiveness_area",
               stateOwner = "nuzlocke",
-              preferredLayout = "classic",
+              preferredLayout = "centered",
               nativeFallback = true,
               semanticAdapterSafe = false,
           },
           NuzlockeDevToolsScreen = {
               role = "developer_tools",
               stateOwner = "nuzlocke",
-              preferredLayout = "classic",
+              preferredLayout = "centered",
+              nativeFallback = true,
+              semanticAdapterSafe = false,
+          },
+          NuzlockeUiGalleryScreen = {
+              role = "ui_gallery",
+              stateOwner = "nuzlocke",
+              preferredLayout = "adaptive",
               nativeFallback = true,
               semanticAdapterSafe = false,
           },
@@ -544,10 +554,15 @@ return function(mod)
   local specialAcquisitionDenied
   local active
   local ItemPolicy
-  -- 2.6.56 source-audits the published Gen1Recomp 0.2.19 release.
-  -- Mod API 2 / save format 4 and the established protected transaction seams
-  -- remain compatible. Red/Blue/Yellow/Gold/Silver stay declared targets.
-  mod.exports.__beta26.recompCompatAudited = "0.2.19"
+  -- 2.7.84: source-audit the Gen1Recomp compatibility/documentation surface
+  -- through the 0.2.25 line. Mod API 2, save format 4 and the existing
+  -- engine range remain valid. Crystal is now an intentional Nuzlocke target,
+  -- but is explicitly ALPHA and carries independent runtime evidence.
+  mod.exports.__beta26.recompCompatAudited = "0.2.25"
+  mod.exports.__beta26.crystalSupport = {
+      stage = "ALPHA", runtime_certified = false,
+      note = "Crystal support is experimental; shared Gen-2 rules are enabled, but Crystal-specific systems require independent runtime certification.",
+  }
   mod.exports.__beta26.wonderlockeWip = true
 
   ---------------------------------------------------------------------
@@ -561,7 +576,7 @@ return function(mod)
   ---------------------------------------------------------------------
   local SAVE_SCHEMA_KEY = "__nuzlocke_save_schema"
   local SAVE_MIGRATION_KEY = "__nuzlocke_last_migration"
-  local CURRENT_SAVE_SCHEMA = 4
+  local CURRENT_SAVE_SCHEMA = 5
   local saveSchemaTooNew = false
   local saveMigrationError = nil
 
@@ -737,6 +752,16 @@ return function(mod)
           local oldDupes = store:get("dupes_mode", nil)
           if type(oldDupes) == "boolean" then
               store:set("dupes_mode", oldDupes and 2 or 0)
+          end
+          return true
+      end,
+      [5] = function(store)
+          store = store or mod.save
+          if store:get("shop_restrictions", nil) == nil then
+              local noBuy = store:get("no_buying", false) == true
+              local noSell = store:get("no_selling", false) == true
+              local mode = noBuy and (noSell and 3 or 1) or (noSell and 2 or 0)
+              store:set("shop_restrictions", mode)
           end
           return true
       end,
@@ -1285,6 +1310,35 @@ return function(mod)
           return true
       end)
 
+  -- 2.7.93 merges Running Shoes and Fast Surf into one Run / Surf row.
+  -- Existing saves choose the MORE RESTRICTIVE historical mode when the two
+  -- disagree, so updating never enables an assist the player had disabled.
+  -- The old keys remain synchronized compatibility mirrors only.
+  mod.exports.__beta26.registerSaveUpgradeStep("semantic",
+      "run_surf_merged_2793", function()
+          if mod.save:get("run_surf_merged_2793", false) ~= true then
+              local function legacyMovementMode(value)
+                  if type(value) == "boolean" then return value and 1 or 0 end
+                  return math.max(0, math.min(2,
+                      math.floor(tonumber(value) or 0)))
+              end
+              local existing = mod.save:get("run_surf", nil)
+              local mode
+              if existing ~= nil then
+                  mode = legacyMovementMode(existing)
+              else
+                  mode = math.min(
+                      legacyMovementMode(mod.save:get("automatic_running_shoes", 0)),
+                      legacyMovementMode(mod.save:get("fast_surf", 0)))
+              end
+              mod.save:set("run_surf", mode)
+              mod.save:set("automatic_running_shoes", mode)
+              mod.save:set("fast_surf", mode)
+              mod.save:set("run_surf_merged_2793", true)
+          end
+          return true
+      end)
+
   mod.exports.__beta26.runSaveUpgradePipeline = function(ev)
       local upgrade = mod.exports.__beta26.saveUpgrade
       local save = type(ev) == "table" and ev.save or nil
@@ -1411,6 +1465,30 @@ return function(mod)
       battle_stats = nil, stat_growth = nil, identity_dvs = nil,
       move_category_model = nil, species_evolutions = nil,
   }
+  -- 2.7.64: retain every live provider candidate, not only the first one.
+  -- MOD COMPAT can then pin a capability to AUTO, Nuzlocke/Engine, or a
+  -- specific installed provider without inventing ownership that the provider
+  -- did not actually advertise. Preferences are save-local and fail open.
+  local COMPAT_PROVIDER_CANDIDATES = {}
+
+  local function compatOwnerPreference(capability)
+      local prefs = mod.save:get("compat_owner_preferences", {})
+      local value = type(prefs) == "table" and prefs[tostring(capability)] or nil
+      value = tostring(value or "auto")
+      return value ~= "" and value or "auto"
+  end
+
+  local function setCompatOwnerPreference(capability, value)
+      capability = tostring(capability or "")
+      if capability == "" then return false end
+      local current = mod.save:get("compat_owner_preferences", {})
+      local prefs = {}
+      for k, v in pairs(type(current) == "table" and current or {}) do prefs[k] = v end
+      value = tostring(value or "auto")
+      if value == "auto" then prefs[capability] = nil else prefs[capability] = value end
+      mod.save:set("compat_owner_preferences", prefs)
+      return true
+  end
   local COMPAT_CAPABILITIES = {
       "level_caps", "postgame_caps", "escape", "encounters",
       "npc_talk", "npc_behavior", "npc_visibility", "npc_movement", "wonder_trade",
@@ -1428,6 +1506,9 @@ return function(mod)
       -- contract is intentionally deferred until the model has runtime proof.
       "battle_stats", "stat_growth", "identity_dvs",
       "move_category_model", "species_evolutions",
+      -- 2.7.65: optional mechanic-presence contracts. These do not grant
+      -- challenge-policy ownership; they only make otherwise N/A rules eligible.
+      "overworld_encounters", "safari_zone", "gym_guide_rare_candy", "starter_trio", "pokegear_radio", "cherrygrove_tour",
   }
 
   -- COMPATIBILITY LAYERS (beta.27.4)
@@ -1582,7 +1663,27 @@ return function(mod)
               ["0.2.19"] = {
                   api = 2, save_format = 4,
                   generation = { gen1 = true, gold = true },
-                  note = "Current source-audited profile; the 17-commit 0.2.18 to 0.2.19 delta rewrites substantial Gen 2 battle/EXP and Bill's PC presentation/behavior while preserving Nuzlocke-owned doWithdraw/checkSpaceInDestination/askRelease semantic seams, and improves SaveData, Loader/Gen2Compat, inventory, overworld, and Gold/Silver import paths. No Nuzlocke schema/API/manifest-range migration is required; exact-runtime smoke test remains required.",
+                  note = "Source-audited profile; the 17-commit 0.2.18 to 0.2.19 delta rewrites substantial Gen 2 battle/EXP and Bill's PC presentation/behavior while preserving Nuzlocke-owned doWithdraw/checkSpaceInDestination/askRelease semantic seams, and improves SaveData, Loader/Gen2Compat, inventory, overworld, and Gold/Silver import paths.",
+              },
+              ["0.2.20"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true },
+                  note = "Source-audited profile; stronger in-process session teardown and Gold/Silver label-keyed ROM text require no Nuzlocke API/schema migration. Exact-edition runtime smoke remains required.",
+              },
+              ["0.2.21"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true },
+                  note = "Historical source-audited profile; added mod.developer, isModOptions propagation, broader Gen2 translation/text support, field_residual (Gen1 only), lifecycle/Custom Cart/world-link additions, and the first upstream Crystal targeting groundwork.",
+              },
+              ["0.2.24"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true, crystal = true },
+                  note = "Current aggregate source/documentation audit through the 0.2.24-era line. Upstream now treats Crystal as a sixth playable edition and gen2 target; Nuzlocke intentionally opts Crystal in as ALPHA. New public seams include activeBlockAt/map.occupancy_allowed, battle.field_residual (Gen1 only), mod.developer, expanded Gen2 translation, Custom Carts and stronger in-process session lifecycle. Exact-edition runtime certification remains required.",
+              },
+              ["0.2.25"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true, crystal = true },
+                  note = "Current source/documentation audit. 0.2.25 preserves Mod API 2 and adds read-only mod.datasets imported-version views plus substantial Gen2 VM/battle/save/world work. Nuzlocke keeps active-game rule authority on mod.content, uses semantic Gen2 script/map identity for service and opening-clock gates, and treats datasets as a future read-only compatibility/randomizer data source rather than changing protected runtime transactions without certification.",
               },
           },
           seams = {
@@ -1954,7 +2055,10 @@ return function(mod)
   end
 
   H.discoverCompatProviders = function(loader)
-      for _, capability in ipairs(COMPAT_CAPABILITIES) do COMPAT_PROVIDERS[capability] = nil end
+      for _, capability in ipairs(COMPAT_CAPABILITIES) do
+          COMPAT_PROVIDERS[capability] = nil
+          COMPAT_PROVIDER_CANDIDATES[capability] = {}
+      end
       mod.exports.__beta26.compat.Mods.relationships = {}
       mod.exports.__beta26.compat.Mods.discovered = {}
       if not loader or type(loader.status) ~= "function" then
@@ -2014,13 +2118,18 @@ return function(mod)
                           end
                       end
                       mod.exports.__beta26.compat.Mods.relationships[id][capability] = relationship
-                      if relationship ~= "incompatible" and not COMPAT_PROVIDERS[capability] then
+                      if relationship ~= "incompatible" then
                           local value = providerValue(other.exports, capability)
                           if value ~= nil then
-                              COMPAT_PROVIDERS[capability] = {
+                              local candidate = {
                                   id=id, version=other.version, value=value,
                                   relationship=relationship, source=source,
                               }
+                              local list = COMPAT_PROVIDER_CANDIDATES[capability]
+                              list[#list + 1] = candidate
+                              if not COMPAT_PROVIDERS[capability] then
+                                  COMPAT_PROVIDERS[capability] = candidate
+                              end
                           end
                       end
                   end
@@ -2032,15 +2141,64 @@ return function(mod)
 
   local function activeCompatProvider(capability, game, battle)
       if capability == nil then return nil end
-      local provider = COMPAT_PROVIDERS[capability]
+      capability = tostring(capability)
+      local preference = compatOwnerPreference(capability)
+      -- Explicit Nuzlocke/Engine ownership means do not delegate this
+      -- capability. The caller's native path remains authoritative.
+      if preference == "nuzlocke" or preference == "engine" then return nil end
+      local provider = nil
+      local candidates = COMPAT_PROVIDER_CANDIDATES[capability] or {}
+      if preference ~= "auto" then
+          for _, row in ipairs(candidates) do
+              if tostring(row.id) == preference then provider = row break end
+          end
+          if not provider then
+              setCompatOwnerPreference(capability, "auto")
+              preference = "auto"
+          end
+      end
+      provider = provider or COMPAT_PROVIDERS[capability]
       if not provider then return nil end
       local ok, other = mod.exports.__beta26.Dev.pguard(
           "provider_find:" .. tostring(provider.id), mod.find, provider.id)
-      if not ok or not other or not other.exports then COMPAT_PROVIDERS[capability]=nil; return nil end
+      if not ok or not other or not other.exports then
+          if preference ~= "auto" then setCompatOwnerPreference(capability, "auto") end
+          return nil
+      end
       local value = providerValue(other.exports, capability)
-      if value == nil or not H.providerIsActive(value, game, battle) then COMPAT_PROVIDERS[capability]=nil; return nil end
+      if value == nil or not H.providerIsActive(value, game, battle) then
+          if preference ~= "auto" then setCompatOwnerPreference(capability, "auto") end
+          return nil
+      end
       provider.value=value; provider.version=other.version
       return provider
+  end
+
+  mod.exports.__beta26.compatOwnerPreference = compatOwnerPreference
+  mod.exports.__beta26.setCompatOwnerPreference = setCompatOwnerPreference
+  mod.exports.__beta26.compatOwnerChoices = function(capability, nativeOwner)
+      capability = tostring(capability or "")
+      local out = {
+          { id="auto", name="AUTO" },
+          { id=(nativeOwner == "Engine" and "engine" or "nuzlocke"),
+            name=tostring(nativeOwner or "Nuzlocke") },
+      }
+      local seen = { auto=true, engine=nativeOwner == "Engine", nuzlocke=nativeOwner ~= "Engine" }
+      for _, provider in ipairs(COMPAT_PROVIDER_CANDIDATES[capability] or {}) do
+          local id = tostring(provider.id or "")
+          if id ~= "" and not seen[id] then
+              local displayName = id
+              local okFind, other = pcall(mod.find, id)
+              if okFind and type(other) == "table" then
+                  displayName = tostring(other.name
+                      or (other.manifest and other.manifest.name) or id)
+              end
+              out[#out + 1] = { id=id, name=displayName,
+                  version=provider.version }
+              seen[id] = true
+          end
+      end
+      return out
   end
 
   local function providerContext(provider, game, battle)
@@ -2399,8 +2557,10 @@ return function(mod)
               route_20 = mod.exports.__beta26.routeSplitActive("route_20_split") and 1 or 0,
               mt_moon = math.max(0, math.min(1,
                   math.floor(tonumber(mod.save:get("mt_moon_splits", 0)) or 0))),
-              safari = math.max(0, math.min(1,
-                  math.floor(tonumber(mod.save:get("safari_zone_splits", 0)) or 0))),
+              safari = type(mod.exports.__beta26.safariClauseMode) == "function"
+                  and mod.exports.__beta26.safariClauseMode()
+                  or math.max(0, math.min(3, math.floor(tonumber(
+                      mod.save:get("safari_zone_splits", 0)) or 0))),
               gold_time = mod.save:get("gold_time_split", false) == true and 1 or 0,
               gold_headbutt = mod.save:get("gold_headbutt_split", false) == true and 1 or 0,
           }
@@ -2709,6 +2869,13 @@ return function(mod)
       ROUTE_NAMES[route.id] = route.name
       ROUTE_ORDER[route.id] = index
   end
+
+  -- 2.7.76 reconstruction: ALL_ROUTES/ROUTE_ORDER began as the authored
+  -- R/B/Y tracker catalog. Preserve that original seed identity so Gen 2
+  -- presentation can require real runtime evidence before exposing a Kanto
+  -- seed row, while dynamically discovered Johto/custom areas remain eligible.
+  local GEN1_SEED_IDS = {}
+  for id in pairs(ROUTE_ORDER) do GEN1_SEED_IDS[id] = true end
 
   ---------------------------------------------------------------------
   -- LEGACY MAP ALIASES
@@ -3063,6 +3230,13 @@ return function(mod)
           discoverAreasFromTable(data.maps)
           discoverAreasFromTable(data.mapsById)
           discoverAreasFromTable(data.mapData)
+          -- Gen II keeps its authoritative map tables beside the shared Gen I
+          -- names. The Encounter Tracker must discover those tables directly;
+          -- otherwise Gold/Silver LOG rows can be correct while MAP remains
+          -- seeded from the Gen I Kanto catalog.
+          discoverAreasFromTable(data.gen2Maps)
+          discoverAreasFromTable(data.gen2MapsById)
+          discoverAreasFromTable(data.gen2MapData)
           -- Content-only mods can patch encounters for an existing or newly
           -- authored map without exposing a separate maps registry entry.
           -- Treat encounter-registry keys as discoverable physical areas too;
@@ -3220,6 +3394,37 @@ return function(mod)
       return key
   end
 
+  -- 2.7.53: Safari Clause replaces the old binary Safari Splits selector while
+  -- preserving its persisted key for save compatibility. Modes 0/1 retain the
+  -- exact old STANDARD/PER AREA behavior; modes 2/3 add the community-style
+  -- Safari flee/failure exception without changing ordinary Failed Encounters.
+  mod.exports.__beta26.safariClauseMode = function()
+      if type(mod.exports.__beta26.ruleOperationalState) == "function" then
+          local ok = mod.exports.__beta26.ruleOperationalState(
+              "safari_zone_splits", false, currentGame or mod.game)
+          if ok ~= true then return 0 end
+      end
+      return math.max(0, math.min(3, math.floor(tonumber(
+          mod.save:get("safari_zone_splits", 0)) or 0)))
+  end
+
+  mod.exports.__beta26.safariClausePerArea = function()
+      local mode = mod.exports.__beta26.safariClauseMode()
+      return mode == 1 or mode == 3
+  end
+
+  mod.exports.__beta26.safariClauseUntilCatch = function()
+      return mod.exports.__beta26.safariClauseMode() >= 2
+  end
+
+  mod.exports.__beta26.isSafariEncounterArea = function(key, physical)
+      local zone = mod.exports.__beta26.encounterSplitAreas.safari
+      key = routeKey(key) or key
+      physical = routeKey(physical) or physical
+      return key == zone.parent or zone.members[key] == true
+          or physical == zone.parent or zone.members[physical] == true
+  end
+
   mod.exports.__beta26.projectEncounterArea = function(mapId, safari, x, y,
       width, height)
       local key = routeKey(mapId)
@@ -3245,9 +3450,7 @@ return function(mod)
 
       local zone = mod.exports.__beta26.encounterSplitAreas.safari
       if zone.members[key] then
-          local mode = math.max(0, math.min(1,
-              math.floor(tonumber(mod.save:get("safari_zone_splits", 0)) or 0)))
-          return mode == 1 and key or zone.parent
+          return mod.exports.__beta26.safariClausePerArea() and key or zone.parent
       end
       if safari == true then return zone.parent end
       return key
@@ -3776,7 +3979,35 @@ return function(mod)
           data = coreData and coreData.pokemon
       end
       if type(data) ~= "table" then return nil end
-      return data[species] or data[tostring(species or ""):upper()]
+
+      local raw = species
+      local key = tostring(raw or ""):upper()
+      local direct = data[raw] or data[key]
+      if type(direct) == "table" then return direct end
+
+      -- Gen1Recomp Gen-2 data may be indexed by numeric species id while
+      -- script transactions identify the Pokemon by canonical string name.
+      -- Resolve those rows before the glitch classifier treats an otherwise
+      -- ordinary Johto starter/gift as an unregistered species.
+      for id, row in pairs(data) do
+          if type(row) == "table" then
+              local aliases = {
+                  row.id, row.key, row.species, row.name,
+                  row.internalName, row.internal_name,
+              }
+              for _, alias in ipairs(aliases) do
+                  if alias ~= nil and tostring(alias):upper() == key then
+                      return row
+                  end
+              end
+              local numeric = tonumber(raw)
+              if numeric ~= nil and (tonumber(id) == numeric
+                  or tonumber(row.index) == numeric) then
+                  return row
+              end
+          end
+      end
+      return nil
   end
 
   local function providerSpeciesMetadata(game, species)
@@ -6098,9 +6329,6 @@ return function(mod)
           and not on("encounter_limit") then
           return Strings("INTERACTION: One Per Area is OFF. This setting still changes encounter classification/tracking, but it does not spend a catch slot.")
       end
-      if key == "encounter_spend_indicator" and not on("encounter_limit") then
-          return Strings("N/A: One Per Area is OFF, so there is no area catch slot for the encounter indicator to show as COUNT or SPENT.")
-      end
 
       -- Type Locke lane ownership.
       local slotIndex = ({
@@ -6140,7 +6368,9 @@ return function(mod)
       end
       if key == "randomizer_seed"
           and not on("random_starter") and not on("random_encounter_tables")
-          and not on("random_field_items") and not on("random_learnsets") then
+          and not on("random_field_items") and not on("random_learnsets")
+          and not on("random_trainers") and not on("random_evolutions") and not on("random_shops")
+          and not on("random_tms") and not on("random_gift_items") then
           return Strings("N/A: All seed-driven randomizers are OFF, so the displayed seed is not currently consumed.")
       end
       if (key == "random_starter_style" or key == "random_starter_balance"
@@ -6148,11 +6378,28 @@ return function(mod)
           and not on("random_starter") then
           return Strings("N/A: Random Starter is OFF.")
       end
+      if key == "random_evolution_balance" and not on("random_evolutions") then
+          return Strings("N/A: Random Evolutions is OFF.")
+      end
+      if key == "random_shop_balance" and not on("random_shops") then
+          return Strings("N/A: Random Shops is OFF.")
+      end
+      if key == "random_tm_compatibility" and not on("random_tms") then
+          return Strings("N/A: Random TMs is OFF.")
+      end
+      if (key == "random_trainer_balance" or key == "random_trainer_diversity"
+          or key == "random_trainer_theme") and not on("random_trainers") then
+          return Strings("N/A: Random Trainers is OFF.")
+      end
       if (key == "random_encounter_balance" or key == "random_encounter_repetition"
-          or key == "random_encounter_diversity_strength"
-          or key == "random_species_generation")
+          or key == "random_encounter_diversity_strength")
           and not on("random_encounter_tables") then
           return Strings("N/A: Random Encounters is OFF.")
+      end
+      if key == "random_species_generation"
+          and not on("random_encounter_tables")
+          and not on("random_trainers") and not on("random_evolutions") then
+          return Strings("N/A: Species-pool randomizers are OFF.")
       end
       if key == "random_encounter_diversity_strength"
           and tonumber(mod.save:get("random_encounter_repetition", 0)) ~= 1 then
@@ -6168,10 +6415,12 @@ return function(mod)
       end
       if key == "randomizer_info_policy"
           and not on("random_encounter_tables") and not on("random_starter")
-          and not on("random_field_items") then
-          return Strings("N/A: Starter, Encounter, and Field Item randomizers are OFF.")
+          and not on("random_field_items") and not on("random_learnsets")
+          and not on("random_trainers") and not on("random_evolutions") and not on("random_shops")
+          and not on("random_tms") and not on("random_gift_items") then
+          return Strings("N/A: All Randomizer subsystems are OFF.")
       end
-      if key == "random_learnset_generation" and not on("random_learnsets") then
+      if (key == "random_learnset_generation" or key == "random_learnset_stab") and not on("random_learnsets") then
           return Strings("N/A: Random Learnsets is OFF.")
       end
 
@@ -6213,14 +6462,10 @@ return function(mod)
           and (on("no_escape_rope") or number("travel_restrictions", 0) > 0) then
           return Strings("INTERACTION: Some escape methods are already restricted globally, but Dungeon Lock-In still seals the entry side and its remaining escape seams.")
       end
-      if key == "no_buying" and on("no_selling") then
-          return Strings("INTERACTION: No Selling is also ON, so marts cannot be used for either buying or selling.")
-      end
-      if key == "no_selling" and on("no_buying") then
-          return Strings("INTERACTION: No Buying is also ON, so marts cannot be used for either buying or selling.")
-      end
-      if key == "no_gambling" and on("no_buying") then
-          return Strings("INTERACTION: No Buying also blocks purchased coins/items; No Gambling still blocks wagering and prize redemption.")
+      if key == "no_gambling"
+          and (number("shop_restrictions", 0) == 1
+              or number("shop_restrictions", 0) == 3) then
+          return Strings("INTERACTION: Shop Restrictions also blocks purchases; No Gambling separately blocks wagering and prize redemption.")
       end
       if key == "party_size_limit" and on("gym_team_size") then
           return Strings("INTERACTION: Gym Team Size also applies at Gym Leaders. The lower applicable party limit controls there.")
@@ -6345,12 +6590,34 @@ return function(mod)
       gen1 = "nuzlocke_setup_profile_gen1.lua",
       gold = "nuzlocke_setup_profile_gold.lua",
       silver = "nuzlocke_setup_profile_silver.lua",
+      crystal = "nuzlocke_setup_profile_crystal.lua",
   }
+
+  mod.exports.__beta26.gen2AdapterReach = {
+      api = 1, counts = {}, last = {},
+  }
+  function mod.exports.__beta26.noteGen2AdapterReach(key, detail)
+      key = tostring(key or "unknown")
+      local reach = mod.exports.__beta26.gen2AdapterReach
+      reach.counts[key] = (tonumber(reach.counts[key]) or 0) + 1
+      if detail ~= nil then reach.last[key] = detail end
+      return reach.counts[key]
+  end
 
   function mod.exports.__beta26.runtimeIsGen2(game)
       -- Canonical internal Gen 2-family predicate. Gold and Silver share the
       -- same engine modules; exact edition identity stays separate in Dev.gameId.
       if game and tonumber(game.generation) == 2 then return true end
+      -- Reconstruction 2.7.75: exact-edition fallback recovered from the
+      -- reviewed mistaken 2.6.74 -> 2.6.75 delta. Silver runtime evidence
+      -- showed that generation/isGold helpers can fail while exact edition
+      -- detection still correctly reports a Gen-2 title. Keep exact identity
+      -- separate, but never let a recognized Gold/Silver/Crystal runtime fall
+      -- through to Gen-1 adapters or the Pallet tracker catalog.
+      local exact = type(getGameVersion) == "function" and getGameVersion() or nil
+      if exact == "GOLD" or exact == "SILVER" or exact == "CRYSTAL" then
+          return true
+      end
       local okVersion, GameVersion = pcall(require, "src.core.GameVersion")
       if okVersion and type(GameVersion) == "table" then
           if type(GameVersion.get) == "function"
@@ -6394,6 +6661,7 @@ return function(mod)
       if mod.exports.__beta26.runtimeIsGen2(game) then
           local version = getGameVersion and getGameVersion() or "GOLD"
           if version == "SILVER" then return "silver" end
+          if version == "CRYSTAL" then return "crystal" end
           return "gold"
       end
       return "gen1"
@@ -7558,7 +7826,7 @@ return function(mod)
           diagnostics_api = mod.exports.__beta26.diagnosticsApi,
           mod_api = 2,
           audited_recomp = mod.exports.__beta26.recompCompatAudited,
-          player_package_files = 30,
+          player_package_files = 31,
       }
   end
   if mod.exports.nuzlocke_compat then
@@ -7581,11 +7849,12 @@ return function(mod)
           player_start_stat_exp = 0, wild_start_stat_exp = 0,
           trainer_start_stat_exp = 0,
           pc_starting_vitamins = false, pc_starting_heal_items = false, random_starter = false,
-          random_field_items = false,
+          random_field_items = false, random_shops = false, random_shop_balance = 2,
+          random_tms = false, random_tm_compatibility = 0, random_gift_items = false,
           skip_opening_intro = false, quick_nuzlocke_start = false,
-          skip_cherrygrove_tour = false, encounter_spend_indicator = true,
+          skip_cherrygrove_tour = false,
           encounter_ball_limit = 0,
-          automatic_running_shoes = 0, fast_surf = 0,
+          run_surf = 0, battle_menu_ui = false,
           unlimited_bag_space = false, trade_evolutions = false,
           gold_starting_money = 3000, gold_starting_pokeballs = 0,
           gold_starting_rare_candies = 0,
@@ -7628,10 +7897,10 @@ return function(mod)
               -- shared boolean setter. Preserve true as the first enabled
               -- mode rather than silently resetting it OFF.
               value = value and 1 or 0
-          elseif (rule.key == "automatic_running_shoes" or rule.key == "fast_surf")
+          elseif rule.key == "run_surf"
               and type(value) == "boolean" then
-              -- Running Shoes used to be a boolean; ON meant HOLD B. Fast Surf
-              -- accepts the same defensive conversion for imported profiles.
+              -- Legacy movement-assist profiles may still carry booleans;
+              -- ON means HOLD B.
               value = value and 1 or 0
           end
 
@@ -7857,6 +8126,19 @@ return function(mod)
       for _, cat in ipairs(ruleCategories) do
           for _, rule in ipairs(cat.rules) do
               local v = source and source[rule.key]
+              if v == nil and source and rule.key == "run_surf" then
+                  local function legacyMovementMode(raw)
+                      if type(raw) == "boolean" then return raw and 1 or 0 end
+                      return math.max(0, math.min(2,
+                          math.floor(tonumber(raw) or 0)))
+                  end
+                  if source.automatic_running_shoes ~= nil
+                      or source.fast_surf ~= nil then
+                      v = math.min(
+                          legacyMovementMode(source.automatic_running_shoes),
+                          legacyMovementMode(source.fast_surf))
+                  end
+              end
               if v == nil and source and (rule.key == "route_2_split"
                   or rule.key == "route_10_split"
                   or rule.key == "route_20_split") then
@@ -7979,7 +8261,7 @@ return function(mod)
   -- data produced by copyRuleProfile is serialized; runtime progress never
   -- enters this store.
   local SETUP_PRESET_SLOTS = 3
-  local selectedSetupPresetSlot = 1
+  local selectedSetupPresetSlot = 0
   local function setupPresetPath(slot)
       slot = math.max(1, math.min(SETUP_PRESET_SLOTS,
           math.floor(tonumber(slot) or 1)))
@@ -8104,6 +8386,11 @@ return function(mod)
               end
           end
       end
+      do
+          local mode = mod.exports.__beta26.movementAssistMode(profile.run_surf)
+          mod.save:set("automatic_running_shoes", mode)
+          mod.save:set("fast_surf", mode)
+      end
       mod.save:set("locke_type", math.max(0, math.min(6,
           math.floor(tonumber(profile.locke_type)
               or defaultRuleValue("locke_type")))))
@@ -8166,6 +8453,11 @@ return function(mod)
               end
               mod.save:set(rule.key, expected)
           end
+      end
+      do
+          local mode = mod.exports.__beta26.movementAssistMode(profile.run_surf)
+          mod.save:set("automatic_running_shoes", mode)
+          mod.save:set("fast_surf", mode)
       end
 
       -- `locke_type` is profile metadata rather than a registered rule row,
@@ -8333,6 +8625,11 @@ return function(mod)
           for _, rule in ipairs(cat.rules) do
               mod.save:set(rule.key, normalizeRuleValue(rule, profile[rule.key]))
           end
+      end
+      do
+          local mode = mod.exports.__beta26.movementAssistMode(profile.run_surf)
+          mod.save:set("automatic_running_shoes", mode)
+          mod.save:set("fast_surf", mode)
       end
       mod.save:set("locke_type", math.max(0, math.min(6,
           math.floor(tonumber(profile.locke_type)
@@ -8535,23 +8832,46 @@ return function(mod)
       return fallback
   end
 
+  -- 2.7.80 reconstruction: setup-only host-clock authority for Gen 2.
+  -- Read the staged NEW GAME profile before the fresh save exists, then carry
+  -- the choice on the concrete save once creation swaps the mod.save backing.
+  mod.exports.__beta26.systemDateTimeRequested = function(game)
+      if saveSchemaTooNew then return false end
+      game = game or currentGame or mod.game
+      if not mod.exports.__beta26.runtimeIsGen2(game) then return false end
+      local save = game and game.save
+      if save and save.nuzlockeSystemDateTime == true then return true end
+      local profile = newGameRulesSnapshot or pendingNewGameRules
+      if profile and profile.system_date_time ~= nil then
+          return profile.system_date_time == true
+      end
+      return mod.save:get("system_date_time", false) == true
+  end
+
   -- 2.2.20: Skip Oak's presentation without replacing New Game itself.
-  -- Named intro steps are an upstream mod seam. Keep only semantic setup that
-  -- must still happen: R/B/Y name writes (resolved invisibly by the existing
-  -- Default Names adapter), and Gold's InitClock plus player-name write.
+  -- Named intro steps are an upstream mod seam. System Date/Time may remove
+  -- only Gen 2's InitClock step; all unrelated Oak/player-name progression is
+  -- preserved. Skip Opening Intro still keeps the minimum semantic steps.
   mod.hooks:wrap("intro.oak_speech.build", function(next, steps, speech)
       local downstream = next(steps, speech)
       if type(downstream) ~= "table" then return downstream end
       local game = speech and speech.game or currentGame or mod.game
-      if not mod.exports.__beta26.skipOpeningIntroRequested(game) then return downstream end
+      local gold = mod.exports.__beta26.runtimeIsGen2(game)
+      local hostClock = gold and mod.exports.__beta26.systemDateTimeRequested(game)
+      local skipIntro = mod.exports.__beta26.skipOpeningIntroRequested(game)
+      if not skipIntro and not hostClock then return downstream end
 
       local keep = {}
-      local gold = mod.exports.__beta26.runtimeIsGen2(game)
       for _, step in ipairs(downstream) do
           local id = type(step) == "table" and step.id or nil
-          local wanted = gold
-              and (id == "init_clock" or id == "name_player")
-              or (not gold and (id == "name_player" or id == "name_rival"))
+          local wanted
+          if skipIntro then
+              wanted = gold
+                  and (id == "name_player" or (id == "init_clock" and not hostClock))
+                  or (not gold and (id == "name_player" or id == "name_rival"))
+          else
+              wanted = not (gold and hostClock and id == "init_clock")
+          end
           if wanted then keep[#keep + 1] = step end
       end
       return keep
@@ -8614,7 +8934,9 @@ return function(mod)
           local wrapper = function(self, step)
               local game = self and self.game
               if automaticDefaultNamesEnabled(game) then
-                  local fallback = getGameVersion() == "SILVER" and "SILVER" or "GOLD"
+                  local exact = getGameVersion()
+                  local fallback = exact == "CRYSTAL" and "KRIS"
+                      or exact == "SILVER" and "SILVER" or "GOLD"
                   local name = configuredNamePreset(game, "player",
                       step and step.presets, fallback)
                   if game and game.save then
@@ -8650,7 +8972,8 @@ return function(mod)
           local wrapper = function(self, onDone)
               local game = self and self.game
               if automaticDefaultNamesEnabled(game) then
-                  local name = getGameVersion() == "SILVER" and "GOLD" or "SILVER"
+                  local exact = getGameVersion()
+                  local name = exact == "SILVER" and "GOLD" or "SILVER"
                   if game and game.save then
                       game.save.rival = game.save.rival or {}
                       game.save.rival.name = name
@@ -8868,6 +9191,11 @@ return function(mod)
 
   mod.exports.__beta26.ruleActive = function(game, key, battle)
       local fallback = defaultRuleValue(key)
+      if type(mod.exports.__beta26.ruleOperationalState) == "function" then
+          local ok = mod.exports.__beta26.ruleOperationalState(
+              key, false, game or currentGame or mod.game)
+          if ok ~= true then return false end
+      end
       return active(game or currentGame or mod.game, battle)
           and mod.save:get(key, fallback) == true
   end
@@ -8985,18 +9313,16 @@ return function(mod)
           return mode == 2 or (mode == 1 and bHeld)
       end
 
+      local runSurfMode = mod.exports.__beta26.movementAssistMode(
+          mod.save:get("run_surf", 0))
       if ctx.surfing == true then
-          if not modeActive(mod.save:get("fast_surf", 0)) then
-              return downstream
-          end
+          if not modeActive(runSurfMode) then return downstream end
           if downstreamAlreadyAccelerated then return downstream end
           return math.max(1, math.floor(baseFrames / 2))
       end
 
       if ctx.onBike == true then return downstream end
-      local runningMode = mod.exports.__beta26.movementAssistMode(
-          mod.save:get("automatic_running_shoes", 0))
-      if not modeActive(runningMode) then return downstream end
+      if not modeActive(runSurfMode) then return downstream end
 
       -- QoL Toggles' source-confirmed run_hold_b option composes on this same
       -- hook. If it already owns the currently-held B step, do not halve that
@@ -9008,6 +9334,90 @@ return function(mod)
       if downstreamAlreadyAccelerated then return downstream end
       return math.max(1, math.floor(baseFrames / 2))
   end)
+
+  ---------------------------------------------------------------------
+  -- OPTIONAL NUZLOCKE BATTLE COMMAND MENU UI (2.7.93)
+  --
+  -- Presentation only. Native battle update/input/menuIndex/action dispatch
+  -- remain authoritative. Hide only the ordinary four-command bottom menu and
+  -- redraw it as a centered Nuzlocke-owned 2x2 panel in the same row-major
+  -- order. Safari, Bug Contest and tutorial/demo menus keep their native UI.
+  ---------------------------------------------------------------------
+  do
+      local function battleMenuUiEligible(state)
+          if mod.save:get("battle_menu_ui", false) ~= true
+              or type(state) ~= "table" or state.phase ~= "menu" then
+              return false
+          end
+          if state.demo or state.safari or state.contest or state.tutorial then
+              return false
+          end
+          local index = tonumber(state.menuIndex)
+          return index ~= nil and index >= 1 and index <= 4
+      end
+      mod.exports.__beta26.battleMenuUiEligible = battleMenuUiEligible
+
+      mod.hooks:wrap("battle.bottom_ui_visible", function(next, state)
+          local downstream = next(state)
+          if battleMenuUiEligible(state) then return false end
+          return downstream
+      end)
+
+      mod.hooks:wrap("battle.overlay", function(next, state)
+          next(state)
+          if not battleMenuUiEligible(state) then return end
+
+          local okFont, Font = pcall(require, "src.render.Font")
+          if not okFont or type(Font) ~= "table"
+              or type(Font.draw) ~= "function" then return end
+          local okTheme, Theme = pcall(require, "src.ui.Theme")
+
+          local surfaceWidth = 160
+          if type(state.uiSize) == "function" then
+              local okSize, width = pcall(state.uiSize, state)
+              if okSize and tonumber(width) and tonumber(width) >= 160 then
+                  surfaceWidth = math.floor(tonumber(width))
+              end
+          end
+
+          -- 2.7.95 visual restoration: use the game's pixel-box chrome and
+          -- keep the command surface in the native bottom-right battle-owned
+          -- region instead of the large translucent rounded rectangle added in
+          -- 2.7.93. Input/action authority is still entirely native.
+          local panelW, panelH = 104, 48
+          local panelX = math.max(0, surfaceWidth - panelW)
+          local panelY = 96
+          local leftX, rightX = panelX + 16, panelX + 58
+          local topY, bottomY = panelY + 12, panelY + 28
+          local index = math.max(1, math.min(4,
+              math.floor(tonumber(state.menuIndex) or 1)))
+          local row = math.floor((index - 1) / 2)
+          local col = (index - 1) % 2
+          local cursorX = (col == 0 and leftX or rightX) - 10
+          local cursorY = row == 0 and topY or bottomY
+
+          love.graphics.setColor(1, 1, 1, 1)
+          love.graphics.rectangle("fill", panelX, panelY, panelW, panelH)
+          love.graphics.setColor(0, 0, 0, 1)
+          if type(Font.drawBox) == "function" then
+              Font.drawBox(math.floor(panelX / 8), math.floor(panelY / 8),
+                  math.floor(panelW / 8), math.floor(panelH / 8))
+          else
+              love.graphics.rectangle("line", panelX, panelY, panelW, panelH)
+          end
+          Font.draw(Strings("FIGHT", "battle"), leftX, topY)
+          Font.draw(Strings("POKEMON", "battle"), rightX, topY)
+          Font.draw(Strings("BAG", "battle"), leftX, bottomY)
+          Font.draw(Strings("RUN", "battle"), rightX, bottomY)
+          if type(Font.drawCode) == "function" then
+              Font.drawCode(okTheme and Theme.cursor or 0xED,
+                  cursorX, cursorY)
+          else
+              Font.draw(">", cursorX, cursorY)
+          end
+          love.graphics.setColor(1, 1, 1, 1)
+      end)
+  end
 
 
   ---------------------------------------------------------------------
@@ -9425,8 +9835,16 @@ return function(mod)
                       local world = liveGame and liveGame.world
                       local mapId = world and world.map and world.map.id
                           or "UNKNOWN"
+                      -- 2.7.50 Phase J #3: preserve Gold's historical Randomizer-v1
+                      -- semantic slot byte-for-byte, but give Silver fresh ALLOW
+                      -- placements an exact-edition namespace. Existing persisted
+                      -- canonical mappings remain authoritative, so already-seen
+                      -- sources do not reroll on upgrade.
+                      local edition = tostring(getGameVersion() or "GOLD"):upper()
+                      local legacyPrefix = edition == "SILVER" and "silver"
+                          or edition == "CRYSTAL" and "crystal" or "gold"
                       local slot = table.concat({
-                          "gold", tostring(mapId), "obj", tostring(objectId or "?")
+                          legacyPrefix, tostring(mapId), "obj", tostring(objectId or "?")
                       }, ":")
                       local choice = fieldItemChoice(liveGame, item, slot, {
                           sourceId=tostring(objectId or "?"),
@@ -9788,6 +10206,34 @@ return function(mod)
           return true
       end
       return worldMessage(game, tier1, tier2, tier3, critical)
+  end
+
+  mod.exports.__beta26.emitFailedEncounterFeedback = function(game, area)
+      local t1, t2, t3 = mod.exports.__beta26.worldRuleTriplet(
+          game, "failed_encounter")
+      -- This is consequential encounter-state feedback, not optional flavor.
+      -- T0/T1 use the plain explanation; T2/T3 progressively add flavor.
+      return worldMechanic(game, "failed:" .. tostring(area), t1, t2, t3, true)
+  end
+
+  mod.exports.__beta26.failedEncounterFeedbackTierAudit = function()
+      local report = { ok=true, checked=0, failures={} }
+      local function expect(id, actual, expected)
+          report.checked = report.checked + 1
+          if actual ~= expected then
+              report.ok = false
+              report.failures[#report.failures + 1] = tostring(id)
+          end
+      end
+      expect("failed_t0_plain",
+          worldMessageText(0, "PLAIN", "FLAVOR", "REGIONAL", true), "PLAIN")
+      expect("failed_t1_plain",
+          worldMessageText(1, "PLAIN", "FLAVOR", "REGIONAL", true), "PLAIN")
+      expect("failed_t2_flavor",
+          worldMessageText(2, "PLAIN", "FLAVOR", "REGIONAL", true), "FLAVOR")
+      expect("failed_t3_regional",
+          worldMessageText(3, "PLAIN", "FLAVOR", "REGIONAL", true), "REGIONAL")
+      return report
   end
 
   mod.exports.__beta26.worldCriticalFeedbackAudit = function()
@@ -12048,6 +12494,48 @@ return function(mod)
       if not row then row = Difficulty.selected() end
       return Difficulty.profileSummary(row)
   end
+
+  -- 2.7.63: describe the semantic trainer-rule dimensions a Difficulty
+  -- transition changes. This feeds the same confirmation surface used by
+  -- loadout changes, but does not mutate independent Nuzlocke rule values.
+  mod.exports.__beta26.difficultyImpactChanges = function(fromId, toId)
+      local from = Difficulty.optionById(fromId) or Difficulty.optionById("vanilla")
+      local to = Difficulty.optionById(toId) or Difficulty.optionById("vanilla")
+      local out = {}
+      local function value(row, key, boss)
+          if not row or tostring(row.id or "vanilla") == "vanilla" or row.external == true then
+              return 0
+          end
+          local v = Difficulty.profileValue(row, boss == true, key)
+          if type(v) == "boolean" then return v and 1 or 0 end
+          return tonumber(v) or 0
+      end
+      local function add(name, fromText, toText)
+          if tostring(fromText) ~= tostring(toText) then
+              out[#out + 1] = { name = Strings(name), from = tostring(fromText), to = tostring(toText) }
+          end
+      end
+      local function pairText(row, key, suffix)
+          local a, b = value(row, key, false), value(row, key, true)
+          return string.format("%s/%s%s", tostring(a), tostring(b), suffix or "")
+      end
+      if (from and from.external) or (to and to.external) then
+          add("TRAINER PROVIDER", tostring(from and from.name or "VANILLA"), tostring(to and to.name or "VANILLA"))
+          return out
+      end
+      add("TRAINER LEVEL", pairText(from, "levelPct", "%"), pairText(to, "levelPct", "%"))
+      add("TEAM EXPANSION", pairText(from, "teamChance", "%"), pairText(to, "teamChance", "%"))
+      add("SPECIES BST", pairText(from, "bstBoost", ""), pairText(to, "bstBoost", ""))
+      add("MOVE QUALITY", pairText(from, "moveTier", ""), pairText(to, "moveTier", ""))
+      add("TRAINER AI", pairText(from, "aiTier", ""), pairText(to, "aiTier", ""))
+      add("TRAINER STAT EXP", pairText(from, "statExp", ""), pairText(to, "statExp", ""))
+      add("TRAINER DV FLOOR", pairText(from, "dvFloor", ""), pairText(to, "dvFloor", ""))
+      add("GOLD HELD ITEMS", pairText(from, "heldTier", ""), pairText(to, "heldTier", ""))
+      add("BADGE BOOSTS", (from and from.noBadgeBoosts == true) and "OFF" or "RULE",
+          (to and to.noBadgeBoosts == true) and "OFF" or "RULE")
+      return out
+  end
+
   Difficulty.isBoss = function(classId)
       local id = tostring(classId or ""):upper()
       return Difficulty.BOSSES[id] == true
@@ -12848,21 +13336,23 @@ return function(mod)
       no_battle_items = true,
       no_buying = true,
       no_selling = true,
+      shop_restrictions = true,
       no_poke_center = true,
       no_mom_heal = true,
       whiteout_clause = true,
       gym_lock_in = true,
       dungeon_lock_in = true,
       area_guide_enabled = true,
-      encounter_spend_indicator = true,
       dev_mode = true,
       catch_info = true,
       stat_info = true,
       move_info = true,
-      automatic_running_shoes = true,
-      fast_surf = true,
+      run_surf = true,
+      battle_menu_ui = true,
       unlimited_bag_space = true,
       trade_evolutions = true,
+      system_clock_sync = true,
+      system_date_time = true,
       automatic_default_names = true,
       skip_opening_intro = true,
       quick_nuzlocke_start = true,
@@ -12889,6 +13379,7 @@ return function(mod)
       randomizer_info_policy = true,
       random_species_generation = true,
       random_learnsets = true,
+      random_evolutions = true,
       random_learnset_generation = true,
       physical_special_split = true,
       badge_boosts = true,
@@ -12971,19 +13462,18 @@ return function(mod)
       no_battle_items = Strings.source("GEN 2 BETA / TEST REQUIRED: blocks X Attack, X Defend, Dire Hit, Guard Spec., and compatible battle-stat items from Gen 2's battle Pack. Healing items and Poke Balls remain governed by their own rules."),
       no_buying = Strings.source("GEN 2 BETA / TEST REQUIRED: blocks entry into Gen 2's native BUY flow and rechecks at the money-changing transaction seam. The Mart remains usable for SELL/QUIT when those actions are otherwise allowed, and World Building supplies the rejection text."),
       no_selling = Strings.source("GEN 2 BETA / TEST REQUIRED: blocks entry into Gen 2's native SELL flow and rechecks before money/items can change. BUY/QUIT remain available when otherwise allowed, and World Building supplies the rejection text."),
-      no_poke_center = Strings.source("GEN 2 BETA / TEST REQUIRED: blocks Pokemon Center healing at the shared healing-service policy seam while leaving the Center building and unrelated services available."),
-      no_mom_heal = Strings.source("GEN 2 BETA / TEST REQUIRED: blocks Mom's party-healing service at the shared healing-service policy seam while preserving her unrelated dialogue and story behavior."),
+      no_poke_center = Strings.source("GEN 2 ALPHA/RETEST REQUIRED: Gold/Silver/Crystal gate the native special HealParty transaction only inside Pokemon Centers, leaving building access and unrelated services available."),
+      no_mom_heal = Strings.source("GEN 2 ALPHA/TEST REQUIRED: Gold/Silver/Crystal gate the native special HealParty transaction only in the player home, preserving unrelated Mom/story behavior."),
       whiteout_clause = Strings.source("GEN 2 BETA / TEST REQUIRED: ON survives a full wipe only when a usable party/PC reserve remains; dead, PC-locked, and Egg storage does not count. OFF is run-ending Blackout."),
       gym_lock_in = Strings.source("GEN 2 BETA / TEST REQUIRED: once you enter a supported Johto or Kanto Gym, ordinary exits are blocked until that Gym Leader is defeated. Already-cleared Gyms remain open."),
       dungeon_lock_in = Strings.source("GEN 2 BETA / TEST REQUIRED: seals the entrance used to enter a supported multi-exit dungeon until you reach a different legitimate exit. Escape Rope and escape-style field moves are blocked while active; older saves without entry-side state fail open."),
-      encounter_spend_indicator = Strings.source("GEN 2 BETA / TEST REQUIRED: shows the same read-only encounter-spend badge during Gen 2 wild battles when One Per Area is active."),
       catch_info = Strings.source("GEN 2 BETA: include the native Gen 2-styled CATCH page in party-menu NUZ INFO."),
       stat_info = Strings.source("GEN 2 BETA: include the native Gen 2-styled STAT page in NUZ INFO, including DVs and the five stored Stat EXP words. Special Attack/Defense share Gen 2's Special DV and Stat EXP word."),
       move_info = Strings.source("GEN 2 BETA: include the native Gen 2-styled MOVE page in NUZ INFO, reading names/type/power/accuracy/PP from the active merged move data."),
       area_guide_enabled = Strings.source("GEN 2 BETA: toggles Gen 2's discovery-driven Tracker map page instead of preloading the Gen1 area list."),
       dev_mode = Strings.source("GEN 2 BETA diagnostics only: records bounded lifecycle breadcrumbs, compact state snapshots, and read-only invariant warnings to the mod log. It never changes battle, encounter, RNG, legality, or save-schema behavior."),
-      automatic_running_shoes = Strings.source("GEN 2: OFF preserves vanilla walking; HOLD B runs at 2x walking speed while B is held; ALWAYS applies the same 2x walking speed continuously. Biking, surfing, scripts, and menus remain native in both Gold and Silver."),
-      fast_surf = Strings.source("GEN 2 / TEST REQUIRED: OFF preserves vanilla Surf movement; HOLD B applies 2x player-controlled Surf speed while B is held; ALWAYS applies it continuously. Surf start, Waterfall/scripted movement, fishing, biking, and walking remain native in both Gold and Silver."),
+      run_surf = Strings.source("GEN 2 / TEST REQUIRED: shared walking/Surf assist. OFF preserves native movement; HOLD B applies 2x speed to player-controlled walking or Surf only while B is held; ALWAYS applies the same 2x speed continuously. Biking, scripted movement, Surf start, Waterfall, fishing, menus, and cutscenes remain native."),
+      battle_menu_ui = Strings.source("GEN 2 / TEST REQUIRED: presentation-only alternative for the ordinary FIGHT / POKEMON / BAG / RUN command menu. Native battle actions, cursor semantics, move selection, party/PACK screens, Contest/tutorial menus, HP/status HUD, and rule enforcement remain authoritative."),
       unlimited_bag_space = Strings.source("GEN 2 / TEST REQUIRED: ON removes distinct-item slot pressure from the ordinary ITEM and BALL pockets while preserving the native 99-per-item stack cap. KEY ITEM and TM/HM pocket limits, PC item storage, item legality, and story acquisition rules remain native. OFF restores the live engine/provider capacities without deleting carried items."),
       trade_evolutions = Strings.source("GEN 2 / TEST REQUIRED: ON lets EVOLVE_TRADE species evolve on level-up at level 40+. Trade-with-item branches still require the original held item, consume it on success, and suppress a competing ordinary level evolution while that item is held so branches such as Slowking remain reachable. Native link-trade evolution and Everstone behavior stay intact in Gold and Silver."),
       automatic_default_names = Strings.source("NEW GAME only: skips the Gen 2 player-name menu using the running edition's first canonical preset (GOLD or SILVER), then skips only the later police-report Rival naming screen using the counterpart edition name. The first Rival battle still correctly displays ???, and Pokemon nickname prompts are unaffected."),
@@ -12993,26 +13483,29 @@ return function(mod)
       skip_cherrygrove_tour = Strings.source("GEN 2 only / TEST REQUIRED: if the Guide Gent tour has not happened yet, accepting it skips the long follow/movement/explanation segment and resumes at the MAP CARD gift. The native MAP CARD flag, final dialogue, object cleanup, and script ending still execute in Gold and Silver."),
       pc_starting_vitamins = Strings.source("GEN 2 NEW GAME QoL: adds 10 HP Up, Protein, Iron, Carbos, and Calcium to the fresh save's PC item storage. Existing saves are never backfilled, and challenge rules can still block vitamin use."),
       pc_starting_heal_items = Strings.source("GEN 2 NEW GAME QoL: adds 10 each of Potion, Super Potion, Max Potion, Antidote, Burn Heal, Ice Heal, Awakening, Parlyz Heal, and Full Heal to the fresh save's PC storage. Existing saves are never backfilled; normal item-use rules still apply."),
-      gold_starting_money = Strings.source("GEN 2 NEW GAME QoL / TEST REQUIRED: sets the fresh Gold/Silver wallet to 0-999999 using Gen 2's native player.money field. Default 3000 preserves vanilla."),
-      gold_starting_pokeballs = Strings.source("GEN 2 NEW GAME QoL / TEST REQUIRED: places 0-99 extra Poke Balls in the bedroom PC only after the Mystery Egg is returned to Elm. The native 5-Ball story reward is untouched in Gold and Silver, preventing early capture-rule arming."),
-      gold_starting_rare_candies = Strings.source("GEN 2 NEW GAME QoL / TEST REQUIRED: places 0-99 Rare Candies in the bedroom PC on the fresh Gold/Silver save. Default 0 preserves vanilla."),
-      randomizer_seed = Strings.source("GEN 2: shareable 8-digit deterministic seed for Nuzlocke-owned starter, encounter, visible field-item, and learnset randomizers in Gold/Silver. AUTO resolves a fresh run seed at each NEW GAME while Setup stays AUTO; nonzero seeds are FIXED/replayable. Reroll Seed creates a new fixed seed. Each system uses an independent versioned RNG stream."),
+      gold_starting_money = Strings.source("GEN 2 NEW GAME QoL / TEST REQUIRED: sets the fresh Gold/Silver/Crystal wallet to 0-999999 using Gen 2's native player.money field. Default 3000 preserves vanilla."),
+      gold_starting_pokeballs = Strings.source("GEN 2 NEW GAME QoL / TEST REQUIRED: DEFERRED DELIVERY. Places 0-99 extra Poke Balls in the bedroom PC only after the Mystery Egg is returned to Elm/capture unlock, unlike immediate Candy/heal/vitamin PC loadouts. The native 5-Ball story reward remains untouched."),
+      gold_starting_rare_candies = Strings.source("GEN 2 NEW GAME QoL / TEST REQUIRED: places 0-99 Rare Candies in the bedroom PC on the fresh Gold/Silver/Crystal save. Default 0 preserves vanilla."),
+      randomizer_preset = Strings.source("GEN 2: unified Randomizer preset. CUSTOM preserves individual controls. CHAOS enables every Nuzlocke-owned subsystem with broad policies; BALANCED enables them with progression-aware defaults. Provider-delegated subsystems remain externally owned, and manual child edits return the preset to CUSTOM."),
+      randomizer_seed = Strings.source("GEN 2: shareable 8-digit deterministic seed for all Nuzlocke-owned seed-driven randomizer subsystems in Gold/Silver/Crystal. AUTO resolves a fresh run seed at each NEW GAME while Setup stays AUTO; nonzero seeds are FIXED/replayable. Reroll Seed creates a new fixed seed. Each system uses an independent versioned RNG stream."),
+      system_date_time = Strings.source("GEN 2 NEW GAME only: initializes the native Gold/Silver/Crystal clock and weekday from the platform local clock, skips the opening InitClock selection, and auto-resolves Mom's initial weekday/DST setup while preserving surrounding story progression."),
+      system_clock_sync = Strings.source("GEN 2 QoL: while ON, re-anchors the native Gold/Silver/Crystal clock and weekday to current platform local time when the host minute changes. OFF stops Nuzlocke re-syncing and preserves the engine's current clock offset."),
       random_starter = Strings.source("Randomize only the starter received from Elm's selected Poke Ball. The chosen ball, starter event flags, rival team path, and story progression remain intact. Other encounters, gifts, trainers, and items are unchanged. Only applies before the starter is received."),
-      random_starter_style = Strings.source("GEN 2: ANY / 3-STAGE / BASE / SIM BST filtering for Elm's randomized starter in Gold/Silver while preserving progression-safe fallback and the chosen-ball story branch."),
-      random_starter_balance = Strings.source("GEN 2: INDEPENDENT / BALANCED starter-slate shaping for Gold/Silver. BALANCED prefers comparable current strength plus evolutionary potential without overriding hard legality, Starter Style, or distinctness."),
+      random_starter_style = Strings.source("GEN 2: ANY / 3-STAGE / BASE / SIM BST filtering for Elm's randomized starter in Gold/Silver/Crystal while preserving progression-safe fallback and the chosen-ball story branch."),
+      random_starter_balance = Strings.source("GEN 2: INDEPENDENT / BALANCED starter-slate shaping for Gold/Silver/Crystal. BALANCED prefers comparable current strength plus evolutionary potential without overriding hard legality, Starter Style, or distinctness."),
       random_starter_trio_typing = Strings.source("GEN 2: OFF / AUTO trio typing for Elm's three starter positions. AUTO prefers a three-way offensive type cycle using full dual typing, then falls back to the legal distinct slate if needed."),
       random_starter_rerolls = Strings.source("GEN 2: OFF / ON deterministic pre-selection starter rerolls. Each reroll advances only the starter reroll index; encounter, field-item, and learnset streams are unchanged. The action closes permanently after a starter is accepted."),
       random_encounter_tables = Strings.source("GEN 2 BETA / TEST REQUIRED: randomizes Gen 2's live grass, water, fishing, tree, time-of-day, and other encounter-table species while preserving the native slot structure and levels. Results persist by table slot."),
       random_field_items = Strings.source("GEN 2 BETA / TEST REQUIRED: randomizes visible OBJECTTYPE_ITEMBALL floor pickups at collection time through a separate deterministic FIELD_ITEMS stream. Key items and HMs remain vanilla/protected. Hidden BG-event items, NPC gifts, shops, fruit/apricorn trees, and scripted rewards are unchanged."),
       random_field_item_balance = Strings.source("GEN 2 / TEST REQUIRED: CHAOS preserves the full hard-safe item pool. CATEGORY prefers the authored pickup's semantic category. BALANCED first matches category + utility tier, then category, then tier, before hard-safe fallback. Key/HM/progression/provider protections never relax."),
       random_field_item_repetition = Strings.source("GEN 2 / TEST REQUIRED: ALLOW preserves independent deterministic item-ball rolls. DIVERSE biases native physical source ordinals toward different placement lanes. UNIQUE uses a stable source-ordinal permutation within the same hard-safe semantic pool; nonnumeric provider sources degrade deterministically and report diagnostics. Hidden BG-event items remain outside visible Field Item ownership."),
-      random_encounter_balance = Strings.source("GEN 2: CHAOS / SIM BST / EVO / BALANCED encounter replacement in Gold/Silver. SIM BST widens deterministic BST bands when needed; EVO/BALANCED also consider family depth, remaining evolutions, encounter level, and evolutionary ceiling before relaxing. Native levels, rates, time blocks, fishing/tree structures, and map tables remain unchanged."),
+      random_encounter_balance = Strings.source("GEN 2: CHAOS / SIM BST / EVO / BALANCED encounter replacement in Gold/Silver/Crystal. SIM BST widens deterministic BST bands when needed; EVO/BALANCED also consider family depth, remaining evolutions, encounter level, and evolutionary ceiling before relaxing. Native levels, rates, time blocks, fishing/tree structures, and map tables remain unchanged."),
       random_encounter_repetition = Strings.source("GEN 2: ALLOW / DIVERSE / UNIQUE repetition policy within each encounter source group. DIVERSE softly favors less-used legal species; UNIQUE avoids repeats until the legal pool is exhausted. Native rates, levels, methods, time blocks, and table structure remain unchanged."),
       random_encounter_diversity_strength = Strings.source("GEN 2: LIGHT / STANDARD / STRONG DIVERSE weighting. STANDARD preserves the 2.6.83 factor; LIGHT and STRONG alter only the soft repeat penalty. Fishing, Surf/water, grass/cave, Headbutt/tree, contest, and time buckets retain separate group identity."),
-      randomizer_info_policy = Strings.source("GEN 2: OPEN INFO exposes persisted randomized starter/encounter/visible-field-item results to compatible information tools. BLIND INFO hides randomized species/items while still exposing safe seed/version/mode, edition/table model, source/ownership identity, semantic category counts, protected/mapping counts, and fallback diagnostics. Information reads consume no RNG and do not rewrite mappings."),
-      random_species_generation = Strings.source("Species source used only by Gen 2 Random Encounters. Hidden and inactive while Random Encounters is OFF. AUTO keeps the live merged registry; GEN1 selects Kanto species, GEN2 selects Johto species, and BOTH selects all native 251 species plus compatible complete provider records that identify as Gen 1/2. Random Starter uses its own Starter Style over the full legal live species pool."),
+      randomizer_info_policy = Strings.source("GEN 2: OPEN INFO exposes persisted randomized starter/encounter/item-system results to compatible information tools. BLIND INFO hides randomized species/items while still exposing safe seed/version/mode, edition/table model, source/ownership identity, semantic category counts, protected/mapping counts, and fallback diagnostics. Information reads consume no RNG and do not rewrite mappings."),
+      random_species_generation = Strings.source("Shared species source for Gen 2 Random Encounters, Random Trainers, and Random Evolutions. Hidden while all three are OFF. Random Starter uses its own hard-safe live pool plus Starter Style. AUTO keeps the hard-safe live merged registry; GEN1 selects Kanto species, GEN2 selects Johto species, and BOTH selects Gen 1+2 species. Each participating subsystem applies its own stronger legality and story constraints afterward."),
       random_learnsets = Strings.source("GEN 2 BETA / TEST REQUIRED: randomizes Gen 2 species starting/level-up move entries through the live levelMoves data while preserving every learn level and entry count. Existing Pokemon keep already-known moves; future creation/level-up learning uses the randomized registry."),
-      random_learnset_generation = Strings.source("GEN 2: move source used only by Random Learnsets in Gold/Silver. AUTO uses the merged move registry; GEN1 selects move indices 1-165 and GEN2 selects 166-251. An empty requested pool fails open instead of inventing unavailable moves."),
+      random_learnset_generation = Strings.source("GEN 2: move source used only by Random Learnsets in Gold/Silver/Crystal. AUTO uses the merged move registry; GEN1 selects move indices 1-165 and GEN2 selects 166-251. An empty requested pool fails open instead of inventing unavailable moves."),
       physical_special_split = Strings.source("GEN 2 BETA / TEST REQUIRED: gives each damaging Gen 1/2 move its modern Physical/Special category. Damage stats, Reflect/Light Screen, and Counter/Mirror Coat identity are kept aligned. OFF preserves native type-based Gen 2 categories."),
       badge_boosts = Strings.source("GEN 2 BETA / TEST REQUIRED: ON keeps Gen 2's native badge stat/type boosts. OFF suppresses those battle-only boosts without changing badge ownership or progression. A selected difficulty profile that disables badge boosts also keeps them suppressed."),
       evolution_limit = Strings.source("GEN 2 BETA / TEST REQUIRED: NORMAL keeps native evolution behavior. NO FINAL blocks evolution into a target that the live merged Gen 2 species data confirms has no further evolution. NO EVOLUTION blocks all ordinary evolution checks. Unknown/incomplete modded evolution data fails open."),
@@ -13074,16 +13567,202 @@ return function(mod)
       return false
   end
 
-  function mod.exports.__beta26.ruleForConfigSurface(rule, gen2Mode)
-      if not gen2Mode then
-          if rule and (rule.gen2Only == true or rule.goldOnly == true) then return nil end
-          if rule and rule.capabilityGate == "held_items"
-              and not mod.exports.__beta26.heldItemRuleAvailable(currentGame or mod.game) then
-              return nil
-          end
-          return rule
+  -- 2.7.65: one availability contract owns edition applicability,
+  -- provider-enabled mechanics, dependency hiding and dominance suppression.
+  -- Stored preferences remain dormant; effective gameplay reads neutralize
+  -- unavailable/suppressed rules instead of merely hiding their menu rows.
+  mod.exports.__beta26.ruleEditionId = function(game, gen2Mode)
+      local version = getGameVersion and getGameVersion() or nil
+      if version == nil and type(game) == "table" then
+          version = game.version or game.gameVersion
+              or (game.data and (game.data.version or game.data.gameVersion))
       end
-      if not (rule and mod.exports.__beta26.gen2BetaRules[rule.key]) then return nil end
+      local id = tostring(version or ""):lower()
+      if id == "red" or id == "blue" or id == "yellow"
+          or id == "gold" or id == "silver" or id == "crystal" then
+          return id
+      end
+      if gen2Mode == nil then
+          gen2Mode = mod.exports.__beta26.runtimeIsGen2(game or currentGame or mod.game)
+      end
+      return gen2Mode and "gold" or "red"
+  end
+
+  mod.exports.__beta26.ruleCapabilityAvailable = function(capability)
+      if type(capability) ~= "string" or capability == "" then return false end
+      local legacy = mod.exports.nuzlocke_compat
+      if type(legacy) == "table" and type(legacy.hasProviderCapability) == "function" then
+          local ok, available = pcall(legacy.hasProviderCapability, capability)
+          if ok and available == true then return true end
+      end
+      return false
+  end
+
+  mod.exports.__beta26.ruleNativeAvailableForEdition = function(rule, edition)
+      if type(rule) ~= "table" then return false end
+      edition = tostring(edition or ""):lower()
+      local isGen2 = edition == "gold" or edition == "silver" or edition == "crystal"
+      if rule.gen2Only == true or rule.goldOnly == true then
+          return isGen2
+      end
+      if rule.rbyOnly == true then return not isGen2 end
+      if type(rule.nativeEditions) == "table" then
+          return rule.nativeEditions[edition] == true
+      end
+      return true
+  end
+
+  mod.exports.__beta26.ruleNativeAvailable = function(rule, game, gen2Mode)
+      if type(rule) ~= "table" then return false end
+      local edition = mod.exports.__beta26.ruleEditionId(game, gen2Mode)
+      return mod.exports.__beta26.ruleNativeAvailableForEdition(rule, edition)
+  end
+
+  mod.exports.__beta26.ruleAvailableForGame = function(rule, game, gen2Mode)
+      if mod.exports.__beta26.ruleNativeAvailable(rule, game, gen2Mode) then
+          return true, "native"
+      end
+      if type(rule) == "table" and rule.capabilityGate
+          and mod.exports.__beta26.ruleCapabilityAvailable(rule.capabilityGate) then
+          return true, "provider"
+      end
+      return false, "not_applicable"
+  end
+
+  mod.exports.__beta26.rawConfiguredRuleValue = function(key, preGame)
+      local spec = mod.exports.__beta26.ruleDefinitionByKey
+          and mod.exports.__beta26.ruleDefinitionByKey[key]
+      local fallback = spec and spec.default
+      if preGame then
+          local staged = pendingNewGameRules
+          if type(staged) == "table" and staged[key] ~= nil then return staged[key] end
+          return fallback
+      end
+      return mod.save:get(key, fallback)
+  end
+
+  mod.exports.__beta26.ruleConditionMatches = function(cond, preGame)
+      if type(cond) ~= "table" or type(cond.key) ~= "string" then return true end
+      local value = mod.exports.__beta26.rawConfiguredRuleValue(cond.key, preGame)
+      local op = cond.op or "true"
+      if op == "true" then return value == true end
+      if op == "false" then return value ~= true end
+      if op == "eq" then return value == cond.value or tonumber(value) == tonumber(cond.value) end
+      if op == "gt" then return (tonumber(value) or 0) > (tonumber(cond.value) or 0) end
+      if op == "gte" then return (tonumber(value) or 0) >= (tonumber(cond.value) or 0) end
+      return true
+  end
+
+  mod.exports.__beta26.ruleOperationalState = function(key, preGame, game)
+      local spec = mod.exports.__beta26.ruleDefinitionByKey
+          and mod.exports.__beta26.ruleDefinitionByKey[key]
+      if type(spec) ~= "table" then return true, "unknown_rule" end
+      local available, reason = mod.exports.__beta26.ruleAvailableForGame(
+          spec, game or currentGame or mod.game)
+      if not available then return false, reason end
+      if spec.requiresRule then
+          local parentOk = mod.exports.__beta26.ruleOperationalState(
+              spec.requiresRule.key, preGame, game)
+          if parentOk ~= true or not mod.exports.__beta26.ruleConditionMatches(spec.requiresRule, preGame) then
+              return false, "dependency"
+          end
+      end
+      if type(spec.requiresAll) == "table" then
+          for _, cond in ipairs(spec.requiresAll) do
+              local parentOk = mod.exports.__beta26.ruleOperationalState(
+                  cond.key, preGame, game)
+              if parentOk ~= true or not mod.exports.__beta26.ruleConditionMatches(cond, preGame) then
+                  return false, "dependency"
+              end
+          end
+      end
+      if type(spec.requiresAnyTrue) == "table" then
+          local any = false
+          for _, parentKey in ipairs(spec.requiresAnyTrue) do
+              local parentOk = mod.exports.__beta26.ruleOperationalState(
+                  parentKey, preGame, game)
+              if parentOk == true and mod.exports.__beta26.rawConfiguredRuleValue(parentKey, preGame) == true then
+                  any = true break
+              end
+          end
+          if not any and not (preGame and spec.keepVisiblePreGame == true) then
+              return false, "dependency"
+          end
+      end
+      if spec.suppressedBy and mod.exports.__beta26.ruleConditionMatches(spec.suppressedBy, preGame) then
+          return false, "superseded"
+      end
+      return true, reason or "native"
+  end
+
+  mod.exports.__beta26.ruleAvailabilityAudit = function()
+      local report = { ok=true, checked=0, failures={}, editions={} }
+      local defs = mod.exports.__beta26.ruleDefinitionByKey or {}
+      local editions = { "red", "blue", "yellow", "gold", "silver", "crystal" }
+      for _, edition in ipairs(editions) do report.editions[edition] = 0 end
+      local graph = {}
+      local function requireKnown(owner, key)
+          if type(key) ~= "string" or type(defs[key]) ~= "table" then
+              report.ok = false
+              report.failures[#report.failures + 1] =
+                  tostring(owner) .. ": unknown dependency " .. tostring(key)
+          end
+      end
+      for key, spec in pairs(defs) do
+          report.checked = report.checked + 1
+          graph[key] = graph[key] or {}
+          if spec.rbyOnly == true and (spec.gen2Only == true or spec.goldOnly == true) then
+              report.ok=false
+              report.failures[#report.failures+1]=key..": contradictory edition flags"
+          end
+          for _, edition in ipairs(editions) do
+              if mod.exports.__beta26.ruleNativeAvailableForEdition(spec, edition) then
+                  report.editions[edition] = report.editions[edition] + 1
+              end
+          end
+          local function edge(dep)
+              if dep and dep.key then
+                  requireKnown(key, dep.key)
+                  graph[key][#graph[key]+1] = dep.key
+              end
+          end
+          edge(spec.requiresRule)
+          edge(spec.suppressedBy)
+          for _, dep in ipairs(spec.requiresAll or {}) do edge(dep) end
+          for _, dep in ipairs(spec.requiresAnyTrue or {}) do
+              requireKnown(key, dep)
+              graph[key][#graph[key]+1] = dep
+          end
+      end
+      local visiting, visited = {}, {}
+      local function visit(key)
+          if visiting[key] then
+              report.ok=false
+              report.failures[#report.failures+1]="dependency cycle at "..tostring(key)
+              return
+          end
+          if visited[key] then return end
+          visiting[key]=true
+          for _, dep in ipairs(graph[key] or {}) do visit(dep) end
+          visiting[key]=nil
+          visited[key]=true
+      end
+      for key in pairs(graph) do visit(key) end
+      return report
+  end
+
+  function mod.exports.__beta26.ruleForConfigSurface(rule, gen2Mode)
+      if not rule then return nil end
+      local available, availabilitySource = mod.exports.__beta26.ruleAvailableForGame(
+          rule, currentGame or mod.game, gen2Mode)
+      if not available then return nil end
+      if rule.capabilityGate == "held_items"
+          and not mod.exports.__beta26.heldItemRuleAvailable(currentGame or mod.game) then
+          return nil
+      end
+      if not gen2Mode then return rule end
+      if not mod.exports.__beta26.gen2BetaRules[rule.key]
+          and availabilitySource ~= "provider" then return nil end
       local copy = {}
       for k, v in pairs(rule) do copy[k] = v end
       copy.desc = mod.exports.__beta26.gen2BetaDescriptions[rule.key] or copy.desc
@@ -13154,7 +13833,19 @@ return function(mod)
                           }
                       })
                   end
-                  if preGame and rule.key == "randomizer_seed" then
+                  if rule.key == "system_clock_sync" and not preGame and goldMode then
+                      table.insert(list, {
+                          isHeader = false, isControl = true,
+                          isManualClockControl = true,
+                          rule = {
+                              key = "manual_gen2_time",
+                              name = Strings.source("Manual Time"),
+                              shortName = Strings.source("Manual Time"),
+                              desc = Strings.source("GEN 2 in-run clock control. Choose a specific game hour and minute using the native Gold/Silver/Crystal clock authority. Applying manual time turns System Clock Sync OFF so host time and manual time cannot fight. The current weekday is preserved.")
+                          }
+                      })
+                  end
+                  if rule.key == "randomizer_seed" then
                       table.insert(list, {
                           isHeader = false, isControl = true,
                           isRandomizerRerollControl = true,
@@ -13162,7 +13853,17 @@ return function(mod)
                               key = "reroll_randomizer_seed",
                               name = Strings.source("Reroll Seed"),
                               shortName = Strings.source("Reroll Seed"),
-                              desc = Strings.source("Generate a new nonzero FIXED 8-digit seed immediately. Use this when you want a different reproducible randomizer layout without editing digits manually. To get a fresh automatic seed on every NEW GAME instead, set Rndm Seed to 00000000 / AUTO.")
+                              desc = Strings.source("Generate a new nonzero FIXED 8-digit seed immediately. This control is available in Setup and during a run; live changes rebuild active Nuzlocke-owned randomizer projections immediately.")
+                          }
+                      })
+                      table.insert(list, {
+                          isHeader = false, isControl = true,
+                          isRandomizerAutoSeedControl = true,
+                          rule = {
+                              key = "auto_randomizer_seed",
+                              name = Strings.source("Auto Seed"),
+                              shortName = Strings.source("Auto Seed"),
+                              desc = Strings.source("Return the configured seed to 00000000 / AUTO. The resolved run seed is cleared; during a run, active Nuzlocke-owned randomizer projections are rebuilt immediately from a fresh automatic seed.")
                           }
                       })
                   end
@@ -13171,43 +13872,64 @@ return function(mod)
       end
 
       if not preGame then
+          -- 2.7.101: player utilities belong in one final in-run TOOLS section.
+          -- Saved Presets are installation-scoped configuration only, so they
+          -- are safe to reuse during a run; loading still previews every rule
+          -- change before applying it. Encounter Assignment is the existing
+          -- player-assisted legacy catch-location recovery surface, renamed to
+          -- describe what the tool actually does.
+          table.insert(list, { isHeader = true, name = Strings.source("TOOLS") })
           table.insert(list, {
               isHeader = false, isControl = true, isInGameSave = true,
               alwaysVisible = true,
               rule = { key = "save_in_game_rules", name = Strings.source("Save Rules"),
                   desc = goldMode
-                      and Strings.source("Save the current GEN 2 BETA-compatible settings to the active Gold or Silver save.")
+                      and Strings.source("Save the current GEN 2-compatible settings to the active save.")
                       or Strings.source("Save the current NUZLOCKE RULES to the active game save.") }
           })
-          if not goldMode then
-              table.insert(list, {
-                  isHeader = false, isControl = true, isRecoveryControl = true,
-                  alwaysVisible = true,
-                  rule = { key = "recover_legacy_catches", name = Strings.source("Recover Catches"),
-                      desc = Strings.source("Review Pokemon from older saves whose catch location could not be recovered automatically.") }
-              })
-          end
+          table.insert(list, { isHeader = false, isControl = true,
+              isSetupPresetSlot = true, alwaysVisible = true,
+              rule = { key = "setup_preset_slot", name = Strings.source("Profile Slot"),
+                  desc = Strings.source("Choose OFF or one of three installation-wide rule-profile slots for this edition scope. LEFT/RIGHT or A cycles OFF/1/2/3. Save Profile and Load Profile act on this selected slot.") } })
+          table.insert(list, { isHeader = false, isControl = true,
+              isSetupPresetSave = true, alwaysVisible = true,
+              rule = { key = "save_setup_preset", name = Strings.source("Save Profile"),
+                  desc = Strings.source("Save the current rule configuration to the Profile Slot selected above. A saves when slot 1, 2, or 3 is selected; OFF performs no save. Runtime progress, catches, deaths, badges, party, balances, and Run History are never stored.") } })
+          table.insert(list, { isHeader = false, isControl = true,
+              isSetupPresetLoad = true, alwaysVisible = true,
+              rule = { key = "load_setup_preset", name = Strings.source("Load Profile"),
+                  desc = Strings.source("Preview the Profile Slot selected above and confirm its rule changes before applying them to this run. A loads when slot 1, 2, or 3 is selected; OFF performs no load.") } })
+          table.insert(list, {
+              isHeader = false, isControl = true, isRecoveryControl = true,
+              alwaysVisible = true,
+              rule = { key = "recover_legacy_catches", name = Strings.source("Encounter Assignment"),
+                  shortName = Strings.source("Enc. Assign"),
+                  desc = Strings.source("Assign encounter areas for Pokemon whose catch provenance could not be recovered automatically. This changes tracker provenance only; it never creates a new Pokemon or catch allowance.") }
+          })
       end
 
       if preGame then
-          table.insert(list, { isHeader = false, isControl = true, isSetupSave = true,
-              alwaysVisible = true,
-              rule = { key = "save_setup_options", name = Strings.source("Save Setup"),
-                  desc = goldMode
-                      and Strings.source("Save this edition-specific GEN 2 BETA profile for the next Gold or Silver NEW GAME. Gold and Silver keep separate profiles; this does not replace R/B/Y.")
-                      or Strings.source("Save this separate R/B/Y profile for the next Gen1 NEW GAME. It does not replace the Gold/Silver profiles.") } })
+          -- 2.7.101: TOOLS is a real final subsection in Setup too.
+          table.insert(list, { isHeader = true, name = Strings.source("TOOLS") })
           table.insert(list, { isHeader = false, isControl = true,
               isSetupPresetSlot = true, alwaysVisible = true,
-              rule = { key = "setup_preset_slot", name = Strings.source("Preset Slot"),
-                  desc = Strings.source("Choose one of three installation-wide Saved Setup Preset slots for this Setup profile scope. LEFT/RIGHT or A cycles slots.") } })
+              rule = { key = "setup_preset_slot", name = Strings.source("Profile Slot"),
+                  desc = Strings.source("Choose OFF or one of three installation-wide Saved Setup Preset slots for this Setup profile scope. LEFT/RIGHT or A cycles OFF/1/2/3. Save Profile and Load Profile act on this selected slot.") } })
           table.insert(list, { isHeader = false, isControl = true,
               isSetupPresetSave = true, alwaysVisible = true,
-              rule = { key = "save_setup_preset", name = Strings.source("Save Preset"),
-                  desc = Strings.source("Save the current Setup rule profile into the selected persistent preset slot. This stores configuration only, never catches, deaths, badges, party, balances, or Run History.") } })
+              rule = { key = "save_setup_preset", name = Strings.source("Save Profile"),
+                  desc = Strings.source("Save the current Setup rule profile into the Profile Slot selected above. A saves when slot 1, 2, or 3 is selected; OFF performs no save. This stores configuration only, never catches, deaths, badges, party, balances, or Run History.") } })
           table.insert(list, { isHeader = false, isControl = true,
               isSetupPresetLoad = true, alwaysVisible = true,
-              rule = { key = "load_setup_preset", name = Strings.source("Load Preset"),
-                  desc = Strings.source("Preview changes from the selected persistent preset and confirm before applying them to this Setup screen.") } })
+              rule = { key = "load_setup_preset", name = Strings.source("Load Profile"),
+                  desc = Strings.source("Preview changes from the Profile Slot selected above and confirm before applying them to this Setup screen. A loads when slot 1, 2, or 3 is selected; OFF performs no load.") } })
+          table.insert(list, {
+              isHeader = false, isControl = true, isRecoveryControl = true,
+              alwaysVisible = true,
+              rule = { key = "recover_legacy_catches", name = Strings.source("Encounter Assignment"),
+                  shortName = Strings.source("Enc. Assign"),
+                  desc = Strings.source("Assign encounter areas for Pokemon whose catch provenance could not be recovered automatically. This changes tracker provenance only; it never creates a new Pokemon or catch allowance.") }
+          })
       end
       return list
   end
@@ -13258,6 +13980,10 @@ return function(mod)
           label = "learnset randomizer",
       },
       random_learnset_generation = {
+          capabilities = { "learnset_randomizer_provider" },
+          label = "learnset randomizer",
+      },
+      random_learnset_stab = {
           capabilities = { "learnset_randomizer_provider" },
           label = "learnset randomizer",
       },
@@ -13346,7 +14072,7 @@ return function(mod)
           -- Fishing is a separate runtime seam in PokemonRecompRandomizer; a
           -- fishing-only run therefore does not claim our encounter-table pass.
           owns = settings.wild_pokemon ~= nil and settings.wild_pokemon ~= "off"
-      elseif key == "random_learnsets" or key == "random_learnset_generation" then
+      elseif key == "random_learnsets" or key == "random_learnset_generation" or key == "random_learnset_stab" then
           owns = (settings.pokemon_movesets ~= nil
                   and settings.pokemon_movesets ~= "vanilla")
               or (settings.learnset_levels ~= nil
@@ -13396,7 +14122,7 @@ return function(mod)
       elseif key == "random_encounter_tables" then
           owns = settings.randomWildPokemon == true
       elseif key == "random_learnsets"
-          or key == "random_learnset_generation" then
+          or key == "random_learnset_generation" or key == "random_learnset_stab" then
           owns = settings.randomMoveLearnset == true
       end
       if not owns then return nil end
@@ -13489,7 +14215,7 @@ return function(mod)
   end
 
   mod.exports.__beta26.qolTogglesOwnership = function(key, game)
-      if key ~= "automatic_running_shoes"
+      if key ~= "run_surf"
           or mod.exports.__beta26.qolToggleValue("run_hold_b", game) ~= true then
           return nil
       end
@@ -13606,6 +14332,11 @@ return function(mod)
           { key="random_encounter_tables", label="encounters" },
           { key="random_field_items", label="field_items" },
           { key="random_learnsets", label="learnsets" },
+          { key="random_trainers", label="trainers" },
+          { key="random_evolutions", label="evolutions" },
+          { key="random_shops", label="shops" },
+          { key="random_tms", label="tms" },
+          { key="random_gift_items", label="gift_items" },
       }
       for _, check in ipairs(checks) do
           local ok, owner = pcall(externalRuleDelegation, check.key, game)
@@ -13747,6 +14478,20 @@ return function(mod)
           and mod.exports.__beta26.permanentRuleSealWip then
           return false
       end
+      if type(mod.exports.__beta26.ruleOperationalState) == "function" then
+          local operational = mod.exports.__beta26.ruleOperationalState(
+              key, preGame, currentGame or mod.game)
+          if operational ~= true then
+              local spec = mod.exports.__beta26.ruleDefinitionByKey
+                  and mod.exports.__beta26.ruleDefinitionByKey[key]
+              if spec and spec.numeric then
+                  local neutral = spec.neutral
+                  if neutral == nil then neutral = spec.min end
+                  return tonumber(neutral) or 0
+              end
+              return false
+          end
+      end
       local delegated = externalRuleDelegation and externalRuleDelegation(
           key, currentGame or mod.game)
       if delegated then
@@ -13829,6 +14574,9 @@ return function(mod)
       sequence = 0,
       breadcrumbs = {},
   }
+  -- 2.7.81 reconstruction: engine-owned developer signal (Gen1Recomp 0.2.21+).
+  -- This is diagnostic metadata only and never enables Nuzlocke Dev Mode.
+  mod.exports.__beta26.Dev.engineDeveloper = mod.developer == true
 
   -- 2.6.59: actual direct-wrapper interposition/reload-policy harness.
   -- Uses an isolated fake method table; it never touches engine modules.
@@ -13968,7 +14716,9 @@ return function(mod)
   end
 
   mod.exports.__beta26.Dev.gameLabel = function(game)
-      return string.upper(mod.exports.__beta26.Dev.gameId(game))
+      local id = mod.exports.__beta26.Dev.gameId(game)
+      if id == "crystal" then return "CRYSTAL ALPHA" end
+      return string.upper(id)
   end
 
   -- 2.6.26: generation decides shared adapter ownership; edition remains an
@@ -13980,7 +14730,8 @@ return function(mod)
       local gen2 = mod.exports.__beta26.runtimeIsGen2(game)
       return {
           edition = edition,
-          label = string.upper(edition),
+          label = edition == "crystal" and "CRYSTAL ALPHA" or string.upper(edition),
+          support_stage = edition == "crystal" and "ALPHA" or "SUPPORTED",
           generation = gen2 and 2 or 1,
           engine_family = gen2 and "gen2" or "gen1",
           profile_scope = mod.exports.__beta26.profileScopeForGame(game),
@@ -14088,23 +14839,24 @@ return function(mod)
           "acquisition_catalog.lua", "battle_clauses.lua", "classic_ui.lua",
           "dev_diagnostics.lua", "dev_report.lua", "forgiveness.lua",
           "late_runtime.lua",
-          "modern_ui_integration.lua", "pokegear_integration.lua",
+          "modern_ui_integration.lua", "nuzlocke_ui_system.lua", "pokegear_integration.lua",
           "public_interop.lua", "randomizer_runtime.lua",
           "release_safety.lua", "rule_catalog.lua", "run_history.lua",
           "save_migration.lua", "stadium_provenance.lua",
           "title_setup_compat.lua", "trainer_rewards.lua",
           "world_building.lua",
       },
-      expectedGames = { "red", "blue", "yellow", "gold", "silver" },
-      expectedPackageCount = 30,
+      expectedGames = { "red", "blue", "yellow", "gold", "silver", "crystal" },
+      expectedPackageCount = 31,
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.7.27",
-      expectedParentSha256 = "cd6cd96f871a5f16f7c08a252ebbcfe7b557159d5f1cadad92590cba12f689cd",
+      expectedParentVersion = "2.7.106",
+      expectedParentSha256 = "10b482d6e535d318ff6b4e7ada052dac4fdd269ec6b4e2ac5fbf27368babb092",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
+          ["nuzlocke_ui_system.lua"] = "Module owner: NuzlockeUiSystem",
           ["late_runtime.lua"] = "Module owner: LateRuntime",
           ["randomizer_runtime.lua"] = "Module owner: RandomizerRuntime",
           ["world_building.lua"] = "Module owner: WorldBuilding",
@@ -14121,6 +14873,15 @@ return function(mod)
           ["trainer_rewards.lua"] = "function M.activeGuardAudit",
       },
   })
+
+  -- 2.7.55: Nuzlocke-owned presentation system.  This is deliberately
+  -- presentation-only and exposes no gameplay authority.  It is loaded before
+  -- custom screens so Setup/Rules and later split UI modules share one contract.
+  mod.exports.__beta26.UiSystem = loadRequiredModuleChunk("nuzlocke_ui_system.lua")()(mod, {
+      Strings = Strings,
+  })
+  mod.exports.__beta26.drawGen2NuzTitle =
+      mod.exports.__beta26.UiSystem.drawGen2NuzTitle
 
   ---------------------------------------------------------------------
   -- 2.4.67 DEV RULE EFFECTIVENESS AUDIT
@@ -14845,13 +15606,25 @@ return function(mod)
           report.ok = false
           report.failures[#report.failures + 1] = tostring(text)
       end
-      if identity.edition ~= "gold" and identity.edition ~= "silver" then
-          fail("supported Gen 2 runtime must identify as gold or silver")
+      if mod.exports.__beta26.runtimeIsGen2(game) ~= true then
+          fail("exact Gold/Silver/Crystal runtime did not resolve through shared Gen 2 predicate")
+      end
+      local installAttempts = mod.exports.__beta26.installHealth
+          and mod.exports.__beta26.installHealth.attempts or {}
+      for _, adapter in ipairs({ "gen2.gift_tracking", "gen2.capture_gate" }) do
+          local row = installAttempts[adapter]
+          if type(row) ~= "table" or row.ok ~= true then
+              fail(adapter .. ": shared Gen 2 adapter not installed")
+          end
+      end
+      if identity.edition ~= "gold" and identity.edition ~= "silver"
+          and identity.edition ~= "crystal" then
+          fail("supported Gen 2 runtime must identify as gold, silver, or crystal")
       end
       if identity.engine_family ~= "gen2" or identity.generation ~= 2 then
           fail("Gen 2 family metadata mismatch")
       end
-      if identity.edition == "gold" or identity.edition == "silver" then
+      if identity.edition == "gold" or identity.edition == "silver" or identity.edition == "crystal" then
           if identity.profile_scope ~= identity.edition then
               fail("profile scope does not match exact edition")
           end
@@ -14899,6 +15672,17 @@ return function(mod)
               and #speciesRows or 0
           if report.species_ban_rows ~= 251 then
               fail("Gen 2 PKMN BAN selector does not expose 251 rows")
+          end
+      end
+
+      local reach = mod.exports.__beta26.gen2AdapterReach
+      if type(reach) == "table" then
+          report.adapter_reach = { counts = {}, last = {} }
+          for key, value in pairs(reach.counts or {}) do
+              report.adapter_reach.counts[key] = value
+          end
+          for key, value in pairs(reach.last or {}) do
+              report.adapter_reach.last[key] = value
           end
       end
 
@@ -15123,8 +15907,7 @@ return function(mod)
               and type(provenance.parent_sha256) == "string"
               and #provenance.parent_sha256 == 64,
           type(provenance) == "table"
-              and ("parent=" .. tostring(provenance.parent_version)
-                  .. " sha=" .. tostring(provenance.parent_sha256):sub(1, 12))
+              and ("parent=" .. tostring(provenance.parent_version))
               or "build provenance unavailable",
           "build")
 
@@ -15135,17 +15918,6 @@ return function(mod)
                   tostring(wrapperHarness.external_preserved), tostring(wrapperHarness.first),
                   tostring(wrapperHarness.second))
               or "wrapper harness unavailable", "compat")
-
-      local releaseSafety = mod.exports.__beta26.releaseSafetyAudit()
-      add("release_safety", type(releaseSafety) == "table"
-              and releaseSafety.ok == true,
-          type(releaseSafety) == "table"
-              and string.format("pass=%d/%d failures=%d",
-                  tonumber(releaseSafety.pass_count or 0),
-                  tonumber(releaseSafety.check_count or 0),
-                  #(releaseSafety.failures or {}))
-              or "release safety report unavailable",
-          "build")
 
       local capabilityVersionCount = 0
       for _, capability in ipairs(COMPAT_CAPABILITIES or {}) do
@@ -15319,11 +16091,6 @@ return function(mod)
           "stored=" .. tostring(ballLimitStored)
               .. " read=" .. tostring(ballLimitRead),
           "ui")
-      add("encounter_indicator_setting",
-          type(mod.save:get("encounter_spend_indicator", true)) == "boolean",
-          "enabled="
-              .. tostring(mod.save:get("encounter_spend_indicator", true)),
-          "ui")
 
       local installHealth = mod.exports.__beta26.installHealth or {}
       local installFailureCount = 0
@@ -15447,6 +16214,7 @@ return function(mod)
           engine_family = exactIdentity.engine_family,
           profile_scope = exactIdentity.profile_scope,
           environment = mod.exports.__beta26.runtimeEnvironment(),
+          engine_developer = mod.exports.__beta26.Dev.engineDeveloper == true,
           results = rows,
           assertions = mod.exports.__beta26.Dev.assertions(game),
           capabilities = capabilities,
@@ -15458,7 +16226,6 @@ return function(mod)
           safe_stop_writes = safeStopWrites,
           rule_effectiveness = ruleEffectiveness,
           randomizer_integrity = randomizerIntegrity,
-          release_safety = releaseSafety,
           build_provenance = provenance,
           rule_registry = ruleRegistryAudit,
           save_schema_descriptor = saveDescriptorAudit,
@@ -15630,6 +16397,20 @@ return function(mod)
           Strings(LockePreset.labels[nearest] or LockePreset.names[nearest] or "PRESET"))
   end
 
+  LockePreset.description = function(mode)
+      local descriptions = {
+          [0] = Strings.source("Keep the current hand-built challenge rules unchanged."),
+          [5] = Strings.source("Vanilla challenge-rule footprint only; independent QoL, Difficulty, Randomizer, UI, and World Building stay unchanged."),
+          [6] = Strings.source("Classic Nuzlocke core plus Gym-level caps; a gentler recommended baseline."),
+          [1] = Strings.source("Classic Nuzlocke core: permadeath, one encounter per area, failed encounters, and nicknames."),
+          [2] = Strings.source("Nuzlocke plus Champion caps, battle healing/X-item bans, Gym team-size matching, and no rival mercy."),
+          [3] = Strings.source("Nuzlocke with Party Size 1 and run-ending Blackout behavior."),
+          [4] = Strings.source("IronMON-style solo/no-heal/no-shop challenge using only rules Nuzlocke owns."),
+      }
+      return Strings(descriptions[math.floor(tonumber(mode) or 0)]
+          or descriptions[0])
+  end
+
   end -- loadout preview label scope
 
   mod.exports.__beta26.configRulesLocked = function(preGame)
@@ -15699,6 +16480,59 @@ return function(mod)
       return true
   end
 
+  -- Phase I #1-2: unified presets are only a convenience layer over the
+  -- independently-owned subsystem rules. CUSTOM never rewrites children.
+  -- Applying a preset uses setConfigValue recursively so external delegation
+  -- remains authoritative and provider-owned toggles are left untouched.
+  local RandomizerPreset = { applying = false }
+  RandomizerPreset.managed = {
+      random_starter=true, random_encounter_tables=true, random_field_items=true,
+      random_learnsets=true, random_trainers=true, random_evolutions=true,
+      random_shops=true, random_tms=true, random_gift_items=true,
+      random_species_generation=true, random_starter_balance=true,
+      random_encounter_balance=true, random_encounter_repetition=true,
+      random_field_item_balance=true, random_field_item_repetition=true,
+      random_trainer_balance=true, random_trainer_diversity=true,
+      random_trainer_theme=true, random_evolution_balance=true,
+      random_shop_balance=true, random_tm_compatibility=true,
+      random_learnset_stab=true,
+  }
+  RandomizerPreset.order = {
+      "random_starter", "random_encounter_tables", "random_field_items",
+      "random_learnsets", "random_trainers", "random_evolutions",
+      "random_shops", "random_tms", "random_gift_items",
+      "random_species_generation", "random_starter_balance",
+      "random_encounter_balance", "random_encounter_repetition",
+      "random_field_item_balance", "random_field_item_repetition",
+      "random_trainer_balance", "random_trainer_diversity",
+      "random_trainer_theme", "random_evolution_balance",
+      "random_shop_balance", "random_tm_compatibility", "random_learnset_stab",
+  }
+  RandomizerPreset.values = {
+      [1] = { -- CHAOS
+          random_starter=true, random_encounter_tables=true, random_field_items=true,
+          random_learnsets=true, random_trainers=true, random_evolutions=true,
+          random_shops=true, random_tms=true, random_gift_items=true,
+          random_species_generation=0, random_starter_balance=0,
+          random_encounter_balance=0, random_encounter_repetition=0,
+          random_field_item_balance=0, random_field_item_repetition=0,
+          random_trainer_balance=0, random_trainer_diversity=0,
+          random_trainer_theme=0, random_evolution_balance=0,
+          random_shop_balance=0, random_tm_compatibility=0, random_learnset_stab=0,
+      },
+      [2] = { -- BALANCED
+          random_starter=true, random_encounter_tables=true, random_field_items=true,
+          random_learnsets=true, random_trainers=true, random_evolutions=true,
+          random_shops=true, random_tms=true, random_gift_items=true,
+          random_species_generation=0, random_starter_balance=1,
+          random_encounter_balance=3, random_encounter_repetition=1,
+          random_field_item_balance=2, random_field_item_repetition=1,
+          random_trainer_balance=3, random_trainer_diversity=1,
+          random_trainer_theme=1, random_evolution_balance=3,
+          random_shop_balance=2, random_tm_compatibility=0, random_learnset_stab=1,
+      },
+  }
+
   local function setConfigValue(key, value, preGame, preserveDormant)
       -- Use lifecycle-stable Type Locke slot tables throughout this update.
       -- Yellow 2.5.7 runtime testing showed Type Locke edits can still reach
@@ -15726,6 +16560,24 @@ return function(mod)
               pendingNewGameRules = makeDefaultPreGameRules()
           end
           pendingNewGameRules[key] = value
+          if key == "shop_restrictions" then
+              local mode = math.max(0, math.min(3, math.floor(tonumber(value) or 0)))
+              pendingNewGameRules.no_buying = (mode == 1 or mode == 3)
+              pendingNewGameRules.no_selling = (mode == 2 or mode == 3)
+          end
+          if key == "run_surf" then
+              local mode = mod.exports.__beta26.movementAssistMode(value)
+              pendingNewGameRules.automatic_running_shoes = mode
+              pendingNewGameRules.fast_surf = mode
+          end
+          if key == "no_buying" or key == "no_selling" then
+              local noBuy = key == "no_buying" and value == true
+                  or key ~= "no_buying" and pendingNewGameRules.no_buying == true
+              local noSell = key == "no_selling" and value == true
+                  or key ~= "no_selling" and pendingNewGameRules.no_selling == true
+              pendingNewGameRules.shop_restrictions =
+                  noBuy and (noSell and 3 or 1) or (noSell and 2 or 0)
+          end
           if key == "pkmn_ban" and value ~= true then
               pendingNewGameRules.pkmn_ban_species = {}
           end
@@ -15762,7 +16614,27 @@ return function(mod)
               local row = options[(tonumber(value) or 0) + 1]
               pendingNewGameRules.difficulty_provider_id = row and row.id or nil
           end
-          if key ~= "locke_type" and LockePreset.managed[key]
+          if key == "randomizer_preset" and not RandomizerPreset.applying then
+          local preset = RandomizerPreset.values[tonumber(value) or 0]
+          if preset then
+              RandomizerPreset.applying = true
+              for _, childKey in ipairs(RandomizerPreset.order) do
+                  setConfigValue(childKey, preset[childKey], preGame, false)
+              end
+              RandomizerPreset.applying = false
+              if not preGame and mod.exports.__beta26.Randomizer then
+                  pcall(mod.exports.__beta26.Randomizer.applyAll, currentGame or mod.game)
+              end
+          end
+      elseif RandomizerPreset.managed[key] and not RandomizerPreset.applying then
+          if preGame then
+              if pendingNewGameRules then pendingNewGameRules.randomizer_preset = 0 end
+          else
+              mod.save:set("randomizer_preset", 0)
+          end
+      end
+
+      if key ~= "locke_type" and LockePreset.managed[key]
               and not LockePreset.applying then
               pendingNewGameRules.locke_type = LockePreset.classify(true)
           end
@@ -15782,6 +16654,24 @@ return function(mod)
           saveAreaGuideState(value)
       else
           mod.save:set(key, value)
+          if key == "shop_restrictions" then
+              local mode = math.max(0, math.min(3, math.floor(tonumber(value) or 0)))
+              mod.save:set("no_buying", mode == 1 or mode == 3)
+              mod.save:set("no_selling", mode == 2 or mode == 3)
+          end
+          if key == "run_surf" then
+              local mode = mod.exports.__beta26.movementAssistMode(value)
+              mod.save:set("automatic_running_shoes", mode)
+              mod.save:set("fast_surf", mode)
+          end
+          if key == "no_buying" or key == "no_selling" then
+              local noBuy = key == "no_buying" and value == true
+                  or key ~= "no_buying" and mod.save:get("no_buying", false) == true
+              local noSell = key == "no_selling" and value == true
+                  or key ~= "no_selling" and mod.save:get("no_selling", false) == true
+              mod.save:set("shop_restrictions",
+                  noBuy and (noSell and 3 or 1) or (noSell and 2 or 0))
+          end
           if key == "pkmn_ban" and value ~= true then
               mod.save:set("pkmn_ban_species", {})
           end
@@ -15798,6 +16688,11 @@ return function(mod)
                   or mod.save:get("random_encounter_tables", false) == true
                   or mod.save:get("random_field_items", false) == true
                   or mod.save:get("random_learnsets", false) == true
+                  or mod.save:get("random_trainers", false) == true
+                  or mod.save:get("random_evolutions", false) == true
+                  or mod.save:get("random_shops", false) == true
+                  or mod.save:get("random_tms", false) == true
+                  or mod.save:get("random_gift_items", false) == true
               if anyRandomizer and type(mod.exports.__beta26.randomizerSeed) == "function" then
                   mod.exports.__beta26.randomizerSeed(nil, true)
               end
@@ -15825,7 +16720,9 @@ return function(mod)
               for i=1,#typeLockKeys do mod.save:set(typeLockKeys[i], live[typeLockKeys[i]]) end
           end
           if (key == "random_starter" or key == "random_encounter_tables"
-              or key == "random_field_items" or key == "random_learnsets") and value == true
+              or key == "random_field_items" or key == "random_learnsets"
+              or key == "random_trainers" or key == "random_evolutions" or key == "random_shops"
+              or key == "random_tms" or key == "random_gift_items") and value == true
               and mod.exports.__beta26.randomizerSeed then
               mod.exports.__beta26.randomizerSeed(nil, true)
           end
@@ -15836,8 +16733,10 @@ return function(mod)
               or key == "random_encounter_repetition"
               or key == "random_encounter_diversity_strength"
               or key == "random_field_item_balance"
-              or key == "random_field_item_repetition")
-              and mod.exports.__beta26.Randomizer then
+              or key == "random_field_item_repetition"
+              or key == "random_evolutions" or key == "random_shops"
+              or key == "random_tms" or key == "random_tm_compatibility")
+              and mod.exports.__beta26.Randomizer and not RandomizerPreset.applying then
               pcall(mod.exports.__beta26.Randomizer.applyAll,
                   currentGame or mod.game)
           end
@@ -15872,6 +16771,22 @@ return function(mod)
               for i=1,#typeLockKeys do mod.save:set(typeLockKeys[i], live[typeLockKeys[i]]) end
               value=live[key]
           end
+      end
+
+      if key == "randomizer_preset" and not RandomizerPreset.applying then
+          local preset = RandomizerPreset.values[tonumber(value) or 0]
+          if preset then
+              RandomizerPreset.applying = true
+              for _, childKey in ipairs(RandomizerPreset.order) do
+                  setConfigValue(childKey, preset[childKey], false, false)
+              end
+              RandomizerPreset.applying = false
+              if mod.exports.__beta26.Randomizer then
+                  pcall(mod.exports.__beta26.Randomizer.applyAll, currentGame or mod.game)
+              end
+          end
+      elseif RandomizerPreset.managed[key] and not RandomizerPreset.applying then
+          mod.save:set("randomizer_preset", 0)
       end
 
       if key ~= "locke_type" and LockePreset.managed[key]
@@ -16160,6 +17075,146 @@ return function(mod)
   end
 
   ---------------------------------------------------------------------
+  -- MANUAL GEN-2 CLOCK (2.7.83)
+  ---------------------------------------------------------------------
+  mod.content.screens:register("NuzlockeManualClock", {
+      new=function(game)
+          local okClock,Clock=pcall(require,"src.core.gen2.Clock")
+          local save=game and game.save; local hour=12; local minute=0
+          if okClock and save then if type(Clock.hour)=="function" then hour=tonumber(Clock.hour(save)) or hour end; if type(Clock.minute)=="function" then minute=tonumber(Clock.minute(save)) or minute end end
+          local self={game=game,screenId="NuzlockeManualClock",isOpaque=true,hour=math.floor(hour)%24,minute=math.floor(minute)%60,field=1}
+          mod.exports.__beta26.UiSystem.applyLayout(self,"centered")
+          function self:update()
+              if game.input:wasPressed("up") or game.input:wasPressed("down") then
+                  self.field = self.field == 1 and 2 or 1
+              elseif game.input:wasPressed("left") then
+                  if self.field == 1 then self.hour=(self.hour+23)%24
+                  else self.minute=(self.minute+59)%60 end
+              elseif game.input:wasPressed("right") then
+                  if self.field == 1 then self.hour=(self.hour+1)%24
+                  else self.minute=(self.minute+1)%60 end
+              elseif game.input:wasPressed("b") then game.stack:pop()
+              elseif game.input:wasPressed("a") then
+                  if okClock and save and type(Clock.setTime)=="function" then
+                      mod.save:set("system_clock_sync",false); pcall(Clock.setTime,save,self.hour,self.minute); save.rtc=type(save.rtc)=="table" and save.rtc or {}; save.rtc.dst=false; save.nuzlockeSystemClockReason="manual"
+                  end
+                  game.stack:pop()
+              end
+          end
+          function self:draw()
+              local label=string.format("%02d:%02d",self.hour,self.minute)
+              local fieldLabel=self.field==1 and Strings("HOUR") or Strings("MINUTE")
+              if mod.exports.__beta26.runtimeIsGen2(game) then local Chrome=require("src.ui.gen2.Chrome"); local GoldFont=require("src.render.Font"); Chrome.clear(); Chrome.box(0,0,20,18); mod.exports.__beta26.drawGen2NuzTitle(Chrome,GoldFont,"MANUAL TIME",label,{row=1,subtitleRow=4}); Chrome.print(Strings("EDIT: %s",fieldLabel),5,7); Chrome.printWrapped(Strings("UP/DN chooses field. L/R changes the selected value. Applying turns System Clock Sync OFF."),2,9,16,4); Chrome.print(Strings("L/R:+/-  A:SET"),2,15); Chrome.print(Strings("B:BACK"),2,16); return end
+              local Font=mod.ui.Font; love.graphics.setColor(1,1,1,1); love.graphics.rectangle("fill",0,0,160,144); Font.drawBox(0,0,20,18); Font.draw(Strings("MANUAL TIME"),40,10); Font.draw(label,62,34); Font.draw(Strings("EDIT %s",fieldLabel),48,54); Font.draw(Strings("UP/DN FIELD"),32,82); Font.draw(Strings("L/R +/-  A SET"),24,104); Font.draw(Strings("B BACK"),52,120)
+          end
+          return self
+      end,
+  })
+
+  ---------------------------------------------------------------------
+  -- DIRECT LOADOUT CHOOSER (2.7.83)
+  ---------------------------------------------------------------------
+  mod.content.screens:register("NuzlockeLoadoutChooser", {
+      new = function(game, ctx)
+          ctx = ctx or {}
+          local order = { 5, 6, 1, 2, 3, 4, 0 }
+          local currentMode = math.max(0, math.min(6, math.floor(tonumber(ctx.currentMode) or 0)))
+          local index = 1
+          for i, mode in ipairs(order) do if mode == currentMode then index = i break end end
+          local self = { game=game, screenId="NuzlockeLoadoutChooser", isOpaque=true,
+              order=order, index=index, preGame=ctx.preGame==true, onChoose=ctx.onChoose, elapsed=0 }
+          mod.exports.__beta26.UiSystem.applyLayout(self, "centered")
+          local function mode() return self.order[self.index] or 0 end
+          function self:update(dt)
+              self.elapsed = self.elapsed + (dt or 0)
+              if game.input:wasPressed("up") then self.index=((self.index-2)%#self.order)+1
+              elseif game.input:wasPressed("down") then self.index=(self.index%#self.order)+1
+              elseif game.input:wasPressed("left") then self.index=((self.index-2)%#self.order)+1
+              elseif game.input:wasPressed("right") then self.index=(self.index%#self.order)+1
+              elseif game.input:wasPressed("b") then game.stack:pop()
+              elseif game.input:wasPressed("a") then
+                  local chosen=mode(); game.stack:pop()
+                  if self.onChoose then self.onChoose(chosen) end
+              end
+          end
+          function self:draw()
+              local chosen=mode(); local changes=LockePreset.preview(chosen,self.preGame)
+              local name=tostring(Strings(LockePreset.names[chosen] or "CUSTOM"))
+              local desc=tostring(LockePreset.description(chosen))
+              if mod.exports.__beta26.runtimeIsGen2(game) then
+                  local Chrome=require("src.ui.gen2.Chrome"); local GoldFont=require("src.render.Font")
+                  Chrome.clear(); Chrome.box(0,0,20,18)
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome,GoldFont,"LOADOUT",name,{row=1,subtitleRow=3})
+                  local y=5
+                  for i,m in ipairs(self.order) do
+                      if i==self.index then Chrome.cursor(1,y) end
+                      Chrome.print(Strings(LockePreset.labels[m] or LockePreset.names[m]),3,y); y=y+1
+                  end
+                  Chrome.printWrapped(Strings("%d CHANGES: %s",#changes,desc),2,13,16,2)
+                  Chrome.print(Strings("A:CHOOSE  B:BACK"),2,16); return
+              end
+              local Font=mod.ui.Font; love.graphics.setColor(1,1,1,1); love.graphics.rectangle("fill",0,0,160,144); Font.drawBox(0,0,20,18)
+              Font.draw(Strings("LOADOUT"),58,8); Font.draw(name,14,20)
+              local y=34
+              for i,m in ipairs(self.order) do
+                  if i==self.index then Font.draw(Strings(">"),10,y) end
+                  Font.draw(Strings(LockePreset.labels[m] or LockePreset.names[m]),22,y); y=y+10
+              end
+              Font.draw(marqueeText(Strings("%d CHANGES %s",#changes,desc),18,self.elapsed,1.2),10,110)
+              Font.draw(Strings("A:CHOOSE B:BACK"),28,130)
+          end
+          return self
+      end,
+  })
+
+  ---------------------------------------------------------------------
+  -- DIFFICULTY PROFILE REVIEW (2.7.67 / direct selector 2.7.83)
+  -- Difficulty changes are previewed against VANILLA before mutation.
+  -- Left/Right browse every available profile; A confirms the shown profile.
+  -- Only after A does the existing interaction warning run when needed.
+  ---------------------------------------------------------------------
+  mod.content.screens:register("NuzlockeDifficultyReview", {
+      new = function(game, ctx)
+          ctx = ctx or {}
+          local options = mod.exports.__beta26.difficultyOptions()
+          local startId = tostring(ctx.proposedId or ctx.currentId or "vanilla")
+          local _, startIndex = difficultyOptionById(options, startId)
+          local self = { game=game, screenId="NuzlockeDifficultyReview", isOpaque=true,
+              options=options, index=(tonumber(startIndex) or 0)+1, elapsed=0, onConfirm=ctx.onConfirm }
+          mod.exports.__beta26.UiSystem.applyLayout(self,"centered")
+          local function current() return self.options[self.index] or self.options[1] end
+          local function summary(row)
+              local fn=mod.exports.__beta26.difficultyProfileSummary
+              local text=type(fn)=="function" and fn(row and row.id or "vanilla") or ""
+              return tostring(text or "")
+          end
+          function self:update(dt)
+              self.elapsed=self.elapsed+(dt or 0)
+              if game.input:wasPressed("up") or game.input:wasPressed("left") then self.index=((self.index-2)%#self.options)+1
+              elseif game.input:wasPressed("down") or game.input:wasPressed("right") then self.index=(self.index%#self.options)+1
+              elseif game.input:wasPressed("b") then game.stack:pop()
+              elseif game.input:wasPressed("a") then local row=current(); game.stack:pop(); if self.onConfirm and row then self.onConfirm(row) end end
+          end
+          function self:draw()
+              local row=current(); local name=tostring(Strings(row and row.name or "VANILLA")); local text=summary(row)
+              local lines=wrapText(text,16); local first=math.max(1, math.min(#lines,1))
+              if mod.exports.__beta26.runtimeIsGen2(game) then
+                  local Chrome=require("src.ui.gen2.Chrome"); local GoldFont=require("src.render.Font")
+                  Chrome.clear(); Chrome.box(0,0,20,18); mod.exports.__beta26.drawGen2NuzTitle(Chrome,GoldFont,"DIFFICULTY",name,{row=1,subtitleRow=3})
+                  local top=5; local visible=math.min(#self.options,5); local base=math.max(1,math.min(self.index-2,#self.options-visible+1))
+                  for i=base,base+visible-1 do if i==self.index then Chrome.cursor(1,top) end; Chrome.print(marqueeText(Strings(self.options[i].name or self.options[i].id),15,self.elapsed,1.2),3,top); top=top+1 end
+                  Chrome.printWrapped(text,2,11,16,4); Chrome.print(Strings("A:CHOOSE B:BACK"),2,16); return
+              end
+              local Font=mod.ui.Font; love.graphics.setColor(1,1,1,1); love.graphics.rectangle("fill",0,0,160,144); Font.drawBox(0,0,20,18); Font.draw(Strings("DIFFICULTY"),44,8); Font.draw(marqueeText(name,16,self.elapsed,1.2),14,20)
+              local y=34; local visible=math.min(#self.options,5); local base=math.max(1,math.min(self.index-2,#self.options-visible+1))
+              for i=base,base+visible-1 do if i==self.index then Font.draw(Strings(">"),10,y) end; Font.draw(marqueeText(Strings(self.options[i].name or self.options[i].id),18,self.elapsed,1.2),22,y); y=y+10 end
+              local sum=wrapPixelText(text,136); for i=1,math.min(3,#sum) do Font.draw(sum[i],12,88+(i-1)*12) end; Font.draw(Strings("A:CHOOSE B:BACK"),28,130)
+          end
+          return self
+      end,
+  })
+
+  ---------------------------------------------------------------------
   -- LOADOUT CHANGE CONFIRMATION (2.4.18)
   -- A preset is never applied until this modal has shown the player exactly
   -- how many loadout-owned rules will change. B cancels with zero mutation.
@@ -16171,17 +17226,18 @@ return function(mod)
               game = game,
               screenId = "NuzlockeLoadoutConfirm",
               isOpaque = true,
-              uiModLayout = "classic",
-              keepClassicUi = true,
               cursor = 2, -- safe default: NO
               elapsed = 0,
               scroll = 0,
               mode = math.max(0, math.min(6, math.floor(tonumber(ctx.mode) or 0))),
               modalTitle = ctx.title and tostring(ctx.title) or nil,
               modalName = ctx.name and tostring(ctx.name) or nil,
+              modalMessage = ctx.message and tostring(ctx.message) or nil,
               changes = type(ctx.changes) == "table" and ctx.changes or {},
               onChoice = ctx.onChoice,
           }
+          mod.exports.__beta26.UiSystem.applyLayout(self, "centered")
+
           function self:update(dt)
               self.elapsed = self.elapsed + (dt or 0)
               local maxScroll = math.max(0, #self.changes - 4)
@@ -16209,8 +17265,9 @@ return function(mod)
                   local Chrome = require("src.ui.gen2.Chrome")
                   Chrome.clear()
                   Chrome.box(0, 0, 20, 18)
-                  Chrome.print(Strings(modalTitle), 2, 1)
-                  Chrome.printWrapped(Strings("%s will change %d loadout-owned rules.",
+                  local GoldFont = require("src.render.Font")
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, modalTitle)
+                  Chrome.printWrapped(self.modalMessage or Strings("%s will change %d loadout-owned rules.",
                       name, count), 2, 3, 16, 3)
                   local y = 7
                   local first = math.min(count + 1, (self.scroll or 0) + 1)
@@ -16229,7 +17286,6 @@ return function(mod)
                   if self.cursor == 2 then Chrome.cursor(10, 14) end
                   Chrome.print(Strings("APPLY"), 3, 14)
                   Chrome.print(Strings("CANCEL"), 11, 14)
-                  Chrome.print(Strings("B:CANCEL"), 4, 16)
                   return
               end
 
@@ -16242,7 +17298,7 @@ return function(mod)
               love.graphics.rectangle("fill", 0, 0, 160, 144)
               Font.drawBox(0, 0, 20, 18)
               Font.draw(marqueeText(Strings(modalTitle), 16, self.elapsed, 1.2), 14, 10)
-              Font.draw(marqueeText(Strings("%s changes %d", name, count),
+              Font.draw(marqueeText(self.modalMessage or Strings("%s changes %d", name, count),
                   16, self.elapsed, 1.2), 14, 28)
               local y = 46
               local first = math.min(count + 1, (self.scroll or 0) + 1)
@@ -16275,6 +17331,7 @@ return function(mod)
   -- native filled cursor glyph for the hovered species; A toggles, B returns.
   ---------------------------------------------------------------------
   mod.content.screens:register("NuzlockePokemonBanScreen", {
+      isModOptions = true,
       new = function(game, ctx)
           ctx = ctx or {}
           local preGame = ctx.preGame == true
@@ -16284,8 +17341,6 @@ return function(mod)
               game = game,
               screenId = "NuzlockePokemonBanScreen",
               isOpaque = true,
-              uiModLayout = "classic",
-              keepClassicUi = true,
               preGame = preGame,
               gen2Mode = gen2Mode,
               rows = rows,
@@ -16294,6 +17349,8 @@ return function(mod)
               visibleRows = 5,
               elapsed = 0,
           }
+
+          mod.exports.__beta26.UiSystem.applyLayout(self, "centered")
 
           local function currentSet()
               return mod.exports.__beta26.pkmnBanSetForConfig(preGame, game)
@@ -16368,7 +17425,7 @@ return function(mod)
                   local Font = require("src.render.Font")
                   Chrome.clear()
                   Chrome.box(0, 0, 20, 18)
-                  Chrome.print(Strings("PKMN BAN"), 2, 1)
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, Font, "PKMN BAN")
                   for i = first, last do
                       local row = rows[i]
                       local y = 3 + (i - first) * 2
@@ -16437,6 +17494,7 @@ return function(mod)
   -- REGISTER CONFIG SCREEN
   ---------------------------------------------------------------------
   mod.content.screens:register("NuzlockeConfigScreen", {
+      isModOptions = true,
       new = function(game, ctx)
           local preGame = ctx and ctx.preGame == true
           local autoNewGame = ctx and ctx.autoNewGame == true
@@ -16554,18 +17612,37 @@ return function(mod)
                           or ((key == "random_field_item_balance"
                                   or key == "random_field_item_repetition")
                               and getConfigValue("random_field_items", preGame) ~= true)
+                          or (key == "random_evolution_balance"
+                              and getConfigValue("random_evolutions", preGame) ~= true)
+                          or (key == "random_shop_balance"
+                              and getConfigValue("random_shops", preGame) ~= true)
+                          or (key == "random_tm_compatibility"
+                              and getConfigValue("random_tms", preGame) ~= true)
+                          or ((key == "random_trainer_balance"
+                              or key == "random_trainer_diversity"
+                              or key == "random_trainer_theme")
+                              and getConfigValue("random_trainers", preGame) ~= true)
                           or ((key == "random_encounter_balance"
                                   or key == "random_encounter_repetition"
-                                  or key == "random_encounter_diversity_strength"
-                                  or key == "random_species_generation")
+                                  or key == "random_encounter_diversity_strength")
                               and getConfigValue("random_encounter_tables", preGame) ~= true)
+                          or (key == "random_species_generation"
+                              and getConfigValue("random_encounter_tables", preGame) ~= true
+                              and getConfigValue("random_trainers", preGame) ~= true
+                              and getConfigValue("random_evolutions", preGame) ~= true)
                           or (key == "random_encounter_diversity_strength"
                               and tonumber(getConfigValue(
                                   "random_encounter_repetition", preGame) or 0) ~= 1)
                           or (key == "randomizer_info_policy"
                               and getConfigValue("random_encounter_tables", preGame) ~= true
                               and getConfigValue("random_starter", preGame) ~= true
-                              and getConfigValue("random_field_items", preGame) ~= true)
+                              and getConfigValue("random_field_items", preGame) ~= true
+                              and getConfigValue("random_learnsets", preGame) ~= true
+                              and getConfigValue("random_trainers", preGame) ~= true
+                              and getConfigValue("random_evolutions", preGame) ~= true
+                              and getConfigValue("random_shops", preGame) ~= true
+                              and getConfigValue("random_tms", preGame) ~= true
+                              and getConfigValue("random_gift_items", preGame) ~= true)
                           or (candidate.isStarterRerollControl
                               and (getConfigValue("random_starter", preGame) ~= true
                                   or getConfigValue("random_starter_rerolls", preGame) ~= true
@@ -16573,7 +17650,7 @@ return function(mod)
                                       and type(mod.exports.__beta26.randomizerCanRerollStarter) == "function"
                                       and not mod.exports.__beta26.randomizerCanRerollStarter(
                                           nil, currentGame or mod.game))))
-                          or (key == "random_learnset_generation"
+                          or ((key == "random_learnset_generation" or key == "random_learnset_stab")
                               and getConfigValue("random_learnsets", preGame) ~= true)
 
                       -- 2.6.34: a non-OFF No Status Moves parent already gives
@@ -16586,10 +17663,17 @@ return function(mod)
                       local hiddenByStatusParent = statusChild
                           and (tonumber(getConfigValue(
                               "status_move_scope", preGame)) or 0) ~= 0
+                      local operational = true
+                      if key and type(mod.exports.__beta26.ruleOperationalState) == "function" then
+                          operational = mod.exports.__beta26.ruleOperationalState(
+                              key, preGame, currentGame or mod.game)
+                      end
+                      local hiddenByOperationalContract = operational ~= true
 
                       if not hiddenByTypeLock and not hiddenByNoCatching
                           and not hiddenByRandomizerParent
                           and not hiddenByStatusParent
+                          and not hiddenByOperationalContract
                           and (candidate.alwaysVisible
                               or currentSection == nil
                               or collapsedSections[currentSection] ~= true) then
@@ -16646,28 +17730,24 @@ return function(mod)
               -- 2.6.31: classic R/B/Y reclaims the old dedicated position
               -- strip for a fourth visible config row. Gen 2 keeps its native
               -- three-row geometry unchanged.
-              pageSize = goldMode and 3 or 4,
+              pageSize = 3,
               descScroll = 0,
               marqueeTime = 0,
               editingNumber = false,
               digitIndex = 1,
               inGameSaveFlash = 0,
               rerollSeedFlash = 0,
+              autoSeedFlash = 0,
               rerollStarterFlash = 0,
               lockConfirmStage = 0,
               lockConfirmReadyAt = 0
           }
 
-          -- Wide Menus coexistence safety (2.1.9).
-          --
-          -- Wide Menus auto-widens opaque mod-owned screens unless they
-          -- explicitly declare a classic layout. Merely declining claim() is
-          -- not enough: fresh NEW GAME Setup is still auto-classified as wide
-          -- later by the provider's Screens/StateStack hooks. Mark every
-          -- NuzlockeConfigScreen instance classic up front so Setup and NUZ
-          -- RULES both remain on the validated 160px/native-width path.
-          self.uiModLayout = "classic"
-          self.keepClassicUi = true
+          -- 2.7.56: Nuzlocke owns the semantic layout policy while a
+          -- provider adapter resolves the active logical surface. R/B/Y Rules
+          -- and Setup have a real 38-column composition, so they may use a
+          -- wide host surface; Gen 2 retains its native Chrome presentation.
+          mod.exports.__beta26.UiSystem.applyLayout(self, "adaptive")
           self.nuzlockeUi = mod.exports.nuzlocke_ui.describeScreen(self)
           self.presentationRole = "rules"
           self.presentationStateOwner = "nuzlocke"
@@ -16684,6 +17764,52 @@ return function(mod)
                   cursorKey = itemPositionKey(flatItemList[cursor]),
                   scrollKey = itemPositionKey(flatItemList[scroll + 1]),
               }
+          end
+
+          -- 2.7.31: one authoritative description text path for
+          -- both input paging and rendering. Gold previously rendered four
+          -- Chrome.wrap() lines but Select paging counted three generic
+          -- wrapText() lines, so the visible arrow and actual scroll range
+          -- could disagree.
+          local function configDescriptionText(item)
+              if type(item) ~= "table" or type(item.rule) ~= "table" then
+                  return ""
+              end
+              local displayedDescription =
+                  ruleDescriptionForDisplay(item.rule, self.preGame)
+              if item.rule.key == "locke_type" then
+                  local mode = math.max(0, math.min(6, math.floor(tonumber(
+                      getConfigValue("locke_type", self.preGame)) or 0)))
+                  if mode == 0 then
+                      local summary = LockePreset.customSummary(self.preGame)
+                      if summary then
+                          displayedDescription = tostring(summary) .. ". "
+                              .. tostring(displayedDescription or "")
+                      end
+                  end
+              end
+              if item.rule.key == "rules_locked"
+                  and not mod.exports.__beta26.permanentRuleSealWip then
+                  if self.lockConfirmStage == 1 then
+                      displayedDescription = Strings(
+                          "WARNING 1/2: Permanent Rule Seal cannot be undone. Select SEAL again to continue, or move away/B to cancel.")
+                  elseif self.lockConfirmStage == 2 then
+                      displayedDescription = Strings(
+                          "FINAL WARNING 2/2: One more SEAL activation permanently locks challenge rules. Move away/B to cancel.")
+                  end
+              end
+              return displayedDescription
+          end
+
+          local function configDescriptionScrollMetrics(item)
+              local displayedDescription = configDescriptionText(item)
+              if self.goldMode then
+                  local Chrome = require("src.ui.gen2.Chrome")
+                  local lines = Chrome.wrap(displayedDescription, 16)
+                  return lines, math.max(0, #lines - 4)
+              end
+              local lines = wrapText(displayedDescription, 16)
+              return lines, math.max(0, #lines - 3)
           end
 
           function self:update(dt)
@@ -16713,6 +17839,11 @@ return function(mod)
                   self.rerollSeedFlash = math.max(0, self.rerollSeedFlash - (dt or 0))
               elseif self.rerollSeedFlash and self.rerollSeedFlash < 0 then
                   self.rerollSeedFlash = math.min(0, self.rerollSeedFlash + (dt or 0))
+              end
+              if self.autoSeedFlash and self.autoSeedFlash > 0 then
+                  self.autoSeedFlash = math.max(0, self.autoSeedFlash - (dt or 0))
+              elseif self.autoSeedFlash and self.autoSeedFlash < 0 then
+                  self.autoSeedFlash = math.min(0, self.autoSeedFlash + (dt or 0))
               end
               if self.rerollStarterFlash and self.rerollStarterFlash > 0 then
                   self.rerollStarterFlash = math.max(0, self.rerollStarterFlash - (dt or 0))
@@ -16909,34 +18040,22 @@ return function(mod)
                       self.lockConfirmReadyAt = 0
                   end
                   if item.isLockeTypeControl then
-                      if mod.exports.__beta26.configRulesLocked(self.preGame) then
-                          return true
-                      end
-                      local current = tonumber(getConfigValue("locke_type",
-                          self.preGame)) or 0
-                      local nextMode = LockePreset.nextMode(current, delta)
-                      -- CUSTOM never changes rules, so it needs no warning.
-                      if nextMode == 0 then
-                          LockePreset.apply(0, self.preGame)
-                          self.descScroll = 0
-                          return true
-                      end
-                      local changes = LockePreset.preview(nextMode, self.preGame)
-                      if #changes == 0 then
-                          LockePreset.apply(nextMode, self.preGame)
-                          self.descScroll = 0
-                          return true
-                      end
-                      mod.ui.push(self.game, "NuzlockeLoadoutConfirm", {
-                          mode = nextMode,
-                          changes = changes,
-                          onChoice = function(yes)
-                              if yes then
-                                  LockePreset.apply(nextMode, self.preGame)
-                                  self.descScroll = 0
-                              end
+                      if mod.exports.__beta26.configRulesLocked(self.preGame) then return true end
+                      local current=tonumber(getConfigValue("locke_type",self.preGame)) or 0
+                      mod.ui.push(self.game,"NuzlockeLoadoutChooser",{
+                          currentMode=current, preGame=self.preGame,
+                          onChoose=function(chosen)
+                              if chosen==0 then LockePreset.apply(0,self.preGame); self.descScroll=0; return end
+                              local changes=LockePreset.preview(chosen,self.preGame)
+                              if #changes==0 then LockePreset.apply(chosen,self.preGame); self.descScroll=0; return end
+                              mod.ui.push(self.game,"NuzlockeLoadoutConfirm",{mode=chosen,changes=changes,onChoice=function(yes) if yes then LockePreset.apply(chosen,self.preGame); self.descScroll=0 end end})
                           end,
                       })
+                      return true
+                  end
+                  if item.isManualClockControl then
+                      mod.ui.push(self.game, "NuzlockeManualClock", {})
+                      self.descScroll = 0
                       return true
                   end
                   if item.isPkmnBanControl then
@@ -16970,19 +18089,23 @@ return function(mod)
                       self.descScroll = 0
                       return true
                   end
-                  if item.isRandomizerRerollControl and self.preGame then
+                  if item.isRandomizerRerollControl then
                       if mod.exports.__beta26.configRulesLocked(self.preGame) then
                           return false
                       end
-                      if not pendingNewGameRules then
+                      if self.preGame and not pendingNewGameRules then
                           pendingNewGameRules = loadSetupProfileFromDisk()
                               or makeDefaultPreGameRules()
                       end
                       local reroll = mod.exports.__beta26.randomizerRerollSeed
                       if type(reroll) == "function" then
-                          local seed = reroll(pendingNewGameRules)
+                          local seed = reroll(self.preGame and pendingNewGameRules or nil)
                           if tonumber(seed) and tonumber(seed) > 0 then
-                              pendingRulesDirty = true
+                              if self.preGame then
+                                  pendingRulesDirty = true
+                              elseif mod.exports.__beta26.Randomizer then
+                                  pcall(mod.exports.__beta26.Randomizer.applyAll, self.game)
+                              end
                               self.rerollSeedFlash = 1.5
                           else
                               self.rerollSeedFlash = -1.5
@@ -16993,32 +18116,81 @@ return function(mod)
                       self.descScroll = 0
                       return true
                   end
-                  if item.isSetupPresetSlot and self.preGame then
-                      local step = tonumber(delta) or 1
-                      if step == 0 then step = 1 end
-                      selectedSetupPresetSlot =
-                          ((selectedSetupPresetSlot - 1 + (step < 0 and -1 or 1))
-                              % SETUP_PRESET_SLOTS) + 1
+                  if item.isRandomizerAutoSeedControl then
+                      if mod.exports.__beta26.configRulesLocked(self.preGame) then
+                          return false
+                      end
+                      if self.preGame then
+                          if not pendingNewGameRules then
+                              pendingNewGameRules = loadSetupProfileFromDisk()
+                                  or makeDefaultPreGameRules()
+                          end
+                          pendingNewGameRules.randomizer_seed = 0
+                          pendingNewGameRules.random_starter_reroll_index = 0
+                          pendingNewGameRules.__randomizer_legacy = nil
+                          pendingRulesDirty = true
+                      else
+                          mod.save:set("randomizer_seed", 0)
+                          mod.save:set("__nuzlocke_random_starter_reroll_index", 0)
+                          if type(mod.exports.__beta26.resetRandomizerRunSeed) == "function" then
+                              mod.exports.__beta26.resetRandomizerRunSeed()
+                          end
+                          if mod.exports.__beta26.Randomizer then
+                              pcall(mod.exports.__beta26.Randomizer.applyAll, self.game)
+                          end
+                      end
+                      self.autoSeedFlash = 1.5
                       self.descScroll = 0
                       return true
                   end
-                  if item.isSetupPresetSave and self.preGame then
-                      local profile = copyRuleProfile(
-                          pendingNewGameRules or makeDefaultPreGameRules())
+                  local function cycleSetupPresetTarget(step)
+                      step = tonumber(step) or 1
+                      if step == 0 then step = 1 end
+                      local dir = step < 0 and -1 or 1
+                      selectedSetupPresetSlot =
+                          (selectedSetupPresetSlot + dir) % (SETUP_PRESET_SLOTS + 1)
+                      self.setupPresetFlash = nil
+                      self.descScroll = 0
+                      return true
+                  end
+                  if item.isSetupPresetSlot then
+                      return cycleSetupPresetTarget(delta)
+                  end
+                  if item.isSetupPresetSave then
+                      -- 2.7.103: Save/Load are actions, not duplicate slot selectors.
+                      -- LEFT/RIGHT are consumed here so they cannot accidentally
+                      -- mutate the shared Profile Slot while this action row is focused.
+                      if delta ~= nil then return true end
+                      if selectedSetupPresetSlot <= 0 then
+                          self.setupPresetFlash = nil
+                          self.descScroll = 0
+                          return true
+                      end
+                      local profile = copyRuleProfile(self.preGame
+                          and (pendingNewGameRules or makeDefaultPreGameRules())
+                          or makeRulesFromCurrentSave())
                       local ok = H.saveSetupPreset(selectedSetupPresetSlot, profile)
                       self.setupPresetFlash = ok and 1.5 or -1.5
                       return true
                   end
-                  if item.isSetupPresetLoad and self.preGame then
+                  if item.isSetupPresetLoad then
+                      if delta ~= nil then return true end
+                      if selectedSetupPresetSlot <= 0 then
+                          self.setupPresetFlash = nil
+                          self.descScroll = 0
+                          return true
+                      end
                       local profile, changes = H.setupPresetPreview(
                           selectedSetupPresetSlot,
-                          pendingNewGameRules or makeDefaultPreGameRules())
+                          self.preGame and (pendingNewGameRules or makeDefaultPreGameRules())
+                              or makeRulesFromCurrentSave())
                       if not profile then
                           self.setupPresetFlash = -1.5
                           return true
                       end
                       if #changes == 0 then
                           pendingNewGameRules = copyRuleProfile(profile)
+                          if not self.preGame then H.saveCurrentInGameRules() end
                           self.setupPresetFlash = 1.5
                           return true
                       end
@@ -17029,6 +18201,9 @@ return function(mod)
                               if yes then
                                   pendingNewGameRules = copyRuleProfile(profile)
                                   pendingRulesDirty = true
+                                  if not self.preGame then
+                                      H.saveCurrentInGameRules()
+                                  end
                                   self.setupPresetFlash = 1.5
                               end
                           end,
@@ -17045,7 +18220,9 @@ return function(mod)
                       self.inGameSaveFlash = ok and 1.5 or -1.5
                       return true
                   end
-                  if item.isRecoveryControl and not self.preGame then
+                  if item.isRecoveryControl then
+                      -- 2.7.101: Encounter Assignment is a TOOLS action in
+                      -- both Setup and the live rule list.
                       mod.ui.push(self.game, "NuzlockeLegacyRecoveryScreen")
                       return true
                   end
@@ -17116,7 +18293,7 @@ return function(mod)
                   -- Save/recovery controls remain usable while locked. Reroll Seed
                   -- changes challenge configuration, so it obeys the same permanent
                   -- seal as the numeric seed row rather than bypassing it as a utility.
-                  if item.isRandomizerRerollControl then
+                  if item.isRandomizerRerollControl or item.isRandomizerAutoSeedControl then
                       return not mod.exports.__beta26.configRulesLocked(self.preGame)
                   end
                   -- The permanent lock itself is monotonic: once true it cannot be
@@ -17149,8 +18326,7 @@ return function(mod)
                   if item.rule and (item.rule.key == "world_building_tier"
                       or item.rule.key == "gold_radio_world_building"
                       or item.rule.key == "difficulty_profile"
-                      or item.rule.key == "automatic_running_shoes"
-                      or item.rule.key == "fast_surf"
+                      or item.rule.key == "run_surf"
                       or item.rule.key == "unlimited_bag_space"
                       or item.rule.key == "trade_evolutions"
                       or item.rule.key == "automatic_default_names"
@@ -17171,7 +18347,7 @@ return function(mod)
                       or item.rule.key == "stat_info"
                       or item.rule.key == "move_info"
                       or item.rule.key == "area_guide_enabled"
-                      or item.rule.key == "encounter_spend_indicator"
+                      or item.rule.key == "battle_menu_ui"
                       or item.rule.key == "dev_mode") then
                       -- Permanent Rule Seal applies only to challenge rules.
                       -- Difficulty, World Building, QoL and presentation remain
@@ -17265,22 +18441,56 @@ return function(mod)
                           or mod.save:get("difficulty_provider_id", "vanilla")
                       local _, currentIndex = difficultyOptionById(options, currentId)
                       local index = tonumber(currentIndex) or 0
-                      index = mod.exports.__beta26.cycleIntegerRange(
-                          index, 0, count - 1, dir)
                       local row = options[index + 1] or options[1]
-                      setConfigValue(rule.key, index, self.preGame)
-                      if self.preGame then
-                          pendingNewGameRules.difficulty_provider_id = row and row.id or "vanilla"
-                      else
-                          mod.save:set("difficulty_provider_id", row and row.id or "vanilla")
-                          -- Difficulty is explicitly changeable mid-game.
-                          -- Observed trainer ace levels belong to the previous
-                          -- composition and must not pin NEXT CAP after a change.
-                          if mod.exports.__beta26.levelCapBosses then
-                              mod.exports.__beta26.levelCapBosses.observed = {}
+                      local nextId = row and row.id or "vanilla"
+
+                      local function applyDifficultyChange()
+                          setConfigValue(rule.key, index, self.preGame)
+                          if self.preGame then
+                              pendingNewGameRules.difficulty_provider_id = nextId
+                          else
+                              mod.save:set("difficulty_provider_id", nextId)
+                              -- Difficulty is explicitly changeable mid-game.
+                              -- Observed trainer ace levels belong to the previous
+                              -- composition and must not pin NEXT CAP after a change.
+                              if mod.exports.__beta26.levelCapBosses then
+                                  mod.exports.__beta26.levelCapBosses.observed = {}
+                              end
+                          end
+                          self.descScroll = 0
+                      end
+
+                      local function afterReview(selectedRow)
+                          if not selectedRow then return end
+                          row = selectedRow
+                          nextId = tostring(selectedRow.id or "vanilla")
+                          local _, selectedIndex = difficultyOptionById(options, nextId)
+                          index = tonumber(selectedIndex) or 0
+                          local impactFn = mod.exports.__beta26.difficultyImpactChanges
+                          local changes = type(impactFn) == "function"
+                              and impactFn(currentId, nextId) or {}
+                          local stackFn = mod.exports.__beta26.difficultyStackWarning
+                          local stackWarning = type(stackFn) == "function"
+                              and stackFn(nextId) or nil
+                          if #changes > 0 or (type(stackWarning)=="string" and stackWarning~="") then
+                              mod.ui.push(self.game, "NuzlockeLoadoutConfirm", {
+                                  title = stackWarning and "DIFFICULTY STACK" or "DIFFICULTY WARNING",
+                                  name = tostring(Strings(row and row.name or nextId)),
+                                  message = stackWarning,
+                                  changes = changes,
+                                  onChoice = function(yes)
+                                      if yes then applyDifficultyChange() end
+                                  end,
+                              })
+                          else
+                              applyDifficultyChange()
                           end
                       end
-                      self.descScroll = 0
+                      mod.ui.push(self.game, "NuzlockeDifficultyReview", {
+                          currentId = currentId,
+                          proposedId = nextId,
+                          onConfirm = afterReview,
+                      })
                       return true
                   end
                   if rule.key == "maximum_bst" then
@@ -17311,8 +18521,74 @@ return function(mod)
                   return true
               end
 
+              -- 2.8.00: held list navigation keeps five progressive speed gates but
+              -- ramps a little more slowly and tops out a little slower than 2.7.106.
+              -- A tap remains one movement; SELECT retains section-jump priority;
+              -- numeric digit-edit mode remains edge-only.
+              local function repeatedListDirection()
+                  local input = self.game.input
+                  if type(input) ~= "table" then return nil end
+                  local downPressed = input:wasPressed("down")
+                  local upPressed = input:wasPressed("up")
+                  local edge = downPressed and 1 or (upPressed and -1 or nil)
+                  local downHeld = type(input.isDown) == "function"
+                      and input:isDown("down") or false
+                  local upHeld = type(input.isDown) == "function"
+                      and input:isDown("up") or false
+                  local held
+                  if downHeld ~= upHeld then held = downHeld and 1 or -1 end
+                  local elapsed = math.max(0, tonumber(dt) or 0)
+
+                  local function reset(direction)
+                      self.__nuzListHoldDir2800 = direction
+                      self.__nuzListHoldAge2800 = 0
+                      self.__nuzListHoldTimer2800 = 0.48
+                  end
+
+                  if edge then
+                      reset(edge)
+                      return edge
+                  end
+                  if held == nil then
+                      self.__nuzListHoldDir2800 = nil
+                      self.__nuzListHoldAge2800 = nil
+                      self.__nuzListHoldTimer2800 = nil
+                      return nil
+                  end
+                  if self.__nuzListHoldDir2800 ~= held then
+                      reset(held)
+                      return nil
+                  end
+
+                  local age = (tonumber(self.__nuzListHoldAge2800) or 0) + elapsed
+                  self.__nuzListHoldAge2800 = age
+                  local interval
+                  if age < 1.10 then interval = 0.27       -- gate 1
+                  elseif age < 2.00 then interval = 0.23  -- gate 2
+                  elseif age < 3.10 then interval = 0.19  -- gate 3
+                  elseif age < 4.40 then interval = 0.15  -- gate 4
+                  else interval = 0.11 end                -- gate 5
+
+                  local timer = (tonumber(self.__nuzListHoldTimer2800) or 0.48)
+                      - elapsed
+                  if timer <= 0 then
+                      self.__nuzListHoldTimer2800 = interval
+                      return held
+                  end
+                  self.__nuzListHoldTimer2800 = timer
+                  return nil
+              end
+
               local item = selectedItem()
               local editingAtStart = self.editingNumber
+              local listDirection = nil
+              if not self.editingNumber then
+                  listDirection = repeatedListDirection()
+              else
+                  self.__nuzListHoldDir2800 = nil
+                  self.__nuzListHoldAge2800 = nil
+                  self.__nuzListHoldTimer2800 = nil
+              end
 
               if self.editingNumber and item and item.rule.numeric
                   and isStartingResourceRule(item.rule) then
@@ -17352,7 +18628,7 @@ return function(mod)
                       self.descScroll = 0
                   end
 
-              elseif self.game.input:wasPressed("down") then
+              elseif listDirection == 1 then
                   local selectHeld = type(self.game.input.isDown) == "function"
                       and self.game.input:isDown("select")
                   if selectHeld then
@@ -17360,7 +18636,7 @@ return function(mod)
                   else
                       moveCursor(1)
                   end
-              elseif self.game.input:wasPressed("up") then
+              elseif listDirection == -1 then
                   local selectHeld = type(self.game.input.isDown) == "function"
                       and self.game.input:isDown("select")
                   if selectHeld then
@@ -17404,10 +18680,11 @@ return function(mod)
                   if item and item.isHeader then
                       promptSectionReset(item)
                   elseif item and not item.isHeader then
-                      local descLines = wrapText(ruleDescriptionForDisplay(item.rule, self.preGame), 16)
-                      local maxScroll = math.max(0, #descLines - 3)
+                      local _, maxScroll =
+                          configDescriptionScrollMetrics(item)
                       if maxScroll > 0 then
-                          self.descScroll = (self.descScroll + 1) % (maxScroll + 1)
+                          self.descScroll =
+                              (self.descScroll + 1) % (maxScroll + 1)
                       end
                   end
               end
@@ -17455,13 +18732,18 @@ return function(mod)
 
                   local locked = mod.exports.__beta26.configRulesLocked(self.preGame)
                   local edition = mod.exports.__beta26.Dev.gameLabel(self.game)
-                  Chrome.print(self.preGame and Strings("NUZLOCKE " .. edition)
-                      or Strings("NUZ RULES"), 2, 1)
-                  Chrome.print(self.preGame and Strings("BETA SETUP")
-                      or Strings(edition .. " BETA"), 2, 2)
-                  if not self.preGame and locked then
-                      Chrome.print(Strings("LOCKED"), 13, 1)
-                  end
+                  local uiView = mod.exports.__beta26.UiSystem.view(
+                      self.preGame and "SETUP" or "RULES", self.game, {
+                          edition = edition,
+                          mode = self.preGame and "NEW RUN" or "LIVE",
+                          state = locked and "LOCKED" or nil,
+                      })
+                  mod.exports.__beta26.UiSystem.gen2Header(Chrome, GoldFont, uiView)
+
+                  -- 2.7.92: normal Setup/Rules content uses one consistent
+                  -- black treatment. The bold title remains the emphasized
+                  -- chrome element; only WIP/delegated rows may dim.
+                  love.graphics.setColor(0, 0, 0, 1)
 
                   if self.cursor > self.scroll + self.pageSize then
                       self.scroll = self.cursor - self.pageSize
@@ -17507,12 +18789,10 @@ return function(mod)
                       return marqueeText(fullText, width, self.marqueeTime, 3.8)
                   end
 
-                  -- 2.6.23: compact list-position strip.  Gold's native
-                  -- ScrollingMenu uses ▲ at font code $61 and ▼ at $ee
-                  -- (the same pair used by the native Mart list).  Keep the
-                  -- indicator in the otherwise-empty row between the title
-                  -- and the first config item, so it never steals a list row
-                  -- or overlaps 2.6.22's collapsed-header summary line.
+                  -- 2.7.91: the edition/run subtitle is gone, so move the
+                  -- three rule rows upward and put the pager in the bottom-center
+                  -- of the list panel. This keeps navigation visually grouped
+                  -- without consuming the reclaimed header space.
                   do
                       local total = #flatItemList
                       local current = total > 0
@@ -17521,16 +18801,23 @@ return function(mod)
                       local position = ("%d/%d"):format(current, total)
                       local positionWidth = type(GoldFont.width) == "function"
                           and GoldFont.width(position) or (#position * 8)
-                      local positionX = math.floor((160 - positionWidth) / 2)
-                      GoldFont.draw(position, positionX, 3 * 8)
+                      local gap = 4
+                      local arrowWidth = 8
+                      local clusterWidth = arrowWidth + gap + positionWidth
+                          + gap + arrowWidth
+                      local clusterX = math.max(8,
+                          math.floor((160 - clusterWidth) / 2))
+                      local navY = 9 * 8
+                      local positionX = clusterX + arrowWidth + gap
+                      local downX = positionX + positionWidth + gap
+                      GoldFont.draw(position, positionX, navY)
                       local canScrollUp = (self.scroll or 0) > 0
                       local canScrollDown = (self.scroll or 0) + self.pageSize < total
                       if canScrollUp then
-                          GoldFont.drawCode(0x61, math.max(8, positionX - 16), 3 * 8)
+                          GoldFont.drawCode(0x61, clusterX, navY)
                       end
                       if canScrollDown then
-                          GoldFont.drawCode(Chrome.DOWN_ARROW,
-                              math.min(144, positionX + positionWidth + 8), 3 * 8)
+                          GoldFont.drawCode(Chrome.DOWN_ARROW, downX, navY)
                       end
                   end
 
@@ -17539,6 +18826,19 @@ return function(mod)
                           local mode = math.max(0, math.min(6,
                               math.floor(tonumber(val) or 0)))
                           return LockePreset.displayLabel(mode, preGame)
+                      elseif item.isManualClockControl then
+                          local okClock, Clock = pcall(require, "src.core.gen2.Clock")
+                          local save = self.game and self.game.save
+                          local hour = okClock and type(Clock.hour)=="function"
+                              and Clock.hour(save) or nil
+                          local minute = okClock and type(Clock.minute)=="function"
+                              and Clock.minute(save) or nil
+                          if hour ~= nil then
+                              return string.format("%02d:%02d",
+                                  math.floor(tonumber(hour) or 0) % 24,
+                                  math.floor(tonumber(minute) or 0) % 60)
+                          end
+                          return "SET"
                       elseif item.isRecoveryControl then
                           local legacy = trackerLog().__LEGACY__
                           return tostring(type(legacy) == "table" and #legacy or 0)
@@ -17546,19 +18846,24 @@ return function(mod)
                           if self.rerollSeedFlash and self.rerollSeedFlash > 0 then return "ROLLED" end
                           if self.rerollSeedFlash and self.rerollSeedFlash < 0 then return "ERROR" end
                           return "ROLL"
+                      elseif item.isRandomizerAutoSeedControl then
+                          if self.autoSeedFlash and self.autoSeedFlash < 0 then return "ERROR" end
+                          return "AUTO"
                       elseif item.isPkmnBanControl then
                           local count = mod.exports.__beta26.pkmnBanCount(
                               self.preGame, self.game)
                           return count > 0 and (tostring(count) .. " BAN") or "NONE"
                       elseif item.isSetupPresetSlot then
+                          if selectedSetupPresetSlot <= 0 then return "OFF" end
                           local exists = H.setupPresetExists(selectedSetupPresetSlot)
                           return tostring(selectedSetupPresetSlot) .. (exists and "*" or "")
                       elseif item.isSetupPresetSave then
                           if self.setupPresetFlash and self.setupPresetFlash > 0 then return "SAVED" end
                           if self.setupPresetFlash and self.setupPresetFlash < 0 then return "ERROR" end
-                          return "SAVE"
+                          return selectedSetupPresetSlot > 0 and "SAVE" or "OFF"
                       elseif item.isSetupPresetLoad then
                           if self.setupPresetFlash and self.setupPresetFlash < 0 then return "EMPTY" end
+                          if selectedSetupPresetSlot <= 0 then return "OFF" end
                           return H.setupPresetExists(selectedSetupPresetSlot) and "LOAD" or "EMPTY"
                       elseif item.isSetupSave then
                           if self.setupSaveFlash and self.setupSaveFlash > 0 then return "SAVED" end
@@ -17600,7 +18905,9 @@ return function(mod)
                           return ({ [0]="NORMAL", [1]="NO FINAL", [2]="NO EVO" })[tonumber(val) or 0] or "NORMAL"
                       elseif key == "travel_restrictions" then
                           return ({ [0]="NORMAL", [1]="NO FLY", [2]="NO FLY+TP" })[tonumber(val) or 0] or "NORMAL"
-                      elseif key == "automatic_running_shoes" or key == "fast_surf" then
+                      elseif key == "shop_restrictions" then
+                          return ({ [0]="OFF", [1]="NO BUY", [2]="NO SELL", [3]="NEITHER" })[tonumber(val) or 0] or "OFF"
+                      elseif key == "run_surf" then
                           return Strings(mod.exports.__beta26.movementAssistLabel(val))
                       elseif key == "shiny_clause" then
                           return ({ [0]="OFF", [1]="1", [2]="2", [3]="3", [4]="UNLIMITED" })[tonumber(val) or 4] or "UNLIMITED"
@@ -17610,6 +18917,8 @@ return function(mod)
                           return mod.exports.__beta26.typeLockModeLabel(val)
                       elseif key == "type_lock_primary" or key == "type_lock_secondary" or key == "type_lock_tertiary" or key == "type_lock_quaternary" or key == "type_lock_quinary" or key == "type_lock_senary" then
                           return mod.exports.__beta26.typeLockTypeLabel(val)
+                      elseif key == "randomizer_preset" then
+                          return ({ [0]="CUSTOM", [1]="CHAOS", [2]="BALANCED" })[tonumber(val) or 0] or "CUSTOM"
                       elseif key == "randomizer_seed" then
                           local seed = tonumber(val) or 0
                           return seed > 0 and ("%08d"):format(seed) or "AUTO"
@@ -17629,6 +18938,14 @@ return function(mod)
                           return ({ [0]="ALLOW", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(val) or 0] or "ALLOW"
                       elseif key == "random_encounter_diversity_strength" then
                           return ({ [0]="LIGHT", [1]="STANDARD", [2]="STRONG" })[tonumber(val) or 1] or "STANDARD"
+                      elseif key == "random_evolution_balance" then
+                          return ({ [0]="CHAOS", [1]="DEPTH", [2]="SIM BST", [3]="BALANCED" })[tonumber(val) or 0] or "CHAOS"
+                      elseif key == "random_trainer_balance" then
+                          return ({ [0]="CHAOS", [1]="EVO", [2]="SIM BST", [3]="BALANCED" })[tonumber(val) or 0] or "CHAOS"
+                      elseif key == "random_trainer_diversity" then
+                          return ({ [0]="OFF", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(val) or 0] or "OFF"
+                      elseif key == "random_trainer_theme" then
+                          return ({ [0]="OFF", [1]="TYPE" })[tonumber(val) or 0] or "OFF"
                       elseif key == "randomizer_info_policy" then
                           return ({ [0]="OPEN INFO", [1]="BLIND INFO" })[tonumber(val) or 0] or "OPEN INFO"
                       elseif key == "gold_egg_encounter_mode" then
@@ -17637,6 +18954,8 @@ return function(mod)
                           return ({ [0]="NORMAL", [1]="EXEMPT", [2]="SLOT" })[tonumber(val) or 0] or "NORMAL"
                       elseif key == "random_learnset_generation" then
                           return ({ [0]="AUTO", [1]="GEN1", [2]="GEN2" })[tonumber(val) or 0] or "AUTO"
+                      elseif key == "random_learnset_stab" then
+                          return ({ [0]="OFF", [1]="PREFER", [2]="STRONG" })[tonumber(val) or 1] or "PREFER"
                       elseif key == "random_species_generation" then
                           return ({ [0]="AUTO", [1]="GEN1", [2]="GEN2", [3]="BOTH" })[tonumber(val) or 0] or "AUTO"
                       elseif key == "route_forgiveness" then
@@ -17644,8 +18963,10 @@ return function(mod)
                       elseif key == "trainer_money_multiplier" then
                           return mod.exports.__beta26.trainerMoneyPresetLabels[
                               tonumber(val) or 4] or Strings.source("100%")
-                      elseif key == "mt_moon_splits" or key == "safari_zone_splits" then
+                      elseif key == "mt_moon_splits" then
                           return ({ [0]="OFF", [1]="COMMON" })[tonumber(val) or 0] or "OFF"
+                      elseif key == "safari_zone_splits" then
+                          return ({ [0]="STANDARD", [1]="PER AREA", [2]="UNTIL CATCH", [3]="AREA+CATCH" })[tonumber(val) or 0] or "STANDARD"
                       elseif key == "player_start_stat_exp" or key == "wild_start_stat_exp"
                           or key == "trainer_start_stat_exp" then
                           return mod.exports.__beta26.statExpPresetLabels[tonumber(val) or 0] or "0%"
@@ -17659,7 +18980,7 @@ return function(mod)
                       local i = self.scroll + slot
                       local item = flatItemList[i]
                       if not item then break end
-                      local rowY = 4 + (slot - 1) * 2
+                      local rowY = 3 + (slot - 1) * 2
                       local selected = i == self.cursor
                       local rowWip = item.rule and (
                           item.rule.key == "wonderlocke"
@@ -17687,16 +19008,6 @@ return function(mod)
                           local key = item.sectionKey or sectionKey(item)
                           if collapsedSections[key] then
                               Chrome.cursor(18, rowY, true)
-                              local summary = collapsedSectionSummary(item)
-                              if summary then
-                                  local summaryText = goldMenuLabel(summary, nil, 14)
-                                  local summaryWidth = type(GoldFont.width) == "function"
-                                      and GoldFont.width(summaryText)
-                                      or (#summaryText * 8)
-                                  GoldFont.draw(summaryText,
-                                      math.max(16, math.floor((160 - summaryWidth) / 2)),
-                                      (rowY + 1) * 8)
-                              end
                           else
                               GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, rowY * 8)
                           end
@@ -17726,7 +19037,7 @@ return function(mod)
                               math.ceil((tonumber(valuePixels) or 8) / 8)))
                           Chrome.print(valueText, math.max(12, 19 - valueTiles), rowY)
                           if rowIsWip or delegated then
-                              love.graphics.setColor(1, 1, 1, 1)
+                              love.graphics.setColor(0, 0, 0, 1)
                           end
                       end
                   end
@@ -17734,49 +19045,49 @@ return function(mod)
                   local selItem = flatItemList[self.cursor]
                   if selItem and selItem.isHeader then
                       local key = selItem.sectionKey or sectionKey(selItem)
-                      Chrome.print(Strings("SEL:RESET"), 2, 12)
+                      local summary = collapsedSectionSummary(selItem)
+                      if summary then
+                          Chrome.print(goldMenuLabel(summary, nil, 16), 2, 12)
+                      end
+                      Chrome.print(Strings("SEL:RESET"), 2, 13)
                       Chrome.print(Strings("SEL+UD:JUMP"), 2, 14)
                       Chrome.print(Strings("A/LR:FOLD"), 2, 15)
                   elseif selItem and selItem.rule then
-                      local displayedDescription = ruleDescriptionForDisplay(selItem.rule, self.preGame)
-                      if selItem.rule.key == "locke_type" then
-                          local mode = math.max(0, math.min(6, math.floor(tonumber(
-                              getConfigValue("locke_type", self.preGame)) or 0)))
-                          if mode == 0 then
-                              local summary = LockePreset.customSummary(self.preGame)
-                              if summary then
-                                  displayedDescription = tostring(summary) .. ". "
-                                      .. tostring(displayedDescription or "")
-                              end
-                          end
-                      end
-                      if selItem.rule.key == "rules_locked"
-                      and not mod.exports.__beta26.permanentRuleSealWip then
-                          if self.lockConfirmStage == 1 then
-                              displayedDescription = Strings(
-                                  "WARNING 1/2: Permanent Rule Seal cannot be undone. Select SEAL again to continue, or move away/B to cancel.")
-                          elseif self.lockConfirmStage == 2 then
-                              displayedDescription = Strings(
-                                  "FINAL WARNING 2/2: One more SEAL activation permanently locks challenge rules. Move away/B to cancel.")
-                          end
-                      end
-                      local descLines = Chrome.wrap(displayedDescription, 16)
-                      local maxScroll = math.max(0, #descLines - 4)
+                      local descLines, maxScroll =
+                          configDescriptionScrollMetrics(selItem)
                       self.descScroll = math.max(0, math.min(self.descScroll or 0, maxScroll))
                       for row = 1, 4 do
                           local line = descLines[self.descScroll + row]
                           if not line then break end
                           Chrome.print(line, 2, 11 + row)
                       end
+                      -- 2.7.32: Gold long-help now communicates both
+                      -- directions and the exact line-scroll position. Chrome
+                      -- exposes the native down-arrow but no matching up-arrow,
+                      -- so use a compact caret in the same reserved right gutter
+                      -- rather than inventing an undocumented Gen2 glyph code.
+                      if self.descScroll > 0 then
+                          Chrome.print(Strings("^"), 18, 12)
+                      end
                       if self.descScroll < maxScroll then
                           GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 15 * 8)
                       end
                       if self.editingNumber then
                           Chrome.print(Strings("A:OK B:BACK"), 7, 16)
+                      elseif maxScroll > 0 then
+                          local pagingHint = self.descScroll < maxScroll
+                              and "SEL:MORE" or "SEL:TOP"
+                          local position = tostring(self.descScroll + 1)
+                              .. "/" .. tostring(maxScroll + 1)
+                          Chrome.print(Strings(pagingHint), 2, 16)
+                          local positionCols = math.max(1, #position)
+                          Chrome.print(Strings(position),
+                              math.max(11, 19 - positionCols), 16)
                       elseif locked then
                           Chrome.print(Strings("RULES SEALED"), 7, 16)
                       end
                   end
+                  love.graphics.setColor(1, 1, 1, 1)
                   return
               end
 
@@ -17914,10 +19225,15 @@ return function(mod)
               end
 
               -- 2.6.31: classic config uses a 12/6 split instead of 11/7.
-              -- The recovered 8px belongs to the list, not smaller typography:
-              -- four 16px rows now fit while the lower pane still has room for
-              -- three wrapped help lines. Wide classic mode follows the same
-              -- vertical geometry; Gold/Silver returned above on their native path.
+              -- The recovered 8px belongs to the list, not smaller typography.
+              -- 2.7.95: pre-game Setup is drawn over edition-colored title
+              -- presentation. Clear that inherited tint first so Setup uses the
+              -- same monochrome black-on-white contract as live NUZLOCKE RULES.
+              if self.preGame then
+                  love.graphics.setColor(1, 1, 1, 1)
+                  love.graphics.rectangle("fill", 0, 0, (menuCols * 8), 144)
+                  love.graphics.setColor(0, 0, 0, 1)
+              end
               Font.drawBox(0, 0, menuCols, 12)
               Font.drawBox(0, 12, menuCols, 6)
 
@@ -17929,11 +19245,9 @@ return function(mod)
                   self.scroll = math.max(0, self.cursor - 1)
               end
 
-              -- 2.6.31 moved the native position indicator into header space.
-              -- 2.6.36 keeps that behavior but special-cases classic R/B/Y
-              -- pre-game Setup: "NUZLOCKE SETUP" needs the full top row, so the
-              -- current/total indicator lives on row two instead of colliding
-              -- with the longer title.
+              -- 2.7.91: Setup/Rules owns a single title row now. Move the
+              -- visible rules upward into the reclaimed space and center the
+              -- compact pager at the bottom of the list panel.
               local surfaceWidth = menuCols * 8
               local totalItems = #flatItemList
               local currentItem = totalItems > 0
@@ -17945,53 +19259,31 @@ return function(mod)
               local Theme = require("src.ui.Theme")
               local canScrollUp = (self.scroll or 0) > 0
               local canScrollDown = (self.scroll or 0) + self.pageSize < totalItems
-              local preGameClassicHeader = self.preGame and not self.goldMode and not wideMode
-              local navY = preGameClassicHeader and 22 or 10
+              local navY = 82
               local arrowGap = 4
-              local downX = surfaceWidth - 16
-              local positionX = downX - arrowGap - positionWidth
-              local upX = math.max(8, positionX - arrowGap - 8)
+              local arrowWidth = 8
+              local clusterWidth = arrowWidth + arrowGap + positionWidth
+                  + arrowGap + arrowWidth
+              local upX = math.max(8,
+                  math.floor((surfaceWidth - clusterWidth) / 2))
+              local positionX = upX + arrowWidth + arrowGap
+              local downX = positionX + positionWidth + arrowGap
 
               -- Title: centred in the 160px canvas (inner X=8..152=144px wide).
               -- "NUZLOCKE RULES" = 14 chars * ~10px = 140px => start at X=10.
               -- "NZLCKE SETUP"  = 12 chars * ~10px = 120px => start at X=20.
               local locked = mod.exports.__beta26.configRulesLocked(self.preGame)
-              if self.preGame then
-                  if self.goldMode then
-                      Font.draw(fitPixelText("NUZLOCKE "
-                          .. mod.exports.__beta26.Dev.gameLabel(self.game),
-                          wideMode and 280 or 138), 10, 10)
-                      Font.draw(fitPixelText("BETA SETUP",
-                          wideMode and 280 or 138), 10, 22)
-                  else
-                      Font.draw(fitPixelText("NUZLOCKE SETUP",
-                          wideMode and 280 or 138), 10, 10)
-                      local setupSubline = mod.exports.__beta26.Dev.gameLabel(self.game)
-                          .. " NEW GAME"
-                      local setupBudget = preGameClassicHeader
-                          and math.max(72, positionX - 14)
-                          or (wideMode and 280 or 138)
-                      Font.draw(fitPixelText(setupSubline, setupBudget), 10, 22)
-                  end
-              else
-                  local exactEdition = mod.exports.__beta26.Dev.gameLabel(self.game)
-                  if self.goldMode then
-                      Font.draw(fitPixelText("NUZLOCKE RULES", wideMode and 280 or 138), 10, 10)
-                      local edition = mod.exports.__beta26.Dev.gameLabel(self.game) .. " BETA"
-                      Font.draw(fitPixelText(edition, wideMode and 280 or 116), 10, 22)
-                      if locked then
-                          Font.draw(Strings("[LK]"), 116 + valueShift, 10)
-                      else
-                          Font.draw(Strings("R1"), 136 + valueShift, 10)
-                      end
-                  else
-                      Font.draw(fitPixelText("NUZ RULES", 138), 10, 10)
-                      -- Exact edition/revision is diagnostic metadata, not
-                      -- ordinary rule navigation. Keep only the lock marker.
-                      if locked then Font.draw(Strings("[LK]"), 10, 22) end
-                  end
-              end
-
+              local edition = mod.exports.__beta26.Dev.gameLabel(self.game)
+              local uiView = mod.exports.__beta26.UiSystem.view(
+                  self.preGame and "SETUP" or "RULES", self.game, {
+                      edition = edition,
+                      mode = self.preGame and "NEW RUN" or "LIVE",
+                      state = locked and "LOCKED" or nil,
+                  })
+              mod.exports.__beta26.UiSystem.gen1Header(Font, uiView, surfaceWidth)
+              -- 2.7.92: normal rule names, values, cursor/navigation glyphs,
+              -- pager, and help copy use the same black text treatment.
+              love.graphics.setColor(0, 0, 0, 1)
               Font.draw(positionText, positionX, navY)
               if canScrollUp then
                   -- R/B/Y has one native list-more tile (▼). Rotate that exact
@@ -18007,9 +19299,9 @@ return function(mod)
                   Font.drawCode(Theme.moreArrow or 0xEE, downX, navY)
               end
 
-              -- Four full 16px rows fit in the expanded upper pane. A collapsed
-              -- fourth-row header still has its summary at y=88, safely above
-              -- the new divider at y=96.
+              -- 2.7.91: with the redundant context subtitle removed,
+              -- start the three 16px rule rows one full row higher. The pager
+              -- occupies the centered footer strip above the y=96 detail divider.
               local startY = 32
 
               for i = self.scroll + 1,
@@ -18051,20 +19343,6 @@ return function(mod)
                       Font.drawCode(collapsedSections[key]
                           and Theme.cursor or (Theme.moreArrow or 0xEE),
                           138 + valueShift, drawY)
-                      if collapsedSections[key] then
-                          local summary = collapsedSectionSummary(item)
-                          if summary then
-                              local summaryText = fitPixelText(summary,
-                                  wideMode and 256 or 116)
-                              local summaryWidth = type(Font.width) == "function"
-                                  and Font.width(summaryText)
-                                  or (#summaryText * 6)
-                              local summaryRight = 132 + valueShift
-                              local summaryX = math.max(16, math.floor(
-                                  (8 + summaryRight - summaryWidth) / 2))
-                              Font.draw(summaryText, summaryX, drawY + 8)
-                          end
-                      end
                   else
                       local isSelected = (i == self.cursor)
                       local key = item.rule.key
@@ -18078,7 +19356,7 @@ return function(mod)
                       if isWip or delegated then
                           love.graphics.setColor(0.55, 0.55, 0.55, 1)
                       else
-                          love.graphics.setColor(1, 1, 1, 1)
+                          love.graphics.setColor(0, 0, 0, 1)
                       end
 
                       -- Delegated rows remain selectable for hover/help text,
@@ -18103,7 +19381,7 @@ return function(mod)
                           valueStartX = wideMode and 244 or 108
                       elseif item.isRecoveryControl then
                           valueStartX = 118 + valueShift
-                      elseif item.isRandomizerRerollControl or item.isStarterRerollControl then
+                      elseif item.isRandomizerRerollControl or item.isRandomizerAutoSeedControl or item.isStarterRerollControl then
                           valueStartX = 112 + valueShift
                       elseif item.isSetupSave or item.isInGameSave then
                           valueStartX = 112 + valueShift
@@ -18122,6 +19400,8 @@ return function(mod)
                           elseif key == "travel_restrictions"
                               or key == "shiny_clause" then
                               valueStartX = 96 + valueShift
+                          elseif key == "run_surf" then
+                              valueStartX = 104 + valueShift
                           elseif key == "encounter_ball_limit" then
                               valueStartX = 112 + valueShift
                           elseif key == "starting_money"
@@ -18158,6 +19438,9 @@ return function(mod)
                           elseif self.rerollSeedFlash and self.rerollSeedFlash < 0 then
                               label = "ERROR"
                           end
+                          Font.draw(marqueePixelText(label, 42, self.marqueeTime), 112 + valueShift, drawY)
+                      elseif item.isRandomizerAutoSeedControl then
+                          local label = (self.autoSeedFlash and self.autoSeedFlash < 0) and "ERROR" or "AUTO"
                           Font.draw(marqueePixelText(label, 42, self.marqueeTime), 112 + valueShift, drawY)
                       elseif item.isStarterRerollControl then
                           local idx = type(mod.exports.__beta26.randomizerStarterRerollIndex) == "function"
@@ -18221,6 +19504,10 @@ return function(mod)
                               local labels = { [0] = "NORMAL", [1] = "NO FLY", [2] = "NO FLY+TP" }
                               Font.draw(marqueePixelText(labels[tonumber(val) or 0]
                                   or "NORMAL", 58, self.marqueeTime), 96 + valueShift, drawY)
+                          elseif key == "shop_restrictions" then
+                              local labels = { [0] = "OFF", [1] = "NO BUY", [2] = "NO SELL", [3] = "NEITHER" }
+                              Font.draw(marqueePixelText(labels[tonumber(val) or 0]
+                                  or "OFF", 58, self.marqueeTime), 96 + valueShift, drawY)
                           elseif key == "shiny_clause" then
                               local labels = { [0] = "OFF", [1] = "1", [2] = "2", [3] = "3", [4] = "UNLIMITED" }
                               Font.draw(marqueePixelText(labels[tonumber(val) or 0]
@@ -18235,6 +19522,10 @@ return function(mod)
                               Font.draw(marqueePixelText(
                                   mod.exports.__beta26.typeLockTypeLabel(val),
                                   42, self.marqueeTime), 112 + valueShift, drawY)
+                          elseif key == "randomizer_preset" then
+                              local labels = { [0]="CUSTOM", [1]="CHAOS", [2]="BALANCED" }
+                              Font.draw(marqueePixelText(labels[tonumber(val) or 0]
+                                  or "CUSTOM", 50, self.marqueeTime), 104 + valueShift, drawY)
                           elseif key == "randomizer_seed" then
                               local seed = tonumber(val) or 0
                               local label = seed > 0 and ("%08d"):format(seed) or "AUTO"
@@ -18279,11 +19570,15 @@ return function(mod)
                               local labels = { [0]="AUTO", [1]="GEN1", [2]="GEN2" }
                               Font.draw(marqueePixelText(labels[tonumber(val) or 0]
                                   or "AUTO", 42, self.marqueeTime), 112 + valueShift, drawY)
+                          elseif key == "random_learnset_stab" then
+                              local labels = { [0]="OFF", [1]="PREFER", [2]="STRONG" }
+                              Font.draw(marqueePixelText(labels[tonumber(val) or 1]
+                                  or "PREFER", 42, self.marqueeTime), 112 + valueShift, drawY)
                           elseif key == "random_species_generation" then
                               local labels = { [0]="AUTO", [1]="GEN1", [2]="GEN2", [3]="BOTH" }
                               Font.draw(marqueePixelText(labels[tonumber(val) or 0]
                                   or "AUTO", 42, self.marqueeTime), 112 + valueShift, drawY)
-                          elseif key == "automatic_running_shoes" or key == "fast_surf" then
+                          elseif key == "run_surf" then
                               Font.draw(marqueePixelText(Strings(
                                   mod.exports.__beta26.movementAssistLabel(val)),
                                   50, self.marqueeTime), 104 + valueShift, drawY)
@@ -18294,11 +19589,15 @@ return function(mod)
                               local label = mod.exports.__beta26.trainerMoneyPresetLabels[
                                   tonumber(val) or 4] or Strings.source("100%")
                               Font.draw(marqueePixelText(label, 44, self.marqueeTime), 110 + valueShift, drawY)
-                          elseif key == "mt_moon_splits"
-                              or key == "safari_zone_splits" then
+                          elseif key == "mt_moon_splits" then
                               local labels = { [0] = "OFF", [1] = "COMMON" }
                               Font.draw(marqueePixelText(labels[tonumber(val) or 0]
                                   or "OFF", 50, self.marqueeTime), 104 + valueShift, drawY)
+                          elseif key == "safari_zone_splits" then
+                              local labels = { [0] = "STANDARD", [1] = "PER AREA",
+                                  [2] = "UNTIL CATCH", [3] = "AREA+CATCH" }
+                              Font.draw(marqueePixelText(labels[tonumber(val) or 0]
+                                  or "STANDARD", 50, self.marqueeTime), 104 + valueShift, drawY)
                           elseif key == "player_start_stat_exp" or key == "wild_start_stat_exp"
                               or key == "trainer_start_stat_exp" then
                               Font.draw(marqueePixelText(
@@ -18323,7 +19622,7 @@ return function(mod)
                           Font.draw(Strings(status), 118 + valueShift, drawY)
                       end
 
-                      love.graphics.setColor(1, 1, 1, 1)
+                      love.graphics.setColor(0, 0, 0, 1)
                   end
               end
 
@@ -18401,9 +19700,12 @@ return function(mod)
                   -- show sensible hints anyway).
                   if selItem and selItem.isHeader then
                       local key = selItem.sectionKey or sectionKey(selItem)
-                      Font.draw(Strings("SEL: RESET SECTION"), 14, 104)
-                      Font.draw(Strings("SEL+UD: JUMP"), 14, 116)
-                      Font.draw(Strings("A/LR: FOLD"), 14, 128)
+                      local summary = collapsedSectionSummary(selItem)
+                      if summary then
+                          Font.draw(fitPixelText(summary, surfaceWidth - 28), 14, 104)
+                      end
+                      Font.draw(Strings("SEL: RESET"), 14, 116)
+                      Font.draw(Strings("A/LR:FOLD SEL+UD:JUMP"), 14, 128)
                   elseif locked then
                       Font.draw(Strings("Rules are LOCKED."), 14, 104)
                       Font.draw(Strings("A on Lock to open."), 14, 120)
@@ -18413,6 +19715,7 @@ return function(mod)
                       Font.draw(Strings("B: Back"), 14, 128)
                   end
               end
+              love.graphics.setColor(1, 1, 1, 1)
               end
               return drawGen1Surface()
           end
@@ -18515,6 +19818,7 @@ return function(mod)
       active = active, activeCompatProvider = activeCompatProvider,
       providerExclusive = providerExclusive, isTrainerDefinition = isTrainerDefinition,
       wrapText = wrapText, ALL_ROUTES = ALL_ROUTES, ROUTE_ORDER = ROUTE_ORDER,
+      GEN1_SEED_IDS = GEN1_SEED_IDS,
       routeKey = routeKey, registerArea = registerArea, isTrackedArea = isTrackedArea,
       routeName = routeName, discoverAllKnownAreas = discoverAllKnownAreas,
       caughtAreas = caughtAreas, trackerLog = trackerLog, areaKey = areaKey,
@@ -18909,6 +20213,150 @@ return function(mod)
 
 
   ---------------------------------------------------------------------
+  -- NUZ MENU
+  -- 2.7.101: every Nuzlocke-owned ordinary START-menu destination is
+  -- consolidated behind one stable entry. Party/stat-page NUZ INFO is
+  -- deliberately not part of this surface and remains where the host owns it.
+  ---------------------------------------------------------------------
+  mod.content.screens:register("NuzlockeMenuScreen", {
+      isModOptions = true,
+      new = function(game)
+          local gen2 = mod.exports.__beta26.runtimeIsGen2(game)
+          local rows = {
+              {
+                  label = "NUZ RULES",
+                  open = function()
+                      mod.exports.__beta26.pushNuzlockeConfigScreen(game)
+                  end,
+              },
+              {
+                  label = "ENC TRACKER",
+                  open = function()
+                      mod.ui.push(game, "NuzlockeTrackerScreen")
+                  end,
+              },
+              {
+                  label = "NUZ STATUS",
+                  open = function()
+                      if gen2 then
+                          mod.ui.push(game, "NuzlockeGoldStatusScreen")
+                      else
+                          mod.ui.push(game, "NuzlockeTrainerCardScreen",
+                              { statusOnly = true })
+                      end
+                  end,
+              },
+              {
+                  label = "MOD COMPAT",
+                  open = function()
+                      mod.ui.push(game, "NuzlockeModCompatScreen")
+                  end,
+              },
+          }
+          if mod.exports.__beta26.Dev.enabled() then
+              rows[#rows + 1] = {
+                  label = "DEV TOOLS",
+                  open = function()
+                      mod.ui.push(game, "NuzlockeDevToolsScreen")
+                  end,
+              }
+          end
+
+          local self = {
+              game = game, screenId = "NuzlockeMenuScreen",
+              isOpaque = true, rows = rows, index = 1,
+          }
+          mod.exports.__beta26.UiSystem.applyLayout(self, "centered")
+
+          function self:update(_dt)
+              if game.input:wasPressed("up") then
+                  self.index = math.max(1, self.index - 1)
+              elseif game.input:wasPressed("down") then
+                  self.index = math.min(#self.rows, self.index + 1)
+              elseif game.input:wasPressed("b") then
+                  game.stack:pop()
+              elseif game.input:wasPressed("a") then
+                  local row = self.rows[self.index]
+                  if row and type(row.open) == "function" then row.open() end
+              end
+          end
+
+          function self:draw()
+              if gen2 then
+                  local Chrome = require("src.ui.gen2.Chrome")
+                  local Font = require("src.render.Font")
+                  Chrome.clear()
+                  Chrome.box(0, 0, 20, 18)
+                  mod.exports.__beta26.drawGen2NuzTitle(
+                      Chrome, Font, "NUZ MENU", nil, { row = 1 })
+                  for i, row in ipairs(self.rows) do
+                      local y = 4 + (i - 1) * 2
+                      if i == self.index then Chrome.cursor(1, y) end
+                      Chrome.print(Strings(row.label), 3, y)
+                  end
+                  Chrome.print(Strings("A:OPEN  B:BACK"), 2, 16)
+                  return
+              end
+
+              local Font = require("src.render.Font")
+              local Theme = require("src.ui.Theme")
+              local function trackedWidth(value, tracking)
+                  local label = Strings(tostring(value or ""))
+                  tracking = tracking or 1
+                  local spans = type(Font.split) == "function"
+                      and Font.split(label) or nil
+                  if type(spans) ~= "table" or #spans == 0 then
+                      return type(Font.width) == "function"
+                          and Font.width(label) or (#label * 8)
+                  end
+                  local width = 0
+                  for i, span in ipairs(spans) do
+                      local glyph = label:sub(span.from, span.to)
+                      width = width + (type(Font.width) == "function"
+                          and Font.width(glyph) or 8)
+                      if i < #spans then width = width + tracking end
+                  end
+                  return width
+              end
+              local function centeredTrackedBold(value, y)
+                  local label = Strings(tostring(value or ""))
+                  local spans = type(Font.split) == "function"
+                      and Font.split(label) or nil
+                  local x = math.max(8, math.floor(
+                      (160 - trackedWidth(label, 1)) / 2))
+                  if type(spans) ~= "table" or #spans == 0 then
+                      Font.draw(label, x, y); Font.draw(label, x + 1, y)
+                      return
+                  end
+                  for i, span in ipairs(spans) do
+                      local glyph = label:sub(span.from, span.to)
+                      Font.draw(glyph, x, y); Font.draw(glyph, x + 1, y)
+                      x = x + (type(Font.width) == "function"
+                          and Font.width(glyph) or 8)
+                      if i < #spans then x = x + 1 end
+                  end
+              end
+
+              love.graphics.setColor(1, 1, 1, 1)
+              love.graphics.rectangle("fill", 0, 0, 160, 144)
+              Font.drawBox(0, 0, 20, 18)
+              love.graphics.setColor(0, 0, 0, 1)
+              centeredTrackedBold("NUZ MENU", 8)
+              for i, row in ipairs(self.rows) do
+                  local y = 32 + (i - 1) * 16
+                  if i == self.index then
+                      Font.drawCode(Theme.cursor, 8, y)
+                  end
+                  Font.draw(Strings(row.label), 24, y)
+              end
+              Font.draw(Strings("A:OPEN  B:BACK"), 16, 128)
+              love.graphics.setColor(1, 1, 1, 1)
+          end
+          return self
+      end,
+  })
+
+  ---------------------------------------------------------------------
   -- START MENU HOOKS
   --
   -- IMPORTANT: build from the VANILLA result first, then modify that
@@ -18973,64 +20421,17 @@ return function(mod)
           end
       end
 
-      -- R/B/Y keeps the established Trainer Card flip/status integration.
-      -- Gold's native card already owns multiple pages, so beta.27.5 stops
-      -- hijacking that row and exposes a dedicated status screen through the
-      -- shared public ui.start_menu.items hook instead.
-      -- 2.1.18: never replace the native Trainer Card row. A runtime crash
-      -- was reproduced on Yellow while the Nuzlocke wrapper owned that row.
-      -- Keep the engine card entirely upstream-owned and expose run status as
-      -- a dedicated START-menu item in every supported generation.
+      -- 2.7.101: expose exactly one Nuzlocke-owned row in the ordinary
+      -- START menu. All former Nuzlocke START destinations now live inside
+      -- NUZ MENU. Native rows and Pokemon/stat-page NUZ INFO are untouched.
       mod.ui.insertBefore(result, optionAnchor, {
-          -- Gold's native START box has only seven safe label tiles after its
-          -- cursor gutter, so use the same compact label on every game.
-          label = goldMenu and Strings("NUZ ST.") or Strings("NUZ STS."),
-          desc = { Strings("Nuzlocke"), Strings("run status") },
+          label = goldMenu and Strings("NUZ MENU") or Strings("NUZ MENU"),
+          desc = goldMenu and { Strings("Nuzlocke"), Strings("menus") }
+              or { Strings("Nuzlocke menus") },
+          __nuzlockeMenuRow = true,
           onSelect = function()
-              if goldMenu then
-                  mod.ui.push(game, "NuzlockeGoldStatusScreen")
-              else
-                  mod.ui.push(game, "NuzlockeTrainerCardScreen", { statusOnly = true })
-              end
-          end
-      })
-
-      if mod.exports.__beta26.Dev.enabled() then
-          mod.ui.insertBefore(result, optionAnchor, {
-              label = goldMenu and Strings("DEV") or Strings("DEV TOOLS"),
-              desc = goldMenu and { Strings("Developer"), Strings("diagnostics") }
-                  or nil,
-              __nuzlockeDevToolsRow = true,
-              onSelect = function()
-                  mod.ui.push(game, "NuzlockeDevToolsScreen")
-              end
-          })
-      end
-
-      mod.ui.insertBefore(result, optionAnchor, {
-          label = goldMenu and Strings("MOD CMP") or Strings("MOD COMPAT"),
-          desc = goldMenu and { Strings("Active mod"), Strings("ownership") } or nil,
-          onSelect = function()
-              mod.ui.push(game, "NuzlockeModCompatScreen")
-          end
-      })
-
-      mod.ui.insertBefore(result, optionAnchor, {
-          label = goldMenu and Strings("ENC TRK") or Strings("ENC TRACKER"),
-          desc = goldMenu and { Strings("Encounter"), Strings("tracker") } or nil,
-          onSelect = function()
-              mod.ui.push(game, "NuzlockeTrackerScreen")
-          end
-      })
-
-      mod.ui.insertBefore(result, optionAnchor, {
-          -- Gold's native menu has a seven-tile safe label field. R/B/Y retain
-          -- the clearer full label because their START menu is wider.
-          label = goldMenu and Strings("NUZ RUL") or Strings("NUZ RULES"),
-          desc = goldMenu and { Strings("Nuzlocke"), Strings("rules") } or nil,
-          onSelect = function()
-              mod.exports.__beta26.pushNuzlockeConfigScreen(game)
-          end
+              mod.ui.push(game, "NuzlockeMenuScreen")
+          end,
       })
 
       return result
@@ -19547,6 +20948,10 @@ return function(mod)
       local result = next(game, items, mon, ctx)
       if type(result) ~= "table" then result = items end
       if type(result) ~= "table" then return result end
+      if mod.exports.__beta26.runtimeIsGen2(game) then
+          pcall(mod.exports.__beta26.noteGen2AdapterReach,
+              "party_shared_hook", { rows=#result })
+      end
 
       local anyNuzInfo = mod.save:get("catch_info", true) == true
           or mod.save:get("stat_info", true) == true
@@ -19568,6 +20973,10 @@ return function(mod)
                       else
                           mod.exports.__beta26.pushRbyNuzInfoNative(game, mon)
                       end
+                  end
+                  if mod.exports.__beta26.runtimeIsGen2(game) then
+                      pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                          "party_shared_row_present", true)
                   end
                   return result
               end
@@ -19595,6 +21004,10 @@ return function(mod)
                   end
               end
           })
+          if mod.exports.__beta26.runtimeIsGen2(game) then
+              pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                  "party_shared_row_inserted", true)
+          end
       end
 
       return result
@@ -20346,6 +21759,9 @@ return function(mod)
   -- re-opening the Pack, so Pack-only policy hooks are not an authoritative
   -- veto. Guard the underlying fishing/Gold field-item seams as a backstop;
   -- normal Pack use still gets the richer ItemPolicy presentation above.
+  -- 2.7.101: Gen2 party-target consumable metadata is repaired at the
+  -- Pack-use seam in late_runtime.lua, where the merged Pack item view is live.
+
   function ItemPolicy.installFieldActionGuards()
       if mod.exports.__beta26.isSaveEditorSession() then return true end
       if mod.exports.__beta26.runtimeIsGen2(currentGame or mod.game) then
@@ -20939,44 +22355,112 @@ return function(mod)
   end
 
   ---------------------------------------------------------------------
-  -- REGISTER STARTER IN PALLET TOWN
-  -- Always records the starter in PALLET_TOWN regardless of the
-  -- town_catches toggle. Pallet Town is the one mandatory town slot.
+  -- REGISTER STARTER IN THE EXACT EDITION HOMETOWN
+  -- R/B/Y retain PALLET_TOWN; shared Gold/Silver use NEW_BARK_TOWN.
+  -- This is provenance authority, not merely Tracker presentation.
   ---------------------------------------------------------------------
-  mod.exports.__beta26.registerStarterCatch = function(species, mon)
+  mod.exports.__beta26.registerStarterCatch = function(species, mon, opts)
       if not species then return end
       species = tostring(species):upper()
-      local area = "PALLET_TOWN"
+      local game = currentGame or mod.game
+      local area = mod.exports.__beta26.runtimeIsGen2(game)
+          and "NEW_BARK_TOWN" or "PALLET_TOWN"
+      if mod.exports.__beta26.runtimeIsGen2(game) then
+          pcall(mod.exports.__beta26.noteGen2AdapterReach,
+              "starter_registration", { species=species, area=area })
+      end
       registerArea(area)
       markVisited(area)
 
+      local monId = mon and Identity.ensurePokemonIdentity(mon, currentSave, "NORMAL") or nil
+      local fingerprint = mon and Identity.fingerprint(mon) or nil
+      local log = trackerLog()
       local areas = caughtAreas()
-      if areas[area] then
-          -- A starter can emit both received and caught events. If the slot is
-          -- already registered, tag this event's mon as handled so the later
-          -- pokemon.caught event cannot create a second log entry.
-          if mon then
-              mon.catchLocation = area
-              mon.encounterType = "gift"
-              mon.nuzlockeTrackerRegistered = true
-              Identity.setPokemonOrigin(mon, "NORMAL")
-              Identity.baselineAdd(mon, "NORMAL")
+      local canonicalRow = nil
+      opts = type(opts) == "table" and opts or {}
+
+      -- 2.7.79 reconstruction: very old saves may contain one identity-less,
+      -- fingerprint-less LEGACY row for a starter that is now concretely proven.
+      -- Species is permitted only inside this explicit repair mode, and only
+      -- when both sides are unique. Fresh registration never enables it.
+      if opts.allowUniqueLegacyStarterCleanup == true and mon then
+          local sameSpeciesLive = 0
+          for _, liveMon in ipairs(Identity.allCurrentMons(currentSave or (game and game.save))) do
+              if tostring(liveMon and liveMon.species or ""):upper() == species then
+                  sameSpeciesLive = sameSpeciesLive + 1
+              end
           end
-          return
+          local legacy = log.__LEGACY__
+          local legacyIndex, legacyCount = nil, 0
+          if sameSpeciesLive == 1 and type(legacy) == "table" then
+              for i, row in ipairs(legacy) do
+                  if type(row) == "table"
+                      and row.pokemonId == nil and row.fingerprint == nil
+                      and tostring(row.species or ""):upper() == species then
+                      legacyCount = legacyCount + 1
+                      legacyIndex = i
+                  end
+              end
+          end
+          if sameSpeciesLive == 1 and legacyCount == 1 and legacyIndex then
+              canonicalRow = legacy[legacyIndex]
+              table.remove(legacy, legacyIndex)
+              if #legacy > 0 then log.__LEGACY__ = legacy else log.__LEGACY__ = nil end
+              pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                  "starter_legacy_unique_cleanup", species)
+          end
       end
 
-      local log = trackerLog()
-      log[area] = log[area] or {}
-      local monId = mon and Identity.ensurePokemonIdentity(mon, currentSave, "NORMAL") or nil
-      table.insert(log[area], {
-          species       = species,
-          pokemonId     = monId,
-          fingerprint   = mon and Identity.fingerprint(mon) or nil,
-          isShiny       = mon and Identity.isShiny(mon),
-          encounterType = "gift",
-      })
+      -- 2.7.78 reconstruction: one physical starter identity owns exactly one
+      -- active Tracker row. Persistent ID is authoritative; fingerprint is only
+      -- a compatibility fallback for old rows that predate stored Pokemon IDs.
+      -- Species is deliberately never identity evidence here.
+      for logArea, rows in pairs(log) do
+          if type(rows) == "table" then
+              local kept = {}
+              for _, row in ipairs(rows) do
+                  local same = false
+                  if type(row) == "table" then
+                      if monId ~= nil and row.pokemonId ~= nil then
+                          same = tostring(row.pokemonId) == tostring(monId)
+                      elseif row.pokemonId == nil and fingerprint ~= nil
+                          and row.fingerprint ~= nil then
+                          same = tostring(row.fingerprint) == tostring(fingerprint)
+                      end
+                  end
+                  if same then
+                      canonicalRow = canonicalRow or row
+                  else
+                      kept[#kept + 1] = row
+                  end
+              end
+              if #kept > 0 then
+                  log[logArea] = kept
+              else
+                  log[logArea] = nil
+              end
+              if logArea ~= "__LEGACY__" then
+                  if #kept > 0 and type(kept[1]) == "table" then
+                      areas[logArea] = kept[1].species or areas[logArea]
+                  elseif logArea ~= area then
+                      areas[logArea] = nil
+                  end
+              end
+          end
+      end
+
+      canonicalRow = canonicalRow or {}
+      canonicalRow.species = species
+      canonicalRow.pokemonId = monId or canonicalRow.pokemonId
+      canonicalRow.fingerprint = fingerprint or canonicalRow.fingerprint
+      canonicalRow.isShiny = mon and Identity.isShiny(mon) or canonicalRow.isShiny
+      canonicalRow.encounterType = "gift"
+      canonicalRow.encounterSource = canonicalRow.encounterSource or "starter"
+      log[area] = type(log[area]) == "table" and log[area] or {}
+      log[area][#log[area] + 1] = canonicalRow
+      areas[area] = species
       mod.save:set("tracker_log", log)
-      markCaught(area, species)
+      mod.save:set("caught_areas", areas)
 
       if mon then
           mon.catchLocation = area
@@ -20989,19 +22473,208 @@ return function(mod)
 
       local history = mod.save:get("nuzlocke_history", {})
       if type(history) ~= "table" then history = {} end
-      table.insert(history, {
-          name          = (mon and (mon.nickname or mon.species)) or species,
-          species       = species,
-          pokemonId     = monId,
-          catchLocation = area,
-          encounterType = "gift",
-          status        = "ALIVE",
-      })
-      mod.save:set("nuzlocke_history", history)
+      local normalizedHistory = {}
+      local historyRow = nil
+      if monId ~= nil then
+          for _, row in ipairs(history) do
+              if type(row) == "table" and row.pokemonId ~= nil
+                  and tostring(row.pokemonId) == tostring(monId) then
+                  historyRow = historyRow or row
+              else
+                  normalizedHistory[#normalizedHistory + 1] = row
+              end
+          end
+      else
+          for _, row in ipairs(history) do normalizedHistory[#normalizedHistory + 1] = row end
+      end
+      historyRow = historyRow or {}
+      historyRow.name = (mon and (mon.nickname or mon.species)) or species
+      historyRow.species = species
+      historyRow.pokemonId = monId or historyRow.pokemonId
+      historyRow.catchLocation = area
+      historyRow.encounterType = "gift"
+      historyRow.status = historyRow.status or "ALIVE"
+      normalizedHistory[#normalizedHistory + 1] = historyRow
+      mod.save:set("nuzlocke_history", normalizedHistory)
+
       pcall(mod.exports.__beta26.RunHistory.recordCatch, currentGame or mod.game, mon, {
           species = species, pokemonId = monId, area = area,
           encounterType = "gift", provenance = "NORMAL", source = "starter",
       })
+      if mon and mod.exports.__beta26.runtimeIsGen2(game)
+          and type(mod.exports.__beta26.reconcileGen2ElmStarterStory) == "function" then
+          pcall(mod.exports.__beta26.reconcileGen2ElmStarterStory, game, mon)
+      end
+      return true
+  end
+
+  -- 2.7.79 reconstruction: once a concrete Gold/Silver Pokemon is already
+  -- proven as the New Bark starter, reconcile Elm's native story authority.
+  -- This never guesses starter identity; callers must pass the proven mon.
+  mod.exports.__beta26.reconcileGen2ElmStarterStory = function(game, mon)
+      game = game or currentGame or mod.game
+      if not mod.exports.__beta26.runtimeIsGen2(game) or type(mon) ~= "table" then
+          return false
+      end
+      if mon.nuzlockeTrackerRegistered ~= true
+          or tostring(mon.catchLocation or ""):upper() ~= "NEW_BARK_TOWN" then
+          return false
+      end
+      local encounterType = tostring(mon.encounterType or ""):lower()
+      if encounterType ~= "gift" and encounterType ~= "starter" then return false end
+      local world = game and game.world
+      if not (world and world.events and type(world.events.set) == "function") then
+          return false
+      end
+      local okFlags, FlagNames = pcall(require, "src.core.gen2.FlagNames")
+      if not okFlags or type(FlagNames) ~= "table"
+          or type(FlagNames.events) ~= "table" then return false end
+      local changed = false
+      local function setEvent(name)
+          local id = FlagNames.events[name]
+          if not id then return false end
+          local already = false
+          if type(world.events.get) == "function" then
+              local okGet, value = pcall(world.events.get, world.events, id)
+              already = okGet and value == true
+          end
+          if not already then
+              local okSet = pcall(world.events.set, world.events, id, true)
+              changed = okSet or changed
+              return okSet
+          end
+          return true
+      end
+      setEvent("EVENT_GOT_A_POKEMON_FROM_ELM")
+      local original = tostring(mod.save:get(
+          "__nuzlocke_random_starter_original", "") or ""):upper()
+      if original == "CHIKORITA" or original == "CYNDAQUIL"
+          or original == "TOTODILE" then
+          setEvent("EVENT_GOT_" .. original .. "_FROM_ELM")
+          setEvent("EVENT_" .. original .. "_POKEBALL_IN_ELMS_LAB")
+      end
+      pcall(mod.exports.__beta26.noteGen2AdapterReach,
+          "elm_story_reconciliation", {
+              species = tostring(mon.species or ""):upper(),
+              original = original ~= "" and original or nil,
+          })
+      return true
+  end
+
+  -- 2.7.76 reconstruction: repair only the provable early-Gen2 Pallet starter
+  -- corruption shape produced by older shared-path failures. This is deliberately
+  -- narrower than general Recover Catches and is idempotent.
+  mod.exports.__beta26.repairGen2StarterHometown = function(game)
+      game = game or currentGame or mod.game
+      if not mod.exports.__beta26.runtimeIsGen2(game) then return false end
+      if type(mod.exports.__beta26.saveWritePauseReason) == "function"
+          and mod.exports.__beta26.saveWritePauseReason() ~= nil then return false end
+      local save = game and game.save
+      if type(save) ~= "table" or currentBadgeCount(save) ~= 0 then return false end
+      local mons = Identity.allCurrentMons(save)
+      if #mons ~= 1 then return false end
+      local mon = mons[1]
+      if type(mon) ~= "table" or mon.nuzlockeTrackerRegistered ~= true
+          or tostring(mon.catchLocation or ""):upper() ~= "PALLET_TOWN" then return false end
+      local encounterType = tostring(mon.encounterType or ""):lower()
+      if encounterType ~= "gift" and encounterType ~= "starter" then return false end
+      local species = tostring(mon.species or ""):upper()
+      local log = trackerLog()
+      local pallet = log.PALLET_TOWN
+      if type(pallet) ~= "table" or #pallet ~= 1 then return false end
+      local row = pallet[1]
+      if type(row) ~= "table" or tostring(row.species or ""):upper() ~= species then
+          return false
+      end
+      local rowType = tostring(row.encounterType or ""):lower()
+      if rowType ~= "gift" and rowType ~= "starter" then return false end
+      local monId = Identity.pokemonIdentity(mon)
+      local monFingerprint = Identity.fingerprint(mon)
+      local identityProven = (monId ~= nil and row.pokemonId ~= nil
+              and tostring(row.pokemonId) == tostring(monId))
+          or (row.pokemonId == nil and monFingerprint ~= nil and row.fingerprint ~= nil
+              and tostring(row.fingerprint) == tostring(monFingerprint))
+      if not identityProven then return false end
+      local areas = caughtAreas()
+      if tostring(areas.PALLET_TOWN or ""):upper() ~= species
+          or areas.NEW_BARK_TOWN ~= nil then return false end
+
+      registerArea("NEW_BARK_TOWN", "New Bark Town")
+      row.encounterType = row.encounterType or "gift"
+      log.NEW_BARK_TOWN = { row }
+      log.PALLET_TOWN = nil
+      areas.NEW_BARK_TOWN = species
+      areas.PALLET_TOWN = nil
+      local seen = visitedAreas()
+      seen.NEW_BARK_TOWN = true
+      seen.PALLET_TOWN = nil
+      mon.catchLocation = "NEW_BARK_TOWN"
+      mod.save:set("tracker_log", log)
+      mod.save:set("caught_areas", areas)
+      mod.save:set("visited_areas", seen)
+
+      local states = mod.save:get("encounter_states", {})
+      if type(states) == "table" and type(states.PALLET_TOWN) == "table"
+          and tostring(states.PALLET_TOWN.species or ""):upper() == species then
+          states.NEW_BARK_TOWN = states.PALLET_TOWN
+          states.PALLET_TOWN = nil
+          mod.save:set("encounter_states", states)
+      end
+      local history = mod.save:get("nuzlocke_history", {})
+      if type(history) == "table" and monId ~= nil then
+          for _, h in ipairs(history) do
+              if type(h) == "table" and tostring(h.catchLocation or ""):upper() == "PALLET_TOWN"
+                  and h.pokemonId ~= nil
+                  and tostring(h.pokemonId) == tostring(monId) then
+                  h.catchLocation = "NEW_BARK_TOWN"
+              end
+          end
+          mod.save:set("nuzlocke_history", history)
+      end
+      pcall(mod.exports.__beta26.noteGen2AdapterReach, "starter_migration",
+          { species=species, area="NEW_BARK_TOWN" })
+      return true
+  end
+  for _, eventName in ipairs({ "game.ready", "save.loaded", "save.created" }) do
+      mod.events:on(eventName, function(game)
+          pcall(mod.exports.__beta26.repairGen2StarterHometown, game)
+      end)
+  end
+
+  -- 2.7.78 reconstruction: existing-save identity repair. Only concrete mons
+  -- already proven as tracker-registered starter/gift acquisitions in the
+  -- exact-edition hometown are eligible; no species-based guessing is allowed.
+  mod.exports.__beta26.repairStarterIdentityDuplicates = function(game)
+      game = game or currentGame or mod.game
+      if type(mod.exports.__beta26.saveWritePauseReason) == "function"
+          and mod.exports.__beta26.saveWritePauseReason() ~= nil then return false end
+      local save = game and game.save
+      if type(save) ~= "table" then return false end
+      local area = mod.exports.__beta26.runtimeIsGen2(game)
+          and "NEW_BARK_TOWN" or "PALLET_TOWN"
+      local repaired = false
+      for _, mon in ipairs(Identity.allCurrentMons(save)) do
+          if type(mon) == "table" and mon.nuzlockeTrackerRegistered == true
+              and tostring(mon.catchLocation or ""):upper() == area then
+              local encounterType = tostring(mon.encounterType or ""):lower()
+              if encounterType == "gift" or encounterType == "starter" then
+                  local species = tostring(mon.species or ""):upper()
+                  if species ~= "" then
+                      local ok = mod.exports.__beta26.registerStarterCatch(species, mon, {
+                          allowUniqueLegacyStarterCleanup =
+                              mod.exports.__beta26.runtimeIsGen2(game),
+                      })
+                      repaired = ok == true or repaired
+                  end
+              end
+          end
+      end
+      return repaired
+  end
+  for _, eventName in ipairs({ "game.ready", "save.loaded" }) do
+      mod.events:on(eventName, function(game)
+          pcall(mod.exports.__beta26.repairStarterIdentityDuplicates, game)
+      end)
   end
 
   -- 2.5.23: repair the exact fresh-R/B/Y regression where the native starter
@@ -21395,6 +23068,18 @@ return function(mod)
           return
       end
 
+      -- 2.7.90: Gen-2 native givePoke emits pokemon.received while the
+      -- Elm wrapper is still inside the physical transaction. Honor the shared
+      -- one-shot mandatory-starter receipt window before generic source/gift
+      -- inference can reclassify the starter and run legality a second time.
+      local mandatoryReceipt = mod.exports.__beta26.__mandatoryStarterReceipt
+      if type(mandatoryReceipt) == "table"
+          and mandatoryReceipt.game == game
+          and mandatoryReceipt.save == (game and game.save) then
+          mod.exports.__beta26.registerStarterCatch(species, mon)
+          return
+      end
+
       local rawLoc = ev.location or ev.mapId or ev.area
           or (game and game.overworld and game.overworld.map
               and game.overworld.map.id)
@@ -21407,7 +23092,8 @@ return function(mod)
       -- wrapper normally registers it synchronously; this event fallback covers
       -- engine/provider paths that emit only pokemon.received. A first owned mon
       -- explicitly reported as a starter is always New Bark Town.
-      if (getGameVersion() == "GOLD" or getGameVersion() == "SILVER") and source == "starter" then
+      if (getGameVersion() == "GOLD" or getGameVersion() == "SILVER"
+          or getGameVersion() == "CRYSTAL") and source == "starter" then
           local party = game and game.save and game.save.party or {}
           if #party <= 1 then
               mod.exports.__beta26.registerStarterCatch(species, mon)
@@ -22065,8 +23751,7 @@ return function(mod)
           .. tostring(mod.exports.__beta26.routeSplitActive("route_20_split") and 1 or 0) .. ":"
           .. tostring(math.max(0, math.min(1, math.floor(tonumber(
               mod.save:get("mt_moon_splits", 0)) or 0)))) .. ":"
-          .. tostring(math.max(0, math.min(1, math.floor(tonumber(
-              mod.save:get("safari_zone_splits", 0)) or 0)))) .. ":"
+          .. tostring(mod.exports.__beta26.safariClauseMode()) .. ":"
           .. tostring(mod.save:get("gold_time_split", false) == true and 1 or 0) .. ":"
           .. tostring(mod.save:get("gold_headbutt_split", false) == true and 1 or 0) .. ":"
           .. tostring(mod.save:get("gold_roamer_clause", false) == true and 1 or 0) .. ":"
@@ -22082,8 +23767,7 @@ return function(mod)
           .. tostring(mod.exports.__beta26.routeSplitActive("route_20_split") and 1 or 0) .. ":"
           .. tostring(math.max(0, math.min(1, math.floor(tonumber(
           mod.save:get("mt_moon_splits", 0)) or 0)))) .. ":"
-          .. tostring(math.max(0, math.min(1, math.floor(tonumber(
-              mod.save:get("safari_zone_splits", 0)) or 0)))) .. ":"
+          .. tostring(mod.exports.__beta26.safariClauseMode()) .. ":"
           .. tostring(mod.save:get("gold_time_split", false) == true and 1 or 0) .. ":"
           .. tostring(mod.save:get("gold_headbutt_split", false) == true and 1 or 0) .. ":"
           .. tostring(mod.save:get("gold_roamer_clause", false) == true and 1 or 0) .. ":"
@@ -22665,7 +24349,7 @@ return function(mod)
 
       if static and mod.exports.__beta26.ruleActive(
           game, "no_static_encounters", battle) then return end
-      if overworld and not mod.save:get("overworld_encounters", false) then return end
+      if overworld and not mod.exports.__beta26.ruleActive(game, "overworld_encounters", battle) then return end
       if town and not mod.save:get("town_catches", false) then return end
       if not mod.save:get("encounter_limit", defaultRuleValue("encounter_limit")) then return end
       if mod.save:get("failed_encounter", true) ~= true then return end
@@ -22721,12 +24405,12 @@ return function(mod)
       }
   end
 
-  -- 2.4.38: player-facing encounter-spend presentation. This is deliberately
-  -- a read-only projection of the same pre-catch state used by enforcement;
-  -- it never decides legality itself.
+  -- 2.7.70: compatibility-only encounter-spend projection. The old built-in
+  -- in-battle HUD/toggle was intentionally retired after it overlaid battle-owned
+  -- presentation. External information surfaces may still query this read-only
+  -- semantic projection; it never decides legality itself.
   mod.exports.__beta26.encounterSpendIndicator = function(targetBattle)
-      if mod.save:get("encounter_spend_indicator", true) ~= true
-          or mod.save:get("encounter_limit", defaultRuleValue("encounter_limit")) ~= true then return nil end
+      if mod.save:get("encounter_limit", defaultRuleValue("encounter_limit")) ~= true then return nil end
       local b = targetBattle or (activeWildEncounter and activeWildEncounter.battle)
       if type(b) ~= "table" then return nil end
       local game = b.game or currentGame or mod.game
@@ -22759,43 +24443,9 @@ return function(mod)
           text=Strings("AREA:COUNT") }
   end
 
-  mod.exports.__beta26.installEncounterSpendHUD = function()
-      local function install(path)
-          local ok, BattleState = pcall(require, path)
-          if not ok or type(BattleState) ~= "table"
-              or type(BattleState.draw) ~= "function" then return false end
-          if BattleState.__nuzlockeEncounterSpendHudOwner == mod
-              and BattleState.draw == BattleState.__nuzlockeEncounterSpendHudFunction then
-              return true
-          end
-          if BattleState.__nuzlockeEncounterSpendHudOwner ~= nil
-              and BattleState.__nuzlockeEncounterSpendHudOwner ~= mod
-              and BattleState.draw == BattleState.__nuzlockeEncounterSpendHudFunction
-              and type(BattleState.__nuzlockeEncounterSpendHudPrevious) == "function" then
-              BattleState.draw = BattleState.__nuzlockeEncounterSpendHudPrevious
-          end
-          local previous = BattleState.draw
-          local wrapper = function(self, ...)
-              -- 2.6.70: BattleState owns the full battle presentation. The
-              -- encounter-spend badge previously painted after the native draw,
-              -- leaking AREA:SPENT/AREA:COUNT across sprites and battle UI.
-              -- Keep the hook marker for compatibility/health accounting, but
-              -- never composite an overworld-status badge onto a battle surface.
-              return previous(self, ...)
-          end
-          BattleState.draw = wrapper
-          BattleState.__nuzlockeEncounterSpendHudOwner = mod
-          BattleState.__nuzlockeEncounterSpendHudFunction = wrapper
-          BattleState.__nuzlockeEncounterSpendHudPrevious = previous
-          return true
-      end
-      local g1 = install("src.battle.BattleState")
-      local g2 = install("src.ui.gen2.BattleState")
-      return g1 or g2
-  end
-  mod.events:on("game.ready", function() mod.exports.__beta26.attemptInstall("ui.encounter_spend_hud", mod.exports.__beta26.installEncounterSpendHUD) end)
-  mod.events:on("save.loaded", function() mod.exports.__beta26.attemptInstall("ui.encounter_spend_hud", mod.exports.__beta26.installEncounterSpendHUD) end)
-  mod.events:on("mods.loaded", function() mod.exports.__beta26.attemptInstall("ui.encounter_spend_hud", mod.exports.__beta26.installEncounterSpendHUD) end)
+  -- 2.7.70: no built-in encounter-spend battle HUD is installed. BattleState
+  -- remains presentation-owner; the semantic encounterSpendIndicator() export
+  -- above is retained only for compatible external information surfaces.
 
   -- beta.30.0.0.16: approved second module split.
   -- Trainer money, Forgiveness Token inventory/rewards, and trainer
@@ -22846,9 +24496,46 @@ return function(mod)
   -- level-up moves and evolution opportunity before the next candy begins.
   local RareCandyToCap = {
       api = 1,
-      transient = {},
+      transient = { active=false, stopRequested=false, inputSessions=setmetatable({}, {__mode="k"}) },
   }
   mod.exports.__beta26.RareCandyToCap = RareCandyToCap
+
+  function RareCandyToCap.beginBatch(game)
+      local t = RareCandyToCap.transient
+      t.active = true
+      t.stopRequested = false
+      t.game = game
+      local input = game and game.input
+      if type(input) == "table" and type(input.wasPressed) == "function"
+          and not t.inputSessions[input] then
+          local previous = input.wasPressed
+          local wrapper = function(self, key, ...)
+              local pressed = previous(self, key, ...)
+              if pressed and tostring(key or ""):lower() == "b"
+                  and RareCandyToCap.transient.active == true
+                  and RareCandyToCap.transient.game == game then
+                  RareCandyToCap.transient.stopRequested = true
+              end
+              return pressed
+          end
+          input.wasPressed = wrapper
+          t.inputSessions[input] = { previous=previous, wrapper=wrapper }
+      end
+  end
+
+  function RareCandyToCap.stopRequested(game)
+      local t = RareCandyToCap.transient
+      return t.active == true and t.game == game and t.stopRequested == true
+  end
+
+  function RareCandyToCap.finishBatch(game)
+      local t = RareCandyToCap.transient
+      if t.game == game then
+          t.active = false
+          t.stopRequested = false
+          t.game = nil
+      end
+  end
 
   local function rareCandyInventory(save)
       return math.max(0, math.floor(tonumber(
@@ -23122,8 +24809,16 @@ return function(mod)
   function RareCandyToCap.runGen1(game, mon, list, picker)
       local save = game and game.save
       local function continueBatch()
+          if RareCandyToCap.stopRequested(game) then
+              RareCandyToCap.finishBatch(game)
+              mod.exports.__beta26.pushWorldText(game,
+                  Strings("Candy batch stopped."))
+              rareCandyRefreshList(list, save)
+              return
+          end
           local remaining = RareCandyToCap.plan(save, mon)
           if remaining <= 0 then
+              RareCandyToCap.finishBatch(game)
               rareCandyRefreshList(list, save)
               return
           end
@@ -23186,6 +24881,7 @@ return function(mod)
               afterText))
       end
       if picker and type(picker.close) == "function" then pcall(picker.close, picker) end
+      RareCandyToCap.beginBatch(game)
       continueBatch()
   end
 
@@ -23736,7 +25432,7 @@ return function(mod)
         local static = mod.exports.__beta26.isStaticEncounter(game, battle)
         if static and mod.exports.__beta26.ruleActive(
             game, "no_static_encounters", battle) then return end
-        if overworld and mod.save:get("overworld_encounters", false) ~= true then return end
+        if overworld and not mod.exports.__beta26.ruleActive(game, "overworld_encounters", battle) then return end
         if town and mod.save:get("town_catches", false) ~= true then return end
         if caughtAreas()[key] ~= nil then return end
   
@@ -23753,6 +25449,14 @@ return function(mod)
                     or (overworld and "overworld" or (town and "town" or "wild"))))
         local sourceMap = battle.nuzlockeEncounterMapId
             or (pending and pending.encounterMapId)
+
+        -- Safari Clause UNTIL CATCH modes keep the relevant Safari slot open
+        -- after a failed/fled/defeated eligible encounter. Successful catches
+        -- still consume the projected whole-zone or per-area slot normally.
+        if mod.exports.__beta26.safariClauseUntilCatch()
+            and mod.exports.__beta26.isSafariEncounterArea(key, sourceMap) then
+            return
+        end
   
         local function consumeFailure()
             mod.exports.__beta26.markEncounterFailed(key, species, encounterType, sourceMap, {
@@ -23760,9 +25464,7 @@ return function(mod)
                 encounterTime = battle.nuzlockeEncounterTime,
                 roamerSpecies = battle.nuzlockeRoamerSpecies,
             })
-            local t1, t2, t3 = mod.exports.__beta26.worldRuleTriplet(
-                game, "failed_encounter")
-            worldMechanic(game, "failed:" .. tostring(key), t1, t2, t3, true)
+            mod.exports.__beta26.emitFailedEncounterFeedback(game, key)
         end
   
         -- 2.5.40: failed encounters resolve normally. F. TOKEN is now a
@@ -24110,7 +25812,8 @@ return function(mod)
             return denied("static")
         end
   
-        if overworld and not mod.save:get("overworld_encounters", false) then
+        if overworld and not mod.exports.__beta26.ruleActive(
+            game, "overworld_encounters", battle) then
             return denied("overworld")
         end
   
@@ -24945,8 +26648,13 @@ return function(mod)
 
     mod.exports.__beta26.installRbyFieldPoisonPermadeathGate = function()
         local game = currentGame or mod.game
-        if not game or mod.exports.__beta26.runtimeIsGen2(game) then
-            return false
+        -- This wrapper is safe to install before a concrete game object exists:
+        -- its live callback resolves the current game on every invocation.
+        -- Requiring `game` here made the eager install record a permanent FAIL
+        -- when Nuzlocke loaded before game.ready, even though the R/B/Y engine
+        -- methods themselves were already available.
+        if game and mod.exports.__beta26.runtimeIsGen2(game) then
+            return false, "not_applicable", "Gen-2 runtime uses its native field-poison adapter"
         end
         local okWorld, OverworldState = pcall(
             require, "src.world.OverworldController")
@@ -26314,7 +28022,7 @@ return function(mod)
                         and existingNick:upper() ~= speciesName:upper()
                     -- Yellow now gets the engine's native AskName first. Only
                     -- fall back to Nuzlocke's mandatory screen if that prompt
-                    -- was declined/left blank. Red/Blue behavior is unchanged.
+                    -- was declined/left blank. Red/Blue behavior was unchanged during build development.
                     if not alreadyNamed then
                         local nick = ""
                         repeat
@@ -27805,6 +29513,15 @@ return function(mod)
   
         local shopNewWrapper
         shopNewWrapper = function(game, stock, onQuit)
+            -- Phase H #1-3: project ordinary BUY stock only; native ShopMenu
+            -- still owns prices, quantities, Bag writes and money mutation.
+            if mod.save:get("random_shops", false) == true
+                and type(mod.exports.__beta26.randomizeShopStock) == "function" then
+                local world = game and game.overworld
+                local mapId = world and world.map and world.map.id or "UNKNOWN"
+                stock = mod.exports.__beta26.randomizeShopStock(game, stock,
+                    { kind="RBY_MART", mapId=tostring(mapId), id=tostring(mapId) })
+            end
             -- 2.5.40: Route Forgiveness never injects stock into shops.
             local menu = vanillaNew(game, stock, onQuit)
             local translatedBuy = tostring(Strings("BUY"))
@@ -27938,7 +29655,8 @@ return function(mod)
       externalRuleDelegation = externalRuleDelegation,
       specialAcquisitionDenied = specialAcquisitionDenied, active = active,
       activeCompatProvider = activeCompatProvider, wrapText = wrapText,
-      ALL_ROUTES = ALL_ROUTES, registerArea = registerArea, routeName = routeName,
+      ALL_ROUTES = ALL_ROUTES, GEN1_SEED_IDS = GEN1_SEED_IDS,
+      registerArea = registerArea, routeName = routeName,
       caughtAreas = caughtAreas, trackerLog = trackerLog, visitedAreas = visitedAreas,
       areaKey = areaKey, markVisited = markVisited, Identity = Identity,
       speciesDefinition = Identity.speciesDefinition,
@@ -27965,8 +29683,21 @@ return function(mod)
       nuzCompatIdentityLine = nuzCompatIdentityLine,
       pushNuzlockeRunHistoryViewer = pushNuzlockeRunHistoryViewer,
       recordRunBlackout = recordRunBlackout, ItemPolicy = ItemPolicy,
-      showRuleMessage = mod.exports.__beta26.showRuleMessage,
-      acquisitionDeniedMessage = mod.exports.__beta26.acquisitionDeniedMessage,
+      -- 2.7.73 reconstruction: these helpers are owned by the R/B/Y
+      -- field-command installer and can be published after this dependency
+      -- bundle is staged (notably on Gold/Silver, where that installer is N/A).
+      -- Inject live resolver thunks instead of registration-time snapshots so
+      -- LateRuntime always receives callable dependencies without freezing nil.
+      showRuleMessage = function(ctx, msg)
+          local fn = mod.exports.__beta26.showRuleMessage
+          if type(fn) ~= "function" then return false end
+          return fn(ctx, msg)
+      end,
+      acquisitionDeniedMessage = function(kind, reason, area)
+          local fn = mod.exports.__beta26.acquisitionDeniedMessage
+          if type(fn) ~= "function" then return nil end
+          return fn(kind, reason, area)
+      end,
       STARTERS_BY_VERSION = STARTERS_BY_VERSION,
   }
 

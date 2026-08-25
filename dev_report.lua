@@ -158,8 +158,7 @@ return function(mod, deps)
       end
 
       reportCodePushBits(bits, 1, 2) -- fixed cap-notice policy
-      reportCodePushBits(bits,
-          mod.save:get("encounter_spend_indicator", true) == true and 1 or 0, 1)
+      reportCodePushBits(bits, 0, 1) -- retired Encounter Indicator bit; layout preserved
       local effectiveness = report.rule_effectiveness or {}
       reportCodePushBits(bits,
           effectiveness.nuzlocke_enabled == true and 1 or 0, 1)
@@ -365,6 +364,9 @@ return function(mod, deps)
 
   mod.exports.__beta26.Dev.selfTestText = function(game)
       local report = mod.exports.__beta26.Dev.selfTest(game)
+      local function semanticLabel(value)
+          return tostring(value or "?"):gsub("[._]", " "):upper()
+      end
       local lines = {
           "NUZLOCKE DEV SELF-TEST",
           "build=" .. tostring(report.build),
@@ -374,6 +376,7 @@ return function(mod, deps)
           "engine_family=" .. tostring((mod.exports.__beta26.Dev.editionContext(game)).engine_family),
           "profile_scope=" .. tostring((mod.exports.__beta26.Dev.editionContext(game)).profile_scope),
           "environment=" .. tostring(report.environment),
+          "engine_developer=" .. tostring(report.engine_developer == true),
           "save_schema=" .. tostring(mod.save:get(
               SAVE_SCHEMA_KEY, CURRENT_SAVE_SCHEMA)),
           "randomizer_seed_mode=" .. tostring(
@@ -451,8 +454,6 @@ return function(mod, deps)
       if type(provenance) == "table" then
           lines[#lines + 1] = "parent_build="
               .. tostring(provenance.parent_version or "?")
-          lines[#lines + 1] = "parent_sha256="
-              .. tostring(provenance.parent_sha256 or "?")
       end
 
       local storageContext =
@@ -473,7 +474,7 @@ return function(mod, deps)
           if row.ok then pass = pass + 1 else warn = warn + 1 end
           lines[#lines + 1] = string.format(
               "%s %-26s [%s] %s",
-              row.status, row.id, row.kind, row.detail)
+              row.status, semanticLabel(row.id), semanticLabel(row.kind), row.detail)
       end
       lines[#lines + 1] = string.format(
           "SUMMARY pass=%d warn=%d", pass, warn)
@@ -484,7 +485,7 @@ return function(mod, deps)
           lines[#lines + 1] = "PASS none"
       else
           for _, row in ipairs(report.assertions or {}) do
-              lines[#lines + 1] = "WARN " .. tostring(row.code)
+              lines[#lines + 1] = "WARN " .. semanticLabel(row.code)
                   .. " " .. tostring(row.detail or "")
           end
       end
@@ -565,7 +566,7 @@ return function(mod, deps)
           lines[#lines + 1] = string.format(
               "%-8s %-26s %s.%s %s",
               tostring(row.state or "?"),
-              tostring(row.adapter_id or row.id or "?"),
+              semanticLabel(row.adapter_id or row.id),
               tostring(row.path or "?"),
               tostring(row.method or "?"),
               tostring(row.detail or ""))
@@ -581,7 +582,7 @@ return function(mod, deps)
       for _, key in ipairs(featureKeys) do
           local row = featureHealth[key] or {}
           lines[#lines + 1] = string.format("%-12s %s%s",
-              tostring(row.state or "?"), tostring(key),
+              tostring(row.state or "?"), semanticLabel(key),
               row.reason and (" reason=" .. tostring(row.reason)) or "")
       end
 
@@ -612,6 +613,23 @@ return function(mod, deps)
               #(gen2Parity.failures or {}))
           for _, failure in ipairs(gen2Parity.failures or {}) do
               lines[#lines + 1] = "WARN " .. tostring(failure)
+          end
+          local reach = gen2Parity.adapter_reach
+          if type(reach) == "table" then
+              for _, key in ipairs({ "script_command_adapter", "givepoke",
+                  "elm_starter_recognition", "starter_registration",
+                  "party_native_submenu", "party_shared_row_present",
+                  "party_fallback_inserted", "tracker_map_render" }) do
+                  lines[#lines + 1] = string.format("reach %-24s %d",
+                      semanticLabel(key), tonumber(reach.counts and reach.counts[key] or 0))
+              end
+              local tracker = reach.last and reach.last.tracker_map_render
+              if type(tracker) == "table" then
+                  lines[#lines + 1] = string.format(
+                      "tracker count=%d pallet=%s",
+                      tonumber(tracker.count or 0),
+                      tracker.pallet_visible == true and "YES" or "NO")
+              end
           end
       end
 
@@ -675,12 +693,9 @@ return function(mod, deps)
       lines[#lines + 1] =
           "NOTE: SELF-TEST PASS is diagnostic evidence, not a full RUNTIME PASS."
 
-      local body = table.concat(lines, "\n")
-      local reportCode = mod.exports.__beta26.Dev.reportCode(game, report, body)
-      table.insert(lines, 2, "report_code=" .. tostring(reportCode))
-      report.report_code = reportCode
-      report.full_report_fingerprint =
-          mod.exports.__beta26.Dev.reportFingerprint(body, 20)
+      -- 2.7.82: report-code/fingerprint helpers remain internal compatibility
+      -- capabilities, but player-visible/exported self-test text is semantic.
+      -- Package/document Release Safety is likewise build-time only.
       return table.concat(lines, "\n"), report
   end
 
@@ -844,9 +859,9 @@ return function(mod, deps)
       }
   end
 
-  -- 2.5.61: Dev Tools RUN must never be able to take down the game. Turn any
-  -- unexpected exporter exception into a structured result with a reportable
-  -- NZERR code; the full traceback is retained in Dev diagnostics when enabled.
+  -- 2.7.82: Dev Tools RUN remains fail-safe, but player-facing failures use
+  -- readable semantic text rather than generated NZERR identifiers. The full
+  -- traceback remains available to internal Dev diagnostics/logging.
   do
       local rawExportSelfTest = mod.exports.__beta26.Dev.exportSelfTest
       mod.exports.__beta26.Dev.exportSelfTest = function(game)
@@ -854,13 +869,11 @@ return function(mod, deps)
               return rawExportSelfTest(game)
           end, debug and debug.traceback or tostring)
           if ok then return result, info end
-          local code = mod.exports.__beta26.Dev.errorCode("dev_run", result)
           pcall(mod.exports.__beta26.Dev.recordError,
               "dev_run", result, game or liveGame() or mod.game)
           return false, {
               error = "DEV SELF-TEST ERROR",
               message = tostring(result),
-              report_code = code,
           }
       end
   end

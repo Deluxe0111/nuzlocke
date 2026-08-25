@@ -14,6 +14,7 @@ return function(mod, deps)
   local wrapText = assert(deps.wrapText, "classic_ui requires wrapText")
   local ALL_ROUTES = assert(deps.ALL_ROUTES, "classic_ui requires ALL_ROUTES")
   local ROUTE_ORDER = assert(deps.ROUTE_ORDER, "classic_ui requires ROUTE_ORDER")
+  local GEN1_SEED_IDS = assert(deps.GEN1_SEED_IDS, "classic_ui requires GEN1_SEED_IDS")
   local routeKey = assert(deps.routeKey, "classic_ui requires routeKey")
   local registerArea = assert(deps.registerArea, "classic_ui requires registerArea")
   local isTrackedArea = assert(deps.isTrackedArea, "classic_ui requires isTrackedArea")
@@ -220,28 +221,128 @@ return function(mod, deps)
       if moon.members[area.id] then return moonMode == 1 end
 
       local safari = mod.exports.__beta26.encounterSplitAreas.safari
-      local safariMode = math.max(0, math.min(1,
-          math.floor(tonumber(mod.save:get("safari_zone_splits", 0)) or 0)))
+      local safariMode = type(mod.exports.__beta26.safariClauseMode) == "function"
+          and mod.exports.__beta26.safariClauseMode()
+          or math.max(0, math.min(3, math.floor(tonumber(
+              mod.save:get("safari_zone_splits", 0)) or 0)))
       if area.id == safari.parent then
-          return safariMode == 0
+          return (safariMode == 0 or safariMode == 2)
               or (type(trackerLog()[safari.parent]) == "table"
                   and #trackerLog()[safari.parent] > 0)
               or caughtAreas()[safari.parent] ~= nil
               or (type(mod.save:get("encounter_states", {})) == "table"
                   and mod.save:get("encounter_states", {})[safari.parent] ~= nil)
       end
-      if safari.members[area.id] then return safariMode == 1 end
+      if safari.members[area.id] then return safariMode == 1 or safariMode == 3 end
 
-      -- Pallet Town is the mandatory starter slot. Keep it visible on the
+      -- Pallet Town and New Bark Town are the mandatory starter hometown
+      -- slots for their respective generations. Keep them visible on the
       -- encounter MAP even when ordinary town catches are disabled.
-      if area.id == "PALLET_TOWN" then
-          return true
-      end
+      if area.id == "NEW_BARK_TOWN"
+          and mod.exports.__beta26.runtimeIsGen2(getCurrentGame()) then return true end
+      if area.id == "PALLET_TOWN"
+          and not mod.exports.__beta26.runtimeIsGen2(getCurrentGame()) then return true end
 
       if isTownArea(area.id, area.name) and not mod.save:get("town_catches", false) then
-          return false
+          -- Existing evidence must never disappear merely because the player
+          -- later turns Town Catches OFF.
+          local states = mod.save:get("encounter_states", {})
+          local hasEvidence = (type(trackerLog()[area.id]) == "table" and #trackerLog()[area.id] > 0)
+              or caughtAreas()[area.id] ~= nil
+              or (type(states) == "table" and states[area.id] ~= nil)
+          if not hasEvidence then return false end
       end
       return true
+  end
+
+  -- 2.7.95: the host Gen-2 map table is an engine/catalog order, not a
+  -- player-facing progression order. The MAP page must read like a normal
+  -- Gold/Silver/Crystal journey: Johto progression first, then Kanto, then
+  -- genuinely custom/unknown encounter areas. This is display-only; physical
+  -- area keys, provenance, encounter legality and tracker storage are unchanged.
+  local GEN2_TRACKER_ORDER = {
+      -- Johto opening / Violet
+      "NEW_BARK_TOWN", "ROUTE_29", "CHERRYGROVE_CITY", "ROUTE_30",
+      "ROUTE_31", "DARK_CAVE", "VIOLET_CITY", "SPROUT_TOWER",
+      "RUINS_OF_ALPH", "ROUTE_32", "UNION_CAVE",
+      -- Azalea / Goldenrod
+      "ROUTE_33", "AZALEA_TOWN", "SLOWPOKE_WELL", "ILEX_FOREST",
+      "ROUTE_34", "GOLDENROD_CITY", "ROUTE_35", "NATIONAL_PARK",
+      "ROUTE_36", "ROUTE_37",
+      -- Ecruteak / Olivine / Cianwood
+      "ECRUTEAK_CITY", "BURNED_TOWER", "BURNT_TOWER", "TIN_TOWER",
+      "BELL_TOWER", "ROUTE_38", "ROUTE_39", "OLIVINE_CITY",
+      "OLIVINE_LIGHTHOUSE", "ROUTE_40", "ROUTE_41", "WHIRL_ISLANDS",
+      "CIANWOOD_CITY",
+      -- Mahogany / Blackthorn / League approach
+      "ROUTE_42", "MT_MORTAR", "MAHOGANY_TOWN", "ROUTE_43",
+      "LAKE_OF_RAGE", "ROUTE_44", "ICE_PATH", "BLACKTHORN_CITY",
+      "DRAGONS_DEN", "ROUTE_45", "ROUTE_46", "ROUTE_27",
+      "TOHJO_FALLS", "ROUTE_26", "VICTORY_ROAD", "INDIGO_PLATEAU",
+      -- Kanto return, in the usual Gen-2 traversal order.
+      "VERMILION_CITY", "ROUTE_6", "SAFFRON_CITY", "ROUTE_7",
+      "CELADON_CITY", "ROUTE_16", "ROUTE_17", "ROUTE_18",
+      "FUCHSIA_CITY", "ROUTE_15", "ROUTE_14", "ROUTE_13",
+      "ROUTE_12", "LAVENDER_TOWN", "ROUTE_10", "POWER_PLANT",
+      "ROCK_TUNNEL", "ROUTE_8", "ROUTE_5", "CERULEAN_CITY",
+      "ROUTE_24", "ROUTE_25", "ROUTE_9", "ROUTE_4", "MT_MOON",
+      "PEWTER_CITY", "ROUTE_3", "ROUTE_2", "VIRIDIAN_FOREST",
+      "VIRIDIAN_CITY", "ROUTE_1", "PALLET_TOWN", "ROUTE_21",
+      "CINNABAR_ISLAND", "ROUTE_20", "SEAFOAM_ISLANDS", "ROUTE_19",
+      "ROUTE_22", "ROUTE_28", "MT_SILVER", "SILVER_CAVE",
+  }
+  local GEN2_TRACKER_RANK = {}
+  for i, id in ipairs(GEN2_TRACKER_ORDER) do GEN2_TRACKER_RANK[id] = i end
+
+  local function gen2EncounterAreaSet(game)
+      if not mod.exports.__beta26.runtimeIsGen2(game) then return nil end
+      local data = game and game.data
+      if type(data) ~= "table" then return {} end
+      local registry = data.gen2Encounters or data.encountersByMap
+          or data.wildEncounters or data.encounters
+      local out = {}
+      if type(registry) == "table" then
+          for rawId in pairs(registry) do
+              if type(rawId) == "string" then
+                  local id = routeKey(rawId) or rawId
+                  out[id] = true
+              end
+          end
+      end
+      return out
+  end
+
+  local function gen2TrackerRank(id)
+      id = tostring(id or ""):upper()
+      local direct = GEN2_TRACKER_RANK[id]
+      if direct then return direct * 100 end
+      -- Evidence-backed interiors/custom submaps should follow their parent
+      -- town/landmark rather than jumping to the beginning of MAP because of
+      -- ROM bank order. Example: OLIVINE_CAFE sorts after OLIVINE_CITY.
+      for parent, rank in pairs(GEN2_TRACKER_RANK) do
+          local stem = parent:gsub("_CITY$", ""):gsub("_TOWN$", "")
+          if #stem >= 4 and id:find(stem, 1, true) then
+              return rank * 100 + 50
+          end
+      end
+      local route = tonumber(id:match("^ROUTE_(%d+)"))
+      if route then return 900000 + route end
+      return 999999
+  end
+
+  local function gen2DisplayOrder(game)
+      if not mod.exports.__beta26.runtimeIsGen2(game) then return nil, nil end
+      local data = game and game.data
+      local constants = type(data) == "table" and data.gen2Constants or nil
+      local order = type(constants) == "table" and constants.mapOrder or nil
+      local allowed = {}
+      if type(order) == "table" then
+          for _, raw in ipairs(order) do
+              local id = type(raw) == "table" and (raw.id or raw.map or raw.key) or raw
+              if type(id) == "string" and id ~= "" then allowed[id] = true end
+          end
+      end
+      return GEN2_TRACKER_RANK, allowed, gen2EncounterAreaSet(game)
   end
 
   getDisplayRoutes = function(game)
@@ -250,22 +351,87 @@ return function(mod, deps)
       end
       syncCurrentArea(game)
       local list = {}
+      local gen2Rank, gen2Allowed, gen2EncounterAreas = gen2DisplayOrder(game)
+
+      -- 2.7.101: MAP is prospective, not a visited-area log.
+      if mod.exports.__beta26.runtimeIsGen2(game) then
+          for _, id in ipairs(GEN2_TRACKER_ORDER) do registerArea(id) end
+      end
 
       for _, r in ipairs(ALL_ROUTES) do
-          if areaAllowedByConfig(r) then
+          -- On Gold/Silver, only show maps that actually belong to the active
+          -- Gen II map catalog. This removes the Gen I seed rows (Pallet, Route
+          -- 1, etc.) until their real Gen II Kanto counterparts occur in the
+          -- host map order. Dynamically discovered custom maps remain visible.
+          local permitted = true
+          if mod.exports.__beta26.runtimeIsGen2(game) then
+              local states = mod.save:get("encounter_states", {})
+              local seen = mod.save:get("visited_areas", {})
+              local hasTrackerEvidence =
+                  (type(trackerLog()[r.id]) == "table" and #trackerLog()[r.id] > 0)
+                  or caughtAreas()[r.id] ~= nil
+                  or (type(states) == "table" and states[r.id] ~= nil)
+              local hasEvidence = (type(seen) == "table" and seen[r.id] == true)
+                  or hasTrackerEvidence
+              local interior = tostring(r.id or ""):upper()
+              local ordinaryInterior = interior:find("HOUSE", 1, true)
+                  or interior:find("LAB", 1, true)
+                  or interior:find("MART", 1, true)
+                  or interior:find("CENTER", 1, true)
+                  or interior:find("GYM", 1, true)
+                  or interior:find("GATE", 1, true)
+                  or interior:find("BEDROOM", 1, true)
+                  or interior:find("ROOM", 1, true)
+                  or interior:find("OFFICE", 1, true)
+                  or interior:find("CAFE", 1, true)
+                  or interior:find("SHOP", 1, true)
+              local isEncounterArea = type(gen2EncounterAreas) == "table"
+                  and gen2EncounterAreas[r.id] == true
+              if ordinaryInterior and not hasTrackerEvidence then
+                  permitted = false
+              elseif r.id == "NEW_BARK_TOWN" then
+                  -- Mandatory starter hometown remains visible even though it
+                  -- is not a wild encounter table.
+                  permitted = true
+              elseif GEN2_TRACKER_RANK[r.id] then
+                  -- 2.7.101: MAP is prospective. The explicit canonical Gen2
+                  -- progression catalog is authoritative for browseable areas;
+                  -- it must not collapse to the evidence/visited subset when a
+                  -- host encounter registry uses a different internal shape.
+                  -- areaAllowedByConfig below still applies Town Catches and
+                  -- every other active area rule before presentation.
+                  permitted = true
+              elseif GEN1_SEED_IDS[r.id] then
+                  permitted = hasEvidence or isEncounterArea
+              elseif gen2Allowed then
+                  permitted = isEncounterArea or hasEvidence
+              else
+                  permitted = isEncounterArea or hasEvidence
+              end
+          end
+          if permitted and areaAllowedByConfig(r) then
               table.insert(list, r)
           end
       end
 
       table.sort(list, function(a, b)
-          local ao = ROUTE_ORDER[a.id] or 999999
-          local bo = ROUTE_ORDER[b.id] or 999999
-          if ao == bo then
-              return tostring(a.name) < tostring(b.name)
-          end
+          local ao = gen2Rank and gen2TrackerRank(a.id)
+              or (ROUTE_ORDER[a.id] or 999999)
+          local bo = gen2Rank and gen2TrackerRank(b.id)
+              or (ROUTE_ORDER[b.id] or 999999)
+          if ao == bo then return tostring(a.name) < tostring(b.name) end
           return ao < bo
       end)
 
+      if mod.exports.__beta26.runtimeIsGen2(game)
+          and type(mod.exports.__beta26.noteGen2AdapterReach) == "function" then
+          local palletVisible = false
+          for _, row in ipairs(list) do
+              if row.id == "PALLET_TOWN" then palletVisible = true break end
+          end
+          pcall(mod.exports.__beta26.noteGen2AdapterReach, "tracker_map_render",
+              { count=#list, pallet_visible=palletVisible })
+      end
       return list
   end
 
@@ -478,6 +644,8 @@ return function(mod, deps)
       local states = mod.save:get("encounter_states", {})
       if type(states) ~= "table" then states = {} end
       local rows = {}
+      -- Display evidence priority: tracker_log > FAILED encounter_state >
+      -- caught_areas legacy/retroactive fallback > unknown.
       for _, route in ipairs(getDisplayRoutes(game)) do
           local catches = log[route.id]
           if type(catches) == "table" and #catches > 0 then
@@ -833,10 +1001,10 @@ return function(mod, deps)
                   end
                   local value = getConfigValue(rule.key, false)
                   if rule.key == "nuzlocke_enabled"
-                      or rule.key == "encounter_spend_indicator"
                       or rule.key == "dev_mode" or rule.key == "catch_info"
                       or rule.key == "stat_info" or rule.key == "move_info"
-                      or rule.key == "area_guide_enabled" then
+                      or rule.key == "area_guide_enabled"
+                      or rule.key == "battle_menu_ui" then
                       return nil
                   elseif rule.key == "world_building_tier" then
                       local tier = tonumber(value) or 0
@@ -868,13 +1036,9 @@ return function(mod, deps)
                       if mode == 1 then return Strings("No Fly") end
                       if mode == 2 then return Strings("No Fly+Teleport") end
                       return nil
-                  elseif rule.key == "automatic_running_shoes" then
+                  elseif rule.key == "run_surf" then
                       local mode = mod.exports.__beta26.movementAssistMode(value)
-                      return mode > 0 and Strings("Run %s", Strings(
-                          mod.exports.__beta26.movementAssistLabel(mode))) or nil
-                  elseif rule.key == "fast_surf" then
-                      local mode = mod.exports.__beta26.movementAssistMode(value)
-                      return mode > 0 and Strings("Surf %s", Strings(
+                      return mode > 0 and Strings("Run/Surf %s", Strings(
                           mod.exports.__beta26.movementAssistLabel(mode))) or nil
                   elseif rule.key == "shiny_clause" then
                       local mode = tonumber(value) or 0
@@ -927,7 +1091,11 @@ return function(mod, deps)
                   elseif rule.key == "mt_moon_splits" then
                       return (tonumber(value) or 0) == 1 and Strings("Mt Moon COMMON") or nil
                   elseif rule.key == "safari_zone_splits" then
-                      return (tonumber(value) or 0) == 1 and Strings("Safari COMMON") or nil
+                      local mode = tonumber(value) or 0
+                      if mode == 0 then return nil end
+                      local labels = { [1]="Safari PER AREA",
+                          [2]="Safari UNTIL CATCH", [3]="Safari AREA+CATCH" }
+                      return Strings(labels[mode] or "Safari STANDARD")
                   elseif rule.key == "trainer_money_multiplier" then
                       local mode = tonumber(value) or 4
                       if mode == 4 then return nil end
@@ -937,6 +1105,8 @@ return function(mod, deps)
                   elseif rule.key == "maximum_bst" then
                       local limit = tonumber(value) or 0
                       return limit > 0 and Strings("Max BST %d", limit) or nil
+                  elseif rule.key == "randomizer_preset" then
+                      return Strings("RNG Preset %s", ({ [0]="CUSTOM", [1]="CHAOS", [2]="BALANCED" })[tonumber(value) or 0] or "CUSTOM")
                   elseif rule.key == "randomizer_seed" then
                       local starterOwned = mod.save:get("random_starter", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_starter", self.game))
@@ -946,10 +1116,16 @@ return function(mod, deps)
                           and not (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game))
                       local learnsetsOwned = mod.save:get("random_learnsets", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_learnsets", self.game))
+                      local trainersOwned = mod.save:get("random_trainers", false) == true
+                          and not (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game))
+                      local evolutionsOwned = mod.save:get("random_evolutions", false) == true
+                      local shopsOwned = mod.save:get("random_shops", false) == true
+                      local tmsOwned = mod.save:get("random_tms", false) == true
+                      local giftsOwned = mod.save:get("random_gift_items", false) == true
                       local seed = type(mod.exports.__beta26.randomizerSeed) == "function"
                           and tonumber(mod.exports.__beta26.randomizerSeed(nil, false))
                           or tonumber(value) or 0
-                      return (starterOwned or encountersOwned or fieldItemsOwned or learnsetsOwned) and seed > 0
+                      return (starterOwned or encountersOwned or fieldItemsOwned or learnsetsOwned or trainersOwned or evolutionsOwned or shopsOwned or tmsOwned or giftsOwned) and seed > 0
                           and Strings("RNG %08d v%d", seed, mod.exports.__beta26.randomizerAlgorithmVersion()) or nil
                   elseif rule.key == "random_starter_style" then
                       if mod.save:get("random_starter", false) ~= true
@@ -984,6 +1160,27 @@ return function(mod, deps)
                           or tonumber(mod.save:get("random_encounter_repetition", 0)) ~= 1
                           or (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", self.game)) then return nil end
                       return Strings("Diversity %s", ({ [0]="LIGHT", [1]="STANDARD", [2]="STRONG" })[tonumber(value) or 1] or "STANDARD")
+                  elseif rule.key == "random_evolution_balance" then
+                      if mod.save:get("random_evolutions", false) ~= true then return nil end
+                      return Strings("Evos %s", ({ [0]="CHAOS", [1]="DEPTH", [2]="SIM BST", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS")
+                  elseif rule.key == "random_shop_balance" then
+                      if mod.save:get("random_shops", false) ~= true then return nil end
+                      return Strings("Shops %s", ({ [0]="CHAOS", [1]="PRICE", [2]="BALANCED" })[tonumber(value) or 2] or "BALANCED")
+                  elseif rule.key == "random_tm_compatibility" then
+                      if mod.save:get("random_tms", false) ~= true then return nil end
+                      return Strings("TM Compat %s", ({ [0]="MOVE", [1]="SLOT", [2]="FULL" })[tonumber(value) or 0] or "MOVE")
+                  elseif rule.key == "random_trainer_balance" then
+                      if mod.save:get("random_trainers", false) ~= true
+                          or (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game)) then return nil end
+                      return Strings("Trainers %s", ({ [0]="CHAOS", [1]="EVO", [2]="SIM BST", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS")
+                  elseif rule.key == "random_trainer_diversity" then
+                      if mod.save:get("random_trainers", false) ~= true
+                          or (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game)) then return nil end
+                      return Strings("Diversity %s", ({ [0]="OFF", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "OFF")
+                  elseif rule.key == "random_trainer_theme" then
+                      if mod.save:get("random_trainers", false) ~= true
+                          or (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game)) then return nil end
+                      return Strings("Theme %s", ({ [0]="OFF", [1]="TYPE" })[tonumber(value) or 0] or "OFF")
                   elseif rule.key == "randomizer_info_policy" then
                       local starterOwned = mod.save:get("random_starter", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_starter", self.game))
@@ -993,8 +1190,16 @@ return function(mod, deps)
                           and not (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game))
                       local learnsetsOwned = mod.save:get("random_learnsets", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_learnsets", self.game))
+                      local trainersOwned = mod.save:get("random_trainers", false) == true
+                          and not (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game))
+                      local evolutionsOwned = mod.save:get("random_evolutions", false) == true
+                      local shopsOwned = mod.save:get("random_shops", false) == true
+                      local tmsOwned = mod.save:get("random_tms", false) == true
+                      local giftsOwned = mod.save:get("random_gift_items", false) == true
                       if not starterOwned and not encountersOwned
-                          and not fieldItemsOwned and not learnsetsOwned then return nil end
+                          and not fieldItemsOwned and not learnsetsOwned
+                          and not trainersOwned and not evolutionsOwned and not shopsOwned
+                          and not tmsOwned and not giftsOwned then return nil end
                       return tonumber(value) == 1 and Strings("RNG BLIND") or Strings("RNG OPEN")
                   elseif rule.key == "gold_egg_encounter_mode" then
                       local mode = tonumber(value) or 0
@@ -1140,11 +1345,11 @@ return function(mod, deps)
                   local compactArea = tostring(areaLabel or "?")
                   if #compactArea > 9 then compactArea = compactArea:sub(1, 8) .. "." end
                   items[#items + 1] = {
-                      label = Strings("CURRENT AREA"),
+                      label = Strings("AREA"),
                       right = Strings(compactArea),
                   }
                   items[#items + 1] = {
-                      label = Strings("AREA SLOT"),
+                      label = Strings("SLOT"),
                       right = Strings(areaStatus),
                   }
               end
@@ -1413,8 +1618,14 @@ return function(mod, deps)
               love.graphics.rectangle("fill", 0, 0, 160, 144)
               Font.drawBox(0, 0, 20, 18)
 
-              Font.draw(Strings("NUZ STATUS "
-                  .. mod.exports.__beta26.Dev.gameLabel(self.game)), 16, 8)
+              if mod.exports.__beta26.runtimeIsGen2(self.game) then
+                  mod.exports.__beta26.drawGen2NuzTitle(nil, Font, "NUZ STATUS",
+                      mod.exports.__beta26.Dev.gameLabel(self.game),
+                      { row = 1, subtitleRow = 2 })
+              else
+                  Font.draw(Strings("NUZ STATUS "
+                      .. mod.exports.__beta26.Dev.gameLabel(self.game)), 16, 8)
+              end
 
               local caught = countTrackerCatches()
               local deaths = tonumber(mod.save:get("nuzlocke_losses", 0)) or 0
@@ -1920,55 +2131,110 @@ return function(mod, deps)
   -- Gold trainer scripts can reload the map without map.entered, so repeat the
   -- owned invariant at map.reloaded as well.
   do -- compiler-budget scope: external-save reconciliation
-  local function reconcileExternalSaveState(saveOverride)
-      if saveBlocked() then return false end
-      local save = saveOverride or (getCurrentGame() and getCurrentGame().save) or getCurrentSave()
-      if type(save) ~= "table" then return end
+  -- 2.7.54: keep the reconciliation invariants testable without touching the
+  -- live save. Production supplies the real storage locker/state adapter; the
+  -- regression audit below supplies synthetic equivalents.
+  local function reconcileExternalSaveStateCore(save, options)
+      if type(save) ~= "table" then return false end
+      options = type(options) == "table" and options or {}
+      local getState = options.getState
+      local setState = options.setState
+      local lockMon = options.lockMon
+      if type(getState) ~= "function" or type(setState) ~= "function" then return false end
 
-      local enabled = mod.save:get("nuzlocke_enabled", true) ~= false
-      local permadeath = mod.save:get("permadeath", true) == true
+      local enabled = getState("nuzlocke_enabled", true) ~= false
+      local permadeath = getState("permadeath", true) == true
 
-      -- A save editor or alternate PC can bypass the live menu gate. The lock
-      -- is carried by the Pokemon itself, so on reconciliation put any such
-      -- research-only Pokemon back into storage when a Box has room. This is
-      -- monotonic: turning PC-Only Catches OFF never clears an existing lock.
-      local locker = mod.exports.__beta26.lockProgressionCatchInPc
-      if type(locker) == "function" then
+      -- Iterate backward because a successful locker may remove the current
+      -- Pokemon from save.party. This must also handle adjacent locked entries.
+      if type(lockMon) == "function" then
           for i = #(save.party or {}), 1, -1 do
               local mon = save.party[i]
               if type(mon) == "table" and mon.nuzlockePcLocked == true then
-                  pcall(locker, getCurrentGame() or mod.game, mon,
-                      mon.nuzlockePcLockReason or "progression_exception")
+                  pcall(lockMon, mon, mon.nuzlockePcLockReason or "progression_exception")
               end
           end
       end
 
       if enabled and permadeath then
-          -- Save editors and recovery tools may legitimately restore HP on the
-          -- underlying Pokemon object. The persistent Nuzlocke death marker is
-          -- historical challenge state, so it remains authoritative on load
-          -- and after external post-battle healing. Never resurrect it merely
-          -- because an external tool wrote a positive HP value.
           for _, mon in ipairs(save.party or {}) do
-              if type(mon) == "table" and mon.nuzlockeDead == true then
-                  mon.hp = 0
-              end
+              if type(mon) == "table" and mon.nuzlockeDead == true then mon.hp = 0 end
           end
       end
 
-      -- External editors know the engine's six-Pokemon capacity, not this
-      -- run's optional 1-6 challenge cap. Detect an over-cap edited save but
-      -- do not auto-delete, auto-box, or reorder anything. Existing acquisition
-      -- and PC gates already forbid further growth until the party is legal.
       local limit = math.max(1, math.min(6, math.floor(tonumber(
-          mod.save:get("party_size_limit", defaultRuleValue("party_size_limit"))) or 6)))
+          getState("party_size_limit", defaultRuleValue("party_size_limit"))) or 6)))
       local count = #(save.party or {})
       local over = enabled and count > limit
-      mod.save:set("nuzlocke_external_party_over_cap", over)
-      mod.save:set("nuzlocke_external_party_count", count)
-      mod.save:set("nuzlocke_external_party_limit", limit)
+      setState("nuzlocke_external_party_over_cap", over)
+      setState("nuzlocke_external_party_count", count)
+      setState("nuzlocke_external_party_limit", limit)
+      return true
+  end
+
+  local function reconcileExternalSaveState(saveOverride)
+      if saveBlocked() then return false end
+      local save = saveOverride or (getCurrentGame() and getCurrentGame().save) or getCurrentSave()
+      if type(save) ~= "table" then return false end
+      local locker = mod.exports.__beta26.lockProgressionCatchInPc
+      return reconcileExternalSaveStateCore(save, {
+          getState = function(key, fallback) return mod.save:get(key, fallback) end,
+          setState = function(key, value) mod.save:set(key, value) end,
+          lockMon = type(locker) == "function" and function(mon, reason)
+              return locker(getCurrentGame() or mod.game, mon, reason)
+          end or nil,
+      })
   end
   mod.exports.__beta26.reconcileExternalSaveState = reconcileExternalSaveState
+
+  -- Synthetic regression coverage for the three external-save repair jobs.
+  -- This never reads or writes the player's save and deliberately exercises
+  -- adjacent locked Pokemon so reverse-iteration mutation safety is frozen in.
+  mod.exports.__beta26.externalSaveReconciliationAudit = function()
+      local report = { ok=true, checked=0, failures={} }
+      local function check(id, condition)
+          report.checked = report.checked + 1
+          if condition then return end
+          report.ok = false
+          report.failures[#report.failures + 1] = tostring(id)
+      end
+      local lockedA = { species="A", nuzlockePcLocked=true }
+      local lockedB = { species="B", nuzlockePcLocked=true }
+      local dead = { species="DEAD", nuzlockeDead=true, hp=17 }
+      local live = { species="LIVE", hp=20 }
+      local save = { party={ live, lockedA, lockedB, dead }, boxes={} }
+      local state = { nuzlocke_enabled=true, permadeath=true, party_size_limit=1 }
+      local stored = {}
+      local function syntheticLocker(mon)
+          for i = #save.party, 1, -1 do
+              if save.party[i] == mon then
+                  table.remove(save.party, i)
+                  stored[#stored + 1] = mon
+                  return true
+              end
+          end
+          return false
+      end
+      local ok = reconcileExternalSaveStateCore(save, {
+          getState=function(key, fallback)
+              local value = state[key]; if value == nil then return fallback end; return value
+          end,
+          setState=function(key, value) state[key] = value end,
+          lockMon=syntheticLocker,
+      })
+      check("core_completed", ok == true)
+      check("adjacent_locks_stored", #stored == 2
+          and ((stored[1] == lockedB and stored[2] == lockedA)
+            or (stored[1] == lockedA and stored[2] == lockedB)))
+      check("locked_removed_from_party", #save.party == 2
+          and save.party[1] == live and save.party[2] == dead)
+      check("dead_hp_rezeroed", dead.hp == 0)
+      check("over_cap_detected", state.nuzlocke_external_party_over_cap == true
+          and state.nuzlocke_external_party_count == 2
+          and state.nuzlocke_external_party_limit == 1)
+      check("live_mon_untouched", live.hp == 20)
+      return report
+  end
 
   mod.events:on("save.loaded", function(ev)
       pcall(reconcileExternalSaveState, ev and ev.save)
@@ -2346,16 +2612,19 @@ return function(mod, deps)
               -- useful but not required for manual recovery, so malformed imported
               -- Pokemon metadata degrades to species/fingerprint recovery instead
               -- of aborting a valid Route assignment.
-              local recoveredId = nil
+              -- 2.7.78: preserve a saved legacy identity even when no live mon
+              -- can be attached to the editor view. Manual recovery moves the
+              -- existing encounter identity; it never manufactures an anonymous copy.
+              local recoveredId = entry.pokemonId
               local recoveredFingerprint = entry.fingerprint
               if sourceMon then
                   local okId, id = pcall(Identity.ensurePokemonIdentity, sourceMon,
                       self.game and self.game.save,
                       entry.provenance or "PLAYER_CONFIRMED")
-                  if okId then recoveredId = id
+                  if okId and id ~= nil then recoveredId = id
                   elseif type(Identity.pokemonIdentity) == "function" then
                       local okExisting, existing = pcall(Identity.pokemonIdentity, sourceMon)
-                      if okExisting then recoveredId = existing end
+                      if okExisting and existing ~= nil then recoveredId = existing end
                   end
                   local okFp, fp = pcall(Identity.fingerprint, sourceMon)
                   if okFp and fp ~= nil then recoveredFingerprint = fp end
@@ -2634,15 +2903,25 @@ return function(mod, deps)
               Font.drawBox(0, 0, 20, 18)
 
               if #list == 0 then
-                  Font.draw(Strings("RECOVER CATCHES"), 12, 10)
+                  if mod.exports.__beta26.runtimeIsGen2(self.game) then
+                      mod.exports.__beta26.drawGen2NuzTitle(nil, Font, "RECOVER CATCHES")
+                  else
+                      Font.draw(Strings("RECOVER CATCHES"), 12, 10)
+                  end
                   Font.draw(Strings("ALL RECOVERED!"), 18, 52)
                   Font.draw(Strings("B:BACK"), 54, 122)
                   return
               end
 
               if self.mode == "list" then
-                  Font.draw(Strings("RECOVER CATCHES"), 16, 10)
-                  Font.draw(Strings("SELECT A POKEMON"), 12, 24)
+                  if mod.exports.__beta26.runtimeIsGen2(self.game) then
+                      mod.exports.__beta26.drawGen2NuzTitle(nil, Font,
+                          "RECOVER CATCHES", "SELECT A POKEMON",
+                          { row = 1, subtitleRow = 3 })
+                  else
+                      Font.draw(Strings("RECOVER CATCHES"), 16, 10)
+                      Font.draw(Strings("SELECT A POKEMON"), 12, 24)
+                  end
 
                   local start = math.max(1, math.min(self.cursor - 3, #list - 5))
                   for i = start, math.min(#list, start + 5) do
@@ -2666,8 +2945,14 @@ return function(mod, deps)
                   Font.draw(Strings("B:BACK"), 100, 126)
               elseif self.mode == "actions" then
                   local entry = list[self.cursor]
-                  Font.draw(Strings("EDIT RECOVERY"), 22, 10)
-                  Font.draw(tostring(entry.species or "???"):sub(1, 12), 48, 24)
+                  if mod.exports.__beta26.runtimeIsGen2(self.game) then
+                      mod.exports.__beta26.drawGen2NuzTitle(nil, Font,
+                          "EDIT RECOVERY", tostring(entry.species or "???"):sub(1, 12),
+                          { row = 1, subtitleRow = 3 })
+                  else
+                      Font.draw(Strings("EDIT RECOVERY"), 22, 10)
+                      Font.draw(tostring(entry.species or "???"):sub(1, 12), 48, 24)
+                  end
                   local actions = { "CHANGE AREA", "CHANGE TYPE", "REMOVE ENTRY" }
                   for i, action in ipairs(actions) do
                       local y = 48 + (i - 1) * 20
@@ -2826,8 +3111,19 @@ return function(mod, deps)
               if ok and type(text) == "string" and text ~= "" then
                   self.liveReportText = text
                   self.liveReport = report
-                  self.reportCode = type(report) == "table"
-                      and report.report_code or nil
+                  local code
+                  if type(report) == "table"
+                      and type(mod.exports.__beta26.Dev.reportCode) == "function" then
+                      local okCode, generated = pcall(
+                          mod.exports.__beta26.Dev.reportCode,
+                          self.game, report, text)
+                      if okCode and type(generated) == "string"
+                          and generated ~= "" then
+                          code = generated
+                          report.report_code = generated
+                      end
+                  end
+                  self.reportCode = code
                   self.status = "LIVE REPORT"
                   return true
               end
@@ -3041,11 +3337,6 @@ return function(mod, deps)
                   issues[#issues + 1] = tostring(kind) .. " " .. tostring(text)
               end
 
-              local rs = report.release_safety or {}
-              for _, failure in ipairs(rs.failures or {}) do
-                  addIssue("FAIL", "RELEASE " .. tostring(failure))
-              end
-
               local ih = report.install_health or {}
               for key, reason in pairs(ih.failures or {}) do
                   addIssue("FAIL", "INSTALL " .. tostring(key)
@@ -3068,7 +3359,9 @@ return function(mod, deps)
               end
 
               for _, row in ipairs(report.assertions or {}) do
-                  addIssue("WARN", "ASSERT " .. tostring(row.code or row.id or "?"))
+                  local label = tostring(row.code or row.id or "?")
+                      :gsub("[_%.]", " "):upper()
+                  addIssue("WARN", "ASSERT " .. label)
               end
 
               local sw = report.safe_stop_writes or {}
@@ -3130,23 +3423,18 @@ return function(mod, deps)
 
           local function showDevRunFailure(info)
               info = type(info) == "table" and info or {}
-              local code = info.report_code or mod.exports.__beta26.Dev.errorCode(
-                  "dev_run", info.message or info.error or "unknown")
               local detail = tostring(info.message or info.error
                   or "The Dev self-test could not complete.")
               detail = detail:gsub("^.-:%s*", "")
               if #detail > 180 then detail = detail:sub(1, 180) .. "..." end
-              -- 2.5.62: no pushed TextBox here. Keep ownership/input on the
-              -- Dev Tools screen so an exporter failure cannot strand a modal.
-              self.devError = {
-                  title = "DEV RUN ERROR", detail = detail, code = tostring(code),
-              }
+              -- 2.7.82: player-visible Dev failures are semantic text only.
+              self.devError = { title = "DEV RUN ERROR", detail = detail }
               self.status = "ERROR"
           end
 
-          -- 2.6.68: DEV REPORT is a dashboard, not one giant text dump. Keep the
-          -- complete raw report available, but make the default view actionable.
-          local DEV_REPORT_SECTIONS = { "SUMMARY", "PROBLEMS", "HOOKS", "RULES", "RANDOM", "RAW" }
+          -- 2.7.82: DEV REPORT is a semantic runtime dashboard. The old RAW
+          -- machine-dump page and opaque generated codes are internal-only.
+          local DEV_REPORT_SECTIONS = { "CODE", "SUMMARY", "PROBLEMS", "HOOKS", "RULES", "RANDOM" }
           local function devReportSectionLines(report, rawText, width, rawFormatter)
               report = type(report) == "table" and report or {}
               local section = math.max(1, math.min(#DEV_REPORT_SECTIONS,
@@ -3176,10 +3464,14 @@ return function(mod, deps)
               for _, row in ipairs(report.assertions or {}) do
                   problems[#problems + 1] = { "WARN", row.code or "assertion", row.detail }
               end
-              local rs = report.release_safety or {}
-              for _, detail in ipairs(rs.failures or {}) do problems[#problems + 1] = { "FAIL", "release", detail } end
-              for _, detail in ipairs(rs.warnings or {}) do problems[#problems + 1] = { "WARN", "release", detail } end
-              if name == "SUMMARY" then
+              if name == "CODE" then
+                  local code = self.reportCode
+                      or (type(report) == "table" and report.report_code)
+                      or ""
+                  appendReportCodeLines(code, width, out)
+                  put("A:SUMMARY")
+                  put("LEFT/RIGHT:SECTION")
+              elseif name == "SUMMARY" then
                   put("BUILD " .. tostring(report.build or "?") .. " " .. tostring(report.game or "?"):upper())
                   put(#problems == 0 and "STATUS PASS" or ("STATUS CHECK " .. tostring(#problems)))
                   local hc = (report.hook_health or {}).counts or {}
@@ -3197,8 +3489,7 @@ return function(mod, deps)
                   local function shortLabel(value)
                       local text = tostring(value or "?")
                       text = text:gsub("^doc_current_header_", "HEADER ")
-                          :gsub("^release$", "RELEASE SAFETY")
-                          :gsub("_", " "):upper()
+                          :gsub("[._]", " "):upper()
                       return text
                   end
                   local function shortDetail(value)
@@ -3207,7 +3498,7 @@ return function(mod, deps)
                       -- actionable id first instead of an unreadable raw blob.
                       text = text:gsub("^doc_current_header_", "HEADER ")
                           :gsub("installer_returned_false", "NOT APPLICABLE / RETURNED FALSE")
-                          :gsub("_", " ")
+                          :gsub("[._]", " ")
                       return text
                   end
                   if #problems == 0 then put("NO ACTIONABLE PROBLEMS") end
@@ -3244,7 +3535,8 @@ return function(mod, deps)
                       putPair(key, value:match("^([^:]+)") or value)
                   end
                   for _, row in ipairs(hh.rows or {}) do
-                      putPair(row.adapter_id or row.id or "?", row.state or "?")
+                      putPair(tostring(row.adapter_id or row.id or "?")
+                          :gsub("[._]", " "):upper(), row.state or "?")
                       if row.detail and row.detail ~= "" then
                           put(" " .. tostring(row.detail))
                       end
@@ -3292,15 +3584,19 @@ return function(mod, deps)
               end
 
               if self.viewingReport then
-                  if input:wasPressed("b") or input:wasPressed("start") then
+                  if input:wasPressed("select") then
+                  mod.ui.push(self.game, "NuzlockeUiGalleryScreen")
+                  return
+              end
+
+              if input:wasPressed("b") or input:wasPressed("start") then
                       self.viewingReport = false
                       rememberedDev.reportScroll = self.reportScroll or 0
                       return
                   end
                   local width = mod.exports.__beta26.runtimeIsGen2(self.game)
                       and 18 or 16
-                  local visible = mod.exports.__beta26.runtimeIsGen2(self.game)
-                      and 9 or 8
+                  local visible = 7
                   local rawText = cachedReport()
                   local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                       or mod.exports.__beta26.Dev.lastExportReport
@@ -3332,7 +3628,7 @@ return function(mod, deps)
                       return
                   end
                   local width = mod.exports.__beta26.runtimeIsGen2(self.game) and 18 or 16
-                  local visible = 8
+                  local visible = 7
                   local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                       or mod.exports.__beta26.Dev.lastExportReport
                   local lines = knownIssueLines(report, width)
@@ -3356,8 +3652,7 @@ return function(mod, deps)
                   local width = mod.exports.__beta26.runtimeIsGen2(self.game)
                       and 18 or 16
                   local lines = storageInfoLines(width)
-                  local visible = mod.exports.__beta26.runtimeIsGen2(self.game)
-                      and 8 or 8
+                  local visible = 7
                   local maxScroll = math.max(0, #lines - visible)
                   if input:wasPressed("down") then
                       self.fileInfoScroll = math.min(maxScroll,
@@ -3397,12 +3692,8 @@ return function(mod, deps)
                           local report = self.exportInfo.report or {}
                           local checks = 0
                           for _, row in ipairs(report.results or {}) do
-                              if row.ok ~= true and tostring(row.id or "") ~= "release_safety" then
-                                  checks = checks + 1
-                              end
+                              if row.ok ~= true then checks = checks + 1 end
                           end
-                          local rs = report.release_safety or {}
-                          checks = checks + #(rs.failures or {})
                           local run = checks == 0 and "PASS" or "CHECK"
                           local snap
                           if self.exportInfo.verified then
@@ -3422,8 +3713,10 @@ return function(mod, deps)
                   elseif self.cursor == 2 then
                       if refreshLiveReport() then
                           self.viewingReport = true
-                          self.reportScroll = math.max(0,
-                              math.floor(tonumber(rememberedDev.reportScroll) or 0))
+                          self.reportSection = 1
+                          self.reportScroll = 0
+                          rememberedDev.reportSection = 1
+                          rememberedDev.reportScroll = 0
                       end
                   elseif self.cursor == 3 then
                       -- Known Issues is a live diagnostic view, not a static
@@ -3452,15 +3745,14 @@ return function(mod, deps)
               for raw in (tostring(text or "") .. "\n"):gmatch("(.-)\n") do
                   if raw == "" then
                       out[#out + 1] = ""
+                  elseif raw:match("^report_code=")
+                      or raw:match("fingerprint") then
+                      -- Historical stored snapshots may contain machine-only
+                      -- fields. Keep them in storage, but never render them.
                   else
-                      local reportCode = raw:match("^report_code=(NZR%d+%-.+)$")
-                      if reportCode then
-                          appendReportCodeLines(reportCode, width, out)
-                      else
-                          local wrapped = devUiWrapText(raw, width)
-                          for _, wrappedLine in ipairs(wrapped) do
-                              out[#out + 1] = wrappedLine
-                          end
+                      local wrapped = devUiWrapText(raw, width)
+                      for _, wrappedLine in ipairs(wrapped) do
+                          out[#out + 1] = wrappedLine
                       end
                   end
               end
@@ -3562,9 +3854,6 @@ return function(mod, deps)
                   if self.devError then
                       Chrome.print(Strings(self.devError.title or "DEV ERROR"), 2, 1)
                       local detail = tostring(self.devError.detail or "")
-                      if self.devError.code then
-                          detail = detail .. " CODE " .. tostring(self.devError.code)
-                      end
                       local lines = devUiWrapText(detail, 18)
                       for i = 1, math.min(#lines, 11) do
                           Chrome.print(lines[i], 1, 2 + i)
@@ -3574,12 +3863,16 @@ return function(mod, deps)
                   end
 
                   if self.viewingReport then
-                      Chrome.print(Strings("DEV REPORT"), 5, 1)
+                      -- 2.7.74 recovery: restore the post-2.7.72 Gold utility
+                      -- title normalization without touching native host UI.
+                      local devTitle = Strings("DEV REPORT")
+                      local GoldFont = require("src.render.Font")
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, devTitle)
                       local rawText = cachedReport()
                       local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                           or mod.exports.__beta26.Dev.lastExportReport
                       local lines = devReportSectionLines(report, rawText, 18, devReportDisplayLines)
-                      for i = 1, 9 do
+                      for i = 1, 7 do
                           local line = lines[(self.reportScroll or 0) + i]
                           if not line then break end
                           Chrome.print(line, 1, 2 + i)
@@ -3587,7 +3880,7 @@ return function(mod, deps)
                       if self.reportScroll > 0 then
                           Chrome.cursor(18, 2, true)
                       end
-                      if self.reportScroll + 9 < #lines then
+                      if self.reportScroll + 7 < #lines then
                           local GoldFont = require("src.render.Font")
                           GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 12 * 8)
                       end
@@ -3596,17 +3889,18 @@ return function(mod, deps)
                   end
 
                   if self.viewingKnownIssues then
-                      Chrome.print(Strings("KNOWN ISSUES"), 4, 1)
+                      local GoldFont = require("src.render.Font")
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, "KNOWN ISSUES")
                       local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                           or mod.exports.__beta26.Dev.lastExportReport
                       local lines = knownIssueLines(report, 18)
-                      for i = 1, 8 do
+                      for i = 1, 7 do
                           local line = lines[(self.knownIssuesScroll or 0) + i]
                           if not line then break end
                           Chrome.print(line, 1, 2 + i)
                       end
                       if self.knownIssuesScroll > 0 then Chrome.cursor(18, 2, true) end
-                      if self.knownIssuesScroll + 8 < #lines then
+                      if self.knownIssuesScroll + 7 < #lines then
                           local GoldFont = require("src.render.Font")
                           GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 12 * 8)
                       end
@@ -3615,9 +3909,10 @@ return function(mod, deps)
                   end
 
                   if self.viewingFileInfo then
-                      Chrome.print(Strings("STORAGE INFO"), 5, 1)
+                      local GoldFont = require("src.render.Font")
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, "STORAGE INFO")
                       local lines = storageInfoLines(18)
-                      for i = 1, 8 do
+                      for i = 1, 7 do
                           local line = lines[(self.fileInfoScroll or 0) + i]
                           if not line then break end
                           Chrome.print(line, 1, 2 + i)
@@ -3625,7 +3920,7 @@ return function(mod, deps)
                       if self.fileInfoScroll > 0 then
                           Chrome.cursor(18, 2, true)
                       end
-                      if self.fileInfoScroll + 8 < #lines then
+                      if self.fileInfoScroll + 7 < #lines then
                           local GoldFont = require("src.render.Font")
                           GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 12 * 8)
                       end
@@ -3633,21 +3928,21 @@ return function(mod, deps)
                       return
                   end
 
-                  Chrome.print(Strings("DEV TOOLS"), 5, 1)
+                  mod.exports.__beta26.UiSystem.gen2ScreenFrame(Chrome, { headerRows = 2, footerRows = 2 })
+                  local GoldFont = require("src.render.Font")
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, "DEV TOOLS")
                   local rows = {
                       "RUN TESTS", "VIEW REPORT", "KNOWN ISSUES",
                       "STORAGE INFO", "LOAD SNAPSHOT", "WRITE LOG SNAP"
                   }
                   for i, label in ipairs(rows) do
-                      local y = 2 + (i - 1) * 2
-                      if self.cursor == i then
-                          Chrome.cursor(1, y)
-                      end
-                      Chrome.print(Strings(label), 3, y)
+                      local y = 3 + (i - 1) * 2
+                      mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
+                          label = label, focused = self.cursor == i,
+                      }, { x = 3, y = y, rightCol = 18 })
                   end
-                  Chrome.print(Strings("LAST " .. tostring(self.lastTestStatus)
-                      .. " SNAP " .. tostring(self.snapshotStatus)), 1, 14)
-                  Chrome.print(Strings("B:BACK"), 12, 15)
+                  Chrome.print(Strings("SEL:GALLERY"), 1, 15)
+                  Chrome.print(Strings("B:BACK"), 13, 16)
                   return
               end
 
@@ -3676,9 +3971,6 @@ return function(mod, deps)
                   end
                   y = y + 6
                   local detail = tostring(self.devError.detail or "")
-                  if self.devError.code then
-                      detail = detail .. " CODE " .. tostring(self.devError.code)
-                  end
                   local lines = devUiWrapText(detail, 16)
                   for i = 1, math.min(#lines, 6) do
                       centered(lines[i], y)
@@ -3698,15 +3990,15 @@ return function(mod, deps)
                       or mod.exports.__beta26.Dev.lastExportReport
                   local lines = devReportSectionLines(report, rawText, 16, devReportDisplayLines)
                   local y = 30
-                  for i = 1, 8 do
+                  for i = 1, 7 do
                       local line = lines[(self.reportScroll or 0) + i]
                       if not line then break end
                       Font.draw(devClassicText(line), 12, y)
                       y = y + 11
                   end
                   devClassicScrollIndicators(Font, Theme,
-                      self.reportScroll > 0, self.reportScroll + 8 < #lines)
-                  local reportFooter = Strings("A:REFRESH B:BACK")
+                      self.reportScroll > 0, self.reportScroll + 7 < #lines)
+                  local reportFooter = Strings(self.reportSection == 1 and "A:SUMMARY B:BACK" or "A:REFRESH B:BACK")
                   local reportFooterWidth = type(Font.width) == "function"
                       and Font.width(reportFooter) or (#reportFooter * 8)
                   Font.draw(reportFooter, math.max(10, math.floor((160 - reportFooterWidth) / 2)), 126)
@@ -3719,7 +4011,7 @@ return function(mod, deps)
                       or mod.exports.__beta26.Dev.lastExportReport
                   local lines = knownIssueLines(report, 16)
                   local y = 30
-                  for i = 1, 8 do
+                  for i = 1, 7 do
                       local line = lines[(self.knownIssuesScroll or 0) + i]
                       if not line then break end
                       Font.draw(devClassicText(line), 12, y)
@@ -3727,7 +4019,7 @@ return function(mod, deps)
                   end
                   devClassicScrollIndicators(Font, Theme,
                       self.knownIssuesScroll > 0,
-                      self.knownIssuesScroll + 8 < #lines)
+                      self.knownIssuesScroll + 7 < #lines)
                   Font.draw(Strings("UP/DN  B:BACK"), 22, 126)
                   return
               end
@@ -3736,7 +4028,7 @@ return function(mod, deps)
                   devClassicSectionTitle(Font, "STORAGE INFO")
                   local lines = storageInfoLines(16)
                   local y = 30
-                  for i = 1, 8 do
+                  for i = 1, 7 do
                       local line = lines[(self.fileInfoScroll or 0) + i]
                       if not line then break end
                       Font.draw(devClassicText(line), 12, y)
@@ -3744,7 +4036,7 @@ return function(mod, deps)
                   end
                   devClassicScrollIndicators(Font, Theme,
                       self.fileInfoScroll > 0,
-                      self.fileInfoScroll + 8 < #lines)
+                      self.fileInfoScroll + 7 < #lines)
                   Font.draw(Strings("UP/DN  B:BACK"), 22, 126)
                   return
               end
@@ -3758,30 +4050,144 @@ return function(mod, deps)
                   "CHECK MOD HEALTH", "DETAILS LAST TEST", "LIVE WARNINGS",
                   "SNAPSHOT STORAGE", "LOAD SAVED REPORT", "LOG CURRENT STATE"
               }
-              local ys = { 28, 41, 54, 67, 80, 93 }
+              mod.exports.__beta26.UiSystem.frame(160, 144, { header = 24, detail = 24, footer = 16 })
+              local ys = { 28, 40, 52, 64, 76, 88 }
               for i, label in ipairs(rows) do
-                  if self.cursor == i then
-                      Font.drawCode(Theme.cursor, 12, ys[i])
-                  end
-                  Font.draw(Strings(label), 28, ys[i])
+                  mod.exports.__beta26.UiSystem.gen1Row(Font, Theme, {
+                      label = label, focused = self.cursor == i,
+                  }, { x = 28, y = ys[i], right = 148 })
               end
-              Font.draw(devFitPixelText(help[self.cursor] or "DEV ACTION", 136), 12, 106)
-              local function compactDevStatus(value)
-                  value = tostring(value or "?")
-                  if value == "NOT RUN" then return "N/R" end
-                  if value == "NOT ATTEMPTED" then return "N/A" end
-                  if value == "UNAVAILABLE" then return "N/A" end
-                  return value
-              end
-              Font.draw(devFitPixelText("LAST:" .. compactDevStatus(
-                  self.lastTestStatus), 144), 8, 116)
-              Font.draw(devFitPixelText("SNAP:" .. compactDevStatus(
-                  self.snapshotStatus), 88), 8, 128)
-              Font.draw(Strings("B:BACK"), 104, 128)
+              Font.draw(devFitPixelText(help[self.cursor] or "DEV ACTION", 136), 12, 104)
+              mod.exports.__beta26.UiSystem.gen1Footer(Font, { footer = Strings("SEL:GALLERY   B:BACK") }, 128, 160)
           end
 
           return self
       end
+  })
+
+  ---------------------------------------------------------------------
+  -- 2.7.56 Nuzlocke UI Gallery
+  -- Dev-only synthetic presentation fixture. It never reads/writes challenge
+  -- rules and exists only to stress the shared Nuzlocke presentation system.
+  ---------------------------------------------------------------------
+  mod.content.screens:register("NuzlockeUiGalleryScreen", {
+      new = function(game)
+          local self = {
+              game = game,
+              screenId = "NuzlockeUiGalleryScreen",
+              isOpaque = true,
+              page = 1,
+              elapsed = 0,
+          }
+          self.nuzlockeUi = mod.exports.nuzlocke_ui.describeScreen(self)
+          self.presentationRole = "ui_gallery"
+          self.presentationStateOwner = "nuzlocke"
+          self.presentationNativeFallback = true
+          mod.exports.__beta26.UiSystem.applyLayout(self,
+              mod.exports.__beta26.runtimeIsGen2(game) and "centered" or "adaptive")
+
+          function self:update(dt)
+              self.elapsed = self.elapsed + (dt or 0)
+              if game.input:wasPressed("b") or game.input:wasPressed("start") then
+                  game.stack:pop(); return
+              end
+              if game.input:wasPressed("left") or game.input:wasPressed("up") then
+                  self.page = self.page <= 1 and 5 or self.page - 1
+              elseif game.input:wasPressed("right") or game.input:wasPressed("down")
+                  or game.input:wasPressed("a") then
+                  self.page = self.page >= 5 and 1 or self.page + 1
+              end
+          end
+
+          local pages = {
+              { name="HIERARCHY", state="ACTIVE", rows={
+                  {"PERMADEATH","ACTIVE"}, {"ONE PER AREA","ACTIVE"},
+                  {"FAILED ENCOUNTERS","COUNT"}, {"DUPES","FAMILY"},
+              }},
+              { name="TRACKER", state="AVAILABLE", rows={
+                  {"ROUTE 3 / EAST","AVAILABLE"}, {"MT. MOON B1F","USED"},
+                  {"SAFARI EAST","FAILED"}, {"POWER PLANT","EXEMPT"},
+              }},
+              { name="DIAGNOSTICS", state="MIXED", rows={
+                  {"EDITION IDENTITY","PASS"}, {"SAVE SCHEMA","PASS"},
+                  {"RANDOMIZER","UNKNOWN"}, {"RUNTIME CERT","NOT TESTED"},
+              }},
+              { name="TYPOGRAPHY", state="STRESS", rows={
+                  {"iiii llll WWWW","RIGHT EDGE"},
+                  {"MAXIMUM POKEMON BST RESTRICTION","500"},
+                  {"ENCOUNTER BALL LIMIT PER BATTLE","10"},
+                  {"TRANSLATED-LABEL-WIDTH-STRESS","ACTIVE"},
+              }},
+              { name="NOTICE", state="WARNING", notice={
+                  kind="WARNING", title="ENCOUNTER RULE",
+                  body="This synthetic notice checks measured wrapping, parent-width continuity, and player-paced footer placement without changing run state.",
+                  footer="A/B:ACKNOWLEDGE",
+              }},
+          }
+
+          function self:draw()
+              local sample = pages[self.page]
+              if mod.exports.__beta26.runtimeIsGen2(self.game) then
+                  local Chrome = require("src.ui.gen2.Chrome")
+                  local GoldFont = require("src.render.Font")
+                  Chrome.clear(); Chrome.box(0,0,20,18)
+                  local view = mod.exports.__beta26.UiSystem.view("UI GALLERY", self.game, {
+                      mode = sample.name, state = sample.state,
+                      footer = "A/LR:NEXT  B:BACK",
+                  })
+                  mod.exports.__beta26.UiSystem.gen2Header(Chrome, GoldFont, view)
+                  Chrome.print(Strings("FIXTURE %d/5", self.page), 2, 4)
+                  if sample.notice then
+                      local notice=mod.exports.__beta26.UiSystem.notice(
+                          sample.notice.kind,sample.notice.title,sample.notice.body,
+                          sample.notice.footer)
+                      mod.exports.__beta26.UiSystem.gen2Notice(Chrome,GoldFont,notice,{
+                          x=2,y=6,widthCols=16,footerRow=15,
+                      })
+                  else
+                      for i,row in ipairs(sample.rows or {}) do
+                          local y=5+(i-1)*2
+                          mod.exports.__beta26.UiSystem.gen2Row(Chrome,GoldFont,{
+                              label=row[1],value=row[2],focused=i==1,
+                          },{x=2,y=y,rightCol=18})
+                      end
+                  end
+                  mod.exports.__beta26.UiSystem.gen2Footer(Chrome, GoldFont, view,16)
+                  return
+              end
+
+              local Font=mod.ui.Font
+              local Theme=require("src.ui.Theme")
+              local layout=self.layoutContext
+                  or mod.exports.__beta26.UiSystem.applyLayout(self,"adaptive")
+              local cols=layout and layout.columns or 20
+              local width=cols*8
+              love.graphics.setColor(1,1,1,1)
+              love.graphics.rectangle("fill",0,0,width,144)
+              Font.drawBox(0,0,cols,18)
+              local view=mod.exports.__beta26.UiSystem.view("UI GALLERY",self.game,{
+                  mode=sample.name,state=sample.state,
+                  footer="A/LR:NEXT  B:BACK",
+              })
+              mod.exports.__beta26.UiSystem.gen1Header(Font,view,width)
+              Font.draw(Strings("FIXTURE %d/5",self.page),12,36)
+              if sample.notice then
+                  local notice=mod.exports.__beta26.UiSystem.notice(
+                      sample.notice.kind,sample.notice.title,sample.notice.body,
+                      sample.notice.footer)
+                  mod.exports.__beta26.UiSystem.gen1Notice(Font,notice,width)
+              else
+                  for i,row in ipairs(sample.rows or {}) do
+                      mod.exports.__beta26.UiSystem.gen1Row(Font,Theme,{
+                          label=row[1], value=row[2], focused=i==1,
+                      },{ x=20, y=52+(i-1)*16, right=width-16, gap=12 })
+                  end
+              end
+              mod.exports.__beta26.UiSystem.gen1Footer(Font,view,128,width)
+              love.graphics.setColor(1,1,1,1)
+          end
+          return self
+      end,
   })
 
   mod.content.screens:register("NuzlockeTrackerScreen", {
@@ -3805,14 +4211,10 @@ return function(mod, deps)
           self.presentationStateOwner = "nuzlocke"
           self.presentationNativeFallback = true
 
-          -- 2.3.31 tracker presentation stabilization:
-          -- Runtime testing showed the 304x144 override makes the tracker
-          -- appear physically shrunk because the engine scales the oversized
-          -- logical surface down even though the tracker content remains in
-          -- the native 160px region. Keep the screen opt-out markers, but use
-          -- the native Gen 1 surface again.
-          self.uiModLayout = "classic"
-          self.keepClassicUi = true
+          -- 2.7.56: Tracker now has a real wide composition instead of
+          -- widening a 160px drawing. The screen contract chooses the logical
+          -- surface; gameplay/tracker projection remains unchanged.
+          mod.exports.__beta26.UiSystem.applyLayout(self, "adaptive")
           self.__nuzlockeOwnsTrackerLayout = true
 
           -- Prepare tracker state once per refresh. All presentation paths
@@ -4149,15 +4551,21 @@ return function(mod, deps)
                   local Chrome = require("src.ui.gen2.Chrome")
                   local GoldFont = require("src.render.Font")
                   local guideEnabled = mod.save:get("area_guide_enabled", true) == true
-                  Chrome.clear()
-                  Chrome.box(0, 0, 20, 18)
-                  Chrome.print(Strings("ENC TRACKER"), 2, 1)
-                  Chrome.print(Strings(self.tab == 1 and "LOG" or "MAP"), 15, 1)
+                  local frame = mod.exports.__beta26.UiSystem.gen2ScreenFrame(
+                      Chrome, { headerRows = 5, footerRows = 3 })
+                  local uiView = mod.exports.__beta26.UiSystem.view("TRACKER", self.game, {
+                      mode = self.tab == 1 and "LOG" or "MAP",
+                      footer = "B:BACK",
+                  })
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                      "ENC TRACKER", self.tab == 1 and "LOG" or "MAP",
+                      { row = 1, subtitleRow = 2 })
                   local summary = nuzTrackerSummary(self:trackerRows(2))
                   Chrome.print(Strings("O%d C%d F%d", summary.open,
-                      summary.caught, summary.failed), 2, 2)
-                  Chrome.print(Strings("AREA"), 2, 4)
-                  Chrome.print(Strings("RESULT"), 11, 4)
+                      summary.caught, summary.failed), 2, 3)
+                  mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
+                      label = Strings("AREA"), value = Strings("RESULT")
+                  }, { x = 2, y = 5, rightCol = 18 })
 
                   local rows = self:trackerRows(self.tab)
                   local listCount = #rows
@@ -4191,11 +4599,12 @@ return function(mod, deps)
                               result = tostring(catch.species or "???")
                           end
                       end
-                      if slot == 1 then Chrome.cursor(1, ty) end
-                      Chrome.print(marqueeText(Strings(areaLabel), 8,
-                          self.marqueeTime, 3.8), 2, ty)
-                      Chrome.print(marqueeText(Strings(result), 8,
-                          self.marqueeTime, 3.8), 11, ty)
+                      mod.exports.__beta26.UiSystem.gen2Row(
+                          Chrome, GoldFont, {
+                              label = Strings(areaLabel),
+                              value = Strings(result),
+                              focused = slot == 1,
+                          }, { x = 2, y = ty, rightCol = 18, gap = 8 })
                       local context = mod.exports.__beta26.compat21
                           and mod.exports.__beta26.compat21.trackerCatchContext
                           and mod.exports.__beta26.compat21.trackerCatchContext(
@@ -4206,7 +4615,7 @@ return function(mod, deps)
                   end
 
                   local maxScroll = math.max(0, listCount - 1)
-                  if self.scroll > 0 then Chrome.cursor(18, 4, true) end
+                  if self.scroll > 0 then Chrome.cursor(18, 5, true) end
                   if self.scroll < maxScroll then
                       GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
                   end
@@ -4214,36 +4623,45 @@ return function(mod, deps)
                   Chrome.print(cap >= 100 and Strings("CAP MAX")
                       or Strings("CAP LV%d", cap), 2, 15)
                   if self:selectedAreaCanReroll() then
-                      Chrome.print(Strings("A:REROLL"), 10, 15)
+                      Chrome.print(Strings("A:RER"), 10, 15)
                   elseif guideEnabled then
-                      Chrome.print(Strings("A:PAGE"), 10, 15)
+                      Chrome.print(Strings("A:PG"), 10, 15)
                   end
-                  Chrome.print(Strings("B:BACK"), 12, 16)
+                  mod.exports.__beta26.UiSystem.gen2Footer(
+                      Chrome, GoldFont, uiView, 16)
                   return
               end
 
               local Font = mod.ui.Font
               local guideEnabled = mod.save:get("area_guide_enabled", true) == true
 
-              -- Native Gen 1 160x144 / 20-column surface. All tracker
-              -- content is intentionally kept inside this region.
-              local trackerCols = 20
-              Font.drawBox(0, 0, trackerCols, 18)
-              -- "ENC TRACKER" = 11 chars from X=14 -> ends ~X=124, safe.
-              -- Tab indicator [1]/[2] shown at right to show current page.
-              Font.draw(Strings("ENC TRACKER"), 14, 8)
-              local tabLabel = Strings(self.tab == 1 and "[LOG]" or "[MAP]")
-              Font.draw(tabLabel, 110, 8)
+              -- 2.7.56: consume the active logical surface. Wide mode
+              -- uses the same semantic rows but expands the area/result lanes
+              -- rather than scaling a 160px drawing.
+              local layout = self.layoutContext
+                  or mod.exports.__beta26.UiSystem.applyLayout(self, "adaptive")
+              local trackerCols = layout and layout.columns or 20
+              local trackerWidth = trackerCols * 8
+              local wideMode = trackerCols >= 38
+              local frame = mod.exports.__beta26.UiSystem.gen1ScreenFrame(
+                  Font, trackerWidth, { header = 48, footer = 16 })
+              local uiView = mod.exports.__beta26.UiSystem.view("TRACKER", self.game, {
+                  mode = self.tab == 1 and "LOG" or "MAP",
+                  footer = "B:BACK",
+              })
+              mod.exports.__beta26.UiSystem.gen1Header(Font, uiView, trackerWidth)
 
               local summary = nuzTrackerSummary(self:trackerRows(2))
               Font.draw(trackerFitPixelText(("OPEN %d CAUGHT %d FAILED %d"):format(
-                  summary.open, summary.caught, summary.failed), 136), 16, 20)
-              local y = 32
+                  summary.open, summary.caught, summary.failed), trackerWidth - 24), 16, 34)
+              local y = 48
               local listCount
 
               if self.tab == 1 then
-                  Font.draw(Strings("AREA      RESULT"), 16, y)
-                  y = y + 12
+                  mod.exports.__beta26.UiSystem.gen1Row(Font, require("src.ui.Theme"), {
+                      label=Strings("AREA"), value=Strings("RESULT")
+                  }, { x=16, y=y, right=trackerWidth-16, gap=16 })
+                  y = y + 14
                   local rows = self:trackerRows(1)
                   listCount = #rows
 
@@ -4262,31 +4680,35 @@ return function(mod, deps)
                       end
                       local routeLabel = (row.area == "__LEGACY__")
                           and Strings("LEGACY") or routeName(row.area)
-                      if i == self.scroll + 1 then
-                          Font.drawCode((require("src.ui.Theme")).cursor, 8, y)
-                      end
                       local selected = i == self.scroll + 1
                       local routeText = selected
-                          and marqueeText(routeLabel, 9, self.marqueeTime, 3.8)
-                          or trackerFitPixelText(routeLabel, 72)
+                          and marqueeText(routeLabel, wideMode and 22 or 9, self.marqueeTime, 3.8)
+                          or trackerFitPixelText(routeLabel, wideMode and 176 or 72)
                       local resultText = selected
-                          and marqueeText(species, 8, self.marqueeTime, 3.8)
-                          or trackerFitPixelText(species, 64)
-                      Font.draw(routeText, 16, y)
-                      Font.draw(resultText, 88, y)
+                          and marqueeText(species, wideMode and 12 or 8, self.marqueeTime, 3.8)
+                          or trackerFitPixelText(species, wideMode and 96 or 64)
+                      local drawn = mod.exports.__beta26.UiSystem.gen1Row(
+                          Font, require("src.ui.Theme"), {
+                              label=routeText, value=resultText, focused=selected,
+                              preFitted=selected,
+                          }, { x=16, y=y, right=trackerWidth-16, gap=16 })
                       local context = mod.exports.__beta26.compat21
                           and mod.exports.__beta26.compat21.trackerCatchContext
                           and mod.exports.__beta26.compat21.trackerCatchContext(
                               self.game, catch, routeLabel)
                       if context and context.tag then
-                          Font.draw(trackerFitPixelText(
-                              Strings(tostring(context.tag)), 64), 88, y + 8)
+                          local contextText = trackerFitPixelText(
+                              Strings(tostring(context.tag)), wideMode and 96 or 64)
+                          local T = mod.exports.__beta26.UiSystem.typography(Font)
+                          Font.draw(contextText, T.rightX(contextText, trackerWidth-16), y + 8)
                       end
-                      y = y + 18
+                      y = y + 20
                   end
               else
-                  Font.draw(Strings("AREA      RESULT"), 16, y)
-                  y = y + 12
+                  mod.exports.__beta26.UiSystem.gen1Row(Font, require("src.ui.Theme"), {
+                      label=Strings("AREA"), value=Strings("RESULT")
+                  }, { x=16, y=y, right=trackerWidth-16, gap=16 })
+                  y = y + 14
                   local rows = self:trackerRows(2)
                   listCount = #rows
 
@@ -4306,27 +4728,32 @@ return function(mod, deps)
                               status = tostring(catch.species or "???")
                           end
                       end
-                      if i == self.scroll + 1 then
-                          Font.drawCode((require("src.ui.Theme")).cursor, 8, y)
-                      end
                       local selected = i == self.scroll + 1
                       local areaText = selected
-                          and marqueeText(Strings(r.name), 9, self.marqueeTime, 3.8)
-                          or trackerFitPixelText(Strings(r.name), 72)
+                          and marqueeText(Strings(r.name), wideMode and 22 or 9,
+                              self.marqueeTime, 3.8)
+                          or trackerFitPixelText(Strings(r.name),
+                              wideMode and 176 or 72)
                       local statusText = selected
-                          and marqueeText(status, 8, self.marqueeTime, 3.8)
-                          or trackerFitPixelText(status, 64)
-                      Font.draw(areaText, 16, y)
-                      Font.draw(statusText, 88, y)
+                          and marqueeText(status, wideMode and 12 or 8,
+                              self.marqueeTime, 3.8)
+                          or trackerFitPixelText(status, wideMode and 96 or 64)
+                      mod.exports.__beta26.UiSystem.gen1Row(
+                          Font, require("src.ui.Theme"), {
+                              label=areaText, value=statusText, focused=selected,
+                              preFitted=selected,
+                          }, { x=16, y=y, right=trackerWidth-16, gap=16 })
                       local context = mod.exports.__beta26.compat21
                           and mod.exports.__beta26.compat21.trackerCatchContext
                           and mod.exports.__beta26.compat21.trackerCatchContext(
                               self.game, catch, r and (r.name or r.id))
                       if context and context.tag then
-                          Font.draw(trackerFitPixelText(
-                              Strings(tostring(context.tag)), 64), 88, y + 8)
+                          local contextText = trackerFitPixelText(
+                              Strings(tostring(context.tag)), wideMode and 96 or 64)
+                          local T = mod.exports.__beta26.UiSystem.typography(Font)
+                          Font.draw(contextText, T.rightX(contextText, trackerWidth-16), y + 8)
                       end
-                      y = y + 18
+                      y = y + 20
                   end
               end
 
@@ -4340,31 +4767,27 @@ return function(mod, deps)
               local blinkOn = math.floor(self.arrowTime / 1.0) % 2 == 0
 
               if canScrollUp and blinkOn then
-                  Font.draw(Strings("^"), 72, 18)
+                  Font.draw(Strings("^"), wideMode and 144 or 72, 18)
               end
 
-              -- Bottom bar: navigation hints + level cap reminder.
+              -- Bottom information stays above the reserved footer.
               local cap = nextLevelCap(self.game and self.game.save)
               local capStr = cap >= 100 and Strings("CAP:MAX")
                   or Strings("CAP:%d", cap)
-              Font.draw(capStr, 14, 112)
-              local rc = mod.exports.__beta26.compat21
-                  and mod.exports.__beta26.compat21.randomizerTrackerContext
-                  and mod.exports.__beta26.compat21.randomizerTrackerContext(self.game)
-              if rc and not mod.exports.__beta26.runtimeIsGen2(self.game) then
-                  Font.draw(Strings("RNG"), 54, 112)
+              Font.draw(capStr, 14, 114)
+              local action = self:selectedAreaCanReroll() and Strings("A:RER")
+                  or (guideEnabled and Strings("A:PG") or "")
+              if action ~= "" then
+                  local T = mod.exports.__beta26.UiSystem.typography(Font)
+                  Font.draw(action, T.rightX(action, trackerWidth - 14), 114)
               end
-              if self:selectedAreaCanReroll() then
-                  Font.draw(Strings("A:RER"), 72, 112)
-              elseif guideEnabled then
-                  Font.draw(Strings("A:PG"), 72, 112)
-              end
-              Font.draw(Strings("B:X"), 122, 112)
-
               if canScrollDown and blinkOn then
                   local Theme = require("src.ui.Theme")
-                  Font.drawCode(Theme.moreArrow or 0xEE, 72, 122)
+                  Font.drawCode(Theme.moreArrow or 0xEE,
+                      math.floor(trackerWidth / 2) - 4, 116)
               end
+              mod.exports.__beta26.UiSystem.gen1Footer(
+                  Font, uiView, 130, trackerWidth)
           end
 
           -- Runtime containment for the custom Tracker surface. Constructor
@@ -4616,7 +5039,9 @@ return function(mod, deps)
               local stat = tonumber(value)
               local d = tonumber(dv)
               local e = tonumber(exp)
-              return ("%s %s D%s E%s"):format(
+              -- 2.7.74 recovery: fixed compact columns keep Gold's narrow body
+              -- readable without D/E prefixes colliding with values.
+              return ("%-3s %3s %2s %5s"):format(
                   tostring(label),
                   stat and tostring(math.floor(stat)) or "--",
                   d and tostring(math.floor(d)) or "--",
@@ -4640,7 +5065,7 @@ return function(mod, deps)
                   Strings("LV %d  HP %d/%d",
                       math.floor(tonumber(value.level) or 0),
                       math.floor(curHp), math.floor(maxHp)),
-                  Strings("STAT VALUE DV STATEXP"),
+                  Strings("STAT VAL DV   EXP"),
                   statLine("HP ", stats.hp or maxHp, hpDV(dvs), exp.hp),
                   statLine("ATK", stats.attack, dvs.attack, exp.attack),
                   statLine("DEF", stats.defense, dvs.defense, exp.defense),
@@ -4655,7 +5080,7 @@ return function(mod, deps)
                       statLine("SPA", stats.specialAttack, sdv, sexp)
                   lines[#lines + 1] =
                       statLine("SDF", stats.specialDefense, sdv, sexp)
-                  lines[#lines + 1] = Strings("SPA/SDF SHARE DV+EXP")
+                  lines[#lines + 1] = Strings("SPA/SDF SHARE DV EXP")
               else
                   lines[#lines + 1] =
                       statLine("SPC", stats.special, dvs.special, exp.special)
@@ -4818,15 +5243,42 @@ return function(mod, deps)
               return false
           end
 
+          -- 2.7.74 recovered utility-screen chrome: preserve native Gen2
+          -- renderer/input while giving Nuzlocke-owned info pages one stable
+          -- visual hierarchy.
+          local function drawGoldCenteredBold(Chrome, value, row)
+              local label = tostring(Strings(tostring(value or "")))
+              if #label > 18 then label = label:sub(1, 18) end
+              local col = math.max(1, math.floor((20 - #label) / 2))
+              Chrome.print(label, col, row)
+              local ok, GoldFont = pcall(require, "src.render.Font")
+              if ok and GoldFont and type(GoldFont.draw) == "function" then
+                  GoldFont.draw(label, col * 8 + 1, row * 8)
+              end
+          end
+
           local function drawGoldLines(lines, title)
               local Chrome = require("src.ui.gen2.Chrome")
               Chrome.clear()
               Chrome.box(0, 0, 20, 18)
-              if title then Chrome.print(Strings(title), 2, 1) end
-              for i, line in ipairs(lines or {}) do
-                  if i <= 14 then
-                      Chrome.print(marqueeText(Strings(tostring(line)), 16,
-                          self.marqueeTime, 3.8), 2, 1 + i)
+              if title then drawGoldCenteredBold(Chrome, title, 1) end
+              local body = lines or {}
+              local start = 3
+              -- First body row is the Pokémon/subject subtitle. Center it but
+              -- keep normal weight so title and subject remain distinct.
+              if body[1] ~= nil then
+                  local subtitle = marqueeText(Strings(tostring(body[1])), 16,
+                      self.marqueeTime, 3.8)
+                  local text = tostring(subtitle)
+                  local col = math.max(2, math.floor((20 - #text) / 2))
+                  Chrome.print(subtitle, col, start)
+                  start = start + 2
+              end
+              for i = 2, #body do
+                  local row = start + (i - 2)
+                  if row <= 14 then
+                      Chrome.print(marqueeText(Strings(tostring(body[i])), 16,
+                          self.marqueeTime, 3.8), 2, row)
                   end
               end
               local _, pages = currentPage()
@@ -4864,10 +5316,8 @@ return function(mod, deps)
                   local provenance = provenanceInfo(value)
                   lines = {
                       pokemonLabel(value),
-                      Strings("LOCATION"),
-                      Strings(loc),
-                      Strings("ENCOUNTER"),
-                      Strings(encounter),
+                      Strings("LOCATION %s", tostring(loc)),
+                      Strings("ENCOUNTER %s", tostring(encounter)),
                       Strings("ORIGIN %s", tostring(origin)),
                       Strings("STATUS %s", dead and "LOST" or "ALIVE"),
                       Strings("LEGAL %s",

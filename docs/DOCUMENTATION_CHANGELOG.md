@@ -1,4 +1,210 @@
-# Documentation Changelog — 2.7.28
+# Documentation Changelog — 2.8.00
+
+- 2.8.00: Packaged the requested full release; documented authoritative-live-slot Gen2 party-consumable commit ownership, target-sensitive legality recheck, preservation of specialized item paths, and the slower five-stage Setup/Rules navigation curve.
+
+- 2.7.106: Documented the Crystal post-selection consumable failure, direct Gen2 ItemEffects repair, preservation of specialized PP/stone paths, and five-stage held-navigation acceleration.
+- 2.7.105: Recorded the Crystal party-item failure's exact chooser-mode symptom, retired the disproven full-record starter mutation, documented the narrow Gen2 useItem PartyMenu contract guard, and added held Setup/Rules UP/DOWN repeat navigation with SELECT section-jump priority.
+- 2.7.104: Documented protected TOOLS profile PASS evidence, retirement of direct Gen2 Pack routing, native randomized-starter record materialization, and the new runtime test target.
+- 2.7.103: Documented direct native Gen2 party-item routing, distinct Profile Slot/Save/Load semantics, and the restored T3 World Building default.
+- 2.7.102: Documented the Gen2 native party-item representation repair and restored TOOLS shared OFF/1/2/3 profile-target interaction.
+- 2.7.101: Added in-run TOOLS/profile documentation, Gen2 service/shop visibility repairs, Crystal DST skip hardening, and advanced the Gen1Recomp source/documentation audit through 0.2.25 including read-only imported dataset views.
+- 2.7.95: Recorded 2.7.94 Red/Silver/Crystal Random Starter runtime success; documented Gen-2 tracker canonical ordering/filtering, Setup monochrome repair, MOD COMPAT spacing/blink cleanup, and compact Battle Menu UI visual restoration.
+- 2.7.94: Documented the exact 2.7.44 PASS -> 2.7.45 FAIL Red Random Starter runtime bisect, restored starter-specific Species Pool isolation, preserved Species Pool for Encounters/Trainers/Evolutions, and simplified R/B/Y Setup/Rules title wording.
+- 2.7.93: Added the optional Battle Menu UI presentation toggle; merged Running Shoes + Fast Surf into Run / Surf with conservative legacy migration; fixed No Catching's Allow Glitches suppression key; retained 21 sections / 151 unique rules.
+- 2.7.92: Implemented the approved Nuzlocke Setup/Rules visual contract: bold title, uniform black normal rows/values/pager/help text, preserved raised rows and bottom-centered pager.
+- 2.7.91: Protected the runtime-PASS vanilla Elm transaction from optional Random Starter slate faults, hardened an empty duplicate-safe fallback pool, and moved the Setup/Rules pager to bottom-center while moving rule rows upward.
+- 2.7.90: Replaced starter species/map heuristics with one VM-script-scoped mandatory-starter provenance marker, added a native receipt window across pokemon.received, and made New Game Random Starter settings durable at save.created.
+- 2.7.89: Recovered runtime-proven starter transaction ownership for R/B/Y and Gen 2, removed redundant Setup/Rules edition/run-state subtitle, and explicitly deferred Crystal Mom DST cleanup.
+- 2.7.88: Recorded the public Gen-2 Pokemon `index` identity contract, exact Elm GIVEPOKE operand fallback, R/B/Y Random Starter transaction hardening, Manual Time HH:MM summary, and explicit live NZR6 code generation.
+- 2.7.87: Recorded the real Gen-2 Elm numeric-species identity defect, Random Starter index repair, Manual Time minute control, Crystal Mom DST completion, and restoration of the code-first DEV REPORT page.
+- 2.7.86: Recorded Silver/Crystal vanilla Elm starter rejection/soft-lock evidence; restored Gen-2 clock setup applicability and documented canonical Gen-2 species registry resolution before glitch classification.
+# Documentation Changelog — 2.7.85
+
+- 2.7.85: Recorded Crystal 2.7.84 runtime boot/world/Elm PASS and starter-ball crash FAIL; documented the Crystal native-presentation fail-open repair and the stale DEV REPORT Randomizer validation-count repair.
+
+- 2.7.84: Advanced the Gen1Recomp compatibility/documentation audit through the 0.2.24-era line; intentionally added Crystal as an explicit ALPHA target; documented independent Crystal runtime evidence, six-edition Release Safety, `activeBlockAt`/`map.occupancy_allowed`, intentional non-use of Gen-1-only `battle.field_residual`, Custom Carts/session/translation learnings, and the `OptionRows` / Gen-1-only `src.script.Commands` compatibility boundaries.
+
+- 2.7.83: Documented the planned Rules/Setup UI pass: top-right rule counter, direct Loadout chooser with change preview/confirmation, direct Difficulty chooser with concrete trainer/boss summary and stacking warning, in-run Gold/Silver Manual Time authority, and explicit deferred Starting Ball wording. Crystal and the encounter-overlay redesign remain deferred.
+
+
+- 2.7.82: Recorded the Silver/Gen-2 runtime-hardening batch: complete Mom DST-ladder ownership under System Date/Time, final Elm raw-text confirmation fallback, native Elm-event Tracker completion, lifecycle-exact Gen-2 NUZ INFO installation, build-time-only Release Safety, player-facing diagnostic-code cleanup, unchanged deferred starting-Ball timing, and focused runtime retest debt.
+
+
+- 2.7.81: Recorded the Gen1Recomp 0.2.21 source audit, exact five-edition target boundary, engine developer/options-screen metadata, completed Gold/Silver DST setup coverage, native clock-helper ownership, Gen2 OptionRows warning, and runtime validation debt.
+## 2.7.80
+
+- Documents the exact pending Elm GIVEPOKE finalizer and narrow old-save starter proof contract.
+- Documents Gen-2 `System Date/Time` setup and `System Clock Sync` QoL using native clock authority.
+- Documents B-to-stop Rare Candy `TO CAP` at complete-candy boundaries.
+- Records strict 2.7.79 -> 2.7.80 reconstruction lineage and explicitly leaves 2.6.81+ behavior unrecovered.
+
+## 2.7.79
+
+- Documents context-based Gold/Silver Elm starter classification, proven-starter native story reconciliation, rendered-preview confirmation authority, starter reachability diagnostics, and the tightly scoped identity-less LEGACY repair exception.
+- Documents the shared Gen-2 Nuzlocke utility-title hierarchy and protected native-UI boundary.
+- Records strict 2.7.78 -> 2.7.79 reconstruction lineage and explicitly leaves 2.6.80+ behavior unrecovered.
+
+## 2.7.78
+
+- Documents the one-physical-Pokemon/one-active-encounter identity invariant for starter recovery.
+- Documents exact-ID starter history dedupe, conservative existing-save repair, safer hometown migration, Gold/Silver Recover Catches parity, and saved-identity preservation during manual assignment.
+- Records strict 2.7.77 -> 2.7.78 reconstruction lineage and keeps 2.6.79+ behavior unrecovered.
+
+## 2.7.77
+
+- Documents direct Gen-2 PartyMenu targeting, randomized Elm confirmation text, GIVEPOKE grant-delta recovery, ordinary-interior Tracker filtering, and live Reroll/Auto Seed controls.
+- Records strict 2.7.76 -> 2.7.77 reconstruction lineage and keeps 2.6.78+ behavior unrecovered.
+
+## 2.7.76
+
+- Documents edition-correct starter hometown provenance, Gen-2 Tracker seed isolation, live Gen-2 script authority, the PartyMenu NUZ INFO safety net, and Gen-2 adapter reachability diagnostics.
+- Explicitly leaves later 2.6.77 randomizer/QOL work unrecovered.
+
+## 2.7.75
+- Recorded the controlled recovery of the shared Gen-2 exact-edition predicate and parity diagnostics from the reviewed mistaken 2.6.75 delta.
+- Silver is reconnected to shared Gen-2 adapters without cloning Gold behavior.
+- Runtime validation remains required for Silver tracker/starter/NUZ INFO behavior and Gold regression smoke.
+
+## 2.7.74
+- Recorded Silver NEW GAME Setup as runtime evidence sufficient to promote the 2.7.73 Late Runtime recovery.
+- Recovered the isolated Gold utility-screen visual-normalization delta from the mistaken 2.6.74 child.
+- Kept gameplay, Randomizer, persistence, compatibility, and native host UI unchanged.
+
+## 2.7.73
+- Began controlled reconstruction from exact canonical 2.7.72.
+- Documented the Late Runtime dependency-order recovery and strict one-batch-at-a-time recovery policy.
+
+## 2.7.72
+- Documented safe explicit-wide fallback and selected Tracker marquee ownership.
+
+## 2.7.71
+- Removed the global T3 World Building run-summary page append and documented recap-context isolation.
+
+## 2.7.66 rule-availability audit, pass 2
+
+- Continues the rule-availability audit in a deliberately small pass.
+- Yellow no longer exposes Random Starter `Trio Typing` as a native rule because Yellow does not natively use the three-choice starter slate; an explicit compatible `starter_trio` provider can make it available.
+- Encounter-slot modifiers now depend on `One Per Area`: Failed Encounters, Dupes, Gen II roamer/egg/contest policies, Town Catches, and area/time/headbutt split controls become dormant while area encounter limits are OFF.
+- Type Locke now exposes/effects only the lanes selected by its mode. Catch Draft is hidden while Type Locke is OFF; manual type lanes are hidden/inert during Catch Draft; DUO through HEXA progressively reveal only the required lanes.
+- Stored values are preserved while dormant and return when their prerequisite becomes applicable again.
+- Release Safety extends the exact-edition/dependency source tripwire for these relationships.
+
+
+# Documentation Changelog — 2.7.65
+
+## 2.7.65
+
+- Documents exact-edition rule availability, capability-gated mechanics, dependency hiding, and dominance suppression.
+- Documents that dormant child preferences remain stored but behaviorally neutral.
+
+## 2.7.64
+
+- Documents interactive MOD COMPAT ownership preferences for contract-backed capability rows.
+- Documents AUTO/native/provider cycling, gameplay-impact confirmation, fail-open fallback, and read-only policy rows.
+
+## 2.7.63
+
+- Records Gold Encounter Tracker LOG PASS / MAP ordering FAIL from runtime testing.
+- Documents Gen II map-order repair and New Bark starter-area visibility.
+- Documents the new pre-commit Difficulty impact warning.
+
+## 2.7.62
+
+- Records Gold runtime PASS for No Buying/No Selling and FAIL for No Center Heal on 2.7.61.
+- Documents the Gen II `special HealParty` service gate repair for Pokemon Centers and Mom's house.
+- Adds the cross-generation semantic-seam Release Safety contract and preserves exact-edition runtime evidence requirements.
+
+## 2.7.61
+
+- Runtime UI geometry hardening: explicit header/body/detail/footer regions, safer row budgets, measured status rows, and footer isolation across Nuzlocke-owned utility screens.
+- Compatibility hardening follows Gen1Recomp stable UI/widget, game-input, and screen-stack contracts.
+- Randomizer diagnostics no longer call a nonexistent global `projectionState`.
+
+## 2.7.60
+
+Pre-test startup hardening: presentation-only World Building source/catalog checks remain visible to diagnostics and Release Safety but no longer abort module initialization. Gameplay-critical invariant gates are unchanged.
+
+
+- **2.7.59 startup recovery:** the 104-key World Building catalog currently hashes to `513036232`; the older `926265119` golden had become stale after later presentation-text evolution. Startup no longer hard-asserts on presentation-only catalog drift; Dev/Release Safety still audit it.
+## 2.7.57
+
+- Documents provider-neutral typography metrics, semantic row/notice primitives, five-page UI Gallery coverage, and corrected immediate-parent provenance for the UI lineage.
+- Records compatibility hardening for variable-width/kerning font providers without adding a font-provider dependency.
+
+# Documentation Changelog — 2.7.57
+
+- Marks this build as a UI architecture build descending from exact 2.7.54.
+- Documents the shared Nuzlocke-owned presentation boundary and five-edition UI target.
+- Records that compatibility work concerns coexistence with alternative UI renderers; gameplay authority remains inside Nuzlocke/host semantic seams rather than presentation paths.
+- Preserves the distinction between Static/Semantic evidence and Runtime PASS.
+
+- Records external-save reconciliation regression coverage and forward-local-reference Release Safety linting.
+- Records repaired exact 2.7.53 immediate-parent provenance.
+- No player-facing rule or Randomizer seeded-contract change.
+
+# 2.7.53 documentation update
+
+- Documents Safari Clause replacing the old binary Safari Splits presentation.
+- Records save-compatible 0/1 semantics and new until-catch modes 2/3.
+
+Documents Phase J #10 seed reproducibility certification and #11 release-safety/documentation reconciliation. Final runtime certification remains Phase J #12.
+
+## 2.7.51
+- Documented Phase J #7–9 non-runtime Randomizer certification.
+
+## 2.7.50
+
+- Documented Randomizer Phase J #1–3 non-runtime certification surfaces.
+- Recorded the Silver Field Item ALLOW exact-edition namespace repair and compatibility policy preserving Gold and existing persisted mappings.
+- Runtime exact-edition certification remains deferred.
+
+## 2.7.48
+- Documented Randomizer Phase I #10-12: mid-run mutation policy, reproducibility report, and whole-Randomizer regression harness.
+
+## 2.7.47
+- Documented Phase I #7–9 unified spoiler policy, provider ownership hardening, and Setup preset integration.
+
+# 2.7.46
+- Documents Randomizer Phase I #4–6: compatibility matrix, seed sharing/import presentation, and deterministic subsystem version reporting.
+
+# 2.7.45
+
+- Documents Randomizer Phase I #1–3: unified presets, subsystem ownership/delegation, and shared Species Pool semantics.
+
+# Documentation Changelog — 2.7.44
+
+## 2.7.44
+- Documents Randomizer Phase H #10–12: native Gold/Silver Pack/item-PC transfer ownership, Shop/TM/Gift Randomizer Info coverage, and the economy/progression regression audit.
+
+# Documentation Changelog — 2.7.43
+
+## 2.7.43
+- Document Phase H #7–9 implementation and interaction ownership.
+
+# Documentation Changelog — 2.7.43
+
+## 2.7.43
+- Documents Randomizer Phase H #4–6: TM contents, TM compatibility policy, and ordinary scripted gift-item randomization with progression/HM/TM transaction protections.
+
+# 2.7.41
+- Documents Randomizer Phase H #1–3: ordinary Mart stock randomization, semantic/price-tier shop balancing, native-price economy safety, and explicit preservation of TMs/key/HM/Bargain custom-price rows.
+
+# 2.7.39
+- Documents Randomizer Phase G #7–9: split-evolution distinctness and immutable evolution method/trigger metadata, including Gen2 time/stat-specific conditions.
+
+# 2.7.38
+- Documents Randomizer Phase G #4–6: cycle prevention, Evolution Balance DEPTH/SIM BST/BALANCED, and the corrected evolution-only setup/status visibility.
+- Records Phase G #1–6 implemented with #7–12 pending.
+
+## 2.7.37
+
+- Documents Randomizer Phase G #1–3 and the new Random Evolutions rule/EVOLUTIONS deterministic stream.
+- Records Phase F #1–11 complete with #12 deferred and Phase G #4–12 pending.
+
+- 2.7.35: Documented Trainer Randomizer Phase F #7–9 diversity, type cohesion, team-policy namespace isolation, and rival starter synchronization.
+- 2.7.34: Documented Trainer Randomizer Phase F #4–6 hard species-pool legality, Trainer Balance modes, 2.7.33 CHAOS namespace preservation, and the current F→J roadmap state.
+- 2.7.32: Documented Gold above/below help orientation, exact line-scroll position semantics, and the shared rule-feedback language contract for mechanical blocks, state explanations, World Building, critical/T0 feedback, configuration descriptions, and provider fallback presentation.
+- 2.7.31: Documented Gold Select-alone description paging, `SEL:MORE`/`SEL:TOP` hints, four-line native geometry, and corrected the exact 2.7.28 Gold title runtime-evidence status.
 - 2.7.28: Documented confirmed Gen2 late-runtime/title failure, Yellow control PASS, Gen2 final-list repair, and continued-game SETUP suppression contract.
 - 2.7.27: Documented Phase E #4 move hard-safety, #5 type-aware soft weighting, #6 damaging/status soft balance, `lp2` learnset policy migration, and remaining #7–12 scope.
 - 2.7.25: Promoted the audited 2.7.24 documentation set to the 2.7.x release build and replaced checkpoint wording with release wording; no gameplay/API documentation contract changed.
@@ -259,3 +465,7 @@ The public documentation was reorganized by responsibility:
 Release Safety now validates each document's role-specific exact current header instead of requiring every file to look like a changelog.
 
 Historical gameplay/release information removed from duplicated README/USER_GUIDE/RELEASE_NOTES timelines remains preserved in `CHANGELOG.md`.
+
+## 2.7.56
+
+Documented logical-surface policy, responsive Gen 1 build coverage, centered child-flow continuity, Dev UI Gallery, and runtime-test-required status.

@@ -1,5 +1,287 @@
-# Feature Confidence — 2.7.28
-- **2.7.28 Gen2 title repair:** Yellow fresh NEW GAME SETUP is parent-runtime PASS; Gold parent fresh NEW GAME SETUP is confirmed FAIL. Repaired Gold/Silver fresh SETUP and continued-game SETUP suppression are TEST REQUIRED.
+# Feature Confidence — 2.8.00
+
+## 2.8.00 runtime targets
+
+- Crystal 2.7.106 Gen2 simple party consumables: **FAIL** — target selection succeeds, then healing items, vitamins and Rare Candy return to the Pack without applying.
+- 2.8.00 Pack-seam authoritative-live-slot commit repair: **STATIC/SEMANTIC PASS — RUNTIME REQUIRED** with damaged Pokémon + Potion, one vitamin, and Rare Candy.
+- Crystal Profile Slot / Save Profile / Load Profile: **PASS / protected**.
+- Held UP/DOWN navigation functionality: **PASS**; 2.8.00 slower five-stage timing is **TEST REQUIRED for feel**.
+- World Building fresh/default tier: **T3 / protected**.
+
+## 2.7.106 runtime targets
+
+- Crystal 2.7.105 chooser-mode repair: **PARTIAL PASS** — selecting a target no longer opens the ordinary Pokémon action submenu.
+- Crystal Gen2 simple party consumables: **FAIL entering 2.7.106** — Rare Candy, vitamins, and healing items return to Pack without applying after target selection.
+- 2.7.106 direct ItemEffects post-selection repair: **TEST REQUIRED** with a damaged Pokémon + Potion, one vitamin, and Rare Candy.
+- Held UP/DOWN navigation: **FUNCTIONAL PASS in 2.7.105**, five-stage speed curve in 2.7.106 is **TEST REQUIRED for feel**.
+- TOOLS Profile Slot / Save Profile / Load Profile: **protected runtime PASS**.
+
+## 2.7.105 runtime targets
+
+- Crystal 2.7.104 party-item path: **FAIL, precisely localized** — "Use on which Pokémon?" opens, but selecting Steelix opens the ordinary field Pokémon submenu instead of invoking the item callback.
+- 2.7.105 Gen2 `useItem` chooser-mode guard: **STATIC/SEMANTIC PASS — RUNTIME REQUIRED** for Potion, vitamin and Rare Candy.
+- Crystal 2.7.103 TOOLS Profile Slot / Save Profile / Load Profile behavior: **PASS / protected**.
+- Setup + NUZ RULES held UP/DOWN auto-repeat: **STATIC PASS — RUNTIME REQUIRED**; SELECT+UP/DOWN section jumping remains authoritative.
+- World Building default T3 remains protected.
+
+## 2.7.104 runtime targets
+
+- Crystal 2.7.103 TOOLS profile behavior: **PASS / protected**.
+- Crystal randomized Steelix party-target items: **FAIL entering 2.7.104**.
+- 2.7.104 native-record materialization: **TEST REQUIRED** with damaged-Pokémon Potion, vitamin, and Rare Candy.
+- World Building default T3 remains unchanged from 2.7.103.
+
+## 2.7.103 runtime targets
+
+- Crystal/Silver Gen2 party-target item use (Potion, vitamin, Rare Candy): TEST REQUIRED.
+- TOOLS Profile Slot OFF/1/2/3 selection and distinct Save/Load actions: TEST REQUIRED.
+- World Building fresh/default value T3 across R/B/Y and Gen2: STATIC PASS / RUNTIME TEST REQUIRED.
+
+## 2.7.102 runtime targets
+
+- Gold/Silver/Crystal party-target item use after Nuzlocke/randomized starter materialization: **TEST REQUIRED** for Potion, vitamin, and Rare Candy.
+- Setup and in-run TOOLS shared profile target OFF/1/2/3, Save Profile, and Load Profile preview/apply: **TEST REQUIRED**.
+- Crystal 2.7.99 ENC TRACKER LOG/MAP and MOD COMPAT no-crash evidence remains protected.
+
+## 2.7.101 runtime targets
+
+- Gen2 Center Heal ban: STATIC/SOURCE PASS — RUNTIME REQUIRED.
+- Gen2 Shop Restrictions visibility/enforcement: STATIC/SOURCE PASS — RUNTIME REQUIRED.
+- In-run Profile Save/Load + Encounter Assignment: STATIC/SOURCE PASS — RUNTIME REQUIRED.
+- Crystal opening DST skip: STATIC/SOURCE PASS — RUNTIME REQUIRED.
+- Gen1Recomp 0.2.25 compatibility: SOURCE/DOC PASS — exact-edition runtime smoke required.
+- Random Starter selection/award remains protected from 2.7.94 runtime PASS evidence.
+
+## 2.7.95 runtime targets
+
+- **Protected 2.7.94 evidence:** Red Random Starter AUTO awarded Alakazam without crash; Silver Random Starter AUTO worked with correct starter provenance; Crystal Random Starter AUTO selected/awarded Growlithe without crash and Elm text said Growlithe, while the native Chikorita portrait intentionally remained.
+- Gen-2 ENC TRACKER MAP canonical Johto/Kanto ordering and interior filtering: RETEST REQUIRED on Silver or Crystal.
+- R/B/Y Setup all-black presentation: RETEST REQUIRED.
+- MOD COMPAT title spacing, selector clearance, and slow down-arrow blink: RETEST REQUIRED.
+- Battle Menu UI compact pixel-box presentation and native command parity: RETEST REQUIRED.
+- Crystal randomized starter portrait parity remains open/ALPHA and is not changed in 2.7.95.
+
+## 2.7.94 runtime targets
+
+- **Historical bisect:** 2.7.44 Red New Game Random Starter PASS; 2.7.45 Red FAIL (vanilla starters). 2.7.54, 2.7.70, and 2.7.93 Red also FAIL. Published 2.7.28 Yellow New Game Random Starter PASS.
+- **Primary acceptance:** 2.7.94 Red New Game + Random Starter ON must present/award a non-vanilla seeded starter choice. TEST REQUIRED.
+- Yellow Random Starter regression protection: RETEST REQUIRED.
+- Species Pool must remain effective for Encounters/Trainers/Evolutions while being inert for Random Starter. TEST REQUIRED.
+- Gold/Silver/Crystal starter paths remain independent runtime evidence targets. Historical Gold 2.7.28 `No Glitch Pokemon` Elm text is not treated as the same Gen1 regression.
+- `NUZLOCKE SETUP` / `NUZLOCKE RULES` title wording: R/B/Y presentation RETEST REQUIRED.
+
+## 2.7.93 runtime targets
+
+- Battle Menu UI OFF: native battle command presentation must remain unchanged.
+- Battle Menu UI ON, one R/B/Y edition: ordinary FIGHT / POKEMON / BAG / RUN panel and native command behavior RETEST REQUIRED.
+- Battle Menu UI ON, Silver: same presentation/action parity RETEST REQUIRED.
+- Special Safari / Bug Contest / tutorial battle menus must remain native.
+- Run / Surf OFF / HOLD B / ALWAYS: walking and Surf parity RETEST REQUIRED on one R/B/Y edition and Silver.
+- Old split movement values: conservative migration to the more restrictive value RETEST REQUIRED.
+- Silver vanilla Elm starter PASS from 2.7.90 remains protected.
+- Silver Random Starter rerolled-seed crash hardening remains RETEST REQUIRED.
+- Crystal Mom DST prompt remains deliberately deferred.
+
+## 2.7.92 runtime targets
+
+- Setup/Rules bold title + uniform black normal content: RETEST REQUIRED on one R/B/Y edition and one Gen-2 edition.
+- Pager remains bottom-center and rule rows remain raised: inherited from 2.7.91; RETEST REQUIRED.
+- Silver vanilla Elm starter PASS from 2.7.90 remains protected.
+- Silver Random Starter rerolled-seed crash: 2.7.91 repair remains RETEST REQUIRED.
+- Crystal Mom DST prompt remains deliberately deferred.
+
+## 2.7.91 runtime targets
+
+- Silver vanilla Elm starter: **PASS on 2.7.90**; protected in 2.7.91.
+- Silver Random Starter after seed reroll: **CRASH on 2.7.90**; 2.7.91 RETEST REQUIRED.
+- Random Starter fault fallback: RETEST REQUIRED; a failed randomization must award vanilla rather than crash.
+- R/B/Y Random Starter: still RETEST REQUIRED.
+- Setup/Rules pager bottom-center + rows moved upward: RETEST REQUIRED on one R/B/Y edition and one Gen-2 edition.
+- Crystal Mom DST prompt remains deliberately deferred.
+
+## 2.7.90 runtime targets
+
+- Silver vanilla Elm starter: 2.7.89 FAIL false glitch rejection; 2.7.90 RETEST REQUIRED after shared same-script provenance and receipt-window repair.
+- Crystal vanilla Elm starter: same 2.7.89 FAIL; 2.7.90 RETEST REQUIRED.
+- R/B/Y Random Starter: 2.7.89/earlier current-line FAIL; 2.7.90 RETEST REQUIRED after save.created setup-intent durability.
+- Gen-2 Random Starter: RETEST REQUIRED after the same durability fix plus mandatory-starter transaction repair.
+- Setup/Rules second edition/run subtitle remains intentionally removed.
+- Crystal Mom DST prompt remains deliberately deferred.
+
+## 2.7.89 runtime targets
+
+- Recent historical runtime evidence protects R/B/Y Random Starter actual grant and Gold/Silver randomized award behavior. 2.7.89 restores those transaction ownership contracts by comparison rather than restoring an old tree.
+- Red 2.7.88 Random Starter: FAIL; 2.7.89 RETEST REQUIRED.
+- Crystal 2.7.88 vanilla Elm starter: FAIL false glitch rejection; 2.7.89 RETEST REQUIRED.
+- Silver/Gold starter paths: RETEST REQUIRED after shared Elm ownership change.
+- Crystal remaining Mom DST prompt: intentionally DEFERRED.
+- Setup/Rules second edition/run-state subtitle: intentionally removed in 2.7.89.
+
+## 2.7.88 runtime targets
+
+- Silver vanilla Elm starter: 2.7.87 FAIL (false glitch rejection); 2.7.88 RETEST REQUIRED.
+- Crystal vanilla Elm starter: 2.7.87 FAIL (false glitch rejection); 2.7.88 RETEST REQUIRED.
+- Gen-2 Random Starter: previous FAIL evidence; 2.7.88 RETEST REQUIRED after native-index and legality repair.
+- R/B/Y Random Starter: implementation audited/hardened in 2.7.88; runtime regression matrix REQUIRED.
+- Manual Time editor hour + minute: editor PASS on 2.7.87; NUZ RULES summary minutes missing; 2.7.88 RETEST REQUIRED.
+- DEV REPORT CODE page frame: restored on 2.7.87 but payload blank; 2.7.88 explicitly generates NZR6 payload; RETEST REQUIRED.
+- Crystal loadouts: healing / vitamins / Rare Candy PASS on 2.7.86 and protected.
+- Crystal System Date/Time DST suppression: 2.7.87 repair retained; runtime retest still required.
+
+## 2.7.87 runtime targets
+
+- Silver vanilla Elm starter: 2.7.86 FAIL (false glitch rejection); 2.7.87 RETEST REQUIRED.
+- Crystal vanilla Elm starter: 2.7.86 FAIL (false glitch rejection); 2.7.87 RETEST REQUIRED.
+- Gen-2 Random Starter: 2.7.85 FAIL; 2.7.87 RETEST REQUIRED after canonical species/index repair.
+- Crystal System Date/Time: name/time/weekday skip PASS on 2.7.86; Mom DST prompt FAIL; 2.7.87 RETEST REQUIRED.
+- Crystal loadouts: healing / vitamins / Rare Candy runtime PASS on 2.7.86 and protected.
+- Manual Time hour edit: PASS; minute edit missing on 2.7.86; 2.7.87 RETEST REQUIRED.
+- DEV REPORT actionable dashboard: PASS on Silver 2.7.86; code-first page restored in 2.7.87 and RETEST REQUIRED.
+
+## 2.7.86 runtime targets
+
+- Silver vanilla Elm starter: 2.7.85 FAIL; 2.7.86 RETEST REQUIRED.
+- Crystal vanilla Elm starter: 2.7.85 FAIL; 2.7.86 RETEST REQUIRED.
+- Crystal System Date/Time setup control/bypass: 2.7.85 control missing; 2.7.86 RETEST REQUIRED.
+- Red `gen1.field_poison_permadeath` install health: observed FAIL in 2.7.85 DEV REPORT; focused retest required before promotion.
+
+# Feature Confidence — 2.7.85
+
+## 2.7.85 focused evidence
+
+| Surface | Status | Evidence / next test |
+| --- | --- | --- |
+| Crystal boot / bedroom / world / Elm Lab entry | RUNTIME PASS on 2.7.84 | User reached Elm Lab successfully. |
+| Crystal Elm starter-ball interaction | 2.7.84 RUNTIME FAIL; 2.7.85 RETEST REQUIRED | 2.7.85 bypasses Nuzlocke portrait/cry substitution on Crystal while preserving the grant transaction. |
+| Red DEV REPORT stored-state Randomizer validation | 2.7.84 FALSE WARN; 2.7.85 RETEST REQUIRED | Historical fixed-size expectations were stale against the live expanded registries; 2.7.85 derives live expected sizes. |
+
+
+
+## 2.7.84 focused evidence
+
+| Surface | Confidence | Notes |
+|---|---|---|
+| Gen1Recomp 0.2.24-era compatibility profile | STATIC/SOURCE PASS — RUNTIME REQUIRED | Mod API/range unchanged; reviewed Crystal, developer, map, field-residual, translation, cart, and lifecycle changes. |
+| Crystal manifest/edition routing | STATIC/PARSE PASS — RUNTIME REQUIRED | Explicit sixth target; exact `crystal` identity; shared Gen-2 predicate and edition diagnostics extended. |
+| Crystal Alpha in-game labeling | STATIC/PARSE PASS — RUNTIME REQUIRED | Nuzlocke-owned Gen-2 surfaces use `CRYSTAL ALPHA`; exact diagnostic id remains `crystal`. |
+| Crystal shared rule applicability | STATIC/SEMANTIC PASS — RUNTIME REQUIRED | Six-edition native matrix and three-choice Gen-2 starter applicability include Crystal. |
+| Gen-2 compatibility traps | STATIC PASS | `OptionRows` remains absent; `src.script.Commands` remains protected by explicit non-Gen-2 routing. |
+| Crystal gameplay certification | ALPHA / UNTESTED | Gold/Silver evidence is not inherited. Crystal-specific story/progression/encounter/Battle Tower seams require dedicated runtime passes. |
+
+
+## 2.7.83 focused evidence
+
+| Surface | Confidence | Notes |
+|---|---|---|
+| Top-right Rules counter | Static/Parse PASS; Runtime Required | Reuses the existing current/total navigation state and native scroll arrows. |
+| Direct Nuzlocke Loadout chooser | Static/Parse PASS; Runtime Required | Any preset can be highlighted directly; named presets still use staged exact-change confirmation. |
+| Direct Difficulty chooser | Static/Parse PASS; Runtime Required | Uses existing profile summaries, impact diffs, and provider-stack warnings before mutation. |
+| Gold/Silver Manual Time | Static/Parse PASS; Runtime Required | Native Clock write; System Clock Sync disabled on apply; minute/weekday preserved. |
+| Deferred Starting Ball wording | Static PASS | Timing behavior is unchanged; Setup descriptions now state the capture-unlock delay explicitly. |
+
+
+## 2.7.82 focused evidence
+
+| Surface | Confidence | Notes |
+|---|---|---|
+| Silver System Date/Time full Mom DST ladder | Static/Semantic PASS; Runtime Required | Uses live `Vm:specialName()` and transaction state; keeps `rtc.dst=false`. |
+| Silver randomized Elm confirmation | Static/Semantic PASS; Runtime Required | Adds final one-shot `Vm:showRaw` fallback after higher seams. |
+| Silver starter Tracker New Bark registration | Static/Semantic PASS; Runtime Required | Native Elm event + zero badges + exactly one party Pokémon; identity-idempotent. |
+| Silver field Party NUZ INFO | Static/Semantic PASS; Runtime Required | PartyMenu wrapper installs without early edition snapshot; live `self.game` gates behavior. |
+| DEV REPORT runtime/build separation | Static PASS; Runtime Required | Release Safety and opaque machine codes are no longer player-facing. |
+
+
+| Surface | Confidence | Notes |
+| --- | --- | --- |
+| Gen1Recomp 0.2.21 engine profile | STATIC/SOURCE PASS — RUNTIME REQUIRED | Source-audited compatibility; Mod API/range unchanged; exact-edition smoke required. |
+| Gold/Silver System Date/Time DST handling | STATIC PASS — RUNTIME REQUIRED | Both initial DST branches are intercepted and `rtc.dst` is cleared while host-local clock authority owns setup. |
+| `isModOptions` settings metadata | STATIC PASS — RUNTIME REQUIRED | Exactly Config, Pokémon Ban, and Mod Compat screens are marked. |
+
+## 2.7.80
+
+Pending Elm post-GIVEPOKE completion, deeper randomized confirmation fallback, narrow legacy starter reconciliation, System Date/Time, System Clock Sync, and Rare Candy TO CAP cancellation are STATIC/PARSE/INTEGRITY targets until exercised at runtime. Gold and Silver clock/starter evidence remains independent; R/B/Y and Gen-2 candy cancellation require separate runtime checks.
+
+## 2.7.79
+
+Gen-2 Elm transaction classification, proven-starter story reconciliation, rendered-preview confirmation authority, scoped identity-less LEGACY cleanup, new reachability diagnostics, and shared Gen-2 utility-title presentation are STATIC/PARSE/INTEGRITY targets until exercised at runtime. Gold and Silver evidence remains independent.
+
+
+2.7.77 recovery paths are STATIC/PARSE/INTEGRITY PASS targets until runtime exercised. Silver is the primary acceptance edition; Gold and R/B/Y remain independent regression targets.
+
+
+## 2.7.78
+
+Starter identity normalization, existing-save repair, Gen-2 Recover Catches parity, and identity-preserving manual assignment are STATIC/PARSE/INTEGRITY targets until runtime exercised. The reported Gold duplicate-starter save is the priority acceptance case.
+## 2.7.76
+
+2.7.76 Gen-2 authority repairs are STATIC/PARSE/INTEGRITY targets until Silver/Gold/RBY runtime acceptance is exercised.
+
+## 2.7.66 rule-availability audit, pass 2
+
+- Continues the rule-availability audit in a deliberately small pass.
+- Yellow no longer exposes Random Starter `Trio Typing` as a native rule because Yellow does not natively use the three-choice starter slate; an explicit compatible `starter_trio` provider can make it available.
+- Encounter-slot modifiers now depend on `One Per Area`: Failed Encounters, Dupes, Gen II roamer/egg/contest policies, Town Catches, and area/time/headbutt split controls become dormant while area encounter limits are OFF.
+- Type Locke now exposes/effects only the lanes selected by its mode. Catch Draft is hidden while Type Locke is OFF; manual type lanes are hidden/inert during Catch Draft; DUO through HEXA progressively reveal only the required lanes.
+- Stored values are preserved while dormant and return when their prerequisite becomes applicable again.
+- Release Safety extends the exact-edition/dependency source tripwire for these relationships.
+
+
+# Feature Confidence — 2.7.65
+
+## 2.7.65 rule availability evidence
+
+- Exact-edition/provider availability contract: STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+- Dependency/dominance suppression: STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+- R/B/Y Gym Guide Rare Candy + Safari Clause applicability and provider-gated Overworld policy: STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+
+## 2.7.64 MOD COMPAT ownership evidence
+
+- Capability-backed owner candidate retention / preference resolver: STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+- MOD COMPAT Left/Right cycling on R/B/Y and Gold/Silver paths: STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+- Gameplay-impacting owner warning + cancel-no-mutation path: STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+- Fixed-policy/read-only rows remain non-selectable by construction.
+
+## 2.7.63 Tracker / Difficulty evidence
+
+- **Gold Encounter Tracker LOG:** Runtime PASS on 2.7.61-era UI runtime pass: Chikorita recorded in New Bark Town.
+- **Gold Encounter Tracker MAP:** Runtime FAIL on 2.7.61-era UI runtime pass: displayed Gen I seed areas/order. 2.7.63 repair is STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+- **Gold/Silver Difficulty impact confirmation:** STATIC/SOURCE PASS — RUNTIME TEST REQUIRED per edition.
+
+## 2.7.62 Gen II service parity evidence
+
+- **Gold No Buying:** Runtime PASS on 2.7.61.
+- **Gold No Selling:** Runtime PASS on 2.7.61.
+- **Gold No Center Heal:** Runtime FAIL on 2.7.61; 2.7.62 repair is STATIC/SOURCE PASS — RUNTIME RETEST REQUIRED.
+- **Gold/Silver No Mom Heal:** adjacent Gen II seam gap repaired in 2.7.62 — RUNTIME TEST REQUIRED separately per edition.
+- **Gen II semantic seam audit:** STATIC PASS for advertised healing, mart, capture, nickname, gift, trade, static, held-item, field-item, and whiteout adapter installation. This does not convert shared-source coverage into exact-edition runtime PASS.
+
+## 2.7.61 runtime/UI evidence
+
+- **Boot/load:** PASS on runtime-tested Yellow and Gold parent TEST.6 after startup hardening.
+- **TEST.7 UI geometry:** TEST REQUIRED. This build repairs observed overlaps but has not yet received runtime certification.
+- **Randomizer diagnostic crash repair:** static source repair complete; runtime retest required.
+
+
+- **2.7.59 startup recovery:** the 104-key World Building catalog currently hashes to `513036232`; the older `926265119` golden had become stale after later presentation-text evolution. Startup no longer hard-asserts on presentation-only catalog drift; Dev/Release Safety still audit it.
+## 2.7.57 UI confidence
+
+- Shared typography metrics/fit/wrap/right alignment: **STATIC PASS / RUNTIME TEST REQUIRED**.
+- Semantic focus/status row primitive: **STATIC PASS / RUNTIME TEST REQUIRED**.
+- Standardized notice fixture: **STATIC PASS / RUNTIME TEST REQUIRED**.
+- Variable-width/kerning provider coexistence: **SOURCE/STATIC HARDENED / RUNTIME TEST REQUIRED**.
+- Dev UI Gallery typography + notice pages: **STATIC PASS / RUNTIME VISUAL TEST REQUIRED**.
+
+# Feature Confidence — 2.7.57
+
+- **Experimental UI architecture:** STATIC/SYNTAX PASS only. Shared presentation module and initial Setup/NUZ RULES + ENC TRACKER conversion require exact-edition runtime visual/interaction testing.
+- **Compatibility with alternative UI renderers:** ARCHITECTURAL/STATIC REVIEW only; Runtime TEST REQUIRED.
+- **Gameplay semantics:** intentionally unchanged from canonical 2.7.54; this build does not create new Runtime PASS evidence for gameplay.
+
+- **2.7.35 Phase F #7–9:** STATIC/SEMANTIC validation for team diversity/type-cohesion policy isolation and rival-starter ownership composition. Exact R/B/Y/G/S runtime trainer battles remain TEST REQUIRED.
+- **2.7.34 Phase F #4–6:** STATIC/SEMANTIC/HARNESS PASS for trainer hard-pool legality, PKMN BAN exclusion, party level/size preservation, deterministic persisted CHAOS reuse, and separate versioned non-CHAOS policy keys. Exact R/B/Y/G/S trainer-battle runtime determinism remains TEST REQUIRED.
+- **2.7.32 Gold help-position cues:** STATIC/SEMANTIC/INTEGRITY validation required; above/below cues and exact line-scroll position are implemented. Runtime TEST REQUIRED.
+- **2.7.31 Gold help paging repair:** STATIC/SEMANTIC/INTEGRITY validation required; Gold Select-alone paging now shares native four-line render geometry and visible hints. Runtime TEST REQUIRED.
+- **2.7.28 Gen2 title repair:** Gold fresh SETUP/open/back-to-NEW-GAME and existing-save CONTINUE-without-SETUP are user runtime PASS on exact 2.7.28. Silver equivalent paths remain TEST REQUIRED.
 - **2.7.27 Phase E #4–6:** STATIC/SEMANTIC/INTEGRITY validation required; hard move safety plus type/category soft weighting are implemented, but exact R/B/Y/G/S runtime determinism remains TEST REQUIRED.
 - **2.7.25 release promotion:** STATIC/SEMANTIC/INTEGRITY PASS inherited from exact 2.7.24 plus release-provenance validation. 2.7.25 itself remains RUNTIME TEST REQUIRED until separately exercised.
 - **2.7.24 documentation audit + Run History baseline persistence:** Static/Semantic PASS; documentation was reconciled to current shipped contracts and malformed baseline-counter persistence is covered by a pure Release Safety audit. Runtime behavior of ordinary gameplay is unchanged; malformed-save normalization remains Runtime TEST REQUIRED if exercised against a real edited/legacy save.
@@ -99,3 +381,7 @@ Red, Blue, Yellow, Gold and Silver are five independent runtime-evidence targets
 - R/B/Y and Gold/Silver batch paths use the canonical live level-cap resolver and real inventory.
 - Every candy is a separate `rare_candy_step` exactly-once transaction; intermediate move/evolution flows are preserved.
 - Runtime evidence is still required for finite-cap, insufficient-candy, move-learning, evolution, No Rare Candy, provider-cap, and interruption/reload cases.
+
+## 2.7.56 evidence
+
+Logical-surface policy, wide Gen 1 Rules/Setup/Tracker composition, and the Dev UI Gallery are static/parse validated only. Runtime UI PASS is not claimed for any edition.

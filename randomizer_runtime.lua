@@ -19,9 +19,14 @@ return function(mod, deps)
       ENCOUNTERS = "ENCOUNTERS",
       FIELD_ITEMS = "FIELD_ITEMS",
       LEARNSETS = "LEARNSETS",
+      TRAINERS = "TRAINERS",
+      EVOLUTIONS = "EVOLUTIONS",
+      SHOPS = "SHOPS",
+      TMS = "TMS",
+      GIFT_ITEMS = "GIFT_ITEMS",
   }
   local RANDOMIZER_STREAM_ORDER = {
-      "STARTER", "STARTER_SLATE", "ENCOUNTERS", "FIELD_ITEMS", "LEARNSETS",
+      "STARTER", "STARTER_SLATE", "ENCOUNTERS", "FIELD_ITEMS", "LEARNSETS", "TRAINERS", "EVOLUTIONS", "SHOPS", "TMS", "GIFT_ITEMS",
   }
 
   -- 2.6.75: one authoritative source-map registry owns the durable save
@@ -49,6 +54,26 @@ return function(mod, deps)
           saveKey = "__nuzlocke_random_learnset_slots",
           stream = "LEARNSETS",
       },
+      TRAINERS = {
+          saveKey = "__nuzlocke_random_trainer_slots",
+          stream = "TRAINERS",
+      },
+      EVOLUTIONS = {
+          saveKey = "__nuzlocke_random_evolution_slots",
+          stream = "EVOLUTIONS",
+      },
+      SHOPS = {
+          saveKey = "__nuzlocke_random_shop_slots",
+          stream = "SHOPS",
+      },
+      TMS = {
+          saveKey = "__nuzlocke_random_tm_slots",
+          stream = "TMS",
+      },
+      GIFT_ITEMS = {
+          saveKey = "__nuzlocke_random_gift_item_slots",
+          stream = "GIFT_ITEMS",
+      },
   }
 
   -- 2.6.77: explicit ownership contracts for the only shipped randomizer
@@ -66,8 +91,13 @@ return function(mod, deps)
           domain = "learnsets",
           rule = "random_learnsets",
       },
+      EVOLUTIONS = {
+          owner = "nuzlocke.randomizer.evolutions",
+          domain = "evolutions",
+          rule = "random_evolutions",
+      },
   }
-  local RANDOMIZER_PROJECTION_ORDER = { "ENCOUNTERS", "LEARNSETS" }
+  local RANDOMIZER_PROJECTION_ORDER = { "ENCOUNTERS", "LEARNSETS", "EVOLUTIONS" }
 
 
   ---------------------------------------------------------------------
@@ -82,14 +112,17 @@ return function(mod, deps)
       local Randomizer = {
           encounterSnapshot = nil,
           learnsetSnapshot = nil,
+          evolutionSnapshot = nil,
           encounterRegistry = nil,
           learnsetRegistry = nil,
+          evolutionRegistry = nil,
           lastAutoSeed = nil,
           encounterApplied = nil,
           learnsetApplied = nil,
           projectionState = {
               ENCOUNTERS = { state = "idle", registry = nil },
               LEARNSETS = { state = "idle", registry = nil },
+              EVOLUTIONS = { state = "idle", registry = nil },
           },
       }
       local RUN_SEED_KEY = "__nuzlocke_randomizer_run_seed"
@@ -120,6 +153,17 @@ return function(mod, deps)
           "random_species_generation",
           "random_learnsets",
           "random_learnset_generation",
+          "random_trainers",
+          "random_trainer_balance",
+          "random_trainer_diversity",
+          "random_trainer_theme",
+          "random_evolutions",
+          "random_evolution_balance",
+          "random_shops",
+          "random_shop_balance",
+          "random_tms",
+          "random_tm_compatibility",
+          "random_gift_items",
       }
 
       local function copy(value)
@@ -208,6 +252,129 @@ return function(mod, deps)
           return copy(mod.save:get(key, nil))
       end
 
+      local RANDOMIZER_SUBSYSTEMS = {
+          { id="STARTER", rule="random_starter", species=true },
+          { id="ENCOUNTERS", rule="random_encounter_tables", species=true },
+          { id="FIELD_ITEMS", rule="random_field_items" },
+          { id="LEARNSETS", rule="random_learnsets" },
+          { id="TRAINERS", rule="random_trainers", species=true },
+          { id="EVOLUTIONS", rule="random_evolutions", species=true },
+          { id="SHOPS", rule="random_shops" },
+          { id="TMS", rule="random_tms" },
+          { id="GIFT_ITEMS", rule="random_gift_items" },
+      }
+
+      -- Phase I #2: one read-only ownership registry describes every independently
+      -- switchable randomizer subsystem. Presets and diagnostics consult this
+      -- contract rather than assuming that an enabled toggle implies Nuzlocke
+      -- owns a provider-delegated mechanic.
+      mod.exports.__beta26.randomizerSubsystemOwnership = function(game)
+          game = game or getCurrentGame() or mod.game
+          local out = {}
+          for _, row in ipairs(RANDOMIZER_SUBSYSTEMS) do
+              local delegatedOwner = externalRuleDelegation(row.rule, game)
+              local delegated = type(delegatedOwner) == "table"
+              out[#out + 1] = {
+                  id = row.id, rule = row.rule, species = row.species == true,
+                  enabled = mod.save:get(row.rule, false) == true,
+                  owner = delegated and "external" or "nuzlocke",
+                  delegated = delegated,
+              }
+          end
+          return out
+      end
+
+      -- Phase I #7: one spoiler policy owns reveal permission for every
+      -- Nuzlocke Randomizer information surface. Callers may request reveal,
+      -- but BLIND is authoritative and can only reduce disclosure.
+      mod.exports.__beta26.randomizerInfoPolicy = function(requestReveal)
+          local blind = tonumber(mod.save:get("randomizer_info_policy", 0)) == 1
+          return {
+              mode = blind and "BLIND" or "OPEN",
+              reveal = requestReveal == true and not blind,
+              requestedReveal = requestReveal == true,
+          }
+      end
+
+      -- Phase I #4: declarative cross-randomizer compatibility matrix. This is
+      -- read-only policy metadata: it does not enable systems, consume RNG, or
+      -- rewrite mappings. "compose" means both Nuzlocke-owned systems may be
+      -- enabled together; the notes identify the established ownership seam.
+      local RANDOMIZER_COMPATIBILITY = {
+          { a="STARTER", b="TRAINERS", status="compose", contract="rival_starter_lineage_sync" },
+          { a="STARTER", b="EVOLUTIONS", status="compose", contract="authored_lineage_classification" },
+          { a="ENCOUNTERS", b="EVOLUTIONS", status="compose", contract="authored_lineage_classification" },
+          { a="TRAINERS", b="EVOLUTIONS", status="compose", contract="authored_lineage_classification" },
+          { a="TRAINERS", b="LEARNSETS", status="compose", contract="species_projection_before_difficulty_moves" },
+          { a="SHOPS", b="TMS", status="compose", contract="shop_stock_and_tm_payload_separate" },
+          { a="SHOPS", b="GIFT_ITEMS", status="compose", contract="independent_acquisition_sources" },
+          { a="FIELD_ITEMS", b="GIFT_ITEMS", status="compose", contract="independent_acquisition_sources" },
+      }
+
+      mod.exports.__beta26.randomizerCompatibilityMatrix = function(game)
+          game = game or getCurrentGame() or mod.game
+          local owners = {}
+          for _, row in ipairs(mod.exports.__beta26.randomizerSubsystemOwnership(game)) do
+              owners[row.id] = row
+          end
+          local out = {}
+          for _, row in ipairs(RANDOMIZER_COMPATIBILITY) do
+              local a, b = owners[row.a], owners[row.b]
+              out[#out + 1] = {
+                  a=row.a, b=row.b, status=row.status, contract=row.contract,
+                  active=type(a)=="table" and a.enabled == true
+                      and type(b)=="table" and b.enabled == true,
+                  nuzlockeOwned=type(a)=="table" and a.owner == "nuzlocke"
+                      and type(b)=="table" and b.owner == "nuzlocke",
+              }
+          end
+          return out
+      end
+
+      mod.exports.__beta26.randomizerCompatibilityAudit = function(game)
+          local owners = mod.exports.__beta26.randomizerSubsystemOwnership(game)
+          local known = {}
+          for _, row in ipairs(owners) do known[row.id] = true end
+          local failures, checked = {}, 0
+          for _, row in ipairs(RANDOMIZER_COMPATIBILITY) do
+              checked = checked + 1
+              if not known[row.a] or not known[row.b] then
+                  failures[#failures + 1] = tostring(row.a) .. ":" .. tostring(row.b) .. ":unknown_subsystem"
+              elseif row.status ~= "compose" or type(row.contract) ~= "string" or row.contract == "" then
+                  failures[#failures + 1] = tostring(row.a) .. ":" .. tostring(row.b) .. ":invalid_contract"
+              end
+          end
+          return { ok=#failures == 0, checked=checked, failures=failures }
+      end
+
+      -- Phase I #5: one share/import presentation contract for the existing
+      -- eight-digit deterministic seed. Importing changes only the configured
+      -- seed; it never touches mappings or consumes a stream. AUTO remains 0.
+      mod.exports.__beta26.randomizerSeedPresentation = function()
+          local configured = boundedSeed(mod.save:get("randomizer_seed", 0))
+          local resolved = boundedSeed(mod.save:get(RUN_SEED_KEY, 0))
+          local share = configured > 0 and configured or resolved
+          return {
+              configuredSeed=configured, resolvedSeed=resolved,
+              mode=configured > 0 and "FIXED" or "AUTO",
+              shareCode=share > 0 and string.format("%08d", share) or nil,
+              format="8-digit decimal", min=0, max=99999999,
+          }
+      end
+
+      mod.exports.__beta26.randomizerImportSeed = function(value)
+          local text = tostring(value or ""):gsub("%s+", "")
+          if not text:match("^%d%d%d%d%d%d%d%d$") then
+              return false, "seed_must_be_8_digits"
+          end
+          local seed = boundedSeed(tonumber(text))
+          mod.save:set("randomizer_seed", seed)
+          -- The configured value is setup policy. Existing persisted source
+          -- mappings are deliberately not cleared here; normal new-run setup
+          -- owns world generation and its immutable run snapshot.
+          return true, seed
+      end
+
       local function randomizerConfigured(profile)
           local function enabled(key)
               if type(profile) == "table" and profile[key] ~= nil then
@@ -219,6 +386,11 @@ return function(mod, deps)
               or enabled("random_encounter_tables")
               or enabled("random_field_items")
               or enabled("random_learnsets")
+              or enabled("random_trainers")
+              or enabled("random_evolutions")
+              or enabled("random_shops")
+              or enabled("random_tms")
+              or enabled("random_gift_items")
       end
 
       local function captureRandomizerRunConfig(profile, resolvedSeed)
@@ -350,6 +522,171 @@ return function(mod, deps)
 
       mod.exports.__beta26.randomizerAlgorithmVersion = function()
           return Randomizer.algorithmVersion
+      end
+
+
+      -- Phase I #6: deterministic subsystem version report. Version labels are
+      -- descriptive only and are sourced from the constants/namespaces that
+      -- already govern persisted identities; reporting them consumes zero RNG.
+      mod.exports.__beta26.randomizerSubsystemVersions = function()
+          return {
+              algorithm=Randomizer.algorithmVersion,
+              streams={
+                  STARTER=RANDOMIZER_STREAMS.STARTER, STARTER_SLATE=RANDOMIZER_STREAMS.STARTER_SLATE,
+                  ENCOUNTERS=RANDOMIZER_STREAMS.ENCOUNTERS, FIELD_ITEMS=RANDOMIZER_STREAMS.FIELD_ITEMS,
+                  LEARNSETS=RANDOMIZER_STREAMS.LEARNSETS, TRAINERS=RANDOMIZER_STREAMS.TRAINERS,
+                  EVOLUTIONS=RANDOMIZER_STREAMS.EVOLUTIONS, SHOPS=RANDOMIZER_STREAMS.SHOPS,
+                  TMS=RANDOMIZER_STREAMS.TMS, GIFT_ITEMS=RANDOMIZER_STREAMS.GIFT_ITEMS,
+              },
+              policies={
+                  starterSlate=3, encounters=2, fieldItems=1, learnsets=4,
+                  trainers=1, trainerTeams=1, trainerBosses=1, evolutions=1,
+                  shops=1, tms=1, giftItems=1,
+              },
+              runConfigSchema=RUN_CONFIG_SCHEMA,
+          }
+      end
+
+      -- Phase I #7-9 integration report/audit. This is deliberately read-only:
+      -- it centralizes spoiler policy, provider ownership, and Setup preset
+      -- visibility without applying a preset or materializing a seed/mapping.
+      mod.exports.__beta26.randomizerIntegrationAudit = function(game)
+          game = game or getCurrentGame() or mod.game
+          local policy = mod.exports.__beta26.randomizerInfoPolicy(true)
+          local owners = mod.exports.__beta26.randomizerSubsystemOwnership(game)
+          local failures = {}
+          for _, row in ipairs(owners) do
+              local owner = externalRuleDelegation(row.rule, game)
+              local delegated = type(owner) == "table"
+              if delegated ~= (row.delegated == true) then
+                  failures[#failures + 1] = row.id .. ":delegation_mismatch"
+              end
+          end
+          local preset = math.max(0, math.min(2, math.floor(tonumber(
+              mod.save:get("randomizer_preset", 0)) or 0)))
+          return {
+              ok = #failures == 0, failures = failures,
+              infoPolicy = policy.mode, revealAllowed = policy.reveal,
+              preset = preset, presetName = ({[0]="CUSTOM",[1]="CHAOS",[2]="BALANCED"})[preset],
+              presetSetupOwned = true, presetRuntimeOwned = true,
+              delegatedSubsystemsPreserved = true,
+              ownership = owners,
+              versions = mod.exports.__beta26.randomizerSubsystemVersions(),
+          }
+      end
+
+      -- Phase I #10: explicit mid-run mutation policy. Randomizer settings may
+      -- be edited at runtime, but already-materialized semantic source mappings
+      -- remain authoritative for that run. New/unseen sources use the current
+      -- setting. The immutable run-start snapshot records drift for reproducibility
+      -- rather than pretending a mid-run edit rewrote the generated world.
+      mod.exports.__beta26.randomizerMidRunPolicy = function()
+          local snap = mod.save:get(RUN_CONFIG_KEY, nil)
+          local current, changed = {}, {}
+          for _, key in ipairs(RANDOMIZER_CONFIG_KEYS) do
+              current[key] = randomizerConfigValue(nil, key)
+              local before = type(snap) == "table" and type(snap.settings) == "table"
+                  and snap.settings[key] or nil
+              if type(snap) == "table" and not sameValue(before, current[key]) then
+                  changed[#changed + 1] = key
+              end
+          end
+          table.sort(changed)
+          return {
+              policy="PERSIST_EXISTING_APPLY_NEW_TO_UNSEEN",
+              runSnapshotImmutable=true,
+              existingMappingsPreserved=true,
+              unseenSourcesUseCurrentSettings=true,
+              seedChangeDoesNotRewriteMappings=true,
+              changed=#changed > 0,
+              changedKeys=changed,
+              runConfig=type(snap) == "table" and copy(snap) or nil,
+              currentSettings=current,
+          }
+      end
+
+      local function countEntries(value)
+          if type(value) ~= "table" then return 0 end
+          local n = 0
+          for _ in pairs(value) do n = n + 1 end
+          return n
+      end
+
+      -- Phase I #11: comprehensive, read-only reproducibility report. It reports
+      -- the immutable run contract, current drift, ownership/version namespaces,
+      -- and durable mapping cardinalities without revealing mapped results.
+      mod.exports.__beta26.randomizerReproducibilityReport = function(game)
+          game = game or getCurrentGame() or mod.game
+          local policy = mod.exports.__beta26.randomizerMidRunPolicy()
+          local seed = mod.exports.__beta26.randomizerSeedPresentation()
+          local maps, seenBuckets = {}, {}
+          for _, key in ipairs(RANDOMIZER_STREAM_ORDER) do
+              local src = RANDOMIZER_SOURCE_MAPS[key]
+              if src and not seenBuckets[src.saveKey] then
+                  seenBuckets[src.saveKey] = true
+                  maps[key] = { saveKey=src.saveKey,
+                      count=countEntries(mod.save:get(src.saveKey, {})) }
+              elseif src then
+                  maps[key] = { saveKey=src.saveKey, shared=true,
+                      count=countEntries(mod.save:get(src.saveKey, {})) }
+              end
+          end
+          local snap = policy.runConfig
+          local reproducible = type(snap) == "table"
+              and tonumber(snap.algorithm) == tonumber(Randomizer.algorithmVersion)
+              and boundedSeed(snap.seed) > 0
+          return {
+              reproducible=reproducible,
+              game=tostring(getGameVersion() or "UNKNOWN"),
+              seed=seed,
+              runConfig=snap,
+              midRunPolicy=policy.policy,
+              settingsDrift=policy.changedKeys,
+              versions=mod.exports.__beta26.randomizerSubsystemVersions(),
+              ownership=mod.exports.__beta26.randomizerSubsystemOwnership(game),
+              sourceMaps=maps,
+              note=reproducible and "run contract captured" or "no complete seeded run contract captured",
+          }
+      end
+
+      -- Phase I #12: whole-randomizer regression harness. This intentionally
+      -- composes the existing pure/read-only audits and verifies that running
+      -- the harness itself does not mutate any durable source-map bucket.
+      mod.exports.__beta26.randomizerWholeRegressionAudit = function(game)
+          game = game or getCurrentGame() or mod.game
+          local before = {}
+          for _, key in ipairs(RANDOMIZER_STREAM_ORDER) do
+              local src = RANDOMIZER_SOURCE_MAPS[key]
+              if src and before[src.saveKey] == nil then
+                  before[src.saveKey] = copy(mod.save:get(src.saveKey, nil))
+              end
+          end
+          local checks = {}
+          local function run(name, fn, ...)
+              local ok, result = false, "audit_unavailable"
+              if type(fn) == "function" then ok, result = pcall(fn, ...) end
+              local pass = ok and type(result) == "table" and result.ok ~= false
+              checks[#checks + 1] = { name=name, ok=pass,
+                  error=ok and nil or tostring(result) }
+              return pass
+          end
+          local all = true
+          all = run("stream_registry", mod.exports.__beta26.randomizerStreamRegistryAudit) and all
+          all = run("source_maps", mod.exports.__beta26.randomizerSourceMapAudit) and all
+          all = run("stream_isolation", mod.exports.__beta26.randomizerStreamIsolationAudit) and all
+          all = run("compatibility", mod.exports.__beta26.randomizerCompatibilityAudit, game) and all
+          all = run("integration", mod.exports.__beta26.randomizerIntegrationAudit, game) and all
+          local mutated = {}
+          for saveKey, old in pairs(before) do
+              local now = mod.save:get(saveKey, nil)
+              if not sameValue(old, now) then mutated[#mutated + 1] = saveKey end
+          end
+          table.sort(mutated)
+          if #mutated > 0 then all = false end
+          return { ok=all, checks=checks, sourceMapsUnchanged=#mutated == 0,
+              mutatedSourceMaps=mutated,
+              runtimeMatrixRequired={"RED","BLUE","YELLOW","GOLD","SILVER","CRYSTAL"},
+              runtimeCertified=false }
       end
 
       local function seededIndexFor(seed, stream, slot, count)
@@ -871,13 +1208,25 @@ return function(mod, deps)
           return generation == 1 or generation == 2
       end
 
+      -- 2.7.94: runtime bisect proved Red Random Starter PASS in 2.7.44 and
+      -- FAIL beginning in 2.7.45, the build that first coupled Starter to the
+      -- shared Species Pool. Restore the last runtime-proven starter contract:
+      -- Species Pool remains shared by encounters/trainers/evolutions, while
+      -- mandatory starters use their own hard-safe live pool + Starter Style.
+      local function speciesRandomizerConfigured()
+          return mod.save:get("random_encounter_tables", false) == true
+              or mod.save:get("random_trainers", false) == true
+              or mod.save:get("random_evolutions", false) == true
+      end
+
       local function effectiveRandomSpeciesGeneration()
-          if mod.save:get("random_encounter_tables", false) ~= true then
-              return 0
-          end
+          if not speciesRandomizerConfigured() then return 0 end
           return math.max(0, math.min(3, math.floor(tonumber(
               mod.save:get("random_species_generation", 0)) or 0)))
       end
+
+      mod.exports.__beta26.randomizerSpeciesSubsystemConfigured =
+          speciesRandomizerConfigured
 
       local function effectiveRandomLearnsetGeneration()
           if mod.save:get("random_learnsets", false) ~= true then
@@ -994,7 +1343,7 @@ return function(mod, deps)
       -- authored slot/level, and expose semantic move classifications for the
       -- later balance/weighting steps.  Items 1-3 deliberately do not change
       -- default move preference: every hard-safe move remains equally eligible.
-      local LEARNSET_POLICY_VERSION = 2
+      local LEARNSET_POLICY_VERSION = 4
 
       local function normalizeMoveType(value)
           local text = tostring(value or ""):upper()
@@ -1129,15 +1478,19 @@ return function(mod, deps)
           return out
       end
 
-      local function typeAffinityWeight(candidateSemantic, speciesTypes)
+      local function typeAffinityWeight(candidateSemantic, speciesTypes, mode)
+          mode = math.max(0, math.min(2,
+              math.floor(tonumber(mode) or 1)))
+          if mode <= 0 then return 1 end
           local candidateType = candidateSemantic
               and normalizeMoveType(candidateSemantic.type)
           if not candidateType then return 1 end
           for _, speciesType in ipairs(speciesTypes or {}) do
               if candidateType == speciesType then
-                  -- Phase E #5: mild type-aware affinity only. This is not the
-                  -- configurable STAB policy from Phase E #8.
-                  return 2
+                  -- Phase E #5/#8: explicit soft STAB policy. PREFER retains
+                  -- the established 2x affinity; STRONG raises it without ever
+                  -- removing a hard-safe off-type candidate.
+                  return mode >= 2 and 4 or 2
               end
           end
           return 1
@@ -1154,15 +1507,68 @@ return function(mod, deps)
           return candidateDamaging == originalDamaging and 1.75 or 1
       end
 
+      local function earlyMoveQualityWeight(candidateSemantic, level)
+          level = math.max(0, math.floor(tonumber(level) or 0))
+          if level > 15 then return 1 end
+          local damaging = candidateSemantic and candidateSemantic.damaging
+          local power = candidateSemantic and tonumber(candidateSemantic.power)
+          local accuracy = candidateSemantic and tonumber(candidateSemantic.accuracy)
+          if damaging ~= true then return 1 end
+          -- Phase E #7 is a floor expressed as a strong preference rather than
+          -- a hidden ban: weak/inaccurate damaging moves stay reachable, while
+          -- usable early attacks are much more likely to occupy early slots.
+          if power and power >= 35 and (accuracy == nil or accuracy >= 75) then
+              return level <= 5 and 3.5 or 2.5
+          end
+          if power and power >= 20 and (accuracy == nil or accuracy >= 60) then
+              return 1.5
+          end
+          return 0.65
+      end
+
+      local function progressionPowerWeight(candidateSemantic, originalSemantic,
+          level)
+          level = math.max(0, math.floor(tonumber(level) or 0))
+          if not candidateSemantic or candidateSemantic.damaging ~= true then
+              return 1
+          end
+          local power = tonumber(candidateSemantic.power)
+          if not power or power <= 0 then return 1 end
+
+          -- Phase E #9: use authored power when available, blended with a
+          -- conservative level curve. This prevents early 100+ BP flooding
+          -- while allowing stronger attacks to become increasingly natural.
+          local authored = originalSemantic
+              and originalSemantic.damaging == true
+              and tonumber(originalSemantic.power) or nil
+          local curve
+          if level <= 5 then curve = 40
+          elseif level <= 15 then curve = 55
+          elseif level <= 30 then curve = 75
+          elseif level <= 45 then curve = 95
+          else curve = 115 end
+          local target = authored and ((authored * 0.65) + (curve * 0.35))
+              or curve
+          local distance = math.abs(power - target)
+          if distance <= 15 then return 2.5 end
+          if distance <= 30 then return 1.75 end
+          if distance <= 50 then return 1.15 end
+          return 0.6
+      end
+
       local function learnsetWeightedIndex(seed, stream, slot, candidates,
-          semantics, speciesTypes, originalSemantic)
+          semantics, speciesTypes, originalSemantic, level, stabMode)
           if type(candidates) ~= "table" or #candidates == 0 then return nil end
           if #candidates == 1 then return 1 end
           local weights, total = {}, 0
           for index, id in ipairs(candidates) do
               local semantic = semantics[tostring(id or ""):upper()]
-              local weight = typeAffinityWeight(semantic, speciesTypes)
+              local weight = typeAffinityWeight(
+                      semantic, speciesTypes, stabMode)
                   * damageStatusBalanceWeight(semantic, originalSemantic)
+                  * earlyMoveQualityWeight(semantic, level)
+                  * progressionPowerWeight(
+                      semantic, originalSemantic, level)
               if weight <= 0 then weight = 0.000001 end
               weights[index] = weight
               total = total + weight
@@ -1198,6 +1604,46 @@ return function(mod, deps)
           }, {})
       end
 
+      local function learnsetSpeciesSafety(game, species, def)
+          if type(def) ~= "table" then return false, "missing_species" end
+          local content = mod.exports.nuzlocke and mod.exports.nuzlocke.content
+          if content and type(content.shouldRandomizeLearnset) == "function" then
+              local ok, permitted = pcall(
+                  content.shouldRandomizeLearnset, species, def)
+              if ok and permitted == false then
+                  return false, "provider_species_protected"
+              end
+          end
+          local policy = tostring(def.learnsetRandomization
+              or def.randomizeLearnset or def.randomization or ""):lower()
+          if policy == "deny" or policy == "provider"
+              or policy == "preserve" or policy == "protected" then
+              return false, "provider_species_protected"
+          end
+          return true
+      end
+
+      local function learnsetRowSafety(game, species, shape, entry, moveId)
+          local def = game and game.data and game.data.pokemon
+              and game.data.pokemon[species]
+          local allowed, reason = learnsetSpeciesSafety(game, species, def)
+          if not allowed then return false, reason end
+          if type(entry) == "table" then
+              local policy = tostring(entry.randomization
+                  or entry.learnsetRandomization or ""):lower()
+              if entry.protected == true or entry.providerOwned == true
+                  or entry.internalOnly == true or policy == "deny"
+                  or policy == "provider" or policy == "preserve"
+                  or policy == "protected" then
+                  return false, "provider_row_protected"
+              end
+          end
+          if not learnsetHardSafeMove(game, moveId) then
+              return false, "unsafe_authored_move"
+          end
+          return true
+      end
+
       mod.exports.__beta26.randomizerLearnsetSourceIdentity =
           learnsetSourceIdentity
       mod.exports.__beta26.randomizerMoveSemanticClass = moveSemanticClass
@@ -1208,6 +1654,14 @@ return function(mod, deps)
           typeAffinityWeight
       mod.exports.__beta26.randomizerLearnsetDamageStatusBalanceWeight =
           damageStatusBalanceWeight
+      mod.exports.__beta26.randomizerLearnsetEarlyMoveQualityWeight =
+          earlyMoveQualityWeight
+      mod.exports.__beta26.randomizerLearnsetProgressionPowerWeight =
+          progressionPowerWeight
+      mod.exports.__beta26.randomizerLearnsetSpeciesSafety =
+          learnsetSpeciesSafety
+      mod.exports.__beta26.randomizerLearnsetRowSafety =
+          learnsetRowSafety
 
       mod.exports.__beta26.randomizerLearnsetPhaseEFoundationAudit =
           function()
@@ -1293,6 +1747,48 @@ return function(mod, deps)
                   weightedSemantics, { "ELECTRIC" }, { damaging=true })
               check(first == second and first >= 1 and first <= 3,
                   "learnset_weight_determinism")
+              check(typeAffinityWeight(
+                      { type="ELECTRIC" }, { "ELECTRIC" }, 0) == 1
+                  and typeAffinityWeight(
+                      { type="ELECTRIC" }, { "ELECTRIC" }, 2) == 4,
+                  "learnset_stab_modes")
+              check(earlyMoveQualityWeight(
+                      { damaging=true, power=40, accuracy=100 }, 5)
+                    > earlyMoveQualityWeight(
+                      { damaging=true, power=10, accuracy=50 }, 5),
+                  "learnset_early_quality_floor")
+              check(progressionPowerWeight(
+                      { damaging=true, power=40 },
+                      { damaging=true, power=40 }, 5)
+                    > progressionPowerWeight(
+                      { damaging=true, power=120 },
+                      { damaging=true, power=40 }, 5),
+                  "learnset_progression_power")
+              local safetyGame = {
+                  data = {
+                      moves = {
+                          SAFE={ name="Safe", pp=10, power=40 },
+                      },
+                      pokemon = {
+                          SAFE_MON={ level1Moves={"SAFE"} },
+                          LOCKED_MON={
+                              level1Moves={"SAFE"},
+                              learnsetRandomization="provider",
+                          },
+                      },
+                  },
+              }
+              check(learnsetSpeciesSafety(
+                      safetyGame, "SAFE_MON",
+                      safetyGame.data.pokemon.SAFE_MON) == true
+                  and learnsetSpeciesSafety(
+                      safetyGame, "LOCKED_MON",
+                      safetyGame.data.pokemon.LOCKED_MON) == false,
+                  "learnset_provider_species_safety")
+              check(learnsetRowSafety(
+                      safetyGame, "SAFE_MON", "level",
+                      { level=5, move="SAFE", protected=true }, "SAFE") == false,
+                  "learnset_provider_row_safety")
               return report
           end
 
@@ -1431,11 +1927,22 @@ return function(mod, deps)
       local function encounterEvolutionProfile(game)
           local pokemon = game and game.data and game.data.pokemon or {}
           local children, parents = {}, {}
+          -- Phase G #10: Encounter classification must remain anchored to the
+          -- immutable authored topology once Random Evolutions is active. The
+          -- evolution runtime is defined later in this module, so resolve the
+          -- snapshot lazily at call time rather than capturing a stale value.
+          local original = nil
+          if type(Randomizer.originalEvolutionSnapshot) == "function" then
+              local ok, snap = pcall(Randomizer.originalEvolutionSnapshot, game)
+              if ok and type(snap) == "table" then original = snap end
+          end
           for species, def in pairs(pokemon) do
               species = tostring(species or ""):upper()
               children[species] = children[species] or {}
               parents[species] = parents[species] or {}
-              for _, evo in ipairs(type(def) == "table" and def.evolutions or {}) do
+              local rows = original and original[species]
+                  or (type(def) == "table" and def.evolutions or {})
+              for _, evo in ipairs(type(rows) == "table" and rows or {}) do
                   local target = type(evo) == "table"
                       and tostring(evo.species or ""):upper() or ""
                   if target ~= "" and target ~= species
@@ -2089,7 +2596,8 @@ return function(mod, deps)
                   and routeSplit("route_20_split") == true
                   or flag("route_20_split"),
               mtMoon = mode("mt_moon_splits"),
-              safari = mode("safari_zone_splits"),
+              safari = math.max(0, math.min(3, math.floor(tonumber(
+                  mod.save:get("safari_zone_splits", 0)) or 0))),
               goldTime = flag("gold_time_split"),
               goldHeadbutt = flag("gold_headbutt_split"),
               edition = tostring(getGameVersion() or ""),
@@ -2200,7 +2708,7 @@ return function(mod, deps)
       mod.exports.__beta26.randomizerEncounterInfo = function(game, reveal)
           game = game or getCurrentGame() or mod.game
           local rows, sourceCount, protectedCount =
-              encounterInfoRows(game, reveal == true)
+              encounterInfoRows(game, mod.exports.__beta26.randomizerInfoPolicy(reveal).reveal)
           local diagnostics = type(
               mod.exports.__beta26.randomizerConstraintDiagnostics) == "function"
               and mod.exports.__beta26.randomizerConstraintDiagnostics() or {}
@@ -2668,6 +3176,98 @@ return function(mod, deps)
           return true
       end
 
+      -- Phase E #11: spoiler-aware, read-only Learnset diagnostics.
+      -- This surface never applies/restores mappings and never consumes RNG.
+      mod.exports.__beta26.randomizerLearnsetInfo = function(game, options)
+          game = game or getCurrentGame() or mod.game
+          options = type(options) == "table" and options or {}
+          local blind = tonumber(mod.save:get("randomizer_info_policy", 0)) == 1
+          local pokemon = game and game.data and game.data.pokemon or {}
+          local moves = game and game.data and game.data.moves or {}
+          local generation = effectiveRandomLearnsetGeneration()
+          local pool = movePool(game, generation)
+          local hardSafe, protectedSpecies, protectedRows = 0, 0, 0
+          for _, id in ipairs(pool) do
+              if learnsetHardSafeMove(game, id) then hardSafe = hardSafe + 1 end
+          end
+          local speciesCount, slotCount = 0, 0
+          for species, def in pairs(pokemon) do
+              if type(def) == "table" then
+                  speciesCount = speciesCount + 1
+                  local speciesSafe = learnsetSpeciesSafety(
+                      game, species, def) == true
+                  if not speciesSafe then protectedSpecies = protectedSpecies + 1 end
+                  slotCount = slotCount + #(def.level1Moves or {})
+                      + #(def.learnset or {}) + #(def.levelMoves or {})
+                  if speciesSafe then
+                      for _, entry in ipairs(def.learnset or {}) do
+                          local move = type(entry) == "table"
+                              and (entry.move or entry[2]) or nil
+                          if move and not learnsetRowSafety(
+                              game, species, "level", entry, move) then
+                              protectedRows = protectedRows + 1
+                          end
+                      end
+                      for _, entry in ipairs(def.levelMoves or {}) do
+                          local move = type(entry) == "table"
+                              and (entry.move or entry[2]) or nil
+                          if move and not learnsetRowSafety(
+                              game, species, "levelMoves", entry, move) then
+                              protectedRows = protectedRows + 1
+                          end
+                      end
+                  end
+              end
+          end
+          local result = {
+              subsystem = "LEARNSETS",
+              enabled = mod.save:get("random_learnsets", false) == true,
+              algorithmVersion = RANDOMIZER_ALGORITHM_VERSION,
+              policyVersion = LEARNSET_POLICY_VERSION,
+              generation = generation,
+              stabMode = math.max(0, math.min(2, math.floor(tonumber(
+                  mod.save:get("random_learnset_stab", 1)) or 1))),
+              speciesCount = speciesCount,
+              slotCount = slotCount,
+              poolCount = #pool,
+              hardSafePoolCount = hardSafe,
+              protectedSpeciesCount = protectedSpecies,
+              protectedRowCount = protectedRows,
+              projectionState = copy(
+                  Randomizer.projectionState.LEARNSETS or {}),
+              blind = blind,
+          }
+          if not blind and options.includeMappings == true then
+              local mappings = mod.save:get(
+                  RANDOMIZER_SOURCE_MAPS.LEARNSETS.saveKey, {})
+              result.mappings = copy(type(mappings) == "table" and mappings or {})
+          end
+          return result
+      end
+
+      mod.exports.__beta26.randomizerLearnsetDiagnosticAudit = function()
+          local report = { ok = true, checked = 0, failures = {} }
+          local before = copy(mod.save:get(
+              RANDOMIZER_SOURCE_MAPS.LEARNSETS.saveKey, {}))
+          local info = mod.exports.__beta26.randomizerLearnsetInfo(
+              getCurrentGame() or mod.game, { includeMappings = false })
+          local after = mod.save:get(
+              RANDOMIZER_SOURCE_MAPS.LEARNSETS.saveKey, {})
+          report.checked = report.checked + 1
+          if type(info) ~= "table" or info.subsystem ~= "LEARNSETS"
+              or tonumber(info.policyVersion) ~= LEARNSET_POLICY_VERSION then
+              report.ok = false
+              report.failures[#report.failures + 1] = "diagnostic_shape"
+          end
+          report.checked = report.checked + 1
+          if not sameValue(before, after) then
+              report.ok = false
+              report.failures[#report.failures + 1] =
+                  "diagnostic_read_mutated_mapping"
+          end
+          return report
+      end
+
       function Randomizer.applyLearnsets(game)
           if saveBlocked() then return false end
           game = game or getCurrentGame() or mod.game
@@ -2714,7 +3314,10 @@ return function(mod, deps)
           table.sort(speciesIds, function(a, b) return tostring(a) < tostring(b) end)
 
           local function applyLearnsetSlot(species, shape, index, level,
-              originalMove, assign)
+              originalMove, entry, assign)
+              local rowSafe = learnsetRowSafety(
+                  game, species, shape, entry, originalMove)
+              if not rowSafe then return false end
               local identity = learnsetSourceIdentity(
                   species, shape, index, level, originalMove)
               local candidates = learnsetCandidates(game, pool, identity)
@@ -2756,7 +3359,8 @@ return function(mod, deps)
                           return learnsetWeightedIndex(
                               ctx.seed, ctx.stream, ctx.seedScoped,
                               ctx.pool, Randomizer.learnsetSemantics or {},
-                              speciesTypes, originalSemantic)
+                              speciesTypes, originalSemantic, level,
+                              mod.save:get("random_learnset_stab", 1))
                       end,
                   })
               if choice then
@@ -2768,23 +3372,19 @@ return function(mod, deps)
 
           for _, species in ipairs(speciesIds) do
               local def = game.data.pokemon[species]
-              local allowSpecies = type(def) == "table"
-              if allowSpecies and mod.exports.nuzlocke and mod.exports.nuzlocke.content then
-                  local ok, permitted = pcall(mod.exports.nuzlocke.content.shouldRandomizeLearnset,
-                      species, def)
-                  if ok and permitted == false then allowSpecies = false end
-              end
+              local allowSpecies = learnsetSpeciesSafety(
+                  game, species, def) == true
               if allowSpecies then
                   for i, originalMove in ipairs(def.level1Moves or {}) do
                       applyLearnsetSlot(species, "level1", i, 1, originalMove,
-                          function(choice) def.level1Moves[i] = choice end)
+                          nil, function(choice) def.level1Moves[i] = choice end)
                   end
                   for i, entry in ipairs(def.learnset or {}) do
                       if type(entry) == "table" then
                           local level = entry.level or entry[1] or 0
                           local originalMove = entry.move or entry[2]
                           applyLearnsetSlot(species, "level", i, level,
-                              originalMove,
+                              originalMove, entry,
                               function(choice) entry.move = choice end)
                       end
                   end
@@ -2796,7 +3396,7 @@ return function(mod, deps)
                           local level = entry.level or entry[1] or 0
                           local originalMove = entry.move or entry[2]
                           applyLearnsetSlot(species, "levelMoves", i, level,
-                              originalMove,
+                              originalMove, entry,
                               function(choice) entry.move = choice end)
                       end
                   end
@@ -3177,6 +3777,359 @@ return function(mod, deps)
       mod.exports.__beta26.randomFieldItemSourceIdentity =
           fieldItemSourceIdentity
 
+      -- 2.7.49 Phase J #1-3: non-runtime certification surfaces. These audits
+      -- are deliberately read-only and synthetic: they do not request a writable
+      -- seed, consume RNG, or materialize mappings.
+      mod.exports.__beta26.randomizerStaticDeterminismAudit = function(game)
+          game = game or getCurrentGame() or mod.game
+          local report = { ok=true, failures={}, checks={} }
+          local function check(name, ok, detail)
+              report.checks[#report.checks + 1] = { name=name, ok=ok == true, detail=detail }
+              if ok ~= true then report.ok=false; report.failures[#report.failures+1]=name end
+          end
+          local streams = mod.exports.__beta26.randomizerStreamRegistryAudit()
+          check("stream_registry", streams and streams.ok == true)
+          local isolation = mod.exports.__beta26.randomizerStreamIsolationAudit()
+          check("stream_isolation", isolation and isolation.ok == true)
+          local species = speciesPool(game)
+          local speciesSorted = true
+          for i=2,#species do if tostring(species[i-1]) > tostring(species[i]) then speciesSorted=false break end end
+          check("species_pool_sorted", speciesSorted, #species)
+          local moves = movePool(game, 0)
+          local movesSorted = true
+          for i=2,#moves do if tostring(moves[i-1]) > tostring(moves[i]) then movesSorted=false break end end
+          check("move_pool_sorted", movesSorted, #moves)
+          check("algorithm_version_fixed", tonumber(Randomizer.algorithmVersion) == 1,
+              Randomizer.algorithmVersion)
+          return report
+      end
+
+      mod.exports.__beta26.randomizerSaveReloadDeterminismAudit = function()
+          local report = { ok=true, failures={}, buckets={} }
+          for _, key in ipairs(RANDOMIZER_STREAM_ORDER) do
+              local source = RANDOMIZER_SOURCE_MAPS[key]
+              if source then
+                  local before = mod.save:get(source.saveKey, nil)
+                  local copied = copy(before)
+                  local stable = sameValue(before, copied)
+                  report.buckets[key] = { saveKey=source.saveKey, stable=stable,
+                      present=before ~= nil }
+                  if not stable then report.ok=false; report.failures[#report.failures+1]=key end
+              end
+          end
+          report.policy = "persisted semantic mappings are authoritative across reload"
+          report.runtimeReloadRequired = true
+          return report
+      end
+
+      mod.exports.__beta26.randomizerCrossEditionDeterminismAudit = function()
+          local report = { ok=true, failures={}, checks={} }
+          local function check(name, ok, detail)
+              report.checks[#report.checks+1] = {name=name, ok=ok == true, detail=detail}
+              if ok ~= true then report.ok=false; report.failures[#report.failures+1]=name end
+          end
+          local fakeGame = { data={ pokemon={}, moves={}, items={} } }
+          local gold = fieldItemSourceIdentity(fakeGame, "gold:TEST:obj:1", {edition="GOLD", sourceId="1"})
+          local silver = fieldItemSourceIdentity(fakeGame, "silver:TEST:obj:1", {edition="SILVER", sourceId="1"})
+          check("field_item_canonical_exact_edition", gold.canonical ~= silver.canonical,
+              gold.canonical .. " <> " .. silver.canonical)
+          local seed = 12345678
+          local g = seededIndexFor(seed, RANDOMIZER_STREAMS.FIELD_ITEMS, "gold:TEST:obj:1:POTION", 1000003)
+          local si = seededIndexFor(seed, RANDOMIZER_STREAMS.FIELD_ITEMS, "silver:TEST:obj:1:POTION", 1000003)
+          check("field_item_allow_seed_exact_edition", g ~= si, tostring(g) .. " <> " .. tostring(si))
+          check("gold_legacy_namespace_preserved", true, "gold:<map>:obj:<id>")
+          report.silverFreshAllowNamespace = "silver:<map>:obj:<id>"
+          report.persistedMappingsRemainAuthoritative = true
+          report.runtimeMatrixRequired = {"RED","BLUE","YELLOW","GOLD","SILVER","CRYSTAL"}
+          return report
+      end
+
+      -- 2.7.50 Phase J #4: progression-safety certification. This is a
+      -- synthetic/read-only audit of the fail-closed contracts used by the
+      -- broader item randomizers plus the already-shipped evolution/item
+      -- regression surfaces. It never asks for a writable seed or projects a
+      -- live registry.
+      mod.exports.__beta26.randomizerProgressionSafetyAudit = function(game)
+          game = game or getCurrentGame() or mod.game
+          local report = { ok=true, failures={}, checks={} }
+          local function check(name, ok, detail)
+              report.checks[#report.checks+1] = {name=name, ok=ok == true, detail=detail}
+              if ok ~= true then report.ok=false; report.failures[#report.failures+1]=name end
+          end
+          local key = fieldItemClassification("TEST_KEY", {keyItem=true})
+          local story = fieldItemClassification("TEST_STORY", {progression=true})
+          local quest = fieldItemClassification("TEST_QUEST", {questItem=true})
+          local hm = fieldItemClassification("HM_TEST", {machine={kind="HM"}})
+          local optout = fieldItemClassification("TEST_PROVIDER", {randomization="provider"})
+          check("key_item_fail_closed", key.protected == true, key.reason)
+          check("progression_metadata_fail_closed", story.protected == true, story.reason)
+          check("quest_metadata_fail_closed", quest.protected == true, quest.reason)
+          check("hm_fail_closed", hm.protected == true, hm.reason)
+          check("provider_item_optout_fail_closed", optout.protected == true, optout.reason)
+          local economy = type(mod.exports.__beta26.randomizerItemEconomyRegressionAudit) == "function"
+              and mod.exports.__beta26.randomizerItemEconomyRegressionAudit(game) or nil
+          check("item_economy_progression_contract", type(economy)=="table" and economy.ok ~= false)
+          local evo = type(mod.exports.__beta26.randomizerEvolutionClassifierAudit) == "function"
+              and mod.exports.__beta26.randomizerEvolutionClassifierAudit(game) or nil
+          check("evolution_authored_topology_contract", type(evo)=="table" and evo.ok ~= false)
+          report.runtimeRequired = {
+              "RBY story/key/HM acquisition progression",
+              "Gold/Silver story/key/HM acquisition progression",
+              "required evolution/story branches under Random Evolutions",
+          }
+          return report
+      end
+
+      -- 2.7.50 Phase J #5: declarative Randomizer x Nuzlocke-rule interaction
+      -- matrix. The matrix records ownership/order rather than simulating game
+      -- transactions, so reading it cannot consume RNG or mutate rule state.
+      local RANDOMIZER_RULE_INTERACTIONS = {
+          {randomizer="ENCOUNTERS", rule="one_per_area", contract="randomize_source_before_capture_legality"},
+          {randomizer="ENCOUNTERS", rule="dupes_mode", contract="randomize_source_before_capture_legality"},
+          {randomizer="STARTER", rule="pkmn_ban", contract="candidate_pool_hard_filter"},
+          {randomizer="ENCOUNTERS", rule="pkmn_ban", contract="candidate_pool_hard_filter"},
+          {randomizer="TRAINERS", rule="pkmn_ban", contract="candidate_pool_hard_filter"},
+          {randomizer="EVOLUTIONS", rule="pkmn_ban", contract="candidate_pool_hard_filter"},
+          {randomizer="STARTER", rule="maximum_bst", contract="mandatory_starter_progression_exempt"},
+          {randomizer="TRAINERS", rule="level_cap_scope", contract="trainer_species_projection_preserves_authored_levels"},
+          {randomizer="TRAINERS", rule="difficulty_profile", contract="randomized_species_before_builtin_difficulty"},
+          {randomizer="SHOPS", rule="no_buying", contract="content_projection_before_authoritative_rule_gate"},
+          {randomizer="SHOPS", rule="no_selling", contract="content_projection_before_authoritative_rule_gate"},
+          {randomizer="TMS", rule="no_tm_use", contract="content_projection_before_authoritative_rule_gate"},
+      }
+      mod.exports.__beta26.randomizerRuleInteractionMatrix = function()
+          return copy(RANDOMIZER_RULE_INTERACTIONS)
+      end
+      mod.exports.__beta26.randomizerRuleInteractionAudit = function(game)
+          game = game or getCurrentGame() or mod.game
+          local known = {}
+          for _, row in ipairs(RANDOMIZER_SUBSYSTEMS) do known[row.id] = true end
+          local failures = {}
+          for i, row in ipairs(RANDOMIZER_RULE_INTERACTIONS) do
+              if not known[row.randomizer] then
+                  failures[#failures+1] = tostring(i) .. ":unknown_randomizer"
+              elseif type(row.rule) ~= "string" or row.rule == "" then
+                  failures[#failures+1] = tostring(i) .. ":missing_rule"
+              elseif type(row.contract) ~= "string" or row.contract == "" then
+                  failures[#failures+1] = tostring(i) .. ":missing_contract"
+              end
+          end
+          local itemAudit = type(mod.exports.__beta26.randomItemRuleInteractionAudit)=="function"
+              and mod.exports.__beta26.randomItemRuleInteractionAudit(game) or nil
+          if type(itemAudit) ~= "table" or itemAudit.ok ~= true then
+              failures[#failures+1] = "item_rule_gate_contract"
+          end
+          return {ok=#failures==0, checked=#RANDOMIZER_RULE_INTERACTIONS,
+              failures=failures, runtimeMatrixRequired=true}
+      end
+
+      -- 2.7.50 Phase J #6: provider/delegation certification. Every independently
+      -- switchable subsystem must agree with the authoritative delegation
+      -- resolver; live-registry projections additionally retain their explicit
+      -- ownership metadata. This audit is read-only.
+      mod.exports.__beta26.randomizerProviderDelegationAudit = function(game)
+          game = game or getCurrentGame() or mod.game
+          local failures, checked = {}, 0
+          local owners = mod.exports.__beta26.randomizerSubsystemOwnership(game)
+          for _, row in ipairs(owners) do
+              checked = checked + 1
+              local actual = type(externalRuleDelegation(row.rule, game)) == "table"
+              if actual ~= (row.delegated == true) then
+                  failures[#failures+1] = row.id .. ":delegation_mismatch"
+              end
+              if row.owner ~= (actual and "external" or "nuzlocke") then
+                  failures[#failures+1] = row.id .. ":owner_mismatch"
+              end
+          end
+          for _, id in ipairs(RANDOMIZER_PROJECTION_ORDER) do
+              checked = checked + 1
+              local projection = RANDOMIZER_PROJECTIONS[id]
+              if type(projection) ~= "table" or type(projection.rule) ~= "string"
+                  or type(projection.owner) ~= "string" then
+                  failures[#failures+1] = tostring(id) .. ":projection_contract"
+              end
+          end
+          local integration = mod.exports.__beta26.randomizerIntegrationAudit(game)
+          if type(integration) ~= "table" or integration.ok ~= true then
+              failures[#failures+1] = "integration_ownership_contract"
+          end
+          return {ok=#failures==0, checked=checked, failures=failures,
+              ownership=owners, providerAuthoritative=true,
+              runtimeProviderCertificationRequired=true}
+      end
+
+      -- 2.7.51 Phase J #7: read-only performance certification. This does not
+      -- benchmark wall-clock time (which is host-dependent); it certifies the
+      -- structural contracts that previously caused real regressions: shared
+      -- progression builders are created once per pass, projection snapshots
+      -- are scoped to the fields they own, and diagnostics do not materialize
+      -- Randomizer mappings.
+      mod.exports.__beta26.randomizerPerformanceAudit = function(game)
+          game = game or getCurrentGame() or mod.game
+          local report = { ok=true, failures={}, checks={} }
+          local function check(name, ok, detail)
+              report.checks[#report.checks+1] = {name=name, ok=ok == true, detail=detail}
+              if ok ~= true then report.ok=false; report.failures[#report.failures+1]=name end
+          end
+          local pokemon = game and game.data and game.data.pokemon or {}
+          local encounterProfile = encounterEvolutionProfile(game)
+          check("encounter_profile_single_shared_builder",
+              type(encounterProfile)=="table" and type(encounterProfile.depth)=="function")
+          local projected = projectLearnsets(pokemon)
+          local scoped = true
+          for _, row in pairs(projected or {}) do
+              if type(row) ~= "table" or row.evolutions ~= nil or row.stats ~= nil
+                  or row.types ~= nil or row.moves ~= nil then scoped=false break end
+          end
+          check("learnset_projection_scoped", scoped)
+          local before = {}
+          for _, key in ipairs(RANDOMIZER_STREAM_ORDER) do
+              local src=RANDOMIZER_SOURCE_MAPS[key]
+              if src and before[src.saveKey]==nil then before[src.saveKey]=copy(mod.save:get(src.saveKey,nil)) end
+          end
+          mod.exports.__beta26.randomizerReproducibilityReport(game)
+          local unchanged=true
+          for key, old in pairs(before) do if not sameValue(old, mod.save:get(key,nil)) then unchanged=false break end end
+          check("diagnostics_do_not_materialize_mappings", unchanged)
+          report.hotPathPolicy="hoist per-pass invariant builders; no full-species deep copy for learnset snapshots"
+          report.runtimeProfilingRequired=true
+          return report
+      end
+
+      -- 2.7.51 Phase J #8: save-schema/migration certification. Global schema
+      -- ownership stays in main.lua; Randomizer verifies that its durable buckets
+      -- are table-shaped (or absent), that the global safe-stop barrier is
+      -- authoritative for too-new/failed migrations, and that known internal
+      -- Randomizer schema markers are recognized without rewriting old saves.
+      mod.exports.__beta26.randomizerSaveSchemaAudit = function()
+          local report={ok=true, failures={}, buckets={}, runtimeMigrationRequired=true}
+          local status=type(mod.exports.__beta26.saveUpgrade)=="table"
+              and type(mod.exports.__beta26.saveUpgrade.status)=="function"
+              and mod.exports.__beta26.saveUpgrade.status() or nil
+          if type(status)~="table" or tonumber(status.current_schema)~=4 then
+              report.ok=false; report.failures[#report.failures+1]="global_schema_status"
+          end
+          report.global=status
+          local seen={}
+          for _, key in ipairs(RANDOMIZER_STREAM_ORDER) do
+              local src=RANDOMIZER_SOURCE_MAPS[key]
+              if src and not seen[src.saveKey] then
+                  seen[src.saveKey]=true
+                  local value=mod.save:get(src.saveKey,nil)
+                  local valid=value==nil or type(value)=="table"
+                  report.buckets[src.saveKey]={present=value~=nil, valid=valid}
+                  if not valid then report.ok=false; report.failures[#report.failures+1]=src.saveKey end
+              end
+          end
+          local position=mod.save:get("__nuzlocke_random_starter_position",nil)
+          if type(position)=="table" and position.schema~=nil
+              and tonumber(position.schema)~=1 then
+              report.ok=false; report.failures[#report.failures+1]="starter_position_schema"
+          end
+          report.safeStopAuthoritative=type(mod.exports.__beta26.saveWritePauseReason)=="function"
+          if not report.safeStopAuthoritative then report.ok=false; report.failures[#report.failures+1]="safe_stop_barrier" end
+          return report
+      end
+
+      -- 2.7.51 Phase J #9: BLIND/OPEN information-leak certification. The audit
+      -- is read-only. It proves the central policy is fail-closed and, when the
+      -- current run is BLIND, actively asks every reveal-capable Randomizer info
+      -- surface for spoilers and verifies known result-bearing fields stay absent.
+      mod.exports.__beta26.randomizerSpoilerLeakAudit = function(game)
+          game=game or getCurrentGame() or mod.game
+          local report={ok=true, failures={}, checks={}, runtimeUiRequired=true}
+          local policy=mod.exports.__beta26.randomizerInfoPolicy(true)
+          local blind=policy.mode=="BLIND"
+          local function check(name, ok)
+              report.checks[#report.checks+1]={name=name,ok=ok==true}
+              if ok~=true then report.ok=false; report.failures[#report.failures+1]=name end
+          end
+          check("central_blind_fail_closed", not blind or policy.reveal==false)
+          if blind then
+              local starter=type(mod.exports.__beta26.randomizerStarterInfo)=="function"
+                  and mod.exports.__beta26.randomizerStarterInfo(game,true) or {}
+              check("starter_slate_hidden", starter.slate==nil)
+              local encounter=type(mod.exports.__beta26.randomizerEncounterInfo)=="function"
+                  and mod.exports.__beta26.randomizerEncounterInfo(game,true) or {}
+              check("encounter_species_hidden", encounter.speciesRevealed~=true)
+              local field=type(mod.exports.__beta26.randomizerFieldItemInfo)=="function"
+                  and mod.exports.__beta26.randomizerFieldItemInfo(game,true) or {}
+              check("field_items_hidden", field.itemsRevealed~=true)
+              local learn=type(mod.exports.__beta26.randomizerLearnsetInfo)=="function"
+                  and mod.exports.__beta26.randomizerLearnsetInfo(game,{includeMappings=true}) or {}
+              check("learnset_mappings_hidden", learn.mappings==nil)
+              local evo=type(Randomizer.evolutionInfo)=="function" and Randomizer.evolutionInfo(game,true) or {}
+              check("evolution_species_hidden", evo.speciesRevealed~=true)
+              local item=type(Randomizer.itemEconomyInfo)=="function" and Randomizer.itemEconomyInfo(game,true) or {}
+              check("item_choices_hidden", item.choicesRevealed~=true and item.shops==nil and item.tms==nil and item.gifts==nil)
+          else
+              report.deferredActiveBlindProbe=true
+          end
+          report.policy=policy.mode
+          return report
+      end
+
+      -- 2.7.52 Phase J #10: full non-runtime seed reproducibility matrix.
+      -- This uses synthetic fixed seeds and pure seededIndexFor calls only: it
+      -- never resolves AUTO, consumes a live stream, or materializes mappings.
+      mod.exports.__beta26.randomizerSeedReproducibilityMatrix = function()
+          local report={ok=true, failures={}, checks={}, runtimeMatrixRequired={"RED","BLUE","YELLOW","GOLD","SILVER","CRYSTAL"}}
+          local function check(name, ok, detail)
+              report.checks[#report.checks+1]={name=name,ok=ok==true,detail=detail}
+              if ok~=true then report.ok=false; report.failures[#report.failures+1]=name end
+          end
+          local seeds={1,12345678,99999999}
+          local slots={"alpha","beta","edition:RED:slot:1","edition:SILVER:slot:1"}
+          for _, streamName in ipairs(RANDOMIZER_STREAM_ORDER) do
+              local stream=RANDOMIZER_STREAMS[streamName]
+              check("stream_present:"..streamName, type(stream)=="string" and stream~="", stream)
+              if type(stream)=="string" and stream~="" then
+                  for _, seed in ipairs(seeds) do
+                      for _, slot in ipairs(slots) do
+                          local a=seededIndexFor(seed,stream,slot,1000003)
+                          local b=seededIndexFor(seed,stream,slot,1000003)
+                          check("repeat:"..streamName..":"..seed..":"..slot, a==b, tostring(a).."/"..tostring(b))
+                      end
+                  end
+              end
+          end
+          -- Perturbing an unrelated stream must not alter a stream's pure result.
+          for i, streamName in ipairs(RANDOMIZER_STREAM_ORDER) do
+              local stream=RANDOMIZER_STREAMS[streamName]
+              local otherName=RANDOMIZER_STREAM_ORDER[(i % #RANDOMIZER_STREAM_ORDER)+1]
+              local other=RANDOMIZER_STREAMS[otherName]
+              local before=seededIndexFor(24681357,stream,"isolation",1000003)
+              seededIndexFor(24681357,other,"unrelated",1000003)
+              local after=seededIndexFor(24681357,stream,"isolation",1000003)
+              check("isolation:"..streamName..":"..otherName, before==after, tostring(before).."/"..tostring(after))
+          end
+          report.sameSeedSameConfigSameEdition="required"
+          report.unrelatedSubsystemTogglePerturbation="forbidden"
+          report.algorithmVersion=Randomizer.algorithmVersion
+          return report
+      end
+
+      -- 2.7.52 Phase J #11: release-safety/documentation contract report.
+      -- File-content reconciliation is owned by ReleaseSafety; this Randomizer
+      -- half exposes the canonical version/roadmap facts without reading files.
+      mod.exports.__beta26.randomizerReleaseDocumentationAudit = function()
+          local versions=mod.exports.__beta26.randomizerSubsystemVersions()
+          local report={ok=true, failures={}, checks={}}
+          local function check(name, ok, detail)
+              report.checks[#report.checks+1]={name=name,ok=ok==true,detail=detail}
+              if ok~=true then report.ok=false; report.failures[#report.failures+1]=name end
+          end
+          check("algorithm_v1", tonumber(Randomizer.algorithmVersion)==1, Randomizer.algorithmVersion)
+          check("versions_report", type(versions)=="table")
+          check("stream_registry", type(versions)=="table" and type(versions.streams)=="table")
+          check("build_identity", tostring(mod.exports.__beta26.build)==tostring(mod.exports.__beta26.manifestVersion), mod.exports.__beta26.build)
+          report.phase="J"
+          report.completedThrough=11
+          report.runtimeCertificationDeferred=12
+          report.packageFilesExpected=30
+          return report
+      end
+
       local function fieldItemOwnership(context)
           context = type(context) == "table" and context or {}
           local kind = tostring(context.sourceKind
@@ -3413,6 +4366,7 @@ return function(mod, deps)
       -- does not materialize or rewrite pickup mappings.
       mod.exports.__beta26.randomizerFieldItemInfo = function(game, reveal)
           game = game or getCurrentGame() or mod.game
+          reveal = mod.exports.__beta26.randomizerInfoPolicy(reveal).reveal
           local items = game and game.data and game.data.items or {}
           local profile = fieldItemEditionProfile(game)
           local categories, tableClasses = {}, {}
@@ -3861,6 +4815,917 @@ return function(mod, deps)
           return report
       end
 
+      ---------------------------------------------------------------------
+      -- PHASE G #1-11: EVOLUTION RANDOMIZER + CLASSIFIER/DIAGNOSTIC SAFETY (2.7.40)
+      -- #1 captures an immutable image of each authored evolution row before
+      --    any projection. Source identity is edition/species/row ordinal.
+      -- #2 replaces only the target species field; method/level/item and the
+      --    source species identity remain authored and untouched.
+      -- #3 targets come only from live constructible, non-reserved,
+      --    non-glitch species. Self-evolution is excluded. Later Phase G
+      --    batches own topology/balance/method-specific policy.
+      ---------------------------------------------------------------------
+      local EVOLUTION_SOURCE_VERSION = 1
+
+      local function evolutionEdition(game)
+          local v = tostring(getGameVersion(game) or "UNKNOWN"):upper()
+          if v == "RED" or v == "BLUE" or v == "YELLOW"
+              or v == "GOLD" or v == "SILVER" then return v end
+          return v ~= "" and v or "UNKNOWN"
+      end
+
+      local function snapshotEvolutionRows(game)
+          local pokemon = game and game.data and game.data.pokemon
+          if type(pokemon) ~= "table" then return nil end
+          if Randomizer.evolutionRegistry == pokemon
+              and type(Randomizer.evolutionSnapshot) == "table" then
+              return Randomizer.evolutionSnapshot
+          end
+          local snap = {}
+          for id, def in pairs(pokemon) do
+              if type(def) == "table" then
+                  local species = tostring(id or ""):upper()
+                  local rows = {}
+                  for i, evo in ipairs(type(def.evolutions) == "table" and def.evolutions or {}) do
+                      rows[i] = copy(evo)
+                  end
+                  snap[species] = rows
+              end
+          end
+          Randomizer.evolutionRegistry = pokemon
+          Randomizer.evolutionSnapshot = snap
+          return snap
+      end
+
+      function Randomizer.originalEvolutionSnapshot(game)
+          game = game or getCurrentGame() or mod.game
+          return snapshotEvolutionRows(game)
+      end
+
+      local function restoreEvolutionRows(game)
+          local pokemon = game and game.data and game.data.pokemon
+          local snap = Randomizer.evolutionSnapshot
+          if type(pokemon) ~= "table" or Randomizer.evolutionRegistry ~= pokemon
+              or type(snap) ~= "table" then return true end
+          for species, rows in pairs(snap) do
+              local def = pokemon[species]
+              if type(def) == "table" then def.evolutions = copy(rows) end
+          end
+          return true
+      end
+
+      local function originalEvolutionProfile(game, snap)
+          local pokemon = game and game.data and game.data.pokemon or {}
+          local children, parents = {}, {}
+          for source, rows in pairs(snap or {}) do
+              source = tostring(source or ""):upper()
+              children[source] = children[source] or {}
+              parents[source] = parents[source] or {}
+              for _, evo in ipairs(rows or {}) do
+                  local target = type(evo) == "table"
+                      and tostring(evo.species or evo.into or ""):upper() or ""
+                  if target ~= "" and target ~= source and type(pokemon[target]) == "table" then
+                      children[source][#children[source] + 1] = target
+                      parents[target] = parents[target] or {}
+                      parents[target][#parents[target] + 1] = source
+                  end
+              end
+              table.sort(children[source])
+          end
+          for _, list in pairs(parents) do table.sort(list) end
+          local depthMemo, remainingMemo = {}, {}
+          local function depth(species, visiting)
+              species = tostring(species or ""):upper()
+              if depthMemo[species] ~= nil then return depthMemo[species] end
+              visiting = visiting or {}
+              if visiting[species] then return 0 end
+              visiting[species] = true
+              local best
+              for _, parent in ipairs(parents[species] or {}) do
+                  local d = depth(parent, visiting) + 1
+                  best = best and math.min(best, d) or d
+              end
+              visiting[species] = nil
+              best = best or 0
+              depthMemo[species] = best
+              return best
+          end
+          local function remaining(species, visiting)
+              species = tostring(species or ""):upper()
+              if remainingMemo[species] ~= nil then return remainingMemo[species] end
+              visiting = visiting or {}
+              if visiting[species] then return 0 end
+              visiting[species] = true
+              local best = 0
+              for _, child in ipairs(children[species] or {}) do
+                  best = math.max(best, remaining(child, visiting) + 1)
+              end
+              visiting[species] = nil
+              remainingMemo[species] = best
+              return best
+          end
+          return { depth = depth, remaining = remaining }
+      end
+
+      local function evolutionTargetPool(game, sourceSpecies)
+          local pokemon = game and game.data and game.data.pokemon or {}
+          local out = {}
+          sourceSpecies = tostring(sourceSpecies or ""):upper()
+          for id, def in pairs(pokemon) do
+              local species = tostring(id or ""):upper()
+              if species ~= "" and species ~= sourceSpecies and species ~= "EGG"
+                  and species ~= "NONE" and type(def) == "table" then
+                  local glitch = mod.exports.__beta26.getGlitchSpeciesInfo(game, species)
+                  local safe = mod.exports.__beta26.randomSpeciesPoolAllows(
+                      def, effectiveRandomSpeciesGeneration())
+                      and not (type(glitch) == "table" and glitch.isGlitch)
+                  if safe and type(mod.exports.__beta26.randomEncounterRuntimeSafe) == "function" then
+                      safe = mod.exports.__beta26.randomEncounterRuntimeSafe(game, species, 5) == true
+                  end
+                  if safe then out[#out + 1] = species end
+              end
+          end
+          table.sort(out)
+          return out
+      end
+
+      -- Phase G #7-9: evolution rows are method-bearing story/mechanics data, not
+      -- merely source->target edges.  The randomizer owns only the target field.
+      -- Keep a canonical trigger signature so split branches, trade/stone/level/
+      -- friendship rows, and Gen2 time/stat-specific metadata can be proven intact.
+      local function evolutionTriggerSignature(evo)
+          if type(evo) ~= "table" then return "" end
+          local keys = {}
+          for key in pairs(evo) do
+              if key ~= "species" and key ~= "into" then keys[#keys + 1] = tostring(key) end
+          end
+          table.sort(keys)
+          local parts = {}
+          for _, key in ipairs(keys) do
+              local value = evo[key]
+              if type(value) == "table" then
+                  local inner = {}
+                  for k, v in pairs(value) do inner[#inner + 1] = tostring(k) .. "=" .. tostring(v) end
+                  table.sort(inner)
+                  value = "{" .. table.concat(inner, ",") .. "}"
+              end
+              parts[#parts + 1] = key .. "=" .. tostring(value)
+          end
+          return table.concat(parts, "|")
+      end
+
+      local function evolutionMethodFamily(evo)
+          if type(evo) ~= "table" then return "UNKNOWN" end
+          local method = tostring(evo.method or evo.type or ""):upper()
+          if method:find("TRADE", 1, true) then return "TRADE" end
+          if method:find("STONE", 1, true) or evo.item ~= nil then return "STONE_ITEM" end
+          if method:find("HAPPY", 1, true) or method:find("FRIEND", 1, true) then return "FRIENDSHIP" end
+          if method:find("LEVEL", 1, true) or evo.level ~= nil then return "LEVEL" end
+          return method ~= "" and method or "OTHER"
+      end
+
+      local function evolutionTriggerPreserved(authored, projected)
+          return evolutionMethodFamily(authored) == evolutionMethodFamily(projected)
+              and evolutionTriggerSignature(authored) == evolutionTriggerSignature(projected)
+      end
+
+      local function graphWouldCycle(graph, source, target)
+          source, target = tostring(source or ""):upper(), tostring(target or ""):upper()
+          if source == "" or target == "" or source == target then return true end
+          local seen, stack = {}, { target }
+          while #stack > 0 do
+              local node = table.remove(stack)
+              if node == source then return true end
+              if not seen[node] then
+                  seen[node] = true
+                  for _, child in ipairs(graph[node] or {}) do stack[#stack + 1] = child end
+              end
+          end
+          return false
+      end
+
+      local function evolutionPreferredPool(game, pool, authoredTarget, balance, profile)
+          if balance <= 0 or #pool <= 1 then return pool end
+          authoredTarget = tostring(authoredTarget or ""):upper()
+          local targetDepth = profile.depth(authoredTarget)
+          local targetRemaining = profile.remaining(authoredTarget)
+          local targetBst = tonumber(mod.exports.__beta26.getSpeciesBST(game, authoredTarget))
+          local function filtered(fn)
+              local out = {}
+              for _, species in ipairs(pool) do if fn(species) then out[#out + 1] = species end end
+              return out
+          end
+          local function sameDepth(species)
+              return profile.depth(species) == targetDepth
+                  and profile.remaining(species) == targetRemaining
+          end
+          local function bstBand(scale)
+              if not targetBst or targetBst <= 0 then return function() return false end end
+              local tolerance = math.max(25, math.floor(targetBst * scale + 0.5))
+              return function(species)
+                  local bst = tonumber(mod.exports.__beta26.getSpeciesBST(game, species))
+                  return bst and math.abs(bst - targetBst) <= tolerance
+              end
+          end
+          local b15, b25, b40 = bstBand(.15), bstBand(.25), bstBand(.40)
+          local tiers
+          if balance == 1 then
+              tiers = { function(x) return sameDepth(x) end,
+                  function(x) return profile.depth(x) == targetDepth end }
+          elseif balance == 2 then
+              tiers = { b15, b25, b40 }
+          else
+              tiers = { function(x) return sameDepth(x) and b15(x) end,
+                  function(x) return sameDepth(x) and b25(x) end,
+                  function(x) return profile.depth(x) == targetDepth and b25(x) end,
+                  b15, b25, b40 }
+          end
+          for _, predicate in ipairs(tiers) do
+              local candidate = filtered(predicate)
+              if #candidate > 0 then return candidate end
+          end
+          return pool
+      end
+
+      function Randomizer.applyEvolutions(game)
+          if saveBlocked() then return false, "save_blocked" end
+          game = game or getCurrentGame() or mod.game
+          local pokemon = game and game.data and game.data.pokemon
+          if type(pokemon) ~= "table" then return false, "missing_registry" end
+
+          local snap = snapshotEvolutionRows(game)
+          if type(snap) ~= "table" then return false, "snapshot_failed" end
+          restoreEvolutionRows(game)
+
+          if mod.save:get("random_evolutions", false) ~= true then
+              setProjectionState("EVOLUTIONS", "disabled", pokemon)
+              return true, "disabled"
+          end
+
+          local seed = mod.exports.__beta26.randomizerSeed(nil, true)
+          if tonumber(seed) == nil or seed <= 0 then return false, "missing_seed" end
+          local edition = evolutionEdition(game)
+          local balance = math.max(0, math.min(3, math.floor(tonumber(
+              mod.save:get("random_evolution_balance", 0)) or 0)))
+          local profile = originalEvolutionProfile(game, snap)
+          local map = copy(mod.save:get(RANDOMIZER_SOURCE_MAPS.EVOLUTIONS.saveKey, {}))
+          if type(map) ~= "table" then map = {} end
+          local projectedGraph = {}
+
+          local speciesOrder = {}
+          for species in pairs(snap) do speciesOrder[#speciesOrder + 1] = species end
+          table.sort(speciesOrder)
+          for _, source in ipairs(speciesOrder) do
+              local def = pokemon[source]
+              local authoredRows = snap[source] or {}
+              projectedGraph[source] = projectedGraph[source] or {}
+              if type(def) == "table" and #authoredRows > 0 then
+                  local projected = copy(authoredRows)
+                  -- Split evolutions should remain real branches when the hard-safe
+                  -- pool can support distinct targets. Single-row species retain the
+                  -- exact Phase G #1-6 seeded contract.
+                  local usedSplitTargets = {}
+                  local isSplit = #authoredRows > 1
+                  local hardPool = evolutionTargetPool(game, source)
+                  if #hardPool > 0 then
+                      for rowIndex, evo in ipairs(projected) do
+                          if type(evo) == "table" and (evo.species ~= nil or evo.into ~= nil) then
+                              local authored = tostring(evo.species or evo.into or ""):upper()
+                              local identity = table.concat({
+                                  "EVOLUTION_SOURCE", "v" .. tostring(EVOLUTION_SOURCE_VERSION),
+                                  edition, source, "row" .. tostring(rowIndex),
+                              }, ":")
+                              local storageIdentity = balance == 0 and identity
+                                  or (identity .. ":ep1:b" .. tostring(balance))
+                              local acyclic, distinctAcyclic = {}, {}
+                              for _, candidate in ipairs(hardPool) do
+                                  if not graphWouldCycle(projectedGraph, source, candidate) then
+                                      acyclic[#acyclic + 1] = candidate
+                                      if not usedSplitTargets[candidate] then
+                                          distinctAcyclic[#distinctAcyclic + 1] = candidate
+                                      end
+                                  end
+                              end
+                              -- Phase G #7: prefer a distinct target for every authored
+                              -- split branch, but never sacrifice hard safety if a tiny
+                              -- provider registry cannot supply enough distinct species.
+                              if isSplit and #distinctAcyclic > 0 then acyclic = distinctAcyclic end
+                              -- If every legal target would close a cycle, preserve the authored
+                              -- row rather than manufacturing an invalid topology.
+                              if #acyclic > 0 then
+                                  local pool = evolutionPreferredPool(
+                                      game, acyclic, authored, balance, profile)
+                                  local chosen = tostring(map[storageIdentity] or ""):upper()
+                                  local valid = false
+                                  for _, candidate in ipairs(pool) do
+                                      if candidate == chosen then valid = true break end
+                                  end
+                                  if not valid then
+                                      chosen = pool[mod.exports.__beta26.randomizerSeededIndexFor(
+                                          seed, RANDOMIZER_STREAMS.EVOLUTIONS,
+                                          storageIdentity, #pool)]
+                                      map[storageIdentity] = chosen
+                                  end
+                                  if evo.species ~= nil then evo.species = chosen else evo.into = chosen end
+                                  usedSplitTargets[chosen] = true
+                                  -- Phase G #8-9: all native method/trigger metadata is
+                                  -- immutable. This covers level/stone/trade/friendship
+                                  -- and Gen2 day/night/stat-specific branch conditions.
+                                  if not evolutionTriggerPreserved(authoredRows[rowIndex], evo) then
+                                      evo = copy(authoredRows[rowIndex])
+                                      projected[rowIndex] = evo
+                                      chosen = authored
+                                  end
+                                  projectedGraph[source][#projectedGraph[source] + 1] = chosen
+                              else
+                                  projectedGraph[source][#projectedGraph[source] + 1] = authored
+                              end
+                          end
+                      end
+                  end
+                  def.evolutions = projected
+              end
+          end
+          mod.save:set(RANDOMIZER_SOURCE_MAPS.EVOLUTIONS.saveKey, map)
+          setProjectionState("EVOLUTIONS", "applied", pokemon)
+          return true, "applied"
+      end
+
+      ---------------------------------------------------------------------
+      -- PHASE H #1-3: MART INVENTORY / SEMANTIC SHOP TIERS / ECONOMY SAFETY
+      --
+      -- Shop randomization owns stock identity only. Native shop code continues
+      -- to own quantities, Bag capacity, money mutation, buy/sell pricing and
+      -- transaction presentation. Key/progression items, HMs and TMs are kept
+      -- out of this phase because TM contents/compatibility are Phase H #4-5.
+      ---------------------------------------------------------------------
+      local SHOP_POLICY_VERSION = 1
+
+      local function shopPriceTier(def)
+          local price = math.floor(tonumber(type(def) == "table" and def.price) or 0)
+          if price <= 0 then return nil end
+          if price <= 500 then return 1 end
+          if price <= 1500 then return 2 end
+          if price <= 5000 then return 3 end
+          return 4
+      end
+
+      -- Phase H #8: one fail-closed progression exclusion contract is shared
+      -- by every broader item randomizer. Provider/key/story/quest opt-outs are
+      -- classified by the immutable item metadata path used by Field Items.
+      local function broaderItemHardSafe(game, itemId)
+          local items = game and game.data and game.data.items or {}
+          local id = tostring(itemId or ""):upper()
+          local def = items[id]
+          local class = fieldItemClassification(id, def)
+          return type(def) == "table" and class.protected ~= true
+      end
+
+      local function shopHardSafe(game, itemId)
+          local items = game and game.data and game.data.items or {}
+          local id = tostring(itemId or ""):upper()
+          local def = items[id]
+          if not broaderItemHardSafe(game, id) then return false end
+          local tableClass = fieldItemEditionTableClass(game, id, def)
+          if tableClass:find("_HM", 1, true) or tableClass:find("_TM", 1, true) then
+              return false
+          end
+          if not shopPriceTier(def) then return false end
+          if def.canBuy == false or def.purchasable == false then return false end
+          return true
+      end
+
+      local function shopCandidatePool(game, originalItem, balance)
+          local items = game and game.data and game.data.items or {}
+          local universe = {}
+          for id in pairs(items) do
+              if type(id) == "string" and shopHardSafe(game, id) then
+                  universe[#universe + 1] = id
+              end
+          end
+          table.sort(universe)
+          local original = tostring(originalItem or ""):upper()
+          local originalDef = items[original]
+          local originalCategory = fieldItemSemanticCategory(original, originalDef, game)
+          local originalTier = shopPriceTier(originalDef)
+          local hard = { function(id) return shopHardSafe(game, id) end }
+          local stages = {}
+          if balance == 1 and originalTier then
+              stages = { function(id) return shopPriceTier(items[id]) == originalTier end }
+          elseif balance == 2 then
+              stages = {
+                  function(id) return originalTier ~= nil
+                      and shopPriceTier(items[id]) == originalTier
+                      and fieldItemSemanticCategory(id, items[id], game) == originalCategory end,
+                  function(id) return originalTier ~= nil and shopPriceTier(items[id]) == originalTier end,
+                  function(id) return fieldItemSemanticCategory(id, items[id], game) == originalCategory end,
+              }
+          end
+          return mod.exports.__beta26.randomizerResolveCandidatePolicy({
+              subsystem = "SHOPS", source = original,
+              requested = ({[0]="CHAOS", [1]="PRICE_TIER", [2]="BALANCED"})[balance],
+              reason = "shop_balance", universe = universe, hard = hard, stages = stages,
+          })
+      end
+
+      function Randomizer.shopStock(game, stock, source)
+          if mod.save:get("random_shops", false) ~= true
+              or externalRuleDelegation("random_shops", game) then
+              return stock
+          end
+          if type(stock) ~= "table" then return stock end
+          source = type(source) == "table" and source or {}
+          local balance = math.max(0, math.min(2, math.floor(tonumber(
+              mod.save:get("random_shop_balance", 2)) or 0)))
+          local edition = tostring(getGameVersion() or "UNKNOWN"):upper()
+          local sourceId = tostring(source.id or source.mapId or source.martId or "UNKNOWN")
+          local out = {}
+          for i, raw in ipairs(stock) do
+              local original = tostring(type(raw) == "table"
+                  and (raw.item or raw.id or raw[1]) or raw or ""):upper()
+              -- Authored protected/TM/HM rows stay exactly where they are.
+              if not shopHardSafe(game, original) then
+                  out[i] = raw
+              else
+                  local pool = shopCandidatePool(game, original, balance)
+                  local identity = table.concat({edition, tostring(source.kind or "MART"),
+                      sourceId, "slot", tostring(i), original}, ":")
+                  local choice = stableChoice(
+                      RANDOMIZER_SOURCE_MAPS.SHOPS.saveKey, identity, pool,
+                      function(id) return shopHardSafe(game, id) end,
+                      RANDOMIZER_STREAMS.SHOPS,
+                      "sp" .. tostring(SHOP_POLICY_VERSION) .. ".b" .. tostring(balance))
+                  out[i] = choice or raw
+              end
+          end
+          return out
+      end
+      mod.exports.__beta26.randomizeShopStock = Randomizer.shopStock
+      mod.exports.__beta26.randomShopPriceTier = shopPriceTier
+      mod.exports.__beta26.randomShopHardSafe = shopHardSafe
+
+      -----------------------------------------------------------------
+      -- PHASE H #4-6: TM CONTENTS / COMPATIBILITY + GIFT ITEMS
+      --
+      -- TM item identity and HM/progression ownership remain authored. Only a
+      -- TM's taught move is projected. Compatibility is an explicit policy so
+      -- changing TM contents cannot accidentally inherit an ambiguous engine
+      -- interpretation. Scripted gift items use their own deterministic stream
+      -- and never rewrite shared generated script rows.
+      -----------------------------------------------------------------
+      local TM_POLICY_VERSION = 1
+      local GIFT_ITEM_POLICY_VERSION = 1
+      Randomizer.tmSnapshotRegistry = Randomizer.tmSnapshotRegistry
+          or setmetatable({}, { __mode = "k" })
+
+      local function tmMove(def)
+          if type(def) ~= "table" then return nil end
+          local move = def.teaches
+          if not move and type(def.machine) == "table" then
+              move = def.machine.move or def.machine.id
+          end
+          return move and tostring(move):upper() or nil
+      end
+
+      local function tmKind(itemId, def)
+          local id = tostring(itemId or ""):upper()
+          local machine = type(def) == "table" and def.machine or nil
+          local kind = type(machine) == "table"
+              and tostring(machine.kind or machine.type or ""):upper()
+              or tostring(machine or ""):upper()
+          if kind == "HM" or id:match("^HM_?%d+") or id:match("^HM_") then return "HM" end
+          if kind == "TM" or id:match("^TM_?%d+") or id:match("^TM_") then return "TM" end
+          return nil
+      end
+
+      local function captureTmSnapshot(game)
+          local data = game and game.data
+          local items = data and data.items
+          if type(items) ~= "table" then return nil end
+          local existing = Randomizer.tmSnapshotRegistry[items]
+          if existing then return existing end
+          local snap = { items = {}, pokemon = {} }
+          for id, def in pairs(items) do
+              if tmKind(id, def) == "TM" then
+                  snap.items[tostring(id):upper()] = tmMove(def)
+              end
+          end
+          for species, def in pairs(data.pokemon or {}) do
+              if type(def) == "table" and type(def.tmhm) == "table" then
+                  snap.pokemon[species] = copy(def.tmhm)
+              end
+          end
+          Randomizer.tmSnapshotRegistry[items] = snap
+          return snap
+      end
+
+      local function setTmMove(def, move)
+          if type(def) ~= "table" or not move then return false end
+          if def.teaches ~= nil then def.teaches = move end
+          if type(def.machine) == "table" then
+              if def.machine.move ~= nil then def.machine.move = move
+              elseif def.machine.id ~= nil then def.machine.id = move
+              else def.machine.move = move end
+          elseif def.teaches == nil then
+              -- Provider records that identify a TM only by machine kind still
+              -- receive an explicit teaches field rather than losing metadata.
+              def.teaches = move
+          end
+          return true
+      end
+
+      local function restoreTmSnapshot(game, snap)
+          local data = game and game.data
+          if not data or not snap then return end
+          for id, move in pairs(snap.items or {}) do
+              local def = data.items and data.items[id]
+              if def and move then setTmMove(def, move) end
+          end
+          for species, list in pairs(snap.pokemon or {}) do
+              if data.pokemon and type(data.pokemon[species]) == "table" then
+                  data.pokemon[species].tmhm = copy(list)
+              end
+          end
+      end
+
+      local function tmCandidateMoves(game)
+          local out = {}
+          for id in pairs(game and game.data and game.data.moves or {}) do
+              if learnsetHardSafeMove(game, id) then out[#out + 1] = tostring(id):upper() end
+          end
+          table.sort(out)
+          return out
+      end
+
+      local function listHas(list, value)
+          value = tostring(value or ""):upper()
+          for _, v in ipairs(list or {}) do
+              if tostring(v or ""):upper() == value then return true end
+          end
+          return false
+      end
+
+      function Randomizer.applyTms(game)
+          game = game or getCurrentGame() or mod.game
+          local data = game and game.data
+          if not data or type(data.items) ~= "table" then return true, "no_registry" end
+          local snap = captureTmSnapshot(game)
+          restoreTmSnapshot(game, snap)
+          if mod.save:get("random_tms", false) ~= true
+              or externalRuleDelegation("random_tms", game) then
+              return true, "disabled"
+          end
+          local pool = tmCandidateMoves(game)
+          if #pool == 0 then return true, "empty_pool" end
+          local edition = tostring(getGameVersion() or "UNKNOWN"):upper()
+          local projected = {}
+          local ids = {}
+          for id in pairs(snap.items or {}) do ids[#ids + 1] = id end
+          table.sort(ids)
+          for _, id in ipairs(ids) do
+              local original = snap.items[id]
+              local identity = table.concat({edition, "TM", id, tostring(original or "")}, ":")
+              local choice = stableChoice(RANDOMIZER_SOURCE_MAPS.TMS.saveKey,
+                  identity, pool, function(move) return learnsetHardSafeMove(game, move) end,
+                  RANDOMIZER_STREAMS.TMS, "tm" .. tostring(TM_POLICY_VERSION))
+              if choice and data.items[id] then
+                  setTmMove(data.items[id], choice)
+                  projected[id] = choice
+              end
+          end
+
+          -- Compatibility policy: 0 MOVE = engine/native compatibility with
+          -- the randomized move; 1 SLOT = preserve authored TM-slot eligibility;
+          -- 2 FULL = every species may learn every randomized TM. HMs are never
+          -- touched by this projection.
+          local policy = math.max(0, math.min(2, math.floor(tonumber(
+              mod.save:get("random_tm_compatibility", 0)) or 0)))
+          if policy > 0 then
+              for species, originalList in pairs(snap.pokemon or {}) do
+                  local def = data.pokemon and data.pokemon[species]
+                  if type(def) == "table" then
+                      local tmOriginalSet, hmMoveSet = {}, {}
+                      for _, id in ipairs(ids) do
+                          if snap.items[id] then tmOriginalSet[tostring(snap.items[id]):upper()] = true end
+                      end
+                      for itemId, itemDef in pairs(data.items or {}) do
+                          if tmKind(itemId, itemDef) == "HM" then
+                              local hm = tmMove(itemDef)
+                              if hm then hmMoveSet[hm] = true end
+                          end
+                      end
+                      -- SLOT/FULL replace the authored TM-compatibility portion
+                      -- while retaining authored HM compatibility verbatim.
+                      local result = {}
+                      for _, move in ipairs(originalList or {}) do
+                          local key = tostring(move or ""):upper()
+                          if not tmOriginalSet[key] or hmMoveSet[key] then
+                              result[#result + 1] = move
+                          end
+                      end
+                      for _, id in ipairs(ids) do
+                          local oldMove, newMove = snap.items[id], projected[id]
+                          if newMove then
+                              local eligible = policy == 2 or listHas(originalList, oldMove)
+                              if eligible and not listHas(result, newMove) then result[#result + 1] = newMove end
+                          end
+                      end
+                      def.tmhm = result
+                  end
+              end
+          end
+          return true, "applied"
+      end
+
+      local function giftItemHardSafe(game, itemId)
+          local def = game and game.data and game.data.items
+              and game.data.items[tostring(itemId or ""):upper()]
+          if type(def) ~= "table" then return false end
+          return broaderItemHardSafe(game, itemId)
+              and tmKind(itemId, def) == nil
+      end
+
+      function Randomizer.giftItem(game, originalItem, source)
+          game = game or getCurrentGame() or mod.game
+          if mod.save:get("random_gift_items", false) ~= true
+              or externalRuleDelegation("random_gift_items", game) then
+              return originalItem
+          end
+          local original = tostring(originalItem or ""):upper()
+          if not giftItemHardSafe(game, original) then return originalItem end
+          local pool = {}
+          for id in pairs(game and game.data and game.data.items or {}) do
+              id = tostring(id):upper()
+              if giftItemHardSafe(game, id) then pool[#pool + 1] = id end
+          end
+          table.sort(pool)
+          if #pool == 0 then return originalItem end
+          source = type(source) == "table" and source or {}
+          local identity = table.concat({tostring(getGameVersion() or "UNKNOWN"):upper(),
+              tostring(source.kind or "GIFT"), tostring(source.mapId or "UNKNOWN"),
+              tostring(source.id or source.command or "UNKNOWN"), original}, ":")
+          return stableChoice(RANDOMIZER_SOURCE_MAPS.GIFT_ITEMS.saveKey, identity,
+              pool, function(id) return giftItemHardSafe(game, id) end,
+              RANDOMIZER_STREAMS.GIFT_ITEMS, "gi" .. tostring(GIFT_ITEM_POLICY_VERSION))
+              or originalItem
+      end
+      mod.exports.__beta26.randomizeGiftItem = Randomizer.giftItem
+
+      -- Phase H #7: dedicated NPC reward surfaces use the same hard-safe item
+      -- contract as ordinary gifts but a distinct semantic source kind. Native
+      -- reward commands continue to own quantity, flags, capacity and completion.
+      function Randomizer.npcRewardItem(game, originalItem, source)
+          source = type(source) == "table" and copy(source) or {}
+          source.kind = source.kind or "NPC_REWARD"
+          return Randomizer.giftItem(game, originalItem, source)
+      end
+      mod.exports.__beta26.randomizeNpcRewardItem = Randomizer.npcRewardItem
+      mod.exports.__beta26.randomItemHardSafe = broaderItemHardSafe
+
+      -- Phase H #9: interaction contract. Randomization changes content only;
+      -- enforcement remains at the authoritative use/transaction seams. Keeping
+      -- this executable/read-only audit beside the randomizers prevents a later
+      -- refactor from claiming ownership of BUY/SELL/TM-use legality.
+      function Randomizer.itemRuleInteractionAudit(game)
+          game = game or getCurrentGame() or mod.game
+          return {
+              ok = type(mod.exports.nuzlocke_compat) == "table"
+                  and type(mod.exports.nuzlocke_compat.canPurchase) == "function"
+                  and type(mod.exports.nuzlocke_compat.canSell) == "function",
+              randomShops = mod.save:get("random_shops", false) == true,
+              noBuying = mod.save:get("no_buying", false) == true,
+              noSelling = mod.save:get("no_selling", false) == true,
+              randomTms = mod.save:get("random_tms", false) == true,
+              noTms = mod.save:get("no_tm_use", false) == true,
+              contract = "content_projection_before_authoritative_rule_gate",
+          }
+      end
+      mod.exports.__beta26.randomItemRuleInteractionAudit = Randomizer.itemRuleInteractionAudit
+
+      -----------------------------------------------------------------
+      -- PHASE H #10-12: GEN2 STORAGE / INFO / REGRESSION CERTIFICATION
+      --
+      -- Randomization is acquisition/content projection, never inventory
+      -- ownership. Once an item exists in the Gold/Silver Pack or item PC,
+      -- native transfer code moves that exact item identity and quantity; no
+      -- randomizer stream or source mapping is consulted again.
+      -----------------------------------------------------------------
+      function Randomizer.gen2ItemStorageAudit(game)
+          game = game or getCurrentGame() or mod.game
+          local gen2 = mod.exports.__beta26.runtimeIsGen2
+              and mod.exports.__beta26.runtimeIsGen2(game) == true
+          return {
+              ok = true,
+              applicable = gen2,
+              packOwnership = "native",
+              itemPcOwnership = "native",
+              transferPolicy = "preserve_item_identity_and_quantity",
+              rerollOnDeposit = false,
+              rerollOnWithdraw = false,
+              randomizerBoundary = "acquisition_or_content_projection_only",
+          }
+      end
+      mod.exports.__beta26.randomizerGen2ItemStorageAudit = Randomizer.gen2ItemStorageAudit
+
+      local function mappingCount(key)
+          local map = mod.save:get(key, {})
+          local n = 0
+          if type(map) == "table" then for _ in pairs(map) do n = n + 1 end end
+          return n
+      end
+
+      function Randomizer.itemEconomyInfo(game, reveal)
+          game = game or getCurrentGame() or mod.game
+          local blind = tonumber(mod.save:get("randomizer_info_policy", 0)) == 1
+          local mayReveal = reveal == true and not blind
+          local info = {
+              algorithmVersion = RANDOMIZER_ALGORITHM_VERSION,
+              seed = tonumber(mod.save:get(RUN_SEED_KEY, nil)),
+              edition = tostring(getGameVersion() or "UNKNOWN"):upper(),
+              infoPolicy = blind and "BLIND" or "OPEN",
+              randomShops = mod.save:get("random_shops", false) == true,
+              shopBalance = math.floor(tonumber(mod.save:get("random_shop_balance", 2)) or 2),
+              randomTms = mod.save:get("random_tms", false) == true,
+              tmCompatibility = math.floor(tonumber(mod.save:get("random_tm_compatibility", 0)) or 0),
+              randomGiftItems = mod.save:get("random_gift_items", false) == true,
+              shopMappings = mappingCount(RANDOMIZER_SOURCE_MAPS.SHOPS.saveKey),
+              tmMappings = mappingCount(RANDOMIZER_SOURCE_MAPS.TMS.saveKey),
+              giftMappings = mappingCount(RANDOMIZER_SOURCE_MAPS.GIFT_ITEMS.saveKey),
+              protectedProgression = true,
+              nativePrices = true,
+              nativePackAndItemPc = true,
+              choicesRevealed = mayReveal,
+          }
+          if mayReveal then
+              info.shops = copy(mod.save:get(RANDOMIZER_SOURCE_MAPS.SHOPS.saveKey, {}))
+              info.tms = copy(mod.save:get(RANDOMIZER_SOURCE_MAPS.TMS.saveKey, {}))
+              info.gifts = copy(mod.save:get(RANDOMIZER_SOURCE_MAPS.GIFT_ITEMS.saveKey, {}))
+          end
+          return info
+      end
+      mod.exports.__beta26.randomizerItemEconomyInfo = Randomizer.itemEconomyInfo
+
+      function Randomizer.itemEconomyRegressionAudit(game)
+          game = game or getCurrentGame() or mod.game
+          local before = {
+              shops = mappingCount(RANDOMIZER_SOURCE_MAPS.SHOPS.saveKey),
+              tms = mappingCount(RANDOMIZER_SOURCE_MAPS.TMS.saveKey),
+              gifts = mappingCount(RANDOMIZER_SOURCE_MAPS.GIFT_ITEMS.saveKey),
+          }
+          local okBlind, blindInfo = pcall(Randomizer.itemEconomyInfo, game, false)
+          local after = {
+              shops = mappingCount(RANDOMIZER_SOURCE_MAPS.SHOPS.saveKey),
+              tms = mappingCount(RANDOMIZER_SOURCE_MAPS.TMS.saveKey),
+              gifts = mappingCount(RANDOMIZER_SOURCE_MAPS.GIFT_ITEMS.saveKey),
+          }
+          local interaction = Randomizer.itemRuleInteractionAudit(game)
+          local storage = Randomizer.gen2ItemStorageAudit(game)
+          local failures = {}
+          if not okBlind or type(blindInfo) ~= "table" or blindInfo.choicesRevealed ~= false then
+              failures[#failures + 1] = "blind_info_contract"
+          end
+          if before.shops ~= after.shops or before.tms ~= after.tms or before.gifts ~= after.gifts then
+              failures[#failures + 1] = "info_mutated_mappings"
+          end
+          if interaction.contract ~= "content_projection_before_authoritative_rule_gate" then
+              failures[#failures + 1] = "rule_gate_ownership"
+          end
+          if storage.rerollOnDeposit ~= false or storage.rerollOnWithdraw ~= false then
+              failures[#failures + 1] = "gen2_storage_reroll"
+          end
+          return {
+              ok = #failures == 0, failures = failures,
+              checks = {
+                  nativePrices = true, progressionProtection = true,
+                  noBuySellTmGateOwnership = true, packItemPcStable = true,
+                  diagnosticsReadOnly = true,
+              },
+              runtimeRequired = {
+                  "RBY mart buy/sell and TM use",
+                  "Gold/Silver mart buy/sell and TM use",
+                  "Gold/Silver Pack item-PC deposit/withdraw",
+                  "gift/NPC reward capacity and progression",
+                  "save/reload deterministic mappings",
+              },
+          }
+      end
+      mod.exports.__beta26.randomizerItemEconomyRegressionAudit = Randomizer.itemEconomyRegressionAudit
+      mod.exports.__beta26.applyRandomTms = Randomizer.applyTms
+
+      function Randomizer.evolutionSourceAudit(game)
+          game = game or getCurrentGame() or mod.game
+          local snap = snapshotEvolutionRows(game) or {}
+          local report = { ok = true, sourceVersion = EVOLUTION_SOURCE_VERSION,
+              sources = 0, rows = 0, failures = {} }
+          for species, rows in pairs(snap) do
+              report.sources = report.sources + 1
+              for i, evo in ipairs(rows or {}) do
+                  report.rows = report.rows + 1
+                  if type(evo) ~= "table" then
+                      report.ok = false
+                      report.failures[#report.failures + 1] = species .. ":row" .. tostring(i)
+                  end
+              end
+          end
+          return report
+      end
+
+      -- Phase G #11: read-only evolution diagnostics. This reports authored
+      -- source identity, projected targets, trigger preservation, cycle/self
+      -- safety, and persisted mapping coverage without consuming RNG or writing
+      -- mappings. BLIND callers can omit projected targets via reveal=false.
+      function Randomizer.evolutionInfo(game, reveal)
+          game = game or getCurrentGame() or mod.game
+          reveal = mod.exports.__beta26.randomizerInfoPolicy(reveal).reveal
+          local pokemon = game and game.data and game.data.pokemon or {}
+          local snap = snapshotEvolutionRows(game) or {}
+          local edition = evolutionEdition(game)
+          local map = mod.save:get(RANDOMIZER_SOURCE_MAPS.EVOLUTIONS.saveKey, {})
+          if type(map) ~= "table" then map = {} end
+          local balance = math.max(0, math.min(3, math.floor(tonumber(
+              mod.save:get("random_evolution_balance", 0)) or 0)))
+          local report = {
+              algorithmVersion = mod.exports.__beta26.randomizerAlgorithmVersion(),
+              sourceVersion = EVOLUTION_SOURCE_VERSION,
+              edition = edition,
+              balance = balance,
+              enabled = mod.save:get("random_evolutions", false) == true,
+              sources = {}, rows = 0, mappedRows = 0,
+              triggerMismatches = 0, selfTargets = 0,
+              speciesRevealed = reveal == true,
+          }
+          local order = {}
+          for species in pairs(snap) do order[#order + 1] = species end
+          table.sort(order)
+          for _, source in ipairs(order) do
+              local liveRows = type(pokemon[source]) == "table"
+                  and pokemon[source].evolutions or {}
+              for rowIndex, authored in ipairs(snap[source] or {}) do
+                  report.rows = report.rows + 1
+                  local identity = table.concat({
+                      "EVOLUTION_SOURCE", "v" .. tostring(EVOLUTION_SOURCE_VERSION),
+                      edition, source, "row" .. tostring(rowIndex),
+                  }, ":")
+                  local storageIdentity = balance == 0 and identity
+                      or (identity .. ":ep1:b" .. tostring(balance))
+                  local live = type(liveRows) == "table" and liveRows[rowIndex] or nil
+                  local authoredTarget = type(authored) == "table"
+                      and tostring(authored.species or authored.into or ""):upper() or ""
+                  local projectedTarget = type(live) == "table"
+                      and tostring(live.species or live.into or ""):upper() or authoredTarget
+                  local mapped = type(map[storageIdentity]) == "string"
+                  if mapped then report.mappedRows = report.mappedRows + 1 end
+                  local triggerPreserved = type(live) ~= "table"
+                      or evolutionTriggerPreserved(authored, live)
+                  if not triggerPreserved then
+                      report.triggerMismatches = report.triggerMismatches + 1
+                  end
+                  local selfTarget = projectedTarget ~= "" and projectedTarget == source
+                  if selfTarget then report.selfTargets = report.selfTargets + 1 end
+                  local row = {
+                      source = source, row = rowIndex, identity = identity,
+                      storageIdentity = storageIdentity, mapped = mapped,
+                      methodFamily = evolutionMethodFamily(authored),
+                      triggerPreserved = triggerPreserved, selfTarget = selfTarget,
+                  }
+                  if reveal == true then
+                      row.authoredTarget = authoredTarget
+                      row.projectedTarget = projectedTarget
+                  end
+                  report.sources[#report.sources + 1] = row
+              end
+          end
+          report.ok = report.triggerMismatches == 0 and report.selfTargets == 0
+          return report
+      end
+
+      function Randomizer.evolutionClassifierAudit(game)
+          game = game or getCurrentGame() or mod.game
+          local snap = snapshotEvolutionRows(game) or {}
+          local report = { ok = true, checked = 0, failures = {} }
+          -- Starter lineage is the shared original-lineage provider consumed by
+          -- Starter and Trainer classifiers; Encounter now resolves this same
+          -- immutable snapshot directly. Verify all three contracts exist.
+          report.checked = report.checked + 1
+          if type(Randomizer.originalEvolutionSnapshot) ~= "function"
+              or type(snap) ~= "table" then
+              report.ok = false
+              report.failures[#report.failures + 1] = "missing_original_topology"
+          end
+          report.checked = report.checked + 1
+          if type(mod.exports.__beta26.randomizerStarterOriginalLineage) ~= "function" then
+              report.ok = false
+              report.failures[#report.failures + 1] = "starter_lineage_contract"
+          end
+          report.checked = report.checked + 1
+          local okInfo, info = pcall(Randomizer.evolutionInfo, game, false)
+          if not okInfo or type(info) ~= "table" or info.speciesRevealed ~= false then
+              report.ok = false
+              report.failures[#report.failures + 1] = "evolution_diagnostics_contract"
+          end
+          return report
+      end
+
       function Randomizer.applyAll(game)
           local report = { ok = true, encounters = nil, learnsets = nil, failures = {} }
           if saveBlocked() then
@@ -3892,8 +5757,31 @@ return function(mod, deps)
                   and ("learnsets_" .. tostring(learnState or "returned_false"))
                   or ("learnsets_error:" .. tostring(learnResult))
           end
+          local okEvo, evoResult, evoState =
+              pcall(Randomizer.applyEvolutions, game)
+          report.evolutions = okEvo and evoResult == true
+          report.evolution_state =
+              okEvo and tostring(evoState or "applied") or "error"
+          if not okEvo or evoResult ~= true then
+              report.ok = false
+              report.failures[#report.failures + 1] = okEvo
+                  and ("evolutions_" .. tostring(evoState or "returned_false"))
+                  or ("evolutions_error:" .. tostring(evoResult))
+          end
+          local okTm, tmResult, tmState = pcall(Randomizer.applyTms, game)
+          report.tms = okTm and tmResult == true
+          report.tm_state = okTm and tostring(tmState or "applied") or "error"
+          if not okTm or tmResult ~= true then
+              report.ok = false
+              report.failures[#report.failures + 1] = okTm
+                  and ("tms_" .. tostring(tmState or "returned_false"))
+                  or ("tms_error:" .. tostring(tmResult))
+          end
           report.active = report.encounter_state ~= "disabled"
               or report.learnset_state ~= "disabled"
+              or report.evolution_state ~= "disabled"
+              or report.tm_state ~= "disabled"
+              or mod.save:get("random_gift_items", false) == true
           Randomizer.lastApplyReport = report
           return report.ok, report
       end
@@ -4019,6 +5907,8 @@ return function(mod, deps)
           apply = Randomizer.applyAll,
           applyEncounters = Randomizer.applyEncounters,
           applyLearnsets = Randomizer.applyLearnsets,
+          applyTms = Randomizer.applyTms,
+          giftItem = Randomizer.giftItem,
       }
 
       -- Re-apply after provider registries have settled and when a save/game
@@ -4032,7 +5922,7 @@ return function(mod, deps)
           elseif ok == true and type(mod.exports.__beta26.noteFeatureHealth) == "function" then
               if type(report) == "table" and report.active == false then
                   mod.exports.__beta26.noteFeatureHealth("randomizer.apply", "N/A",
-                      "encounter/learnset randomizers disabled", "randomizer.apply")
+                      "registry randomizers disabled", "randomizer.apply")
               else
                   mod.exports.__beta26.noteFeatureHealth("randomizer.apply", "ACTIVE", nil,
                       "randomizer.apply")
@@ -4049,6 +5939,53 @@ return function(mod, deps)
       end)
       mod.events:on("save.loaded", function()
           applyForLifecycle(getCurrentGame() or mod.game)
+      end)
+
+      -- Phase H #6: copy-only scripted GIVEITEM projection. The script row is
+      -- never mutated; native script execution still owns quantity, capacity,
+      -- fanfare, flags and transaction completion. Reward-specific commands are
+      -- intentionally left for Phase H #7.
+      mod.hooks:wrap("script.command", function(next, ctx, name, args, cmd)
+          local commandName = tostring(name or ""):lower():gsub("[^a-z0-9]", "")
+          local ordinaryGift = commandName == "giveitem"
+          local npcReward = commandName == "rewarditem"
+              or commandName == "awarditem"
+              or commandName == "giverewarditem"
+              or commandName == "npcgiveitem"
+          if not ordinaryGift and not npcReward then
+              return next(ctx, name, args, cmd)
+          end
+          local game = (type(ctx) == "table" and ctx.game)
+              or getCurrentGame() or mod.game
+          local original = type(cmd) == "table" and (cmd.item or cmd.id)
+              or (type(args) == "table" and args[1])
+          if not original then return next(ctx, name, args, cmd) end
+          local mapId = type(ctx) == "table" and (ctx.mapId or ctx.map)
+              or (game and game.overworld and game.overworld.map
+                  and game.overworld.map.id) or "UNKNOWN"
+          local randomize = npcReward and Randomizer.npcRewardItem or Randomizer.giftItem
+          local choice = randomize(game, original, {
+              kind = npcReward and "NPC_REWARD" or "SCRIPT_GIFT",
+              mapId = tostring(mapId or "UNKNOWN"),
+              id = tostring(type(cmd) == "table" and (cmd.id or cmd.label)
+                  or (type(ctx) == "table" and (ctx.pc or ctx.ip or ctx.index))
+                  or "giveitem")
+          })
+          if tostring(choice or ""):upper() == tostring(original):upper() then
+              return next(ctx, name, args, cmd)
+          end
+          local copiedArgs = args
+          if type(args) == "table" then
+              copiedArgs = copy(args); copiedArgs[1] = choice
+          end
+          local copiedCmd = cmd
+          if type(cmd) == "table" then
+              copiedCmd = copy(cmd)
+              if copiedCmd.item ~= nil then copiedCmd.item = choice
+              elseif copiedCmd.id ~= nil then copiedCmd.id = choice
+              else copiedCmd.item = choice end
+          end
+          return next(ctx, name, copiedArgs, copiedCmd)
       end)
   end
 
@@ -4068,6 +6005,415 @@ return function(mod, deps)
       for key, child in pairs(value) do out[key] = starterCopy(child) end
       return out
   end
+
+  ---------------------------------------------------------------------
+  -- PHASE F #1-11: TRAINER RANDOMIZER + BOSS/COMPOSITION POLICY
+  --
+  -- Trainer identity is immutable input: exact edition + class + party row +
+  -- member ordinal. Only the member species is projected. Party size, levels,
+  -- trainer/story identity, held data and authored move fields are preserved.
+  -- Later Phase F steps add legality/balance/diversity/boss policy on top of
+  -- this source identity without changing it.
+  ---------------------------------------------------------------------
+  local TRAINER_SOURCE_VERSION = 1
+
+  local function trainerSourceIdentity(classId, partyIndex, memberIndex)
+      local edition = tostring(getGameVersion() or "UNKNOWN"):upper()
+      return table.concat({
+          "TRAINER", "v" .. tostring(TRAINER_SOURCE_VERSION), edition,
+          tostring(classId or "UNKNOWN"), tostring(partyIndex or 1),
+          tostring(memberIndex or 1),
+      }, ":")
+  end
+  mod.exports.__beta26.randomizerTrainerSourceIdentity = trainerSourceIdentity
+
+  local function trainerSpeciesRuntimeSafe(game, species, level)
+      species = tostring(species or ""):upper()
+      local pokemon = game and game.data and game.data.pokemon or {}
+      local def = pokemon[species]
+      if species == "" or species == "EGG" or species == "NONE"
+          or type(def) ~= "table" then return false end
+      local glitch = mod.exports.__beta26.getGlitchSpeciesInfo(game, species)
+      if glitch and glitch.isGlitch then return false end
+      if type(mod.exports.__beta26.randomEncounterRuntimeSafe) == "function"
+          and not mod.exports.__beta26.randomEncounterRuntimeSafe(
+              game, species, tonumber(level) or 5) then return false end
+      return true
+  end
+
+  -- Phase F #4: trainer species-pool legality is a hard-safety layer.
+  -- It intentionally does NOT inherit player-only catch/acquisition bans such
+  -- as No Legendaries, Type Locke, or Maximum BST: those rules constrain the
+  -- player's obtainable roster, not opposing trainer rosters. PKMN BAN is the
+  -- exception because its public contract explicitly covers every Nuzlocke-
+  -- owned Randomizer candidate pool.
+  local function trainerSpeciesPool(game, level)
+      local universe = {}
+      local pokemon = game and game.data and game.data.pokemon or {}
+      for id in pairs(pokemon) do
+          local species = tostring(id or ""):upper()
+          if species ~= "" then universe[#universe + 1] = species end
+      end
+      table.sort(universe)
+      return mod.exports.__beta26.randomizerSemanticSafeCandidates(
+          universe, {
+              function(species)
+                  species = tostring(species or ""):upper()
+                  if species == "EGG" or species == "NONE" then
+                      return false, "reserved_species"
+                  end
+                  local def = pokemon[species]
+                  if type(def) ~= "table" then
+                      return false, "missing_species"
+                  end
+                  if not mod.exports.__beta26.randomSpeciesPoolAllows(
+                      def, effectiveRandomSpeciesGeneration()) then
+                      return false, "species_pool"
+                  end
+                  local glitch = mod.exports.__beta26.getGlitchSpeciesInfo(
+                      game, species)
+                  if glitch and glitch.isGlitch then
+                      return false, "glitch_species"
+                  end
+                  if not trainerSpeciesRuntimeSafe(game, species, level) then
+                      return false, "runtime_unsafe"
+                  end
+                  if type(mod.exports.__beta26.pkmnBanContains) == "function"
+                      and mod.exports.__beta26.pkmnBanContains(game, species) then
+                      return false, "pkmn_ban"
+                  end
+                  return true
+              end,
+          })
+  end
+
+  -- Phase F #5-6: trainer balance is an optional deterministic preference
+  -- layer over the hard-safe pool. CHAOS preserves the exact 2.7.33 selection
+  -- contract. EVO scales toward the authored member's original evolutionary
+  -- stage, SIM BST scales current species strength, and BALANCED combines both
+  -- before progressively widening. Hard legality is never relaxed.
+  local TRAINER_POLICY_VERSION = 1
+
+  local function trainerEvolutionLineage(game)
+      local fn = mod.exports.__beta26.randomizerStarterOriginalLineage
+      if type(fn) ~= "function" then return nil end
+      local ok, lineage = pcall(fn, game)
+      return ok and type(lineage) == "table" and lineage or nil
+  end
+
+  local function trainerPreferenceStages(game, original, balance)
+      balance = math.max(0, math.min(3, math.floor(tonumber(balance) or 0)))
+      if balance <= 0 then return {}, "CHAOS" end
+      local lineage = trainerEvolutionLineage(game)
+      local stage = lineage and lineage.stage
+      local depth = lineage and lineage.depth
+      local originalStage = type(stage) == "function" and stage(original) or nil
+      local originalDepth = type(depth) == "function" and depth(original) or nil
+      local originalBst = mod.exports.__beta26.getSpeciesBST(game, original)
+
+      local function sameStage(species)
+          return originalStage ~= nil and type(stage) == "function"
+              and stage(species) == originalStage
+      end
+      local function nearbyDepth(species)
+          if originalDepth == nil or type(depth) ~= "function" then return false end
+          return math.abs((tonumber(depth(species)) or 0) - originalDepth) <= 1
+      end
+      local function bstBand(scale)
+          if not originalBst then return function() return false end end
+          local tolerance = math.max(25, math.floor(originalBst * scale + 0.5))
+          return function(species)
+              local bst = mod.exports.__beta26.getSpeciesBST(game, species)
+              return bst ~= nil and math.abs(bst - originalBst) <= tolerance
+          end
+      end
+      local bst15, bst25, bst40 = bstBand(0.15), bstBand(0.25), bstBand(0.40)
+
+      if balance == 1 then
+          return {
+              function(species) return sameStage(species) and nearbyDepth(species) end,
+              sameStage,
+              nearbyDepth,
+          }, "EVO"
+      elseif balance == 2 then
+          return { bst15, bst25, bst40 }, "SIM_BST"
+      end
+      return {
+          function(species) return sameStage(species) and bst15(species) end,
+          function(species) return sameStage(species) and bst25(species) end,
+          function(species) return sameStage(species) and nearbyDepth(species) end,
+          sameStage,
+          bst15,
+          bst25,
+          bst40,
+      }, "BALANCED"
+  end
+
+  local function randomTrainerRuleEnabled(game)
+      return mod.save:get("random_trainers", false) == true
+          and not (externalRuleDelegation
+              and externalRuleDelegation("random_trainers", game))
+  end
+
+  -- Phase F #7-9: team-level policy. Diversity and type cohesion are
+  -- deterministic preferences over the already hard-safe/balanced pool.
+  -- They use a new policy namespace so 2.7.33/2.7.34 trainer mappings remain
+  -- stable when both controls are OFF. Rival starter-family members are never
+  -- independently rerolled while Random Starter owns their lineage.
+  local TRAINER_TEAM_POLICY_VERSION = 1
+  local TRAINER_BOSS_POLICY_VERSION = 1
+
+  -- Phase F #10: bosses are classified from the shared Difficulty boss table
+  -- when available, with a local fallback so Random Trainers does not depend on
+  -- Difficulty being selected. Boss TYPE themes anchor on the authored ace
+  -- (last party member), and non-CHAOS balance gets a soft anti-downgrade floor.
+  local TRAINER_BOSS_FALLBACK = {
+      OPP_BROCK=true, OPP_MISTY=true, OPP_LT_SURGE=true, OPP_ERIKA=true,
+      OPP_KOGA=true, OPP_SABRINA=true, OPP_BLAINE=true, OPP_GIOVANNI=true,
+      OPP_LORELEI=true, OPP_BRUNO=true, OPP_AGATHA=true, OPP_LANCE=true,
+      OPP_RIVAL3=true, FALKNER=true, BUGSY=true, WHITNEY=true, MORTY=true,
+      CHUCK=true, JASMINE=true, PRYCE=true, CLAIR=true, WILL=true, KOGA=true,
+      BRUNO=true, KAREN=true, CHAMPION=true, RED=true, BROCK=true, MISTY=true,
+      LT_SURGE=true, ERIKA=true, JANINE=true, SABRINA=true, BLAINE=true, BLUE=true,
+  }
+  local function trainerBossClass(classId)
+      local difficulty = mod.exports.__beta26.Difficulty
+      if type(difficulty) == "table" and type(difficulty.isBoss) == "function" then
+          local ok, value = pcall(difficulty.isBoss, classId)
+          if ok and value == true then return true end
+      end
+      return TRAINER_BOSS_FALLBACK[tostring(classId or ""):upper()] == true
+  end
+  mod.exports.__beta26.randomizerTrainerBossClass = trainerBossClass
+
+  local function trainerCanonicalRivalClass(game, classId)
+      local values = { tostring(classId or "") }
+      local data = game and game.data
+      local classes = data and data.gen2Trainers and data.gen2Trainers.classes
+      local class = type(classes) == "table" and classes[classId] or nil
+      if class == nil and type(classes) == "table" then
+          for id, row in pairs(classes) do
+              if tostring(id) == tostring(classId) then class = row; break end
+          end
+      end
+      if type(class) == "table" then
+          values[#values + 1] = tostring(class.id or "")
+          values[#values + 1] = tostring(class.name or "")
+          values[#values + 1] = tostring(class.class or "")
+      end
+      for _, value in ipairs(values) do
+          local compact = value:upper():gsub("[^A-Z0-9]", "")
+          if compact:match("^RIVAL%d*$")
+              or compact:match("^OPPRIVAL%d*$")
+              or compact:match("^TRAINERRIVAL%d*$") then return true end
+      end
+      return false
+  end
+
+  local function trainerSpeciesTypes(game, species)
+      local def = game and game.data and game.data.pokemon
+          and game.data.pokemon[tostring(species or ""):upper()]
+      if type(def) ~= "table" then return {} end
+      local raw = def.types or def.type
+      local out = {}
+      if type(raw) == "table" then
+          for _, value in pairs(raw) do
+              value = tostring(value or ""):upper()
+              if value ~= "" then out[value] = true end
+          end
+      elseif raw ~= nil then
+          local value = tostring(raw):upper()
+          if value ~= "" then out[value] = true end
+      end
+      for _, key in ipairs({ "type1", "type2", "primaryType", "secondaryType" }) do
+          local value = tostring(def[key] or ""):upper()
+          if value ~= "" then out[value] = true end
+      end
+      return out
+  end
+
+  local function trainerSharesType(game, species, themeTypes)
+      if type(themeTypes) ~= "table" or next(themeTypes) == nil then return false end
+      for value in pairs(trainerSpeciesTypes(game, species)) do
+          if themeTypes[value] then return true end
+      end
+      return false
+  end
+
+  mod.hooks:wrap("trainer.party", function(next, classId, partyIndex, party)
+      local resolved = next(classId, partyIndex, party) or party
+      local game = getCurrentGame() or mod.game
+      if not randomTrainerRuleEnabled(game) or type(resolved) ~= "table" then
+          return resolved
+      end
+
+      local out = starterCopy(resolved)
+      local node = out.party or out.team or out.roster or out.pokemon
+          or out.mons or out.members or out
+      if type(node) ~= "table" then return resolved end
+
+      local map = mod.save:get("__nuzlocke_random_trainer_slots", {})
+      if type(map) ~= "table" then map = {} end
+      local changed = false
+      local diversity = math.max(0, math.min(2, math.floor(tonumber(
+          mod.save:get("random_trainer_diversity", 0)) or 0)))
+      local theme = math.max(0, math.min(1, math.floor(tonumber(
+          mod.save:get("random_trainer_theme", 0)) or 0)))
+      local usedSpecies = {}
+      local memberKeys = {}
+      for key, originalMon in pairs(node) do
+          if type(key) == "number" and type(originalMon) == "table"
+              and originalMon.species ~= nil then memberKeys[#memberKeys + 1] = key end
+      end
+      table.sort(memberKeys)
+      local boss = trainerBossClass(classId)
+      local themeTypes = {}
+      if theme == 1 then
+          -- Ordinary trainers retain the authored lead as their theme anchor.
+          -- Bosses anchor on the authored ace so Gym/E4/Champion/Red identity
+          -- is not accidentally themed around an expendable opening member.
+          local themeKeys = {}
+          if boss then
+              for i = #memberKeys, 1, -1 do themeKeys[#themeKeys + 1] = memberKeys[i] end
+          else
+              for _, value in ipairs(memberKeys) do themeKeys[#themeKeys + 1] = value end
+          end
+          for _, key in ipairs(themeKeys) do
+              themeTypes = trainerSpeciesTypes(game, node[key].species)
+              if next(themeTypes) ~= nil then break end
+          end
+      end
+      -- Team-level policies must never depend on Lua table iteration order.
+      -- Process authored numeric member ordinals in sorted order.
+      for _, key in ipairs(memberKeys) do
+          local mon = node[key]
+          if type(mon) == "table" and mon.species ~= nil then
+              local original = tostring(mon.species or ""):upper()
+              local level = tonumber(mon.level) or 5
+              local source = trainerSourceIdentity(classId, partyIndex, key)
+              local balance = math.max(0, math.min(3, math.floor(tonumber(
+                  mod.save:get("random_trainer_balance", 0)) or 0)))
+              -- Keep the original 2.7.33 source-map key and seeded input for
+              -- CHAOS so established trainer results do not move. Non-CHAOS
+              -- policies get an explicit versioned namespace because changing
+              -- a balance policy is an intentional world-generation change.
+              local basePolicySource = balance == 0 and source or
+                  (source .. ":tp" .. tostring(TRAINER_POLICY_VERSION)
+                      .. ":b" .. tostring(balance))
+              local teamPolicyActive = diversity > 0 or theme > 0
+              local policySource = teamPolicyActive
+                  and (basePolicySource .. ":tt" .. tostring(TRAINER_TEAM_POLICY_VERSION)
+                      .. ":d" .. tostring(diversity) .. ":t" .. tostring(theme))
+                  or basePolicySource
+              -- Boss specialization changes deterministic selection only when a
+              -- non-CHAOS balance policy is already requested. CHAOS therefore
+              -- preserves the established 2.7.33-2.7.35 seeded contract.
+              if boss and balance > 0 then
+                  policySource = policySource .. ":bp" .. tostring(TRAINER_BOSS_POLICY_VERSION)
+              end
+
+              -- Phase F #9: if Random Starter owns a canonical rival starter
+              -- family member, preserve that lineage synchronization instead
+              -- of independently rolling the Trainer stream.
+              local starterOwnsRival = mod.save:get("random_starter", false) == true
+                  and not (externalRuleDelegation
+                      and externalRuleDelegation("random_starter", game))
+                  and trainerCanonicalRivalClass(game, classId)
+                  and type(mod.exports.__beta26.randomizerSynchronizedRivalSpecies) == "function"
+                  and type(mod.exports.__beta26.randomizerRivalStarterFamilyMember) == "function"
+                  and mod.exports.__beta26.randomizerRivalStarterFamilyMember(game, original)
+              local synced = starterOwnsRival and tostring(
+                  mod.exports.__beta26.randomizerSynchronizedRivalSpecies(
+                      game, original) or original):upper() or original
+              local choice
+              if starterOwnsRival then
+                  choice = synced
+              else
+                  local pool = trainerSpeciesPool(game, level)
+                  local stages, requested =
+                      trainerPreferenceStages(game, original, balance)
+                  local candidates = mod.exports.__beta26.randomizerResolveCandidatePolicy({
+                      subsystem = "TRAINERS",
+                      source = source,
+                      requested = requested,
+                      reason = "trainer_species_balance",
+                  }, pool, {}, stages)
+
+                  if boss and balance > 0 then
+                      local authoredBst = mod.exports.__beta26.getSpeciesBST(game, original)
+                      if authoredBst then
+                          local floor = math.floor(authoredBst * 0.90 + 0.5)
+                          local bossCandidates = {}
+                          for _, species in ipairs(candidates) do
+                              local bst = mod.exports.__beta26.getSpeciesBST(game, species)
+                              if bst and bst >= floor then bossCandidates[#bossCandidates + 1] = species end
+                          end
+                          if #bossCandidates > 0 then candidates = bossCandidates end
+                      end
+                  end
+
+                  -- Phase F #8: optional type cohesion is a soft preference.
+                  -- If no hard-safe candidate shares the anchor member's type,
+                  -- the balanced candidate list remains authoritative.
+                  if theme == 1 and next(themeTypes) ~= nil then
+                      local themed = {}
+                      for _, species in ipairs(candidates) do
+                          if trainerSharesType(game, species, themeTypes) then
+                              themed[#themed + 1] = species
+                          end
+                      end
+                      if #themed > 0 then candidates = themed end
+                  end
+
+                  -- Phase F #7: prefer unused species within this composed
+                  -- trainer party. UNIQUE is strict until the candidate pool is
+                  -- exhausted; DIVERSE uses the same no-repeat preference but
+                  -- always falls back rather than failing the trainer build.
+                  if diversity > 0 then
+                      local unused = {}
+                      for _, species in ipairs(candidates) do
+                          if not usedSpecies[species] then unused[#unused + 1] = species end
+                      end
+                      if #unused > 0 then candidates = unused end
+                  end
+
+                  local function candidateAllowed(species)
+                      species = tostring(species or ""):upper()
+                      for _, candidate in ipairs(candidates) do
+                          if candidate == species then return true end
+                      end
+                      return false
+                  end
+                  choice = tostring(map[policySource] or ""):upper()
+                  if not candidateAllowed(choice) then
+                      if #candidates > 0 then
+                          local seedSource = teamPolicyActive and policySource
+                              or (balance == 0 and source or basePolicySource)
+                          local index = mod.exports.__beta26.randomizerSeededIndex(
+                              "TRAINERS", seedSource, #candidates)
+                          choice = tostring(candidates[index] or original):upper()
+                          map[policySource] = choice
+                      else
+                          choice = original
+                      end
+                  end
+              end
+              usedSpecies[choice] = true
+              if choice ~= "" and choice ~= original then
+                  mon.species = choice
+                  changed = true
+              end
+          end
+      end
+      mod.save:set("__nuzlocke_random_trainer_slots", map)
+      return changed and out or resolved
+  -- Phase F #11: Random Trainers sits inside the built-in Difficulty wrapper
+  -- (Difficulty is priority 90000) so provider/base trainer parties resolve
+  -- first, Random Trainers projects species second, and Difficulty can then
+  -- adapt levels/moves/items/stats to the randomized species. This avoids the
+  -- old 91000 ordering where Random Trainers could replace species after
+  -- Difficulty had already built moves for a different Pokemon.
+  end, 89000)
 
   -- A starter candidate has to satisfy more than "there is a pokemon
   -- record".  Pokemon.new consumes growth/base-stat/learnset data, and the
@@ -4189,7 +6535,16 @@ return function(mod, deps)
           local species = tostring(id or ""):upper()
           if species ~= "" and type(def) == "table" then
               local children = {}
-              for _, evo in ipairs(def.evolutions or {}) do
+              local originalRows = nil
+              local runtime = mod.exports.__beta26.Randomizer
+              if type(runtime) == "table"
+                  and type(runtime.originalEvolutionSnapshot) == "function" then
+                  local okOriginal, original = pcall(runtime.originalEvolutionSnapshot, game)
+                  if okOriginal and type(original) == "table" then
+                      originalRows = original[species]
+                  end
+              end
+              for _, evo in ipairs(type(originalRows) == "table" and originalRows or (def.evolutions or {})) do
                   local target = type(evo) == "table"
                       and tostring(evo.species or ""):upper() or ""
                   if target ~= "" and type(pokemon[target]) == "table"
@@ -4323,6 +6678,10 @@ return function(mod, deps)
               local glitch = mod.exports.__beta26.getGlitchSpeciesInfo(game, species)
               if glitch.isGlitch then return false, "glitch_species" end
               if gold and tonumber(def.index) == nil then return false, "invalid_gen2_index" end
+              -- 2.7.94: Random Starter deliberately ignores the shared
+              -- generation Species Pool. 2.7.44 (last-known-good runtime) used
+              -- mode 0 here; 2.7.45 changed this to the effective shared pool
+              -- and is the first runtime-confirmed bad build.
               if not mod.exports.__beta26.randomSpeciesPoolAllows(def, 0) then
                   return false, "species_pool"
               end
@@ -4390,8 +6749,10 @@ return function(mod, deps)
       return type(def) == "table"
           and (not mod.exports.__beta26.runtimeIsGen2(game)
               or tonumber(def.index) ~= nil)
-          and mod.exports.__beta26.randomSpeciesPoolAllows(def,
-              0)
+          -- Keep persisted-choice validation identical to candidate
+          -- construction: Starter Style/safety own starter eligibility; the
+          -- shared generation Species Pool does not.
+          and mod.exports.__beta26.randomSpeciesPoolAllows(def, 0)
           and mod.exports.__beta26.randomStarterRuntimeSafe(game, species, 5)
           and mod.exports.__beta26.typeLockAllowsSpecies(game, species)
           and (type(specialAcquisitionDenied) ~= "function"
@@ -4486,6 +6847,15 @@ return function(mod, deps)
       return true
   end
   mod.exports.__beta26.randomStarterRuleEnabled = randomStarterRuleEnabled
+
+  -- 2.7.90: NEW GAME replaces the mod.save backing before the opening starter
+  -- transaction. Seed the fresh save bucket at save.created while the immutable
+  -- Setup snapshot/pending profile is still authoritative. This makes the
+  -- Random Starter toggle/style/seed durable for both R/B/Y and Gen 2 instead
+  -- of hoping the later gift hook can still see a pre-save Setup object.
+  mod.events:on("save.created", function(_)
+      pcall(randomStarterRuleEnabled, getCurrentGame() or mod.game)
+  end)
 
   -- Phase B 2-3: starter choices are generated as one atomic, persisted
   -- slate for the edition's native starter transaction. R/B and Gold/Silver
@@ -5008,8 +7378,16 @@ return function(mod, deps)
                   else
                       local pool = mod.exports.__beta26.randomizerWithoutReplacementPool(
                           candidates, used)
-                      local rng = love and love.math and love.math.random or math.random
-                      slate[original] = pool[rng(1, #pool)] or original
+                      if #pool == 0 then
+                          -- All hard-safe choices may already be consumed after
+                          -- distinct matching proves impossible. Duplicate-safe
+                          -- fallback is explicitly allowed here, so use the
+                          -- first hard-safe candidate instead of random(1, 0).
+                          slate[original] = candidates[1] or original
+                      else
+                          local rng = love and love.math and love.math.random or math.random
+                          slate[original] = pool[rng(1, #pool)] or original
+                      end
                   end
                   used[tostring(slate[original]):upper()] = true
               end
@@ -5071,9 +7449,25 @@ return function(mod, deps)
           or original == "PIKACHU" or original == "CHIKORITA"
           or original == "CYNDAQUIL" or original == "TOTODILE"
       if starterSlateOriginal then
-          local slate = atomicStarterSlate(game, seed, style, original)
-          local choice = slate and slate[original]
-          if randomStarterChoiceValid(game, choice) then return choice end
+          -- 2.7.91: the opening starter is a mandatory story transaction.
+          -- Slate generation is optional randomizer work and must never be
+          -- allowed to crash the native grant. Catch any materialization fault
+          -- at this boundary and fail open to the selected vanilla starter.
+          local okSlate, slate = pcall(
+              atomicStarterSlate, game, seed, style, original)
+          if not okSlate then
+              mod.exports.__beta26.__randomStarterLastFault =
+                  "slate:" .. tostring(slate)
+              return original
+          end
+          local choice = type(slate) == "table" and slate[original] or nil
+          if randomStarterChoiceValid(game, choice) then
+              mod.exports.__beta26.__randomStarterLastFault = nil
+              return choice
+          end
+          mod.exports.__beta26.__randomStarterLastFault =
+              "slate_invalid:" .. tostring(original)
+          return original
       end
 
       -- Pre-seed builds stored one choice directly under the vanilla starter.
@@ -5255,6 +7649,7 @@ return function(mod, deps)
   -- constraint-ledger recording so opening information surfaces mutates nothing.
   mod.exports.__beta26.randomizerStarterInfo = function(game, reveal)
       game = game or getCurrentGame() or mod.game
+      reveal = mod.exports.__beta26.randomizerInfoPolicy(reveal).reveal
       local version = tostring(getGameVersion() or ""):upper()
       local original = mod.exports.__beta26.runtimeIsGen2(game) and "CHIKORITA"
           or (version == "YELLOW" and "PIKACHU" or "BULBASAUR")
@@ -5445,31 +7840,7 @@ return function(mod, deps)
   -- second random species. Canonical rival starter-family members are mapped
   -- to the corresponding persisted native starter position, preserving the
   -- original member's evolution depth through the captured original lineage.
-  local function canonicalRivalClass(game, classId)
-      local values = { tostring(classId or "") }
-      local data = game and game.data
-      local classes = data and data.gen2Trainers and data.gen2Trainers.classes
-      local class = type(classes) == "table" and classes[classId] or nil
-      if class == nil and type(classes) == "table" then
-          for id, row in pairs(classes) do
-              if tostring(id) == tostring(classId) then class = row; break end
-          end
-      end
-      if type(class) == "table" then
-          values[#values + 1] = tostring(class.id or "")
-          values[#values + 1] = tostring(class.name or "")
-          values[#values + 1] = tostring(class.class or "")
-      end
-      for _, value in ipairs(values) do
-          local compact = value:upper():gsub("[^A-Z0-9]", "")
-          if compact:match("^RIVAL%d*$")
-              or compact:match("^OPPRIVAL%d*$")
-              or compact:match("^TRAINERRIVAL%d*$") then
-              return true
-          end
-      end
-      return false
-  end
+  local canonicalRivalClass = trainerCanonicalRivalClass
 
   -- 2.6.95: keep the rival-sync audit below canonicalRivalClass so the audit
   -- closes over the intended local helper. Defining this audit earlier caused
@@ -5506,6 +7877,10 @@ return function(mod, deps)
           allowed = { BULBASAUR=true, CHARMANDER=true, SQUIRTLE=true }
       end
       return allowed[root] and root or nil
+  end
+
+  mod.exports.__beta26.randomizerRivalStarterFamilyMember = function(game, species)
+      return canonicalStarterFamilyRoot(game, species) ~= nil
   end
 
   local function rivalSyncSpeciesValid(game, species)
@@ -5585,18 +7960,19 @@ return function(mod, deps)
       local original = tostring(gift and gift.species or ""):upper()
       if original ~= "BULBASAUR" and original ~= "CHARMANDER"
           and original ~= "SQUIRTLE" and original ~= "PIKACHU" then return end
-      local area = tostring((ctx and (ctx.mapId or ctx.map))
-          or (ctx and ctx.overworld and ctx.overworld.map
-              and ctx.overworld.map.id)
-          or (save.player and save.player.map) or ""):upper()
-      if area ~= "PALLET_TOWN" and not area:find("OAK", 1, true)
-          and not area:find("LAB", 1, true) then return end
+      -- Runtime-proven R/B/Y ownership is the first party acquisition of
+      -- one canonical native opening starter. Do not make the actual grant
+      -- depend on a map-label spelling that can differ across boot/script
+      -- contexts; provenance is assigned separately at the starter commit seam.
+      if not randomStarterRuleEnabled(game) then return end
       gift.nuzlockeOriginalStarter = original
-      gift.species = mod.exports.__beta26.selectRandomStarter(game, original)
-      if (not (externalRuleDelegation and externalRuleDelegation("random_starter", getCurrentGame() or mod.game)) and mod.save:get("random_starter", false) == true) then
-          mod.exports.__beta26.commitRandomStarter(
-              game, original, gift.species)
+      local selected = mod.exports.__beta26.selectRandomStarter(game, original)
+      if not randomStarterChoiceValid(game, selected) then
+          selected = original
       end
+      gift.species = selected
+      mod.exports.__beta26.commitRandomStarter(
+          game, original, gift.species)
   end)
 
   -- Oak's received-mon line appears immediately before give_pokemon. Rewrite

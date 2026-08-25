@@ -169,7 +169,7 @@ return function(mod, deps)
       {
           title = Strings.source("CATCH RULES"), shortTitle = Strings.source("CATCH"),
           rules = {
-              { key = "overworld_encounters", default = false, name = Strings.source("Overworld"), desc = Strings.source("Allow Pokemon caught from overworld spawns to count as area encounters.") },
+              { key = "overworld_encounters", default = false, nativeEditions = {}, capabilityGate = "overworld_encounters", name = Strings.source("Overworld"), desc = Strings.source("Allow Pokemon caught from overworld spawns to count as area encounters.") },
               { key = "town_catches", default = false,         name = Strings.source("Town Catches"), shortName = Strings.source("Twn Catches"), desc = Strings.source("Allow Pokemon caught in towns/cities to count as encounters. Pallet Town starter slot is always tracked regardless.") },
               { key = "ban_legendaries", default = false,      name = Strings.source("No Legendaries"), shortName = Strings.source("No Lgndries"), desc = Strings.source("Legendary Pokemon cannot be caught, gifted, or received in trades while this rule is active. Existing Pokemon are not removed.") },
               { key = "ban_mythicals", default = false,        name = Strings.source("No Mythicals"), shortName = Strings.source("No Mythcs"), desc = Strings.source("Mythical Pokemon cannot be caught, gifted, or received in trades while this rule is active. Existing Pokemon are not removed.") },
@@ -249,8 +249,7 @@ return function(mod, deps)
               { key = "no_poke_center", default = false,  name = Strings.source("No Center Heal"), desc = Strings.source("Cannot heal at Pokemon Centers. Nurse Joy will turn you away.") },
               { key = "no_mom_heal", default = false,      name = Strings.source("No Mom Heal"), desc = Strings.source("Mom cannot heal your party when you visit home. She will remind you of your rules instead.") },
               { key = "no_day_care", default = false, name = Strings.source("No Day Care"), desc = Strings.source("Blocks only NEW Day Care deposits while Nuzlocke is active. Existing deposited Pokemon can always be withdrawn, even if the rule is enabled later. R/B/Y also guard compatible custom Day Care pick-only deposit flows; Gold/Silver preserve existing parents, compatibility state, and pending Egg state rather than deleting or trapping them.") },
-              { key = "no_buying", default = false,      name = Strings.source("No Buying"), desc = Strings.source("Items cannot be purchased from shops. Selling is still allowed.") },
-              { key = "no_selling", default = false,     name = Strings.source("No Selling"), desc = Strings.source("Items cannot be sold to shops. Buying is still allowed.") },
+              { key = "shop_restrictions", default = 0, name = Strings.source("Shop Restrictions"), shortName = Strings.source("Shop Rules"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Choose mart transaction restrictions. OFF = normal buying and selling. NO BUY blocks purchases only. NO SELL blocks sales only. NEITHER blocks both buying and selling. Other services and Game Corner wagering/prizes remain controlled separately.") },
               { key = "no_gambling", default = false, name = Strings.source("No Gambling"), shortName = Strings.source("No Gmblng"), desc = Strings.source("Blocks Game Corner wagering and prize redemption before coins or prizes change hands. Story movement, the Rocket Hideout path, coin gifts, and buying coins remain available.") },
               { key = "trainer_money_multiplier", default = 4, readFallback = 4, writeFallback = 4, name = Strings.source("Trainer Money"), shortName = Strings.source("Btl. ¥"), numeric = true, digits = 1, min = 0, max = 8, neutral = 4, desc = Strings.source("While Nuzlocke is ON, scale the final money actually awarded by defeated trainers: 0/25/50/75/100/150/200/300/500%. 100% is vanilla. Scaling happens after the underlying trainer/economy payout so compatible providers remain authoritative; OFF at the master switch leaves the vanilla/provider payout untouched.") },
           }
@@ -270,11 +269,11 @@ return function(mod, deps)
       {
           title = Strings.source("AREA SPLITS"), shortTitle = Strings.source("ROUTE SPLITS"),
           rules = {
-              { key = "route_2_split", default = false, name = Strings.source("Route 2"), shortName = Strings.source("Rt. 2"), desc = Strings.source("Treat Route 2 North and South as separate encounter areas. Viridian Forest physically separates the two sections and they are normally reached at different stages of Kanto progression. OFF keeps all of Route 2 as one encounter area.") },
-              { key = "route_10_split", default = false, name = Strings.source("Route 10"), shortName = Strings.source("Rt. 10"), desc = Strings.source("Treat Route 10 North and South as separate encounter areas. Rock Tunnel sits between the two sections, making this one of Kanto's most common progression-based route splits. OFF keeps all of Route 10 as one encounter area.") },
-              { key = "route_20_split", default = false, name = Strings.source("Route 20"), shortName = Strings.source("Rt. 20"), desc = Strings.source("Treat Route 20 West and East as separate encounter areas. Seafoam Islands divide the route into opposite-side sections during normal progression. OFF keeps all of Route 20 as one encounter area.") },
-              { key = "mt_moon_splits", default = 0, name = Strings.source("Mt. Moon"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Choose Mt. Moon encounter areas. OFF = the whole dungeon shares one encounter. COMMON = 1F, B1F, and B2F each receive an encounter. Tracker rows, counts, and catch legality update immediately when changed.") },
-              { key = "safari_zone_splits", default = 0, name = Strings.source("Safari Splits"), shortName = Strings.source("Safari"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Choose Safari Zone encounter areas. OFF = the whole Safari Zone shares one encounter. COMMON = Center, East, North, and West each receive an encounter. Tracker rows, counts, and catch legality update immediately when changed.") },
+              { key = "route_2_split", rbyOnly = true, default = false, name = Strings.source("Route 2"), shortName = Strings.source("Rt. 2"), desc = Strings.source("Treat Route 2 North and South as separate encounter areas. Viridian Forest physically separates the two sections and they are normally reached at different stages of Kanto progression. OFF keeps all of Route 2 as one encounter area.") },
+              { key = "route_10_split", rbyOnly = true, default = false, name = Strings.source("Route 10"), shortName = Strings.source("Rt. 10"), desc = Strings.source("Treat Route 10 North and South as separate encounter areas. Rock Tunnel sits between the two sections, making this one of Kanto's most common progression-based route splits. OFF keeps all of Route 10 as one encounter area.") },
+              { key = "route_20_split", rbyOnly = true, default = false, name = Strings.source("Route 20"), shortName = Strings.source("Rt. 20"), desc = Strings.source("Treat Route 20 West and East as separate encounter areas. Seafoam Islands divide the route into opposite-side sections during normal progression. OFF keeps all of Route 20 as one encounter area.") },
+              { key = "mt_moon_splits", rbyOnly = true, default = 0, name = Strings.source("Mt. Moon"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Choose Mt. Moon encounter areas. OFF = the whole dungeon shares one encounter. COMMON = 1F, B1F, and B2F each receive an encounter. Tracker rows, counts, and catch legality update immediately when changed.") },
+              { key = "safari_zone_splits", default = 0, nativeEditions = { red=true, blue=true, yellow=true }, capabilityGate = "safari_zone", name = Strings.source("Safari Clause"), shortName = Strings.source("Safari"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Safari encounter policy. STANDARD = one slot for the whole Safari Zone with normal Failed Encounters. PER AREA = Center, East, North, and West each receive a slot. UNTIL CATCH = one whole-zone slot that is not consumed by Safari failures/flees until a successful catch. AREA+CATCH combines per-area slots with until-catch behavior. Existing OFF/COMMON saves retain their old behavior as STANDARD/PER AREA.") },
               { key = "gold_time_split", default = false, name = Strings.source("Time Split"), gen2Only = true, desc = Strings.source("GEN 2 only. Morning, day, and night GRASS encounters count as separate encounter opportunities on the same physical map. Water, fishing, Headbutt, static, gift, and other methods are not multiplied by time. OFF collapses the live projection back to the physical area without deleting history.") },
               { key = "gold_headbutt_split", default = false, name = Strings.source("Headbutt Split"), shortName = Strings.source("Headbutt"), gen2Only = true, desc = Strings.source("GEN 2 only. Headbutt-tree encounters use a separate encounter slot from ordinary grass, water, and fishing on the same physical map. The split is per map, not per individual tree.") },
           }
@@ -282,11 +281,12 @@ return function(mod, deps)
       {
           title = Strings.source("RANDOMIZER"),
           rules = {
-              { key = "randomizer_seed", default = 0, name = Strings.source("Rndm Seed"), shortName = Strings.source("Rndm Seed"), numeric = true, digits = 8, min = 0, max = 99999999, desc = Strings.source("Shareable deterministic randomizer seed. 00000000 means AUTO: each NEW GAME with a Nuzlocke-owned seed-driven randomizer enabled resolves a fresh 8-digit run seed while Setup stays AUTO. Enter any nonzero seed for a FIXED reproducible run, or use Reroll Seed in Setup to generate a new fixed seed instantly. Starter, encounter, field-item, and learnset systems use separate deterministic streams, so enabling one does not perturb another. The same game/content registry, randomizer settings, resolved seed, and RNG algorithm version reproduce the same generated choices. Edit all 8 digits directly with A/Left/Right and Up/Down. Upgraded runs with existing nonzero seeds remain fixed and preserve prior seeded behavior.") },
+              { key = "randomizer_preset", default = 0, name = Strings.source("Rndm Preset"), shortName = Strings.source("Rndm Preset"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Unified Randomizer configuration. CUSTOM leaves every subsystem under individual control. CHAOS enables every Nuzlocke-owned randomizer with broad/unbalanced policies. BALANCED enables every Nuzlocke-owned randomizer with progression-aware balance defaults. Applying a preset never takes ownership from an external provider; changing an individual Randomizer setting returns this row to CUSTOM without rerolling the shared seed.") },
+              { key = "randomizer_seed", default = 0, name = Strings.source("Rndm Seed"), shortName = Strings.source("Rndm Seed"), numeric = true, digits = 8, min = 0, max = 99999999, desc = Strings.source("Shareable deterministic randomizer seed. 00000000 means AUTO: each NEW GAME with a Nuzlocke-owned seed-driven randomizer enabled resolves a fresh 8-digit run seed while Setup stays AUTO. Enter any nonzero seed for a FIXED reproducible run, or use Reroll Seed in Setup to generate a new fixed seed instantly. Starter, encounter, field-item, learnset, and trainer systems use separate deterministic streams, so enabling one does not perturb another. The same game/content registry, randomizer settings, resolved seed, and RNG algorithm version reproduce the same generated choices. Edit all 8 digits directly with A/Left/Right and Up/Down. Upgraded runs with existing nonzero seeds remain fixed and preserve prior seeded behavior.") },
               { key = "random_starter", default = false, name = Strings.source("Rndm Strtr"), shortName = Strings.source("Rndm Strtr"), desc = Strings.source("Randomize only the Pokemon you receive as your starter in Red, Blue, Yellow, Gold, or Silver. Seeded runs are deterministic. Starter Style can require a base form, a true three-stage evolutionary line, or a species with BST similar to the original starter. The selected ball and normal story/rival choice remain intact. Invalid/glitch species and active challenge bans are excluded; if an over-restrictive style has no legal candidate, the required starter safely falls back to the broader legal pool.") },
               { key = "random_starter_style", default = 0, name = Strings.source("Strtr Style"), shortName = Strings.source("Strtr Style"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Shown and active only while Random Starter is ON. Random Starter candidate shape. ANY = any legal species. 3-STAGE = a base-form species with an evolution and a later evolution after that. BASE = any unevolved/base-form species, including single-stage species. SIM BST = species near the original starter's live merged Base Stat Total. If the selected style leaves no legal progression-safe candidate, Random Starter falls back to ANY rather than breaking the story.") },
               { key = "random_starter_balance", default = 0, name = Strings.source("Strtr Balance"), shortName = Strings.source("Strtr Bal."), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Shown and active only while Random Starter is ON. INDEPENDENT preserves ordinary deterministic starter-slate selection. BALANCED prefers choices with comparable current strength plus evolutionary potential and widens tolerance only when needed. Hard legality, Starter Style, and distinctness always outrank balance.") },
-              { key = "random_starter_trio_typing", default = 0, name = Strings.source("Trio Typing"), shortName = Strings.source("Trio Type"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Shown and active only while Random Starter is ON. OFF ignores type relationships. AUTO prefers a three-way offensive type cycle using each candidate's full dual typing, then falls back to the legal distinct slate when no cycle is available. Applies to the three-choice Red/Blue and Gold/Silver starter transactions; Yellow's two-position starter/rival transaction is unchanged.") },
+              { key = "random_starter_trio_typing", default = 0, nativeEditions = { red=true, blue=true, gold=true, silver=true, crystal=true }, capabilityGate = "starter_trio", name = Strings.source("Trio Typing"), shortName = Strings.source("Trio Type"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Shown and active only while Random Starter is ON. OFF ignores type relationships. AUTO prefers a three-way offensive type cycle using each candidate's full dual typing, then falls back to the legal distinct slate when no cycle is available. Applies to the three-choice Red/Blue and Gold/Silver/Crystal starter transactions; Yellow's two-position starter/rival transaction was unchanged during build development.") },
               { key = "random_starter_rerolls", default = false, name = Strings.source("Starter Rerolls"), shortName = Strings.source("Strtr Reroll"), desc = Strings.source("Shown and active only while Random Starter is ON. OFF keeps the first deterministic starter slate. ON enables the separate Reroll Starter action only before a starter has actually been accepted. Each reroll uses the same run seed plus an isolated starter reroll index, never consumes encounter/item/learnset streams, and avoids repeating the immediately previous full slate when another legal slate exists.") },
               { key = "random_encounter_tables", default = false, name = Strings.source("Random Encounters"), shortName = Strings.source("Rndm Enc."), desc = Strings.source("Randomize wild encounter-table species while preserving each slot's native level, rate, time-of-day, fishing/tree method, and map structure. Seeded slot hashes make fresh 2.2.19+ worlds shareable and independent of traversal order. Encounter Balance controls whether replacements are pure chaos, similar BST, similar evolution stage, or both. Uses the live merged species registry and yields completely to an external encounter-randomizer provider when one owns the mechanic.") },
               { key = "random_field_items", default = false, name = Strings.source("Random Field Items"), shortName = Strings.source("Rndm Items"), desc = Strings.source("Randomize visible overworld field/item-ball pickups when collected. Each map/object slot uses its own deterministic FIELD_ITEMS stream under the shared randomizer seed, so enabling this does not change Random Starter, Random Encounters, or Random Learnsets results. Progression-critical/key items and HMs are protected in place and are never selected as replacements. This first implementation does not randomize hidden items, NPC gifts, shops, fruit/apricorn trees, or other scripted rewards.") },
@@ -295,17 +295,29 @@ return function(mod, deps)
               { key = "random_encounter_balance", default = 0, name = Strings.source("Encounter Balance"), shortName = Strings.source("Enc. Balance"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Shown and active only while Random Encounters is ON. CHAOS = any hard-safe species in the selected pool. SIM BST prefers the historical ~15% BST band, then widens deterministically to ~25% and ~40% before using the hard-safe pool. EVO first matches evolution stage plus similar family depth/remaining evolutions, then stage alone, then progression-adjusted strength. BALANCED combines progression shape with BST, then progressively relaxes through stage/progression and wider BST bands. Encounter rates and slot levels never change.") },
               { key = "random_encounter_repetition", default = 0, name = Strings.source("Encounter Repeats"), shortName = Strings.source("Enc. Repeats"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Shown and active only while Random Encounters is ON. ALLOW preserves independent slot rolls. DIVERSE softly lowers the weight of species already used in the same encounter source group while keeping every legal candidate reachable. UNIQUE uses without-replacement selection inside that group whenever possible, and relaxes only when the legal candidate pool is exhausted. Encounter rates, levels, methods, and table structure never change.") },
               { key = "random_encounter_diversity_strength", default = 1, name = Strings.source("Diversity Strength"), shortName = Strings.source("Diversity"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Shown only while Random Encounters is ON and Encounter Repeats is DIVERSE. LIGHT, STANDARD, and STRONG control how sharply already-used species are de-weighted inside the same encounter source group. STANDARD preserves the 2.6.83 DIVERSE weighting. This is always a soft preference: every hard-safe candidate remains reachable.") },
-              { key = "randomizer_info_policy", default = 0, name = Strings.source("Randomizer Info"), shortName = Strings.source("RNG Info"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Shown while Random Starter, Random Encounters, or Random Field Items is ON. OPEN INFO lets compatible information tools reveal persisted starter slates, randomized encounter results, and visible field-item mappings. BLIND INFO hides randomized species/items while preserving read-only diagnostic metadata: algorithm/policy versions, seed, randomizer modes, edition/item-table model, encounter source/class/time/group identity, Field Item ownership/category/table-class counts, protected/mapping counts, reroll state, and fallback diagnostics. Reading this information consumes no RNG and does not rewrite randomizer mappings.") },
-              { key = "random_species_generation", default = 0, name = Strings.source("Species Pool"), shortName = Strings.source("Species Pool"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Species source used only by Random Encounters. This row is hidden and has no effect while Random Encounters is OFF. AUTO preserves the active merged registry behavior. GEN1 selects indexed Generation 1 species, GEN2 selects indexed Generation 2 species, and BOTH selects Generation 1 + 2. Random Starter uses its own Starter Style over the full legal live species pool. Gold/Silver natively expose both generations; R/B/Y can include Gen 2 species when a compatible content provider supplies complete live species records/assets.") },
+              { key = "randomizer_info_policy", default = 0, name = Strings.source("Randomizer Info"), shortName = Strings.source("RNG Info"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Shown while a supported Nuzlocke randomizer is ON. OPEN INFO lets compatible information tools reveal persisted starter slates, randomized encounter results, and visible field-item mappings. BLIND INFO hides randomized species/items while preserving read-only diagnostic metadata: algorithm/policy versions, seed, randomizer modes, edition/item-table model, encounter source/class/time/group identity, Field Item ownership/category/table-class counts, protected/mapping counts, reroll state, and fallback diagnostics. Reading this information consumes no RNG and does not rewrite randomizer mappings.") },
+              { key = "random_species_generation", default = 0, name = Strings.source("Species Pool"), shortName = Strings.source("Species Pool"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Shared species source for Random Encounters, Random Trainers, and Random Evolutions. Hidden and inactive when all three are OFF. Random Starter deliberately uses its own hard-safe live pool plus Starter Style so mandatory starter selection cannot be disabled by a shared generation filter. AUTO uses the complete hard-safe live merged species registry. GEN1 selects indexed Generation 1 species, GEN2 selects indexed Generation 2 species, and BOTH selects Generation 1 + 2. Every subsystem still applies its own stronger legality, story, construction, and challenge constraints after this shared generation filter.") },
               { key = "random_learnsets", default = false, name = Strings.source("Random Learnsets"), shortName = Strings.source("Rndm Lrnset"), desc = Strings.source("Randomize species starting moves and level-up learnset moves while preserving the original number of move entries and every learn level. Fresh 2.2.19+ choices are deterministic from the displayed seed using a LEARNSETS stream separate from starters and encounters, so toggling one randomizer never perturbs another. Existing Pokemon keep moves they already know; future creation and level-up learning use the randomized registry.") },
+              { key = "random_trainers", default = false, name = Strings.source("Random Trainers"), shortName = Strings.source("Rndm Trnrs"), desc = Strings.source("Deterministically randomize trainer-party species while preserving trainer/story identity, party size, member order, and every authored level. Exact-edition trainer/class/party/member source identities use an isolated TRAINERS RNG stream. Hard candidate safety rejects invalid/glitch/runtime-unsafe species and honors PKMN BAN; player-only catch restrictions do not rewrite opposing trainer pools. Trainer Balance can preserve evolutionary stage, similar BST, or both. Boss teams use ace-anchored TYPE cohesion and a soft anti-downgrade floor under non-CHAOS balance. Trainer Randomizer composes inside built-in Difficulty so Difficulty adapts its moves/items/stats to the randomized species; provider/base parties remain the immutable composition input.") },
+              { key = "random_evolutions", default = false, name = Strings.source("Random Evolutions"), shortName = Strings.source("Rndm Evos"), desc = Strings.source("Deterministically randomize evolution targets while preserving each species as the authored source and preserving every native evolution row's method, level, item, and other trigger metadata. Projected topology rejects self-evolutions and newly-created cycles. Starter/rival lineage continues to read the immutable pre-randomization topology.") },
+              { key = "random_evolution_balance", default = 0, name = Strings.source("Evolution Balance"), shortName = Strings.source("Evo Balance"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Shown only while Random Evolutions is ON. CHAOS chooses from the full hard-safe acyclic pool. DEPTH prefers targets matching the authored target's original chain depth and remaining evolution depth. SIM BST prefers targets near the authored target's Base Stat Total. BALANCED combines chain-depth and similar-strength preferences, then relaxes deterministically. Hard construction safety and cycle prevention are never relaxed.") },
+              { key = "random_shops", default = false, name = Strings.source("Random Shops"), shortName = Strings.source("Rndm Shops"), desc = Strings.source("Deterministically randomize ordinary Mart BUY stock while preserving shop identity, stock-slot count/order, native quantities, and native item prices. Key/progression items and HMs stay protected; TMs are preserved for the dedicated TM phase. Uses an isolated SHOPS stream so existing randomizer streams do not move.") },
+              { key = "random_shop_balance", default = 2, name = Strings.source("Shop Balance"), shortName = Strings.source("Shop Balance"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Shown only while Random Shops is ON. CHAOS uses any ordinary purchasable hard-safe item. PRICE TIER prefers replacements in the authored item's native price tier. BALANCED first prefers both semantic category and price tier, then safely relaxes. Native item prices are never rewritten, so buy/sell arithmetic remains engine-owned.") },
+              { key = "random_tms", default = false, name = Strings.source("Random TMs"), shortName = Strings.source("Rndm TMs"), desc = Strings.source("Randomize the move taught by each TM while preserving TM item identity and every HM. Uses an isolated TMS stream. TM Compatibility controls whether eligibility follows the randomized move, the authored TM slot, or is universal.") },
+              { key = "random_tm_compatibility", default = 0, name = Strings.source("TM Compatibility"), shortName = Strings.source("TM Compat"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Shown only while Random TMs is ON. MOVE keeps native move-based compatibility. SLOT preserves each species authored eligibility for that TM slot while teaching the randomized move. FULL allows every species to learn every randomized TM. HMs are never changed.") },
+              { key = "random_gift_items", default = false, name = Strings.source("Random Gift Items"), shortName = Strings.source("Rndm Gifts"), desc = Strings.source("Randomize ordinary scripted GIVEITEM gifts through an isolated deterministic stream while preserving quantity, script flags, inventory capacity, and transaction flow. Key/progression items, HMs, TMs, and provider-protected items remain authored. Dedicated NPC reward-item command surfaces are included when exposed by the active game/provider.") },
+              { key = "random_trainer_balance", default = 0, name = Strings.source("Trainer Balance"), shortName = Strings.source("Trnr Balance"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Shown and active only while Random Trainers is ON. CHAOS preserves unrestricted hard-safe deterministic replacement. EVO prefers species at the authored Pokemon's original evolutionary stage and nearby lineage depth. SIM BST prefers species near the original live merged Base Stat Total. BALANCED combines evolutionary-stage and BST preferences, then widens deterministically if necessary. Hard trainer-pool safety and PKMN BAN are never relaxed.") },
+              { key = "random_trainer_diversity", default = 0, name = Strings.source("Trainer Diversity"), shortName = Strings.source("Trnr Diverse"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Shown only while Random Trainers is ON. OFF preserves the established independent member mapping. DIVERSE prefers species not already selected for that trainer team and safely falls back if the candidate pool is exhausted. UNIQUE applies the same no-repeat requirement until no unused hard-safe candidate remains. Team policy uses its own deterministic namespace.") },
+              { key = "random_trainer_theme", default = 0, name = Strings.source("Trainer Theme"), shortName = Strings.source("Trnr Theme"), numeric = true, digits = 1, min = 0, max = 1, desc = Strings.source("Shown only while Random Trainers is ON. OFF applies no team theme. TYPE softly prefers replacements sharing at least one type with the authored team's anchor member, after hard legality and Trainer Balance. If no themed candidate is available, the hard-safe balanced pool is used.") },
               { key = "random_learnset_generation", default = 0, name = Strings.source("Learnset Gen"), shortName = Strings.source("Lrnset Gen"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Move source used only by Random Learnsets. This row is hidden and has no effect while Random Learnsets is OFF. AUTO uses every valid move in the active merged move registry. GEN1 uses move indices 1-165. GEN2 uses indices 166-251; on a game/provider registry with no Gen 2 moves, that source safely leaves learnsets unchanged rather than inventing unavailable moves.") },
+              { key = "random_learnset_stab", default = 1, name = Strings.source("Learnset STAB"), shortName = Strings.source("Lrnset STAB"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Shown only while Random Learnsets is ON. OFF removes species-type preference. PREFER gives same-type moves a soft deterministic weight while every hard-safe move remains reachable. STRONG increases that soft weight; it never becomes a hard STAB requirement.") },
           }
       },
       {
           title = Strings.source("WORLD"),
           rules = {
-              { key = "world_building_tier", default = 1, readFallback = 1, writeFallback = 1, name = Strings.source("World Building"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Adds optional Nuzlocke flavor throughout Kanto and Johto. TIER 1 = clear rule feedback, TIER 2 = challenge personality, TIER 3 = region/NPC-aware story flavor. OFF disables optional flavor, while rule-enforcement rejections still show a plain explanation. DEFAULT: TIER 1. Cosmetic and always changeable, even after a Permanent Rule Seal.") },
-              { key = "gold_radio_world_building", default = false, name = Strings.source("Radio Nuzlocke"), shortName = Strings.source("Radio Nuz"), gen2Only = true, desc = Strings.source("GEN 2 only. Adds compact Nuzlocke status/world-building lines to the Pokegear Radio while preserving native radio station ownership. Requires World Building T1-T3; OFF or World Building OFF leaves the radio vanilla.") },
+              { key = "world_building_tier", default = 3, readFallback = 3, writeFallback = 3, name = Strings.source("World Building"), numeric = true, digits = 1, min = 0, max = 3, desc = Strings.source("Adds optional Nuzlocke flavor throughout Kanto and Johto. TIER 1 = clear rule feedback, TIER 2 = challenge personality, TIER 3 = region/NPC-aware story flavor. OFF disables optional flavor, while rule-enforcement rejections still show a plain explanation. DEFAULT: TIER 3. Cosmetic and always changeable, even after a Permanent Rule Seal.") },
+              { key = "gold_radio_world_building", default = false, capabilityGate = "pokegear_radio", name = Strings.source("Radio Nuzlocke"), shortName = Strings.source("Radio Nuz"), gen2Only = true, desc = Strings.source("GEN 2 only. Adds compact Nuzlocke status/world-building lines to the Pokegear Radio while preserving native radio station ownership. Requires World Building T1-T3; OFF or World Building OFF leaves the radio vanilla.") },
           }
       },
       {
@@ -313,25 +325,26 @@ return function(mod, deps)
           rules = {
               { key = "progression_pc_catches", default = false, name = Strings.source("PC-Only Catches"), shortName = Strings.source("PC Catches"), desc = Strings.source("Allow otherwise Nuzlocke-illegal captures for Pokedex/story progression and completion only. Eligible captures are immediately moved to PC storage, permanently marked PC LOCKED, do not consume an encounter slot, do not draft Type Locke lanes, and cannot be withdrawn, moved into the active party, or released. No Catching remains absolute for ordinary encounters unless a compatible source explicitly declares the capture progression-required; malformed/glitch safety is never bypassed, and Party Size Limit by itself never turns an otherwise legal catch into a PC-only catch. OFF preserves the normal catch rejection behavior.") },
               { key = "instant_text", default = false, name = Strings.source("Instant Text"), shortName = Strings.source("Instant Text"), desc = Strings.source("QoL for R/B/Y and Gold/Silver. ON removes the per-character typewriter delay from ordinary dialogue while preserving native page breaks, CONT prompts, A/B waits, scrolling, cries/fanfare waits, choice boxes, and scripted text timing. OFF uses the live game text-speed option normally.") },
-              { key = "skip_cherrygrove_tour", default = false, name = Strings.source("Skip Cherrygrove Tour"), gen2Only = true, desc = Strings.source("GEN 2 only. Before the Guide Gent tour is completed, accepting his offer skips the long walking lesson and resumes at the MAP CARD reward. The native reward flag, final dialogue, object cleanup, story state, and Pokegear progression still run normally. OFF keeps the full vanilla tour.") },
-              { key = "automatic_running_shoes", default = 0, preGameReadCoerce = true, readTrue = 1, readFalse = 0, writeTrue = 1, writeFalse = 0, name = Strings.source("Running Shoes"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Walking speed assist for R/B/Y and Gold/Silver: OFF preserves vanilla walking, HOLD B runs at twice normal walking speed only while B is held, and ALWAYS applies the same 2x walking speed without holding B. Bicycling, surfing, scripted movement, and menus remain native.") },
-              { key = "fast_surf", default = 0, preGameReadCoerce = true, readTrue = 1, readFalse = 0, writeTrue = 1, writeFalse = 0, name = Strings.source("Fast Surf"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Surf speed assist for R/B/Y and Gold/Silver: OFF preserves vanilla surfing, HOLD B surfs at twice normal speed only while B is held, and ALWAYS applies the same 2x speed to player-controlled Surf movement. Surf initiation, scripted movement, waterfalls, fishing, biking, and on-foot walking remain native.") },
+              { key = "skip_cherrygrove_tour", default = false, capabilityGate = "cherrygrove_tour", name = Strings.source("Skip Cherrygrove Tour"), gen2Only = true, desc = Strings.source("GEN 2 only. Before the Guide Gent tour is completed, accepting his offer skips the long walking lesson and resumes at the MAP CARD reward. The native reward flag, final dialogue, object cleanup, story state, and Pokegear progression still run normally. OFF keeps the full vanilla tour.") },
+              { key = "run_surf", default = 0, preGameReadCoerce = true, readTrue = 1, readFalse = 0, writeTrue = 1, writeFalse = 0, name = Strings.source("Run / Surf"), shortName = Strings.source("Run / Surf"), numeric = true, digits = 1, min = 0, max = 2, desc = Strings.source("Shared movement assist for R/B/Y and Gold/Silver/Crystal: OFF preserves vanilla walking and surfing, HOLD B applies 2x speed to player-controlled walking or Surf only while B is held, and ALWAYS applies the same 2x speed continuously. Biking, scripted movement, Surf initiation, Waterfall, fishing, menus, and cutscenes remain native.") },
               { key = "unlimited_bag_space", default = false, name = Strings.source("Unlimited Bag Space"), shortName = Strings.source("Unlimited Bag"), desc = Strings.source("QoL for R/B/Y and Gold/Silver. ON removes the distinct-item slot limit from R/B/Y's normal Bag and from Gen 2's ordinary ITEM and BALL pockets. Per-item stacks still cap at the engine's native 99, and Gen 2 KEY ITEM/TM-HM pocket limits plus PC item storage remain native. OFF restores the live engine/provider capacity without deleting items already carried.") },
               { key = "trade_evolutions", default = false, name = Strings.source("Trade Evolutions"), shortName = Strings.source("Trade Evos"), desc = Strings.source("QoL for R/B/Y and Gold/Silver. ON lets ordinary trade evolutions occur on the next level-up at level 40 or higher. In Gold/Silver, trade-with-held-item evolutions also require their original held item and consume it when the evolution succeeds; holding that item preserves branches such as Slowpoke -> Slowking instead of forcing the normal level evolution first. Real link trades still work at their native timing, and Everstone still blocks Gen 2 level-triggered trade evolutions.") },
-              { key = "infinite_rare_candies", default = false, name = Strings.source("Gym Guide Rare Candy"), shortName = Strings.source("Gym Guide Cndy"), desc = Strings.source("R/B/Y QoL: Gym Guides keep their normal dialogue, then offer repeatable Rare Candies in batches of 1, 10, 25, 50, or 99.") },
+              { key = "system_clock_sync", default = false, name = Strings.source("System Clock Sync"), shortName = Strings.source("Clock Sync"), gen2Only = true, desc = Strings.source("GEN 2 QoL. While ON, Gold/Silver re-anchor the game clock and weekday to the platform local clock when the host minute changes. Turning it OFF stops Nuzlocke re-syncing and leaves the current engine clock offset intact.") },
+              { key = "infinite_rare_candies", default = false, rbyOnly = true, capabilityGate = "gym_guide_rare_candy", name = Strings.source("Gym Guide Rare Candy"), shortName = Strings.source("Gym Guide Cndy"), desc = Strings.source("R/B/Y QoL: Gym Guides keep their normal dialogue, then offer repeatable Rare Candies in batches of 1, 10, 25, 50, or 99.") },
           }
       },
       {
           title = Strings.source("QOL SETUP ONLY"), shortTitle = Strings.source("QOL SETUP"),
           rules = {
+              { key = "system_date_time", default = false, name = Strings.source("System Date/Time"), shortName = Strings.source("System Date/Time"), gen2Only = true, setupOnly = true, desc = Strings.source("GEN 2 NEW GAME QoL. Initializes Gold/Silver time and weekday from the platform local clock, skips the opening manual clock selection, and auto-resolves Mom's initial weekday/DST setup while preserving surrounding story progression." ) },
               { key = "automatic_default_names", default = false, name = Strings.source("Default Names"), shortName = Strings.source("Deflt Names"), setupOnly = true, desc = Strings.source("Skip only the new-game player and Rival naming menus and choose each game's first canonical preset. R/B/Y keep Oak's confirmation dialogue. Gold uses GOLD for the player and later SILVER for the Rival; Silver uses SILVER for the player and later GOLD for the Rival. Pokemon nickname prompts are unaffected. NEW GAME only.") },
               { key = "skip_opening_intro", default = false, name = Strings.source("Skip Opening Intro"), shortName = Strings.source("Skip Oak Intro"), setupOnly = true, desc = Strings.source("NEW GAME only. Skips Oak's opening speech/movie and naming presentation, then continues through the engine's normal fresh-game transition. R/B/Y assign the first canonical player and Rival names and begin at the normal Pallet bedroom start. Gold/Silver preserve the required clock setup, assign the edition-appropriate first player-name preset, then begin at the normal Johto fresh-game start; the later Rival naming story remains untouched.") },
               { key = "quick_nuzlocke_start", default = false, name = Strings.source("Quick Nuzlocke Start"), shortName = Strings.source("Quick Start"), setupOnly = true, desc = Strings.source("NEW GAME only. Skips the mandatory pre-capture opening and starts at the first safe hometown checkpoint with a level-5 starter, Pokedex progression, and Poke Balls ready. R/B/Y begin outside in Pallet after Oak's Pokedex transition; bedroom-PC items can still be collected by walking back inside, and the optional Route 22 rival remains available. Gold/Silver preserve clock setup, advance through the Mystery Egg return and first Cherrygrove rival, then begin in New Bark with the Route 29 catch tutorial still available. Random Starter and Nickname remains respected.") },
               { key = "skip_catch_tutorial", default = false, name = Strings.source("Skip Catch Demo"), setupOnly = true, desc = Strings.source("NEW GAME only and version-specific: skips only the catch demonstrations (Viridian Old Man in Red/Blue, Professor Oak in Pallet plus the later Viridian Old Man in Yellow, Dude on Route 29 in Gold/Silver) while preserving surrounding story progression. TEST REQUIRED separately in each game.") },
-              { key = "starting_pokeballs", default = 0, name = Strings.source("Starting Poke Balls"), shortName = Strings.source("Start Balls"), rbyOnly = true, setupOnly = true, numeric = true, digits = 2, min = 0, max = 99, desc = Strings.source("R/B/Y NEW GAME QoL: starting Poke Balls, released at Oak's Pokedex transition so the Nuzlocke does not arm early.") },
+              { key = "starting_pokeballs", default = 0, name = Strings.source("Starting Poke Balls"), shortName = Strings.source("Start Balls"), rbyOnly = true, setupOnly = true, numeric = true, digits = 2, min = 0, max = 99, desc = Strings.source("R/B/Y NEW GAME QoL: starting Poke Balls. DEFERRED DELIVERY: released only at Oak's Pokedex/capture unlock, unlike immediate PC loadouts, so encounter rules do not arm early.") },
               { key = "starting_rare_candies", default = 0, readTrue = 99, readFalse = 0, name = Strings.source("Starting Rare Candy"), shortName = Strings.source("Start Candy"), rbyOnly = true, setupOnly = true, numeric = true, digits = 2, min = 0, max = 99, desc = Strings.source("R/B/Y NEW GAME QoL: starting Rare Candies placed in the bedroom PC.") },
               { key = "starting_money", default = 3000, name = Strings.source("Starting Money"), shortName = Strings.source("Start ¥"), rbyOnly = true, setupOnly = true, numeric = true, digits = 4, min = 0, max = 9999, desc = Strings.source("R/B/Y NEW GAME QoL: starting money for the new save.") },
-              { key = "gold_starting_pokeballs", default = 0, name = Strings.source("Starting Poke Balls"), shortName = Strings.source("Start Balls"), gen2Only = true, setupOnly = true, numeric = true, digits = 2, min = 0, max = 99, desc = Strings.source("GEN 2 NEW GAME QoL: extra starting Poke Balls placed in the bedroom PC only after the Mystery Egg has been returned to Elm. The native 5-Ball story reward remains untouched, so the pre-Ball opening and Route 29 progression stay native.") },
+              { key = "gold_starting_pokeballs", default = 0, name = Strings.source("Starting Poke Balls"), shortName = Strings.source("Start Balls"), gen2Only = true, setupOnly = true, numeric = true, digits = 2, min = 0, max = 99, desc = Strings.source("GEN 2 NEW GAME QoL: extra starting Poke Balls. DEFERRED DELIVERY: they reach the bedroom PC only after the Mystery Egg is returned to Elm/capture unlock, unlike immediate PC Candy/heal/vitamin loadouts. The native 5-Ball story reward remains untouched.") },
               { key = "gold_starting_rare_candies", default = 0, name = Strings.source("Starting Rare Candy"), shortName = Strings.source("Start Candy"), gen2Only = true, setupOnly = true, numeric = true, digits = 2, min = 0, max = 99, desc = Strings.source("GEN 2 NEW GAME QoL: starting Rare Candies placed in the bedroom PC on the fresh save.") },
               { key = "gold_starting_money", default = 3000, name = Strings.source("Starting Money"), shortName = Strings.source("Start ¥"), gen2Only = true, setupOnly = true, numeric = true, digits = 6, min = 0, max = 999999, desc = Strings.source("GEN 2 NEW GAME QoL: starting money for the fresh Gen 2 save. The range follows the Gen 2 native 0-999999 wallet.") },
               { key = "pc_starting_heal_items", default = false, name = Strings.source("Heal Loadout"), shortName = Strings.source("Heal Loadout"), setupOnly = true, desc = Strings.source("NEW GAME QoL: place 10 each of Potion, Super Potion, Max Potion, Antidote, Burn Heal, Ice Heal, Awakening, Parlyz Heal, and Full Heal in the bedroom PC. The kit is granted once on a fresh save and never bypasses item-use restrictions.") },
@@ -345,11 +358,188 @@ return function(mod, deps)
               { key = "stat_info", default = true, name = Strings.source("Stat Page"), desc = Strings.source("Include the STAT page in Nuz Info. Shows current battle stats, DVs/IV-style values, and raw Stat EXP for the selected Pokemon. Gold/Silver correctly treat Special DV and Special Stat EXP as shared by Special Attack and Special Defense.") },
               { key = "move_info", default = true, name = Strings.source("Move Page"), desc = Strings.source("Include the MOVE page in Nuz Info. Shows each known move with type, power, accuracy, and current/max PP using the active merged move registry, so compatible move-data mods are reflected automatically.") },
               { key = "area_guide_enabled", default = true, name = Strings.source("Area Guide"), desc = Strings.source("Show the second Encounter Tracker page with all catchable areas. Turn OFF to restrict the tracker to your catches only.") },
-              { key = "encounter_spend_indicator", default = true, name = Strings.source("Encounter Indicator"), shortName = Strings.source("Enc Indicator"), desc = Strings.source("Show a compact in-battle status badge for ordinary wild encounters when One Per Area is active. AREA:COUNT means a successful catch will spend the location slot; AREA:SPENT means the slot is already unavailable; DUPE:FREE means Dupes Clause makes the encounter free; SHINY:FREE means the active Shiny Clause is providing the exception; NO CATCH means another active rule currently makes the encounter ineligible. This is presentation only and reads the same pre-catch decision state used by enforcement.") },
+              { key = "battle_menu_ui", default = false, name = Strings.source("Battle Menu UI"), shortName = Strings.source("Battle Menu UI"), desc = Strings.source("Presentation only. OFF keeps Gen1Recomp's native battle command menu. ON replaces only the ordinary FIGHT / POKEMON / BAG / RUN command presentation with Nuzlocke's centered bottom battle panel while preserving the native battle state, cursor semantics, actions, move menu, item/party screens, Safari/Contest/tutorial menus, HP/status HUD, and all challenge-rule enforcement.") },
               { key = "dev_mode", default = false, name = Strings.source("Dev Mode"), shortName = Strings.source("Dev Mode"), desc = Strings.source("Developer diagnostics for runtime validation. OFF has no gameplay effect. ON records a bounded breadcrumb trail for major Nuzlocke lifecycle events, logs compact state snapshots and invariant warnings, and exposes read-only diagnostic helpers through mod.exports.nuzlocke_dev. It never changes challenge legality, catches, battle outcomes, RNG, or save schema. Leave OFF for normal play unless testing or collecting crash context.") },
           }
       },
   }
+
+
+  ---------------------------------------------------------------------
+  -- 2.7.65 RULE AVAILABILITY / DEPENDENCY CONTRACT
+  --
+  -- These annotations are declarative. UI visibility and effective gameplay
+  -- state consume the same metadata so a hidden child cannot remain active.
+  -- Stored choices are preserved dormant and return when the prerequisite does.
+  ---------------------------------------------------------------------
+  local byKey = {}
+  for _, category in ipairs(ruleCategories) do
+      for _, rule in ipairs(category.rules or {}) do byKey[rule.key] = rule end
+  end
+
+  local requiresTrue = {
+      random_starter_style="random_starter",
+      random_starter_balance="random_starter",
+      random_starter_trio_typing="random_starter",
+      random_starter_rerolls="random_starter",
+      random_field_item_balance="random_field_items",
+      random_field_item_repetition="random_field_items",
+      random_encounter_balance="random_encounter_tables",
+      random_encounter_repetition="random_encounter_tables",
+      random_evolution_balance="random_evolutions",
+      random_shop_balance="random_shops",
+      random_tm_compatibility="random_tms",
+      random_trainer_balance="random_trainers",
+      random_trainer_diversity="random_trainers",
+      random_trainer_theme="random_trainers",
+      random_learnset_generation="random_learnsets",
+      random_learnset_stab="random_learnsets",
+  }
+  for child, parent in pairs(requiresTrue) do
+      if byKey[child] then byKey[child].requiresRule = { key=parent, op="true" } end
+  end
+  if byKey.random_encounter_diversity_strength then
+      byKey.random_encounter_diversity_strength.requiresAll = {
+          { key="random_encounter_tables", op="true" },
+          { key="random_encounter_repetition", op="eq", value=1 },
+      }
+  end
+  if byKey.gold_radio_world_building then
+      byKey.gold_radio_world_building.requiresRule =
+          { key="world_building_tier", op="gt", value=0 }
+  end
+
+  -- Encounter-slot modifiers are meaningless when One Per Area is disabled.
+  local encounterSlotChildren = {
+      "failed_encounter", "dupes_mode",
+      "gold_roamer_clause", "gold_egg_encounter_mode", "gold_bug_contest_mode",
+      "town_catches", "route_2_split", "route_10_split", "route_20_split",
+      "mt_moon_splits", "safari_zone_splits", "gold_time_split",
+      "gold_headbutt_split",
+  }
+  for _, key in ipairs(encounterSlotChildren) do
+      if byKey[key] then
+          byKey[key].requiresRule = { key="encounter_limit", op="true" }
+      end
+  end
+
+  -- Type Locke configuration is progressive. Keep dormant lane choices, but
+  -- expose/effect only the lanes the selected mode can actually consume.
+  if byKey.type_lock_draft then
+      byKey.type_lock_draft.requiresRule = { key="type_lock_mode", op="gt", value=0 }
+  end
+  local typeLaneMinimum = {
+      type_lock_primary=1, type_lock_secondary=2, type_lock_tertiary=3,
+      type_lock_quaternary=4, type_lock_quinary=5, type_lock_senary=6,
+  }
+  for key, minimum in pairs(typeLaneMinimum) do
+      if byKey[key] then
+          byKey[key].requiresAll = {
+              { key="type_lock_mode", op="gte", value=minimum },
+              { key="type_lock_draft", op="false" },
+          }
+      end
+  end
+  -- 2.7.68 exact-edition audit: these reviewed surfaces are native in all
+  -- five currently supported editions unless a narrower declaration already
+  -- exists on the rule itself. Keeping the matrix explicit prevents a later
+  -- Gen1/Gen2 implementation shortcut from silently changing UI applicability.
+  local nativeAllSix = { red=true, blue=true, yellow=true, gold=true, silver=true, crystal=true }
+  local auditedAllSix = {
+      -- Battle Mechanics / Clauses
+      "physical_special_split", "badge_boosts", "ohko_clause",
+      "flinch_clause_scope", "trap_clause_scope", "setup_move_scope",
+      "evasion_clause", "status_accuracy_scope", "other_stat_drop_scope",
+      -- Battle / Field Items
+      "no_healing_items", "no_battle_items", "no_catching",
+      "encounter_ball_limit", "no_repels", "no_escape_rope",
+      "travel_restrictions", "no_field_healing", "no_pp_items",
+      "no_tm_use", "no_rare_candy_use",
+      -- Services / Economy
+      "no_poke_center", "no_mom_heal", "no_day_care", "shop_restrictions",
+      "no_gambling", "trainer_money_multiplier",
+      -- World / QOL shared surfaces
+      "world_building_tier", "progression_pc_catches", "instant_text",
+      "run_surf", "unlimited_bag_space",
+      "trade_evolutions", "automatic_default_names", "skip_opening_intro",
+      "battle_menu_ui",
+      "quick_nuzlocke_start", "skip_catch_tutorial",
+      "pc_starting_heal_items", "pc_starting_vitamins",
+  }
+  for _, key in ipairs(auditedAllSix) do
+      if byKey[key] and byKey[key].nativeEditions == nil
+          and byKey[key].rbyOnly ~= true
+          and byKey[key].gen2Only ~= true
+          and byKey[key].goldOnly ~= true then
+          byKey[key].nativeEditions = nativeAllSix
+      end
+  end
+
+  -- ALL-side No Setup Moves already suppresses every positive evasion-stage
+  -- boost that Evasion Clause could suppress. SELF/ENEMY remain distinct, so
+  -- Evasion Clause stays available for those narrower modes.
+  if byKey.evasion_clause then
+      byKey.evasion_clause.suppressedBy =
+          { key="setup_move_scope", op="eq", value=3 }
+  end
+
+  local noCatchingChildren = {
+      "encounter_ball_limit", "maximum_bst", "ban_legendaries",
+      "ban_mythicals", "ban_pseudos", "allow_glitch_pokemon",
+  }
+  for _, key in ipairs(noCatchingChildren) do
+      if byKey[key] then
+          byKey[key].suppressedBy = { key="no_catching", op="true" }
+      end
+  end
+  if byKey.type_lock_draft then
+      byKey.type_lock_draft.requiresRule = { key="type_lock_mode", op="gt", value=0 }
+  end
+  local typeSlots = {
+      type_lock_primary=1, type_lock_secondary=2, type_lock_tertiary=3,
+      type_lock_quaternary=4, type_lock_quinary=5, type_lock_senary=6,
+  }
+  for key, minimum in pairs(typeSlots) do
+      if byKey[key] then
+          byKey[key].requiresAll = {
+              { key="type_lock_mode", op="gte", value=minimum },
+              { key="type_lock_draft", op="false" },
+          }
+      end
+  end
+
+  local statusChildren = {
+      "status_paralysis_scope", "status_confusion_scope", "status_sleep_scope",
+      "status_poison_scope", "status_burn_scope", "status_freeze_scope",
+  }
+  for _, key in ipairs(statusChildren) do
+      if byKey[key] then
+          byKey[key].suppressedBy = { key="status_move_scope", op="gt", value=0 }
+      end
+  end
+
+  local speciesParents = {
+      "random_encounter_tables", "random_trainers", "random_evolutions",
+  }
+  if byKey.random_species_generation then
+      byKey.random_species_generation.requiresAnyTrue = speciesParents
+  end
+  if byKey.randomizer_info_policy then
+      byKey.randomizer_info_policy.requiresAnyTrue = {
+          "random_starter", "random_encounter_tables", "random_field_items",
+          "random_learnsets", "random_trainers", "random_evolutions",
+          "random_shops", "random_tms", "random_gift_items",
+      }
+  end
+  if byKey.randomizer_seed then
+      byKey.randomizer_seed.requiresAnyTrue = {
+          "random_starter", "random_encounter_tables", "random_field_items",
+          "random_learnsets", "random_trainers", "random_evolutions",
+          "random_shops", "random_tms", "random_gift_items",
+      }
+      byKey.randomizer_seed.keepVisiblePreGame = true
+  end
+
 
 
   return {

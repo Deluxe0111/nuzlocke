@@ -1,3 +1,602 @@
+# 2.8.00 — Full release: Gen2 party-item commit repair + refined progressive navigation
+
+Strict child of exact 2.7.106 (`10b482d6e535d318ff6b4e7ada052dac4fdd269ec6b4e2ac5fbf27368babb092`). This is the requested 2.8.00 full-release package. Crystal runtime on 2.7.106 confirms the Gen2 `useItem` target chooser itself works but healing items, vitamins, and Rare Candy still return to the Pack without committing their effects. 2.8.00 therefore moves the simple-consumable repair to the earlier Pack USE seam: after Nuzlocke legality checks it opens the native Gen2 party chooser, resolves the selected index back to the authoritative live `game.save.party[index]` record, executes Gen1Recomp's own merged `ItemEffects` result on that live record, consumes the item, and presents the native result. Target-sensitive legality is rechecked after selection. PP items, evolution stones, TMs/HMs, battle items, and non-party field items stay on their specialized existing paths. Rare Candy-to-cap remains available when a finite cap exists.
+
+Held UP/DOWN Setup/Rules navigation keeps five progressive speed gates but ramps more slowly and tops out more slowly than 2.7.106. The initial repeat delay is about 0.48 s, then the cadence progresses through approximately 0.27 s → 0.23 s → 0.19 s → 0.15 s → 0.11 s per step. SELECT+UP/DOWN retains section-jump priority; numeric digit editing remains tap-only. Runtime-PASS TOOLS profile semantics and the T3 World Building default are unchanged.
+
+# 2.7.106 — Gen2 party-consumable execution + progressive held navigation
+
+Strict child of exact 2.7.105 (`7ebcc84f91d710e2fc6f69bfa24f830b7e7827e601e21d94a9f1716d906f5386`). Crystal runtime on 2.7.105 confirms the wrong Pokémon action submenu is fixed, but selecting a target still returns to the Pack without applying Rare Candy, vitamins, or healing-item effects. 2.7.106 therefore repairs the shared post-selection consumable seam instead of changing Pokémon structure or chooser presentation again. For Gen2 healing, status, revive, vitamin, and Rare Candy families, Nuzlocke now invokes Gen1Recomp's own `ItemEffects` routine directly on the selected party record, then uses the native Game2 item-consumption/message/after-Rare-Candy services. PP items and evolution stones retain their specialized native paths. Finite-cap Rare Candy batches retain the existing transaction controller; a no-finite-cap candy executes once on the already-selected Pokémon instead of re-entering the party chooser after it has closed.
+
+Held UP/DOWN navigation is also retuned from 2.7.105's single fast repeat into a slower five-stage acceleration curve. Taps remain one row; holding begins after a longer delay and gradually accelerates through five repeat gates. SELECT+UP/DOWN keeps section-jump priority and uses the same progressive cadence. Numeric digit editing remains tap-only. Runtime certification required for damaged-Pokémon healing, vitamin, Rare Candy, and the new scroll feel.
+
+# 2.7.105 — Gen2 party-item chooser repair + held rule navigation
+
+Strict child of exact 2.7.104 (`5a446e88ff69ba13f17c127efc33ee221e98dff1fb6489c89177af2a106297f3`). Crystal runtime on 2.7.104 proved the party-item failure occurs **after** the correct "Use on which Pokémon?" screen appears: selecting the target incorrectly opens the ordinary field Pokémon submenu (field move / STATS / SWITCH / MOVE / ITEM / NUZ INFO) instead of invoking the item chooser callback. 2.7.105 therefore fixes the actual chooser-mode boundary rather than mutating Pokémon records. Gen2 `PartyMenu.new` screens opened with the native `useItem` prompt are forced to remain direct `onChoose` choosers; ordinary field, battle, TM/HM, held-item and NUZ INFO menus are unchanged. The unsuccessful 2.7.104 full-record starter materialization is retired; only the prior narrow semantic species-key canonicalization remains before native party-item processing.
+
+Setup and in-run NUZ RULES also gain held UP/DOWN navigation: a tap still moves one row, while holding begins rapid repeat after a short delay. SELECT retains priority, so SELECT+UP/DOWN continues to jump by section and also follows the repeat cadence while held. Numeric digit editing remains edge-only. Runtime certification required for Potion/vitamin/Rare Candy use and held navigation.
+
+# 2.7.104 — Gen2 randomized-starter native record materialization
+
+Strict child of exact 2.7.103 (`e80b6ef71ff293a883eb8816882b6f9d81028c1b28fd4ff6501fd1fae3ebe7aa`). Crystal runtime confirms the 2.7.103 TOOLS profile semantics PASS, but Potion/vitamin/Rare Candy use on the randomized Steelix remains FAIL. 2.7.104 retires the unsuccessful 2.7.103 direct Pack→Game2 routing experiment and restores Gen1Recomp's native Pack→World→Game2 dispatch after Nuzlocke legality checks. The randomized Elm starter is now materialized against Gen1Recomp's own Gen2 `Mon.new` structural contract while preserving the already-owned table identity, live HP/status/EXP/moves/held item/OT, and Nuzlocke provenance. Existing tracked starters receive the same idempotent repair immediately before native party-item handling, so current saves can recover without restarting. A read-only Gen2 party-record health diagnostic records unresolved species/native-shape failures. Runtime certification remains required.
+
+# 2.7.103 — Gen2 party-item routing + TOOLS semantics + World Building T3
+
+Strict child of exact 2.7.102. Crystal runtime testing showed 2.7.102 still did not restore party-target item use, and Save Profile / Load Profile visually behaved like duplicate Profile Slot selectors. 2.7.103 routes engine-owned Gen2 party-effect consumables directly from the field Pack USE seam into native `Game2:usePartyItem` after Nuzlocke legality checks, leaving target selection/effects/messages/consumption native. Profile Slot alone selects OFF/1/2/3; Save Profile and Load Profile are distinct actions against that selected slot. World Building defaults return to T3 across all games for new/default configurations; explicit existing save choices are preserved. Runtime certification required.
+
+# 2.7.102 — Gen2 party-item + TOOLS profile-selector repair
+
+Strict child of exact packaged 2.7.101 (`48d3e97d76cb8f7b266a5d6d0eace9bd5f983733f72a733a627204b6b98651b5`).
+
+- Repairs the still-failing Gen2 party-target item path by canonicalizing owned party `mon.species` records at the native `Game2.usePartyItem` boundary before native Potion/vitamin/Rare Candy processing. This generalizes 2.7.101's Elm-finalizer-only representation repair without changing species identity, moves, stats, provenance, inventory consumption, or native item-effect ownership.
+- Restores the TOOLS profile target as a shared `OFF / 1 / 2 / 3` selector. LEFT/RIGHT on Profile Slot, Save Profile, or Load Profile changes the shared target; A cycles Profile Slot, while A on Save Profile/Load Profile performs the selected action only when a numbered slot is active.
+- Saved profiles remain installation-scoped configuration only; run progress is never serialized. Load Profile still uses the existing preview/confirmation path.
+- Protected Random Starter selection/award behavior, Crystal ENC TRACKER LOG/MAP, MOD COMPAT safe rendering, and unrelated rule/randomizer behavior are unchanged.
+- Runtime certification required on Gold/Silver/Crystal for Potion, vitamin, and Rare Candy party use plus Setup/in-run TOOLS selector/save/load behavior.
+
+## 2.7.101
+- Removes the player-facing Save Setup action; Setup still stages rules into NEW GAME automatically, while persistent reusable configuration is owned by Profile Slot / Save Profile / Load Profile.
+- Repairs the 2.7.97 Gen2 MOD COMPAT crash by restoring the previously safe Gen2 Chrome renderer; cosmetic redesign is deferred until that path is runtime-stable again.
+- Repairs Gen2 native vitamin USE classification while Nuzlocke is enabled by restoring the 0.2.25 native ITEMMENU_PARTY metadata for HP Up, Protein, Iron, Carbos, and Calcium.
+- Preserves the 2.7.97 tracker and Crystal Quick Start nickname fixes.
+- Random Starter/random-moves implementation remains unchanged.
+
+## 2.7.101
+- Focused Gen2 UI/runtime repair built strictly from 2.7.96.
+- TOOLS is now an explicit final subsection in both New Game Setup and in-run Rules; Encounter Assignment is available there in both contexts.
+- Gen2 ENC TRACKER MAP now seeds the full canonical Johto/Kanto progression catalog so eligible unseen areas can be browsed; ordinary visited interiors no longer appear solely because they were visited.
+- Crystal Quick Start nickname completion now follows Gen1Recomp 0.2.25's native Gen2NamingScreen completion contract.
+- Gen2 MOD COMPAT now uses a compact one-row RULE/OWNER layout with selected-row detail text.
+- Crystal DST remains deferred.
+- Random Starter award/random-moves logic is otherwise preserved.
+- Vitamin GIVE/TAKE behavior was not patched pending a mods-off Gen1Recomp reproduction.
+
+# 2.7.101 — Gen2 services/tools + Gen1Recomp 0.2.25 compatibility
+
+Strict child of exact 2.7.95. Repairs the Gen2 Pokemon Center service gate by resolving HealParty and map identity semantically across 0.2.25-era script contexts; exposes the existing Shop Restrictions selector on the Gen2 rule surface so NO BUY / NO SELL / NEITHER are configurable; and adds a final in-run TOOLS section with Profile Slot, Save Profile, Load Profile, Save Rules, and Encounter Assignment. Saved profiles remain configuration-only and loading previews changes before application. Crystal System Date/Time opening handling now seeds its DST skip state from semantic SetDayOfWeek rather than depending on a generated ISITDST text label.
+
+The Gen1Recomp compatibility audit advances through 0.2.25. The review covers the new read-only `mod.datasets` imported-version views and the release's Gen2 VM/battle/save/world changes. Nuzlocke does not replace protected active-game transactions with cross-version dataset views. The 2.7.94 Random Starter selection/award repair remains intentionally untouched. Runtime retest is required for Center Heal, mart restrictions, in-run profile tools, Encounter Assignment, and Crystal DST skip.
+
+# 2.7.95 — Tracker / Setup / MOD COMPAT / Battle UI cleanup
+
+Strict child of exact 2.7.94 (`3bcc5dddf6cf7143ed13746f1e49084252f5e5108f5562439ade15a746915e94`).
+
+- Freezes the 2.7.94 Random Starter repair after runtime PASS on Red, Silver, and Crystal. Random Starter selection/grant code is unchanged.
+- Gen-2 ENC TRACKER MAP now uses a player-facing canonical progression order: Johto progression first, then Kanto, then evidence-backed custom/unknown areas. It no longer treats raw ROM `mapOrder` as presentation order.
+- Gen-2 MAP is now an encounter-area guide rather than a raw map browser: ordinary interiors such as cafes/shops are hidden unless they carry real tracker evidence; New Bark Town remains visible for starter provenance.
+- Red/Blue/Yellow pre-game NUZLOCKE SETUP explicitly clears inherited title-screen palette tint so normal Setup rows, values, pager, arrows, help text, and chrome render black-on-white like live NUZLOCKE RULES.
+- MOD COMPAT gives the title a dedicated row, moves the help-page selector safely above the bottom edge, changes it to `SEL n/n`, and gives the right-side down arrow a slow blink.
+- Battle Menu UI ON keeps native input/action authority but replaces the 2.7.93 large translucent rounded rectangle with a compact native-pixel box in the battle-owned bottom-right command region.
+- Existing `NUZLOCKE SETUP` / `NUZLOCKE RULES` slash-free titles remain.
+- Crystal randomized starter portrait parity remains deliberately unresolved/ALPHA; 2.7.94 runtime confirmed randomized text/award without crash while native Chikorita portrait remains the safe preview.
+- No Save Schema, Compatibility API, Diagnostics API, rule count, or Randomizer algorithm change.
+
+# 2.7.94 — Random Starter regression repair
+
+Strict child of exact 2.7.93 (`c7f626def623821e46487dc7f6ac612c4c4b2ed42cb62b62e3969a9e03ab5c00`).
+
+- Runtime bisect established the Gen1 Random Starter regression boundary exactly: **2.7.44 Red PASS → 2.7.45 Red FAIL**. Later Red tests on 2.7.54, 2.7.70, and 2.7.93 also fail by presenting/awarding vanilla starters; published 2.7.28 Yellow is runtime PASS.
+- The 2.7.45 delta first coupled Random Starter candidate construction and persisted-choice validation to the shared **Species Pool** generation filter. 2.7.94 surgically restores the last runtime-proven 2.7.44 starter contract: Random Starter uses its own hard-safe live species pool plus Starter Style and challenge legality, independent of Species Pool.
+- Species Pool remains available to Random Encounters, Random Trainers, and Random Evolutions. Randomizer presets and every later Randomizer subsystem remain intact.
+- This is a forward port into the exact 2.7.93 parent; no older source tree is restored wholesale.
+- Changes the R/B/Y Nuzlocke-owned screen header wording from `NUZLOCKE / SETUP` / `NUZLOCKE / RULES` to **NUZLOCKE SETUP** / **NUZLOCKE RULES**.
+- Gold 2.7.28's historical `No Glitch Pokemon` Elm symptom remains tracked separately as an older Gen2 provenance/transaction issue; this Gen1 bisect repair does not claim to solve it.
+- Rule count remains 151 canonical unique rules across 21 sections. Save Schema remains 5; Compatibility API 34; Diagnostics API 1.
+- Runtime certification required: Red New Game Random Starter is the primary acceptance test; Yellow and Gen2 remain independent targets.
+
+# 2.7.93 — Battle Menu UI + Run / Surf consolidation
+
+Strict child of exact 2.7.92 (`fb2ab4828f8c9afed48be01f7abf0f909f29d812287fbbfe5e72f26e5f2e57b9`).
+
+- Adds **Battle Menu UI** under UI, default OFF. OFF leaves Gen1Recomp's native battle command presentation untouched. ON uses the shared public `battle.bottom_ui_visible` + draw-only `battle.overlay` seams to replace only the ordinary four-command battle menu with a centered Nuzlocke-owned 2x2 panel: FIGHT / POKEMON / BAG / RUN.
+- Battle Menu UI is presentation-only: native `menuIndex`, input, action dispatch, move selection, party/item screens, HP/status HUD, link/battle mechanics, and challenge-rule enforcement remain authoritative. Safari, Bug Contest, and tutorial/demo command menus deliberately stay native.
+- Merges **Running Shoes** and **Fast Surf** into one QOL rule: **Run / Surf** with OFF / HOLD B / ALWAYS. One authoritative mode now controls both player-controlled walking and Surf speed assists.
+- Existing saves and old Setup presets migrate conservatively: when old Running Shoes and Fast Surf values disagree, the new Run / Surf value takes the more restrictive mode. Legacy save keys remain synchronized as compatibility mirrors.
+- Fixes the intended No Catching dependency metadata for **Allow Glitches** by correcting the stale `allow_glitches` key to the canonical `allow_glitch_pokemon`.
+- Rule taxonomy remains 21 sections and 151 canonical unique rules: Battle Menu UI adds one row while the two movement rows become one.
+- Preserves 2.7.92 Setup/Rules visual treatment and 2.7.91 Random Starter crash hardening.
+- Crystal Mom DST remains deliberately deferred.
+- Save Schema remains 5; Compatibility API 34; Diagnostics API 1.
+
+# 2.7.92 — Setup/Rules palette + bold chrome polish
+
+Strict child of exact 2.7.91 (`148dc68fb49e9aa17cc14f2efd792c4f5f72d2b092abdd16850d3749679cd27f`).
+
+- Implements the approved Setup/Rules presentation across R/B/Y and Gold/Silver/Crystal.
+- `NUZLOCKE / SETUP` and `NUZLOCKE / RULES` use the bold Nuzlocke-owned title treatment.
+- Normal rule names, values, selection/navigation glyphs, the bottom-centered `▲ current/total ▼` pager, and help text use one consistent black/dark treatment. Selection remains communicated by the cursor rather than changing row text color.
+- WIP/delegated rows may still dim so their special state remains visible.
+- Preserves 2.7.91's raised rule rows and bottom-centered pager geometry.
+- Preserves 2.7.91's Random Starter crash containment and empty-pool hardening unchanged.
+- Crystal Mom DST remains deliberately deferred.
+- No rule-default, Save Schema, Compatibility API, Diagnostics API, Randomizer algorithm version, or package-inventory change.
+
+# 2.7.91 — Random Starter crash hardening + Setup/Rules pager layout
+
+Strict child of exact 2.7.90 (`ea7e42c5a9249090934f6b53a999397b5cf618e385624dcaecfdc2886cdf091f`).
+
+- Protects the newly runtime-PASS Silver vanilla Elm starter path from Random Starter failures: canonical starter-slate materialization is now wrapped at the optional randomizer boundary. If a seed/slate/materialization fault occurs, the mandatory native starter transaction fails open to the selected vanilla starter instead of crashing.
+- Fixes an explicit empty without-replacement fallback edge in atomic starter slate generation: when distinct assignment is already proven impossible and the remaining duplicate-safe pool is empty, the code now uses the first hard-safe candidate instead of ever calling `random(1, 0)`.
+- Preserves the 2.7.90 same-script Elm provenance and duplicate-gate receipt-window repair unchanged.
+- Setup/Rules UI on R/B/Y and Gold/Silver/Crystal now moves the three visible rule rows upward into the reclaimed subtitle space.
+- The pager cluster is now centered at the bottom of the list panel as `▲ current/total ▼`, rather than living near the top/right.
+- Crystal Mom DST remains deliberately deferred.
+- No rule-default, Save Schema, Compatibility API, Diagnostics API, Randomizer algorithm version, or package-inventory change.
+
+# 2.7.90 — mandatory starter provenance / duplicate-gate repair
+
+Strict child of exact 2.7.89 (`a1674ce6b30b2bcc214c1e3cda1313fa9f5184be013d74171308ae4a16b4f8a9`).
+
+- Replaces the remaining Silver/Crystal Elm starter guesswork with a same-script mandatory-starter provenance marker. A starter POKEPIC arms the marker for that exact VM script run; the following GIVEPOKE consumes it. Map-label spelling and species-registry shape are no longer allowed to downgrade the mandatory Elm transaction into an ordinary gift.
+- Opens a one-transaction mandatory-starter receipt window around native Gen-2 givePoke so the post-transaction pokemon.received gate cannot re-run generic gift/glitch legality on the same starter before Tracker finalization.
+- A declined starter ball cannot leak provenance into a later script because the marker is keyed by scriptKey and consumed/cleared only by the matching GIVEPOKE.
+- Random Starter setup intent is seeded into the fresh save-backed mod.save bucket at save.created while the immutable New Game Setup profile is still authoritative. This applies to R/B/Y and Gen 2 and prevents the Random Starter toggle/style/seed from disappearing when Gen1Recomp adopts the new save before the starter transaction.
+- Preserves the 2.7.89 Setup/Rules subtitle cleanup.
+- Crystal Mom DST remains deliberately deferred.
+- No rule-default, Save Schema, Compatibility API, Diagnostics API, Randomizer algorithm, or package-inventory change.
+
+# 2.7.89 — runtime-known-good starter transaction recovery
+
+Strict child of exact 2.7.88 (`60246223e257c476231527339f99f1d16db0a198de66e318e2da856518b6dd68`).
+
+- Restores the recent runtime-proven starter ownership contract instead of adding another species-legality heuristic.
+- Gold/Silver/Crystal: any GIVEPOKE reached from Elm Lab's starter-ball story context is treated as the mandatory starter transaction before optional gift/glitch legality. Species identity refines the selected ball/Random Starter choice but no longer decides whether Elm's mandatory story grant is an ordinary gift.
+- Gen-2 preview state now carries the last exact Elm original + randomized choice forward to GIVEPOKE, preserving preview -> confirmation -> grant identity when early-runtime species representation is incomplete.
+- R/B/Y Random Starter: restores the first-party canonical opening-starter transaction as authority and removes the brittle map-label prerequisite that could prevent the actual `pokemon.before_give` mutation.
+- Removes the redundant edition / NEW RUN / LIVE second title line from Nuzlocke-owned Setup and Rules headers on all supported editions.
+- Crystal Mom DST suppression is deliberately deferred to a later child per owner instruction.
+- No rule-default, Save Schema, Compatibility API, Diagnostics API, Randomizer algorithm, or package-inventory change.
+
+# 2.7.88 — complete starter transaction / clock summary / DEV code repair
+
+Strict child of exact 2.7.87 (`3ffe5a2bcdd1f0111acaaa9f3f0e8ccf169134902c4efa2308ca8b0e6bf5193b`).
+
+- Fixes the remaining Silver/Crystal false-glitch starter veto at the actual shared legality boundary: numeric Gen-2 species identities now resolve against each live Pokemon registry row's public `index` field, not just physical table keys or optional aliases.
+- Hardens Elm starter recognition around the exact canonical cartridge GIVEPOKE operands (Chikorita 152, Cyndaquil 155, Totodile 158) plus Elm Lab context. These numeric constants identify the mandatory story transaction; they are not a glitch-rule whitelist.
+- Gen-2 canonical-name <-> native-index conversion now prefers the public Pokemon registry `index` field, falls back to generated species order when available, and retains exact Elm operand fallback if early-load registry metadata is temporarily unavailable.
+- Gen-2 Random Starter preview/grant paths use the same shared native-index resolver.
+- R/B/Y Random Starter's `pokemon.before_give` seam now mutates the gift only when Random Starter is actually enabled, validates the selected species, and commits the exact same identity.
+- Manual Time's NUZ RULES row now displays the live `HH:MM` value rather than `HH:--`.
+- DEV TOOLS -> VIEW REPORT now explicitly generates the live NZR6 shareable code with `Dev.reportCode(...)`; the restored CODE page no longer depends on a `report.report_code` field that `selfTestText()` intentionally stopped populating in 2.7.82.
+- The Crystal System Date/Time / Mom DST transaction repair from 2.7.87 is retained unchanged pending runtime retest.
+- Crystal loadout PASS evidence is protected. No rule default, save-schema, Compatibility API, Diagnostics API, or package-inventory change.
+
+# 2.7.87 — Gen-2 Elm identity / clock / DEV report runtime repair
+
+Strict child of exact 2.7.86 (`ca592afd62cc46cb90823278733f225c53da6e3cc4a898da36bac23cbcac0ee0`).
+
+- Fixes the real Silver/Crystal Elm starter identity defect by resolving Gen-2 numeric script species through Gen1Recomp's canonical `gen2Constants.speciesOrder` before starter recognition or legality checks. Ordinary Chikorita/Cyndaquil/Totodile must no longer become numeric-string pseudo-species and trigger the glitch rule.
+- Adds the reverse canonical-name -> native Gen-2 species-index resolver and uses it for Random Starter preview/grant transactions, addressing the separately observed 2.7.85 Gen-2 Random Starter failure without adding a starter whitelist.
+- Manual Time now edits both hour and minute: Up/Down selects the field, Left/Right changes it, A applies it. Applying still disables System Clock Sync and clears DST ownership.
+- Crystal's initial Mom DST ladder is skipped by exact Players House 1F script transaction identity when System Date/Time is active. The bypass does not match English display text and does not touch Mom's later phone/banking prompts.
+- Restores the long NZR report-code page as the first page after DEV TOOLS -> VIEW REPORT. The human-readable SUMMARY/PROBLEMS/HOOKS/RULES/RANDOM pages remain behind it; the old noisy RAW dump/error-code pages remain retired.
+- Crystal remains ALPHA. Save Schema 5, Compatibility API 34, Diagnostics API 1, rule defaults, and package inventory are unchanged.
+- Runtime retest required on Silver and Crystal vanilla/randomized Elm starters, Crystal Mom DST skip, Manual Time minutes, and DEV REPORT code-first navigation.
+
+# 2.7.86 — Gen-2 starter grant + setup applicability runtime repair
+
+Strict child of exact 2.7.85 (`fb8eb72e1f9292a99e047b697170b2b17b99dd0f6a241773e999ad67e4271a72`).
+
+- Fixes the shared Gold/Silver/Crystal species resolver so canonical string species such as CYNDAQUIL/TOTODILE/CHIKORITA can resolve against Gen-2 registries keyed by numeric id or row metadata before glitch legality is evaluated. This prevents ordinary Elm starters from being rejected as malformed/glitch acquisitions.
+- Restores `System Date/Time` and `System Clock Sync` to the maintained shared Gen-2 applicability allowlist, so the setup-only System Date/Time control can actually appear on Gold/Silver/Crystal configuration surfaces.
+- Crystal remains ALPHA and keeps the 2.7.85 native POKEPIC/cry fail-open boundary.
+- No rule defaults, save schema, Compatibility API, Randomizer algorithm, or package inventory changes.
+- Runtime retest required on Silver and Crystal starter grants, Crystal setup clock bypass, and Red field-poison install health.
+
+# 2.7.86 — Crystal Elm starter runtime safety and DEV REPORT validation repair
+
+Strict child of exact 2.7.84 (`748c46cdee61c1e634f00a46aab48922af90e5f9fbde27926e787ef06215993e`). Crystal 2.7.84 runtime evidence establishes boot/world/Elm Lab PASS but starter-ball interaction FAIL. 2.7.86 keeps Crystal intentionally supported as ALPHA while failing only Nuzlocke's Crystal POKEPIC/cry substitution open to the native animated presentation path; the shared GIVEPOKE transaction remains authoritative for the actual starter grant. Player-facing stored-state Randomizer validation no longer compares the current 10-stream / 10-source-map / 3-projection / extensible compatibility surface against stale historical expectations, and staged-profile validation now includes the Crystal profile. No rule defaults, save schema, Compatibility API, Randomizer algorithm, or package inventory changes. Runtime retest is required.
+
+# 2.7.84 — Gen1Recomp 0.2.24-era compatibility and Crystal Alpha support
+
+Strict child of exact 2.7.83 (`844d12b19e063e11a4093168fd19f0653113265b78d6fc3c5e130a0ec6a296b1`). Advances `recompCompatAudited` to **0.2.24** after a fresh review of the current upstream compatibility/documentation surface and intentionally adds **Crystal** to the manifest as an **ALPHA** Nuzlocke target. Shared Gen-2 runtime classification, 251-species rule surfaces, native rule availability, Random Starter trio applicability, starter provenance fallback, Random Field Item source identity, default-name handling, and edition-parity diagnostics now admit Crystal without collapsing Crystal evidence into Gold or Silver. Nuzlocke-owned Gen-2 titles expose the support stage as `CRYSTAL ALPHA`.
+
+Release Safety now expects the exact six-edition manifest, requires the Crystal Alpha declaration, preserves the upstream `src.ui.OptionRows` Gen-2 refusal, and verifies that `src.script.Commands` remains guarded away from Gen-2 runtime use. The audit records upstream `activeBlockAt`/`map.occupancy_allowed`, `battle.field_residual`, `mod.developer`, Custom Carts, expanded Gen-2 translation, and session-lifecycle work; Nuzlocke intentionally does not adopt the Gen-1-only field-residual hook or wholesale-migrate working map enforcement. Save Schema 5, Compatibility API 34, Diagnostics API 1, rule defaults, Randomizer algorithm state, remain unchanged. The engine floor advances to `>=0.2.24 <2.0.0` because older API-2 loaders may reject the explicit Crystal target token. Crystal runtime certification is required independently.
+
+# 2.7.83 — Planned Rules / Setup UI and configuration pass
+
+Strict child of exact 2.7.82 (`fd384960a0ebdfc299c42be239f23cc26ac852f5e8f447e59f0477f3df302222`). Implements only the UI/configuration batch explicitly deferred by the 2.7.82 handoff: moves the compact current/total Rules counter to the top-right without consuming a list row; replaces sequential Nuzlocke Loadout stepping with a direct chooser and preserves exact change-count/confirmation safety; replaces numeric Difficulty stepping with direct profile selection backed by `difficultyProfileSummary()` and `difficultyStackWarning()`; adds an in-run Gold/Silver Manual Time action that writes through the native Gen-2 Clock, preserves minute/weekday, and disables continuous System Clock Sync; and clarifies that selected Starting Poke Balls are delivered only after capture unlock. Crystal support and the encounter battle-overlay redesign remain deferred. Rule defaults, Save Schema 5, Compatibility API 34, Diagnostics API 1, Randomizer mappings, and the five-edition manifest target set are unchanged. Runtime validation is required.
+
+# 2.7.82 — Silver runtime hardening and diagnostic separation
+
+
+Strict child of exact 2.7.81. Recovers only the reviewed historical 2.6.82 runtime-hardening batch after comparison: resolves Gen-2 special operands through `Vm:specialName()` for Mom's full System Date/Time DST ladder; adds a final one-shot `Vm:showRaw` Elm confirmation fallback; finishes starter Tracker provenance from the committed native Elm story event only under a zero-badge, exactly-one-party-Pokémon proof; installs the actual Gen-2 PartyMenu NUZ INFO wrapper without an early global-edition decision and passes the exact lifecycle Game into `G2.installAll(game)`; removes build/package Release Safety and generated NZR/NZERR/hash/raw-machine output from player-facing Dev surfaces; and updates Release Safety's role-specific documentation-header audit. Starting Poké Ball timing, Crystal support, presets/difficulty UI, manual Gen-2 time selection, rule defaults, public APIs, save schema, and engine range are unchanged. Runtime retest remains required.
+
+
+Strict child of exact 2.7.80. Recovers the reviewed 2.6.81 compatibility batch only: advances the source-audited Gen1Recomp profile to 0.2.21; preserves the exact Red/Blue/Yellow/Gold/Silver manifest target set while upstream `gen2` expands to Crystal; records `mod.developer` separately from player Dev Mode; marks NuzlockeConfigScreen, NuzlockePokemonBanScreen, and NuzlockeModCompatScreen as genuine mod-options surfaces; completes System Date/Time coverage for both `InitialSetDSTFlag` and `InitialClearDSTFlag`; and clears `rtc.dst` while host-local clock authority is active. Release Safety protects these contracts and the Gen2 `src.ui.OptionRows` incompatibility trap. No 2.6.82+ runtime-fix behavior is included.
+
+- Strict child of exact 2.7.79.
+- Ports only the reviewed mistaken 2.6.79 -> 2.6.80 delta: deeper Elm randomized-confirmation fallback, pending post-GIVEPOKE starter finalization, narrowly proven legacy starter reconciliation, Gen-2 System Date/Time, Gen-2 System Clock Sync, and safe B-cancel for multi-candy Rare Candy TO CAP batches.
+- Clock writes use the engine's native Gen-2 Clock authority; the preferred opening skip has a defensive InitClock auto-confirm fallback.
+- Candy cancellation is boundary-safe: B never interrupts the current candy transaction, move learning, stat presentation, or evolution halfway through.
+- Species equality remains forbidden as general starter identity evidence.
+- No 2.6.81+ compatibility/clock corrections or later mistaken-package behavior are included.
+- Static/parse/integrity validation only; exact-edition runtime testing remains required.
+
+# 2.7.79 — Gen-2 Elm starter authority / utility titles
+
+- Strict child of exact 2.7.78.
+- Ports only the reviewed mistaken 2.6.78 -> 2.6.79 delta: Elm starter classification by live Gen-2/Elm/GIVEPOKE context, proven-starter native Elm story reconciliation, rendered-preview confirmation authority, additional Gen-2 starter reachability diagnostics, tightly scoped identity-less LEGACY starter cleanup, and the shared Gen-2 Nuzlocke utility-title hierarchy.
+- Empty party is no longer the deciding Elm starter predicate; fresh starter registration still never merges by species.
+- Native Gold/Silver game UI and the native Mod Manager are not restyled.
+- No 2.6.80 post-GIVEPOKE finalizer, system-clock QoL, or later mistaken-package behavior is included.
+- Static/parse/integrity validation only; exact-edition runtime testing is still required.
+
+## 2.7.78 — Starter identity / recovery parity
+
+- Strict child of exact 2.7.77.
+- Ports only the reviewed mistaken 2.6.77 -> 2.6.78 delta: identity-idempotent starter registration/history, conservative existing-save duplicate repair, safer Pallet -> New Bark migration, Gold/Silver Recover Catches parity, and identity-preserving manual recovery.
+- Same-species Pokemon are never merged by species alone.
+- No 2.6.79 starter-story/rendered-preview reconciliation or later mistaken-package behavior is included.
+- Static/parse/integrity validation only; exact-edition runtime testing is still required.
+
+# 2.7.77 — Silver/randomizer usability recovery
+
+- Strict child of exact 2.7.76.
+- Ports only the reviewed mistaken 2.6.76 -> 2.6.77 delta: direct Gen-2 PartyMenu targeting, randomized Elm confirmation text, starter grant-delta fallback, ordinary-interior Tracker filtering, and live Reroll/Auto Seed controls.
+- No 2.6.78 identity-idempotence/recovery work or later mistaken-package behavior is included.
+- Static/parse/integrity validation only; exact-edition runtime testing is still required.
+
+## 2.7.76 — Gen-2 authority / Silver parity recovery
+
+- Strict child of exact 2.7.75.
+- Ports only the reviewed mistaken 2.6.75 -> 2.6.76 repair delta: edition-correct starter hometown provenance, conservative early-starter migration, Gen-2 Tracker seed isolation, script-authority consolidation, PartyMenu NUZ INFO fallback, and reachability diagnostics.
+- Does not include later 2.6.77 randomizer/QOL/UI corrections.
+
+## 2.7.75 — Silver shared Gen-2 parity recovery
+
+- Strict child of exact packaged 2.7.74.
+- Recovers only the reviewed semantic delta from mistaken 2.6.74 -> 2.6.75.
+- Exact GOLD/SILVER/CRYSTAL identities now force the shared Gen-2 runtime predicate when engine generation helpers fail to identify the title.
+- This reconnects Silver to the existing shared Gen-2 adapter path instead of allowing accidental Gen-1 fallthrough.
+- Gen-2 parity diagnostics now also verify the shared predicate plus gift-tracking and capture-gate installer success.
+- No separate Silver clone was introduced.
+- No Randomizer mapping, rule default, save schema, Compatibility API, native host UI, or package inventory change.
+
+## 2.7.74 — Gold utility-screen visual normalization
+
+- Strict child of exact runtime-observed 2.7.73.
+- Recovers only the post-2.7.72 presentation delta from the mistaken 2.6.74 child.
+- Gold Nuzlocke-owned DEV REPORT, CATCH INFO, STAT INFO, and MOVE INFO use centered emphasized primary titles.
+- NUZ INFO Pokémon/subject subtitles are centered at normal weight.
+- Gold STAT INFO uses compact fixed `STAT / VAL / DV / EXP` columns.
+- Gold CATCH INFO uses denser label/value rows and the utility footer/body spacing is normalized.
+- No gameplay rules, Randomizer mappings, Save Schema, Compatibility API, supported editions, or native Gen1Recomp UI are changed.
+
+## 2.7.73
+- Reconstructed strictly from exact 2.7.72.
+- Recovered Late Runtime dependency-order fix: rule-message helpers are resolved live instead of captured as possibly-nil registration-time snapshots.
+- No gameplay-rule semantics, defaults, Randomizer mappings, Save Schema, or Compatibility API changes.
+
+## 2.7.72 — Shared UI ownership hardening
+
+- Explicit `wide` layout requests now fall back to the classic surface unless a usable wide-layout provider reports a real wider size; `applyLayout()` claims the resolved layout instead of the raw request.
+- Shared Gen 1/Gen 2 row primitives now support caller-owned `preFitted` text.
+- Both live R/B/Y Tracker tabs mark only their selected marquee row as pre-fitted, preventing the shared pixel fitter from adding a second ellipsis to an already-finalized scrolling slice.
+- Non-selected Tracker rows retain the shared defensive pixel fit.
+- Release Safety protects both contracts.
+
+## 2.7.71 — T3 World Building dialogue cleanup
+
+- Removes the generic T3 run-summary page that was appended after unrelated World Building/rule dialogue.
+- Messages such as `1 teammate lost in this run.`, badge totals, catch totals, and the opening-chapter line are no longer injected globally by `worldFlavorText()`.
+- T3 keeps its richer regional/flavor wording; only the unrelated recap page is removed.
+- Consequential post-encounter failure feedback from 2.7.70 remains unchanged and still fires at every World Building tier.
+- Release Safety now checks that generic T3 dialogue cannot regain the global run-context append.
+
+## 2.7.70 — Encounter feedback contract cleanup
+
+- Retires the obsolete player-facing `Encounter Indicator` rule and the dead built-in battle HUD installation path. The old always-on AREA:COUNT / AREA:SPENT overlay remains intentionally removed.
+- Preserves the read-only `encounterSpendIndicator()` semantic projection for compatibility/information consumers; it no longer depends on a player toggle.
+- Post-battle failed-encounter feedback is now routed through one dedicated helper and remains consequential feedback at every World Building tier.
+- World Building OFF/T0 and T1 use the plain failed-encounter explanation; T2 adds challenge flavor; T3 uses the richer regional wording.
+- Release Safety now verifies that the retired battle HUD cannot silently return and that failed-encounter feedback keeps its all-tier critical-feedback contract.
+
+## 2.7.69 — Combined Shop Restrictions
+
+- Replaces the two public `No Buying` / `No Selling` rows with one `Shop Restrictions` selector.
+- Modes are `OFF`, `NO BUY`, `NO SELL`, and `NEITHER`.
+- Existing saves migrate losslessly: the previous two booleans are converted into the matching four-state mode.
+- Legacy `no_buying` / `no_selling` state remains synchronized internally so existing R/B/Y, Gold/Silver, Randomizer, world-building, compatibility-provider, and transaction-gate code keeps the same behavior.
+- Presets, Difficulty profiles, and compatibility paths that still write the legacy booleans reverse-sync the combined selector, preventing UI/state disagreement.
+- Game Corner restrictions remain a separate `No Gambling` rule.
+
+## 2.7.68 — Rule applicability & dominance audit completion
+
+- Completes the planned Battle Mechanics, Battle Clauses, Battle/Field Items, Services & Economy, World, and QoL applicability pass.
+- The reviewed shared mechanics now carry an explicit Red/Blue/Yellow/Gold/Silver native-edition matrix instead of relying only on generation-wide assumptions.
+- Gen-II content-specific `Radio Nuzlocke` and `Skip Cherrygrove Tour` remain native only where their content exists, but can become available elsewhere only through explicit `pokegear_radio` / `cherrygrove_tour` provider capabilities.
+- `Evasion Clause` is now hidden and behaviorally dormant when `No Setup Moves = ALL`, because that stronger clause already blocks every positive evasion-stage boost on both sides. SELF/ENEMY setup scopes remain distinct, so Evasion Clause stays available there.
+- No false dominance was added between healing-item, field-heal, PP-item, Center, Mom, buying/selling, gambling, or stat-drop rules because those retain independent legal effects.
+- Release Safety now trips if this reviewed exact-edition matrix, provider gating, or battle-clause dominance wiring disappears.
+
+## 2.7.67 — Difficulty profile review
+
+- Changing Difficulty now opens a dedicated full-screen profile browser before anything is committed.
+- Left/Right cycles every available Difficulty mode; each mode gets its own page showing its trainer changes versus VANILLA.
+- Up/Down scrolls longer change lists. A confirms the displayed profile; B returns with no mutation.
+- After A, the existing Difficulty interaction warning still appears when the transition affects other rule semantics; only confirming that warning applies the change.
+- External Difficulty providers receive their own page and are identified as provider-owned rather than inventing unsupported internal details.
+
+## 2.7.66 — Exact-game audit, pass 2
+
+- Continues the rule-availability audit in a deliberately small pass.
+- Yellow no longer exposes Random Starter `Trio Typing` as a native rule because Yellow does not natively use the three-choice starter slate; an explicit compatible `starter_trio` provider can make it available.
+- Encounter-slot modifiers now depend on `One Per Area`: Failed Encounters, Dupes, Gen II roamer/egg/contest policies, Town Catches, and area/time/headbutt split controls become dormant while area encounter limits are OFF.
+- Type Locke now exposes/effects only the lanes selected by its mode. Catch Draft is hidden while Type Locke is OFF; manual type lanes are hidden/inert during Catch Draft; DUO through HEXA progressively reveal only the required lanes.
+- Stored values are preserved while dormant and return when their prerequisite becomes applicable again.
+- Release Safety extends the exact-edition/dependency source tripwire for these relationships.
+
+## 2.7.65 — Rule availability / suppression architecture
+
+- Rules now have a shared exact-edition availability contract for Red, Blue, Yellow, Gold, and Silver.
+- Mechanics that are not native to the running edition are hidden and behaviorally inert; compatible providers may expose explicitly capability-gated mechanics.
+- Dependency and dominance suppression preserve stored choices while preventing hidden child rules from affecting gameplay.
+- Randomizer subordinate rows collapse when their owning randomizer feature is OFF; No Catching and No Status Moves suppress redundant subordinate restrictions.
+- Kanto-only route/Mt. Moon/Safari and R/B/Y Gym Guide controls no longer appear as native Gen II rules.
+- Release Safety audits the availability graph, exact-edition metadata, dependency cycles, and UI/effective-state wiring.
+
+# 2.7.65 — exact-edition rule availability and rule suppression
+
+- Audits rule applicability separately for Red, Blue, Yellow, Gold, and Silver instead of assuming every shared catalog row is meaningful everywhere.
+- Rules for mechanics absent from the active game are hidden and behaviorally inert. A compatible provider may make an explicitly capability-gated mechanic available without changing Nuzlocke challenge-policy ownership.
+- Centralizes parent/dependency and dominance suppression so subordinate settings keep their stored preference but disappear and have no effect while their parent is OFF or a stronger rule supersedes them.
+- Randomizer subordinate controls now follow the same shared dependency contract, reducing inactive Randomizer clutter without deleting saved configuration.
+- Corrects native applicability for R/B/Y Gym Guide Rare Candy and Safari Zone policy, and treats overworld-spawn encounter policy as provider-enabled rather than a native mechanic.
+- Adds Release Safety validation for unknown dependencies, contradictory edition flags, and dependency cycles.
+
+# Nuzlocke 2.7.64 — MOD COMPAT ownership controls
+
+> **Lineage:** **2.7.64** is a strict child of exact **2.7.63** (`807ee2f1e45fda6e0f472a86af6e49d7f0ce34c2e879c15b277f4511b18df7a1`).
+
+- MOD COMPAT Left/Right owner cycling for capability-backed rows only.
+- AUTO/native/provider preferences feed the live compatibility-provider resolver rather than changing display text only.
+- Gameplay-impacting ownership changes are pre-confirmed with the shared warning modal; Cancel performs zero mutation.
+- Missing/inactive pinned providers fail open to AUTO.
+- Fixed Nuzlocke policy and host-owned presentation rows remain read-only.
+- Added Release Safety coverage for provider candidate retention, persisted preferences, resolver integration, owner cycling, and warning-before-mutation.
+
+# Nuzlocke 2.7.63 — Gen II Tracker parity + Difficulty impact confirmation
+
+> **Lineage:** **2.7.63** is a strict child of exact **2.7.62** (`f0dcd4550671d7adb67886b54a6fd801b19fbf510efba2781b1e3d75b68b27bd`).
+
+- Fix Gold/Silver Encounter Tracker MAP using Gen I seed rows/order instead of the active Gen II map catalog.
+- Discover Gen II map tables and order rows by the host `gen2Constants.mapOrder`; keep New Bark Town as the starter hometown.
+- Preserve already-recorded town encounter evidence even when Town Catches is subsequently disabled.
+- Add a pre-commit Difficulty impact warning using the existing confirmation UI; Cancel performs no mutation.
+- No Randomizer RNG/mapping, save schema, encounter accounting, or battle-rule semantics changed.
+
+# Nuzlocke 2.7.62 — Gen II healing-service parity
+
+> **Lineage:** **2.7.62** is a strict child of **2.7.61** (`8fb0ea8517e03cdac3bb387bfcd2c3a0c1b673169637716676a9837f6dddef9c`).
+
+- Runtime evidence on Gold: **No Buying PASS**, **No Selling PASS**, **No Center Heal FAIL** on 2.7.61.
+- Repairs Gold/Silver No Center Heal at the authoritative Gen II `special HealParty` script-command seam. The gate applies only on Pokemon Center maps and ends the heal transaction before native success animation/dialogue.
+- Repairs the adjacent No Mom Heal parity gap at the same semantic seam, scoped only to `PLAYERS_HOUSE_1F`; unrelated story heals, including first-rival continuation healing, remain native.
+- Adds a Release Safety `gen2_semantic_seams` audit that verifies the shipped Gen II adapter installs the advertised healing, mart, capture, nickname, gift, trade, static, held-item, field-item, and whiteout owners.
+- Focused parity review found no additional obvious missing Gen II installer among the public RBYGS semantic-coverage operations; exact-edition runtime evidence remains independent and required.
+
+## Nuzlocke 2.7.61 — canonical UI lineage
+
+> **Lineage:** **2.7.61** is a strict child of **2.7.60**. Nuzlocke-owned UI changes remain independent; third-party UI references are compatibility-only.
+
+
+- Repairs Yellow/Gold runtime-observed overlap in Tracker, Rules/Setup, Dev Tools, status rows, and footer/detail regions.
+- Adds explicit shared header/body/detail/footer frame geometry for Nuzlocke-owned custom screens.
+- Reduces Dev Report/Known Issues/Storage visible-line budgets so content cannot enter the footer band.
+- Removes duplicate loadout-confirmation cancel presentation on Gen 2.
+- Fixes the Randomizer diagnostic snapshot crash caused by calling `projectionState` as a global function instead of reading the authoritative projection-state table.
+- Hardens UI compatibility around Gen1Recomp's stable widget/input/screen-stack conventions; gameplay semantics are unchanged.
+
+# Nuzlocke 2.7.60
+
+- Startup hardening pass for the UI lineage.
+- Presentation-only World Building source/catalog audits no longer abort mod loading; failures are preserved for Dev diagnostics and Release Safety promotion gates instead.
+- Release Safety now audits dead-fallback coverage across both `main.lua` and `world_building.lua`, and explicitly checks Maximum BST rejection detail coverage.
+- Dev diagnostics mirror the expanded presentation audits.
+- Gameplay-critical startup guards remain fail-fast. No rule semantics, saves, encounter accounting, Randomizer RNG/mappings, or UI design expansion changed.
+
+# 2.7.59 — Startup recovery / catalog-golden repair
+
+Strict child of exact **2.7.58** (`258d40c5c5f64959a8a8e1f65ede5048377b6b9b841a56d4ac677b661835e351`).
+
+- Fixes the runtime-blocking startup failure in `world_building.lua`: the live 104-key presentation catalog computes semantic checksum `513036232`, while the stale protected golden still expected `926265119`.
+- Refreshes the golden to `513036232` without changing any World Building dialogue rows, rule legality, persistence, or Randomizer behavior.
+- Hardens startup so future World Building **presentation-only** snapshot drift is recorded/logged and caught by Dev/Release Safety instead of aborting the entire mod during module initialization.
+- Preserves 2.7.58 as the exact immediate parent.
+
+# 2.7.58 — Controlled shared-component compatibility pass
+
+- Strict child of exact 2.7.57 (`f5bb6c38bcc539b90d2bffa867209314da3e0de03e15b76bdc1ea3851741149a`); canonical 2.7.54 was the original fallback/root during development.
+- Extends the shared Nuzlocke UI row and notice primitives to both Gen I and Gen II presentation paths.
+- Migrates the F. TOKEN menu family and the Dev Tools action list onto shared focus/row/notice presentation while preserving their existing gameplay, token, diagnostic, and input semantics.
+- Keeps text measurement provider-neutral and adds compatibility hardening for variable-width font providers; Nuzlocke does not own global kerning.
+- Continues Wide Menus compatibility hardening through explicit Nuzlocke screen layout policies and parent/child surface continuity.
+- Does not migrate DEV REPORT internals or Randomizer screens in this pass. Runtime/UI verification remains required.
+
+# 2.7.57 — Typography and semantic-component pass
+
+- Removes the Nuzlocke-owned Gen 1 kerning wrapper/table from the forward lineage. Nuzlocke now consumes live authoritative font metrics and does not own glyph advances or glyph offsets.
+- Adds shared typography measurement, fit, wrapping, and right-edge alignment primitives to the Nuzlocke UI system.
+- Adds shared semantic row focus/status classification and a standardized notice model/render primitive.
+- Expands the Dev-only UI Gallery from four to five pages with variable-width text, right-alignment, long-label, and notice/wrapping stress fixtures.
+- Corrects forward-lineage provenance: exact immediate parent is 2.7.56 (`8f5a4c46146f190350197a411c22e29856b540a3c50ad5754660e24b6a0cf9d6`); exact canonical 2.7.54 was the original fallback/root during development.
+- Compatibility hardening targets variable-width/kerning font providers without requiring or reproducing any provider-specific glyph behavior.
+- No gameplay rule semantics, Save Schema, Randomizer algorithm/RNG stream, encounter accounting, or native/external gameplay UI ownership changed. Runtime UI certification remains required.
+
+# 2.7.56 — UI architecture build
+
+- Adds explicit per-screen layout policies and logical-surface context so Nuzlocke-owned screens no longer assume a fixed 160x144 canvas.
+- NUZ RULES / Setup can use a true 38-column wide composition on compatible Gen 1 hosts while retaining the same rule semantics and controls.
+- ENC TRACKER now reallocates its area/result lanes on a wide logical surface instead of scaling a 160px drawing. Gold/Silver remain on the native Gen 2 Chrome path.
+- Small confirmation and F. TOKEN flows use centered presentation policy to avoid unnecessary full-width dialogs.
+- Adds a Dev-only, read-only UI Gallery with hierarchy, tracker-state, diagnostics, and long-label stress fixtures.
+- Adds compatibility hardening for host UI width providers through their public layout contract; Nuzlocke remains functional without such providers.
+- No gameplay rule semantics, Save Schema, Randomizer algorithm/RNG stream, or seeded mapping contracts changed. Runtime UI certification remains required.
+
+# 2.7.55 — UI architecture build
+
+- Adds a Nuzlocke-owned semantic UI system with shared Gen 1 / Gen 2 header, footer, fit, status, and composition primitives.
+- Migrates Setup/NUZ RULES and ENC TRACKER headers onto the shared presentation contract while retaining their existing rule, encounter, input, and save logic.
+- Establishes exact-edition presentation context for Red, Blue, Yellow, Gold, and Silver through the same Nuzlocke UI vocabulary.
+- Keeps native/external Bag, PC, Party, Pokédex, battle, Mart, and other host presentation surfaces outside Nuzlocke UI ownership.
+- Adds compatibility-oriented presentation boundaries for alternative UI renderers; no specific third-party renderer is made authoritative for Nuzlocke gameplay.
+- Package tree is 31 files because the promoted shared UI system is isolated in its own module; 31 files / 21 Lua is the new canonical package contract.
+- No gameplay rule semantics, Save Schema, Randomizer algorithm/RNG stream, or seeded mapping contracts changed. Runtime UI certification remains required.
+
+- Adds a synthetic, read-only external-save reconciliation regression audit covering adjacent PC-locked party entries, persistent-death HP restoration, and external party-size over-cap detection.
+- Adds Release Safety detection for accidental calls to later `local function` helpers without an explicit forward declaration; this guards the historical implicit-global/forward-reference failure shape without modifying `_G` or `_ENV`.
+- Documents Encounter Tracker display evidence precedence directly in `getTrackerMapRows`: tracker log > failed encounter state > caught-areas legacy fallback > unknown.
+- Repairs inherited Release Safety immediate-parent constants so executable and independent provenance both identify exact 2.7.53.
+- No gameplay rule semantics or Randomizer seeded contracts changed.
+
+# 2.7.53
+
+- Replaces the binary Safari Splits presentation with **Safari Clause**: STANDARD, PER AREA, UNTIL CATCH, and AREA+CATCH.
+- Existing persisted values 0/1 retain their exact old whole-zone/per-area behavior.
+- UNTIL CATCH modes suppress Safari failed-encounter consumption only; successful catches still consume the projected Safari slot normally.
+- Tracker/catch projection remains live and deterministic across whole-zone/per-area changes.
+
+- Phase J #10: adds a read-only full seed reproducibility matrix across every named Randomizer stream using synthetic fixed seeds, repeated-input checks, and cross-stream isolation checks.
+- Phase J #11: adds Randomizer release/documentation contract auditing and Release Safety build-marker reconciliation across the primary shipped documentation.
+- Runtime certification remains deferred to Phase J #12.
+
+## 2.7.51
+- Phase J #7–9: Randomizer performance, save-schema/migration, and BLIND/OPEN information-leak certification audits.
+- Added read-only certification surfaces; no new randomized gameplay surface.
+
+## 2.7.50
+
+- Phase J #4: added read-only progression-safety certification for key/story/quest/HM/provider-protected item contracts and existing economy/evolution safety audits.
+- Phase J #5: added a declarative Randomizer x Nuzlocke-rule interaction matrix and audit covering capture rules, PKMN BAN, Maximum BST starter exemption, level/difficulty composition, and No Buying/No Selling/No TMs ownership.
+- Phase J #6: added read-only provider/delegation certification across all nine Randomizer subsystems and live-registry projection ownership contracts.
+- Runtime gameplay/provider certification remains separate and is not claimed.
+
+# 2.7.50
+
+- Phase J #1: added a read-only static determinism audit for RNG stream registry/isolation and canonical sorted species/move candidate pools.
+- Phase J #2: added a read-only save/reload determinism audit covering every persisted Randomizer source-map bucket and the authoritative persisted-mapping policy.
+- Phase J #3: added cross-edition determinism auditing and fixed the deferred Silver Field Item ALLOW identity debt. Gold preserves the historical `gold:` namespace; fresh Silver ALLOW placements now use `silver:`. Existing persisted mappings remain authoritative.
+- No Randomizer algorithm version or existing stream name changed. Exact-edition runtime certification remains required.
+
+# 2.7.48
+
+- Randomizer Phase I #10-12: explicit mid-run setting-change policy, comprehensive seed reproducibility reporting, and a whole-Randomizer read-only regression harness.
+- Existing materialized source mappings remain authoritative after mid-run setting changes; unseen sources use current settings and drift is reported against the immutable run-start contract.
+- Corrected executable/release-safety immediate-parent provenance to exact 2.7.47.
+
+## 2.7.47 — Randomizer Phase I #7–9
+
+- Unified OPEN/BLIND spoiler ownership across Randomizer information surfaces; BLIND now authoritatively suppresses requested species/item reveals.
+- Hardened provider delegation across all nine Randomizer subsystems and fixed subsystem ownership detection to recognize the provider ownership records returned by the compatibility layer.
+- Integrated Randomizer presets with both staged NEW GAME Setup and live rules through the same provider-aware configuration path; added a read-only Phase I integration audit.
+- Expanded the Randomizer compatibility snapshot from the original four systems to all nine current subsystems.
+
+# Nuzlocke 2.7.46 — Randomizer Phase I #4–6
+
+Strict child of exact 2.7.45 (`9cfc18508b24cafce9bc3205b5c47784873c199ac8bb5f34d17db776eb10dfe9`). Continues Randomizer Integration & Presets with a read-only cross-randomizer compatibility matrix/audit, an eight-digit seed share/import presentation contract, and deterministic subsystem version reporting. These additions consume no RNG and do not rename existing streams or rewrite persisted mappings. Phase I #7–12 remain.
+
+# Nuzlocke 2.7.45 — Randomizer Phase I #1–3
+
+Strict child of exact 2.7.44 (`c435d2f4247bb4a9d4a72a44695121f657f0aa9fb84dcd74864b4dfadbeff254`). Begins Randomizer Integration & Presets. Adds a unified CUSTOM/CHAOS/BALANCED Randomizer preset layer, a read-only subsystem ownership registry that preserves external-provider delegation, and shared Species Pool semantics for Starter/Encounter/Trainer/Evolution randomizers. Presets are deterministic convenience configuration only: they do not change the shared seed or existing RNG stream names/versions, and manual child edits return the preset to CUSTOM. Phase I #4–12 remain.
+
+# 2.7.44 — Randomizer Phase H #10–12
+
+Strict child of exact 2.7.43. Completes Phase H implementation/certification scaffolding: Gold/Silver Pack and item-PC transfers remain native identity/quantity moves and never reroll randomized acquisitions; Randomizer Info gains read-only Shop/TM/Gift mapping coverage with BLIND suppression; and an executable economy/progression regression audit checks diagnostic immutability, authoritative No Buying/No Selling/No TMs ownership, progression protection, native pricing, and Gen2 storage non-reroll contracts. Exact-edition runtime cases remain required before Runtime PASS.
+
+# 2.7.43
+
+- Randomizer Phase H #7–9: NPC reward-item projection, centralized key/progression exclusions, and No Buying / No Selling / No TMs interaction hardening.
+- Dedicated reward command adapters preserve native quantity/flags/capacity/transaction ownership and fail closed through the shared protected-item classifier.
+- Random Shops remains content-only before purchase/sale gates; Random TMs remains content-only before TM-use legality.
+
+# 2.7.43
+
+- Randomizer Phase H #4–6: adds deterministic TM-content randomization, explicit TM compatibility policy (MOVE/SLOT/FULL), and ordinary scripted gift-item randomization. TM identity, HMs, key/progression items, quantities, script flags, inventory capacity, and native transaction ownership remain protected. Gift rewards with dedicated/non-GIVEITEM seams remain Phase H #7. Phase H #7–12 remain pending.
+
+# 2.7.41
+
+- Randomizer Phase H #1–3: adds deterministic ordinary Mart stock randomization through a new isolated SHOPS stream, PRICE TIER/BALANCED semantic shop policies, and hard economy safety that preserves native item prices and transaction ownership. Key/progression items, HMs, TMs, and Gen2 Bargain Shop custom-price rows remain authored. Phase H #4–12 remain pending.
+
+# 2.7.40
+
+- Randomizer Phase G #10-11: Starter, Trainer, and Encounter evolution classifiers remain anchored to immutable authored topology; added read-only evolution diagnostics/audits. Phase G #12 remains deferred.
+
+## 2.7.39
+
+Strict child of exact 2.7.38. Implements Randomizer Phase G #7–9: split evolutions prefer distinct hard-safe targets, while evolution method/trigger metadata is treated as immutable target-adjacent data. Level, stone/item, trade, friendship, and Gen2 time/stat-specific conditions remain authored; a projection guard restores the authored row if any non-target trigger metadata changes. Existing single-row seeded evolution identities remain unchanged. Phase G #10–12 remain later work.
+
+# Changelog
+
+## 2.7.38
+Strict child of exact 2.7.37 (`cd22c7378b77cf5e9e7916195bd9cf30566b663bfee268d3f6211692ee58dd27`). Implements Randomizer Phase G #4–6: prevents newly-created evolution cycles/self-evolutions, adds original-chain DEPTH preservation, and adds SIM BST/BALANCED target selection with deterministic relaxation. Hard-safe construction and acyclic topology are never relaxed. Also fixes evolution-only Randomizer seed/info visibility and prevents Evolution Randomizer from exposing Trainer-only child settings. Phase G #7–12 and all deferred #12 certification remain pending.
+
+## 2.7.37
+
+Strict child of exact 2.7.36 (`e0350c60c95584241c0b965f9e9668c259aa3ffc5b7e16aa6dc3ba560d27c3b7`). Begins Randomizer Phase G with steps #1–3: immutable original evolution topology, deterministic evolution-target projection using an isolated EVOLUTIONS stream and exact-edition/species/row identities, and hard-safe constructible target selection. Evolution source species and native trigger metadata remain unchanged; starter/rival lineage reads the original topology. Existing Randomizer algorithm v1 streams are not perturbed. Phase G #4–12 and subsystem #12 runtime certification remain deferred.
+
+## 2.7.36
+
+- Advances Randomizer Phase F through steps 10–11: boss specialization and Difficulty/trainer-party provider composition hardening.
+- Boss TYPE themes now anchor on the authored ace; non-CHAOS boss balance softly avoids replacements below 90% of authored BST when a qualifying hard-safe candidate exists.
+- Reorders the Random Trainers composition seam so base/provider parties resolve first and built-in Difficulty transforms the randomized species afterward, keeping Difficulty-generated moves/items/stats coherent with the final species.
+- Leaves Phase F #12 exact-edition regression certification deferred.
+
+## 2.7.35
+
+- Advances Randomizer Phase F through steps 7–9: trainer-team diversity, optional type cohesion, and rival starter synchronization under simultaneous Random Starter + Random Trainers.
+- Adds Trainer Diversity (OFF / DIVERSE / UNIQUE) and Trainer Theme (OFF / TYPE). Enabled team policy uses a versioned `tt1` namespace; both OFF preserve the 2.7.34 mapping path.
+- Canonical rival starter-family members now bypass independent Trainer-stream replacement while Random Starter owns their lineage, including the no-op case where the synchronized species equals the authored species.
+- Party size, order, levels, hard legality, PKMN BAN, and Trainer Balance remain preserved. Phase F #10–12 remain pending.
+
+## 2.7.34
+
+- Advances Randomizer Phase F through steps 4–6: hard trainer species-pool legality, evolutionary-stage scaling, and BST/power balancing.
+- Adds Trainer Balance: CHAOS / EVO / SIM BST / BALANCED. CHAOS preserves the 2.7.33 mapping/seed input; non-CHAOS modes use a versioned trainer-policy namespace.
+- Trainer hard safety rejects reserved/missing/glitch/runtime-unsafe species and honors PKMN BAN without incorrectly applying player-only acquisition restrictions to enemy teams.
+- Repairs the inherited 2.7.33 manifest/runtime build-identity mismatch and fixes RNG status visibility for trainer-only randomizer runs.
+- Phase F #7–12 remain pending.
+
+## 2.7.33
+
+- Began Randomizer Phase F with steps 1–3: stable exact-edition trainer-party source identities, isolated deterministic trainer-species replacement, and preservation of party size/order/levels and trainer/story identity.
+- Added the dedicated `TRAINERS` RNG stream and persisted trainer-slot source map without changing existing randomizer stream names or established seeded inputs.
+
+# 2.7.32 — Gold help-position cues + feedback style contract
+
+- Adds an above-position `^` cue when Gold long-help text is scrolled below the first wrapped-line position.
+- Keeps the native Gold down-arrow whenever additional wrapped lines remain below.
+- Adds a compact exact scroll-position counter to the Gold help footer (`SEL:MORE n/N`, `SEL:TOP N/N`).
+- Explicitly documents that the counter reports line-scroll positions, because Select advances one wrapped line rather than one four-line page.
+- Adds a shared rule-feedback language contract covering mechanical blocks, state explanations, World Building flavor, critical/T0 feedback, and configuration descriptions.
+- No Randomizer behavior changes; the deferred Learnset policy-alias and Gold 3-STAGE Starter Style bugs remain pending.
+
+# 2.7.31 — Gold help paging repair
+
+- Makes Gold Select-alone help scrolling use the same native `Chrome.wrap()` text and 4-line geometry as the renderer.
+- Adds visible `SEL:MORE` and `SEL:TOP` paging hints in the Gold help pane.
+- Preserves Select+Up/Down section jumping and all existing A/Left/Right rule editing.
+- Centralizes dynamic description text used by paging/rendering so Locke Type summaries and Permanent Rule Seal warnings cannot calculate a different scroll range from what is displayed.
+- Repairs malformed duplicate quote characters in the inherited 2.7.30 provenance SHA literals while updating lineage to exact 2.7.30.
+- No Randomizer behavior changes; the Gold 3-STAGE Starter Style issue remains pending.
+
+# 2.7.30 — Randomizer Phase E items 10–11
+
+- Centralizes learnset species/row safety for provider-owned/protected content and live move hard-safety.
+- Keeps Gen1 `level1Moves`/`learnset` and Gen2 `levelMoves` as the single projected source used by normal evolution/level-up/relearn consumers.
+- Adds spoiler-aware read-only Learnset diagnostics and a no-mutation diagnostic audit.
+- Advances Learnset policy namespace to `lp4`; existing legal prior mappings remain migration candidates.
+- Phase E #12 remains pending.
+
+# 2.7.29 — Randomizer Phase E items 7–9
+
+- Adds early-game learnset move-quality floors as deterministic soft weighting: usable early damaging moves are favored while every hard-safe candidate remains reachable.
+- Adds explicit Learnset STAB control: OFF / PREFER / STRONG. PREFER preserves the established mild same-type affinity; STRONG increases it without becoming a hard requirement.
+- Adds progression-aware damaging-move power scaling using authored slot power when available blended with a conservative learn-level curve.
+- Advances the Learnset policy namespace to `lp3`; legal earlier mappings remain migration candidates under the existing stable-choice migration contract.
+- Expands the Phase E foundation audit for STAB modes, early quality, and progression power.
+- Phase E #10–12 remain pending.
+
 # 2.7.28 — Gen2 boot/title repair
 
 - Fixes the inherited Gen2 late-runtime dependency-order failure by materializing shared rule-message helpers before `late_runtime.lua` loads.
@@ -431,7 +1030,7 @@ Strict child of exact 2.6.68. DEV TOOLS now labels its first action `RUN TESTS`,
 
 # 2.6.66 — Save migration helper-scope recovery
 
-Recovery child of exact 2.6.57. Yellow 2.6.65 runtime diagnostics identified the migration safe-stop cause: semantic/permanent rule-lock reconciliation called bare global `saveWritePauseReason`, which is nil because the helper is exported as `mod.exports.__beta26.saveWritePauseReason`. All three remaining bare runtime call sites were corrected to the qualified export, including Randomizer Runtime, Classic UI, and Late Runtime dependency injection. Release Safety now rejects reintroduction of a bare save-pause helper call. The safe-stop itself is unchanged.
+Recovery child of exact 2.6.57. Yellow 2.6.65 runtime diagnostics identified the migration safe-stop cause: semantic/permanent rule-lock reconciliation called bare global `saveWritePauseReason`, which is nil because the helper is exported as `mod.exports.__beta26.saveWritePauseReason`. All three remaining bare runtime call sites were corrected to the qualified export, including Randomizer Runtime, Classic UI, and Late Runtime dependency injection. Release Safety now rejects reintroduction of a bare save-pause helper call. The safe-stop itself was unchanged during build development.
 
 # 2.6.65 — Lua unpack runtime compatibility recovery
 
@@ -1519,7 +2118,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 - The slate avoids duplicate choices whenever another legal candidate exists while remaining preview-order independent.
 - Added a dedicated `STARTER_SLATE` deterministic namespace/version so this repair does not reshuffle Random Encounters or Random Learnsets.
 - Elm POKEPIC/CRY rewrites are now non-mutating: shared generated command/operand tables remain vanilla and only per-dispatch shallow copies carry the randomized species.
-- The accepted starter is still committed only at the real GIVEPOKE transaction; starter nickname behavior is unchanged.
+- The accepted starter is still committed only at the real GIVEPOKE transaction; starter nickname behavior was unchanged during build development.
 
 ## 2.5.31-DEV
 
@@ -1842,7 +2441,7 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 ## 2.4.95-DEV
 - Field-item rejection messages are now blocking, paginated, and A-driven.
 - Fix targets include No Field Heal and No Rare Candy.
-- Battle item rejection behavior is unchanged.
+- Battle item rejection behavior was unchanged during build development.
 
 ## 2.4.94-DEV
 - Fixed stale R/B/Y field-command sessions allowing No Mom Heal to stop enforcing after command rebinding.
@@ -2382,12 +2981,12 @@ No gameplay, save-schema, compatibility-API, diagnostics-API, UI, or engine-rang
 
 # Nuzlocke 2.4.24 DEV — Compatibility research update
 
-2.4.24 is the direct child of 2.4.23 DEV and intentionally changes no gameplay rule. It consolidates compatibility history into `docs/COMPATIBILITY.md` and clarifies which findings are source-reviewed versus runtime-confirmed. Save schema remains 4 and the 15-file package set is unchanged.
+2.4.24 is the direct child of 2.4.23 DEV and intentionally changes no gameplay rule. It consolidates compatibility history into `docs/COMPATIBILITY.md` and clarifies which findings are source-reviewed versus runtime-confirmed. Save schema remains 4 and the 15-file package set was unchanged during build development.
 
 ## Compatibility documentation
 
 - Expanded `docs/COMPATIBILITY.md` with version, audit type, Nuzlocke treatment, runtime status, known limitations, and re-check conditions for researched mods/tools.
-- Compatibility entries distinguish static/source review, architecture research, design inspiration, and runtime-confirmed coexistence so evidence levels are not conflated.
+- Compatibility entries distinguish static/source review, architecture/compatibility research and runtime-confirmed coexistence so evidence levels are not conflated.
 - Added current ledger entries for All Pokémon Catchable 151, Gen1Recomp Content Editor, Trainer Talk 0.2.6, Spaceworld Sprites 1.0, and Gen2-3D-Sprites / Stadium 2 Overworld Models 0.2.81, while retaining earlier audited integrations and research targets.
 - Recorded Gen2-3D-Sprites' embedded Wilds/direct overworld-capture path as a targeted Gold runtime-test requirement, especially Party Size Limit, capture legality, Ball restrictions, encounter consumption, tracker area attribution, and Nuzlocke UI coexistence. No private/internal adapter is added without a demonstrated failure.
 - Corrected stale 2.4.23 lineage comments/documentation that incorrectly named 2.4.21 as its parent; the true parent is 2.4.22.
@@ -2535,7 +3134,7 @@ Direct child of 2.4.16 DEV.
 ## Scope / validation
 
 - No other backlog feature was implemented.
-- Save schema remains 4 and the package file set is unchanged.
+- Save schema remains 4 and the package file set was unchanged during build development.
 - Source/static validation only until R/B/Y and Gold runtime tests confirm ON/OFF behavior.
 
 ---
@@ -2549,12 +3148,12 @@ Direct child of 2.4.15 DEV.
 - R/B/Y numeric rule edit mode no longer hides its control instructions behind unreachable draw logic.
 - The edit hint is now rendered inside the selected numeric-rule branch, where `editingNumber` can actually be true.
 - Numeric edit controls themselves are unchanged: Left/Right select a digit, Up/Down change the value, A confirms, and B backs out.
-- Gold's already-working edit-mode hint path is unchanged.
+- Gold's already-working edit-mode hint path was unchanged during build development.
 
 ## Validation
 
 - Static/syntax smoke only; runtime R/B/Y UI confirmation remains TEST REQUIRED.
-- Save schema remains 4 and package file set is unchanged.
+- Save schema remains 4 and package file set was unchanged during build development.
 
 ---
 
@@ -2698,7 +3297,7 @@ Direct child of 2.4.8 RC.
 - Direct child of 2.4.6 RC.
 - Added `gen1_modern_ui` and `gen_2_randomizer_plus` to `optional_dependencies`; both are actively discovered with `mod.find`.
 - They remain optional integrations.
-- Chuck → Pryce → Jasmine progression is documented intentional behavior and is unchanged.
+- Chuck → Pryce → Jasmine progression is documented intentional behavior and was unchanged during build development.
 - No unrelated gameplay changes.
 
 ---
@@ -2722,7 +3321,7 @@ Direct child of 2.4.8 RC.
 - Individual quest/source mods retain their own content and reward ownership.
 - MOD COMPAT adds QUEST UI and QUEST DATA ownership rows.
 - No named-mod gameplay enforcement branches added.
-- Wide Menus runtime PASS remains protected and its integration code is unchanged.
+- Wide Menus runtime PASS remains protected and its integration code was unchanged during build development.
 - Runtime testing required before publication.
 
 ---
@@ -2847,7 +3446,7 @@ Direct child of 2.4.8 RC.
 - Added semantic translation source/catalog exports for Nuzlocke-owned UI strings.
 - Added generic `nuzlocke_ui` screen ownership metadata for rules, tracker, and MOD COMPAT presenters.
 - Consolidated compatibility documentation and source/release/runtime-evidence terminology.
-- Reviewed current compatibility behavior/lessons for Pokémon Snag, Too Many Balls, Translation Generator, Shiny Pokémon, Weather FX, Gen 3 Inspired UI, Advanced Box System, Pokédex Plus, and historical IronMON / Enemy HP evidence.
+- Compatibility-audited current behavior for Pokémon Snag, Too Many Balls, Translation Generator, Shiny Pokémon, Weather FX, Gen 3 Inspired UI, Advanced Box System, Pokédex Plus, and historical IronMON / Enemy HP evidence.
 
 ### Gold
 - Fixed Gold Egg Encounter / Bug Contest selectors.
@@ -3063,7 +3662,7 @@ Confirmed during the 2.3.13–2.3.35 development line:
 
 - Direct child of 2.3.22 RC.
 - Consolidated the compatibility documentation into one current status table.
-- Normalized current reviewed entries for Pokemon Snag 0.15.9, Too Many Balls 0.6.1, Translation Generator 0.7.0, Shiny Pokemon 1.0.1, Weather FX 2.6.0, and Gen 3 Inspired UI Overhaul 2.0.0.
+- Normalized current compatibility-audit entries for Pokemon Snag 0.15.9, Too Many Balls 0.6.1, Translation Generator 0.7.0, Shiny Pokemon 1.0.1, Weather FX 2.6.0, and Gen 3 Inspired UI Overhaul 2.0.0.
 - Explicitly marks IronMON Ultimate and Enemy HP as historical-package-only until their current canonical upstreams can be resolved and reviewed.
 - Clarified the distinction between source-reviewed, release-reviewed, expected-compatible, runtime-PASS, and historical evidence.
 - No gameplay, UI behavior, API, save schema, package tree, or engine-range change.
@@ -3073,7 +3672,7 @@ Confirmed during the 2.3.13–2.3.35 development line:
 # 2.3.22 RC — generic UI-overhaul compatibility contract
 
 - Direct child of 2.3.21 RC.
-- Reviewed absol89's Gen 3 Inspired UI fork (1.4.1) and the current HighDrexler parent (2.0.0).
+- Compatibility-audited absol89's Gen 3 Inspired UI fork (1.4.1) and the current HighDrexler parent (2.0.0).
 - Added additive `nuzlocke_ui` API 1 describing Nuzlocke custom-screen presentation roles, state ownership, preferred layout, native fallback and semantic-adapter safety.
 - NuzlockeConfigScreen and NuzlockeTrackerScreen now carry the same generic presentation metadata on their live screen instances.
 - No Gen-3-UI-specific rule branch, gameplay ownership change, screen replacement, save-schema change, Compatibility API number change or package-tree change.
@@ -3695,7 +4294,7 @@ Confirmed during the 2.3.13–2.3.35 development line:
 - Yellow 2.1.23 runtime PASS: randomized starter message names the actual received Pokemon; randomized Sandslash appears correctly in party; Trainer Money shows the money symbol.
 - Yellow 2.1.23 runtime FAIL: selecting party NUZ INFO crashes.
 - R/B/Y NUZ INFO now renders through host-owned `ListMenu` using API-27 `getPokemonNuzInfo()` / `getNuzInfoPages()` data instead of the custom hand-drawn screen.
-- Gold NUZ INFO presentation is unchanged.
+- Gold NUZ INFO presentation was unchanged during build development.
 - Runtime retest required.
 
 ---
@@ -3722,7 +4321,7 @@ Confirmed during the 2.3.13–2.3.35 development line:
 - Logged Yellow 2.1.21 runtime FAIL: NUZ ST. and MOD COMPAT still hard-crash.
 - R/B/Y NUZ ST. now uses the host mod-facing ListMenu and presents caught/death/area/cap status plus the active-rule list.
 - R/B/Y MOD COMPAT now uses ListMenu and preserves compatibility ownership rows.
-- Removed the two failing R/B/Y paths from hand-drawn custom-state rendering/stack timing; Gold-native status/compat rendering is unchanged.
+- Removed the two failing R/B/Y paths from hand-drawn custom-state rendering/stack timing; Gold-native status/compat rendering was unchanged during build development.
 - Preserved all confirmed 2.1.19 Yellow PASS paths and 2.1.21 Gold Setup spacing.
 - Runtime validation required.
 
@@ -4863,7 +5462,7 @@ Promotion release based directly on `2.0.0-beta.30.0.0.21`.
 
 - Fixed a load-blocking Lua parser failure introduced in 30.0.0.13.
 - Root cause: the 0.1.86 title-menu compatibility fallback added enough locals to the already-large top-level `main.lua` chunk to exceed the runtime parser's local-variable ceiling.
-- Moved the complete title fallback implementation into a nested immediately-invoked function so its helper locals belong to a separate Lua function prototype instead of the top-level chunk.
+- Moved the complete title fallback implementation into a nested immediately-invoked function so its helper locals belong to a separate Lua function build instead of the top-level chunk.
 - No title-menu behavior was intentionally changed from 30.0.0.13.
 - No gameplay rules, save schema, provider behavior, randomizer behavior, or documentation file set changed.
 - Fresh Blue and Gold SETUP runtime test remains required after confirming the mod now loads.
@@ -5323,7 +5922,7 @@ Full beta release roll-up from the development line after `2.0.0-beta.29.1.0`.
 
 - R/B Random Starter selection confirmation now names the persisted randomized species, with the existing Dex preview and actual grant bound to the same roll.
 - Added protected pre-battle trainer-party preview for known runtime trainer-balance composition so Trainer Card and Encounter Log can show the actual next boss ace before the fight starts.
-- Gym Lock-In and Dungeon Lock-In moved from World to the Ironmon/Hardcore challenge section; rule behavior is unchanged.
+- Gym Lock-In and Dungeon Lock-In moved from World to the Ironmon/Hardcore challenge section; rule behavior was unchanged during build development.
 - Cleaned up the optional early Oak-lab Rival line to avoid repeating the later post-battle "toughen it up" idea.
 - Preserves Yellow in-game section glyphs and Running Shoes/QoL placement confirmed by runtime testing.
 
@@ -5353,7 +5952,7 @@ Full beta release roll-up from the development line after `2.0.0-beta.29.1.0`.
 - Route 2 uses North/South around Viridian Forest, Route 10 uses North/South around Rock Tunnel, and Route 20 uses West/East around Seafoam Islands.
 - Existing saves with the retired blanket Route Splits rule enabled carry that intent forward to all three new route toggles. Legacy split rows on every other route collapse deterministically to their parent route while preserving every tracker row and consumed encounter state, so migration cannot create free encounters.
 - The compatibility API retains the legacy `routes` field as `0` and adds independent `route_2`, `route_10`, and `route_20` mode fields without changing Nuzlocke Compatibility API 25 or save schema 4.
-- Mt. Moon and Safari split behavior is unchanged.
+- Mt. Moon and Safari split behavior was unchanged during build development.
 - Runtime migration and ON/OFF reprojection tests are required before public release.
 
 ---

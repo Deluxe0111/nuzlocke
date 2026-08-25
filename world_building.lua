@@ -400,10 +400,10 @@ return function(mod, deps)
           johto="This Kanto-only dungeon split has no Johto encounter effect.",
       },
       safari_zone_splits = {
-          t1="Safari Zone split rules are active.",
-          t2="The selected Safari sections can count as separate encounter areas.",
-          kanto="Center, East, North, and West can each get their own Safari ledger line.",
-          johto="This Kanto-only area split has no Johto encounter effect.",
+          t1="Safari Clause rules are active.",
+          t2="The selected Safari policy controls area slots and whether failures consume them.",
+          kanto="The Safari can use one slot or one per section, with an optional until-catch exception.",
+          johto="This Kanto-only Safari policy has no Johto encounter effect.",
       },
       random_starter = {
           t1="Random Starter is active.",
@@ -709,38 +709,6 @@ return function(mod, deps)
       return pool[index]
   end
 
-  local function runContextLine(game)
-      local save = game and game.save
-      if type(save) ~= "table" then return nil end
-      local badges = 0
-      if type(mod.exports.__beta26.currentGymProgressCount) == "function" then
-          local ok, n = pcall(mod.exports.__beta26.currentGymProgressCount, save)
-          if ok then badges = tonumber(n) or 0 end
-      end
-      local losses = tonumber(mod.save:get("nuzlocke_losses", 0)) or 0
-      local caught = 0
-      local history = mod.save:get("nuzlocke_history", {})
-      if type(history) == "table" then
-          for _, row in ipairs(history) do
-              if type(row) == "table" and row.status ~= "LOST"
-                  and row.status ~= "DEAD" then caught = caught + 1 end
-          end
-      end
-      if losses > 0 then
-          return tostring(losses) .. " teammate"
-              .. (losses == 1 and "" or "s") .. " lost in this run."
-      end
-      if badges > 0 then
-          return tostring(badges) .. " badge"
-              .. (badges == 1 and "" or "s") .. " earned so far."
-      end
-      if caught > 0 then
-          return tostring(caught) .. " teammate"
-              .. (caught == 1 and "" or "s") .. " recorded so far."
-      end
-      return "The run is still writing its opening chapter."
-  end
-
   -- 2.6.62: make the long-standing semantic contract explicit.  A plain
   -- enforcement explanation is mandatory player feedback, not optional World
   -- Building flavor.  OFF and T1 therefore share the explanation; T2/T3 may
@@ -757,9 +725,9 @@ return function(mod, deps)
           or rowText(row.t1, fallback or "Rule blocked."))
   end
 
-  -- T2/T3 use the same no-repeat rotation contract.  T3 appends a
-  -- read-only run-context beat when it fits the rule-independent presentation
-  -- contract; this never changes legality or gameplay state.
+  -- T2/T3 use the same no-repeat rotation contract. Run-summary context
+  -- belongs only on explicitly recap-oriented surfaces; generic rule/world
+  -- dialogue must not append an unrelated extra page.
   mod.exports.__beta26.worldFlavorText = function(game, key, tier,
       fallback2, fallback3)
       local row = mod.exports.__beta26.worldRuleCatalog[tostring(key or "")]
@@ -773,8 +741,6 @@ return function(mod, deps)
           local text = rotateDialogue(game, key, 3, row[region])
               or fallback3 or rowText(row.t2, fallback2)
               or rowText(row.t1, "Rule blocked.")
-          local context = runContextLine(game)
-          if context and context ~= "" then text = tostring(text) .. "\f" .. context end
           return Strings(text)
       end
       if tier >= 2 then
@@ -839,14 +805,18 @@ return function(mod, deps)
   end
 
   do
-      -- 2.6.18 ownership move: reconstruct the same source surface that lived
-      -- in main.lua before extraction so the lint does not lose coverage.
+      -- 2.7.60: this is a presentation/source lint, not gameplay authority.
+      -- Keep startup usable when source wording or packaging drifts; preserve
+      -- the exact report for Dev/Release Safety, which remains promotion-blocking.
       local mainSource = safeSourceRead("main.lua")
       local worldSource = safeSourceRead("world_building.lua")
       if mainSource and worldSource then
           local report = mod.exports.__beta26.deadFallbackAudit(mainSource .. "\n" .. worldSource)
-          assert(report.ok, "Nuzlocke dead-fallback lint failure: "
-              .. table.concat(report.failures, "; "))
+          mod.exports.__beta26.deadFallbackStartup = report
+          if report.ok ~= true and mod.log and type(mod.log.warn) == "function" then
+              mod.log:warn("[Nuzlocke] World Building dead-fallback lint drift: %s",
+                  table.concat(report.failures or {}, "; "))
+          end
       end
   end
 
@@ -970,7 +940,7 @@ return function(mod, deps)
       local expectedKeySet = {}
       for _, key in ipairs(expectedKeys) do expectedKeySet[key] = true end
       local report = { ok = true, failures = {}, key_count = 0,
-          resolved_combinations = 0, checksum = 0, expected_checksum = 926265119,
+          resolved_combinations = 0, checksum = 0, expected_checksum = 513036232,
           expected_key_count = #expectedKeys }
       if type(catalog) ~= "table" then
           report.ok = false
@@ -1075,8 +1045,17 @@ return function(mod, deps)
 
   do
       local report = mod.exports.__beta26.catalogSnapshotAudit()
-      assert(report.ok, "Nuzlocke catalog snapshot failure: "
-          .. table.concat(report.failures, "; "))
+      -- 2.7.59: this catalogue is presentation-only. A stale semantic golden
+      -- must never prevent the entire Nuzlocke mod from loading. Preserve the
+      -- audit result for Dev/Release Safety and emit a bounded warning instead;
+      -- Release Safety remains responsible for blocking promotion when drift is
+      -- real, while players retain a usable ruleset if documentation/flavor
+      -- text changed without an intentional golden refresh.
+      mod.exports.__beta26.catalogSnapshotStartup = report
+      if report.ok ~= true and mod.log and type(mod.log.warn) == "function" then
+          mod.log:warn("[Nuzlocke] World Building catalog snapshot drift: %s",
+              table.concat(report.failures or {}, "; "))
+      end
   end
 
   -- 2.6.62: delivery coverage complements the semantic enforcement
@@ -1143,8 +1122,11 @@ return function(mod, deps)
 
   do
       local report = mod.exports.__beta26.worldBuildingDeliveryAudit()
-      assert(report.ok, "Nuzlocke World Building delivery coverage failure: "
-          .. table.concat(report.failures, "; "))
+      mod.exports.__beta26.worldBuildingDeliveryStartup = report
+      if report.ok ~= true and mod.log and type(mod.log.warn) == "function" then
+          mod.log:warn("[Nuzlocke] World Building delivery coverage drift: %s",
+              table.concat(report.failures or {}, "; "))
+      end
   end
 
   mod.exports.__beta26.catchRejectionMessage = function(game, reason, species)
@@ -1216,8 +1198,11 @@ return function(mod, deps)
       local source = safeSourceRead("world_building.lua")
       if source then
           local report = mod.exports.__beta26.maximumBstMessageDetailAudit(source)
-          assert(report.ok, "Nuzlocke Maximum BST message detail audit failure: "
-              .. table.concat(report.failures, "; "))
+          mod.exports.__beta26.maximumBstMessageDetailStartup = report
+          if report.ok ~= true and mod.log and type(mod.log.warn) == "function" then
+              mod.log:warn("[Nuzlocke] Maximum BST presentation-detail drift: %s",
+                  table.concat(report.failures or {}, "; "))
+          end
       end
   end
 
