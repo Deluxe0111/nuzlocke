@@ -1,3 +1,14 @@
+
+## 2.8.06
+Focused Gen II presentation follow-up. NUZ STATUS and ENC TRACKER were reworked from Crystal runtime screenshots; Gen I menu layouts were deliberately left untouched. Encounter cards now retain state/species/source information and allocate more room to long area names. This release also records the post-result messaging contract: Nuzlocke feedback must not reveal an allowed action's unresolved outcome.
+# Nuzlocke 2.8.06
+
+Gen II UI cleanup follow-up plus a poison-whiteout hardening pass. Tracker, Nuz Status, Run History, and Mod Compat now use denser, bounded layouts that better fill the native 160x144 frame. Crystal party-target item use and Randomizer behavior remain unchanged from their runtime-PASS 2.8.03 implementation.
+
+# Nuzlocke 2.8.06 — Gen II UI Hardening
+
+2.8.06 is a strict child of exact 2.8.03 and focuses on the Nuzlocke-owned Gen II utility screens. NUZ STATUS, MOD COMPAT, ENC TRACKER, and DEV REPORT now share a more consistent centered-title, bounded-content, and footer layout. DEV REPORT opens on readable semantic summary data instead of opaque report-code strings. No gameplay/randomizer/item-use behavior is intentionally changed.
+
 # Nuzlocke 2.8.03 — Corrective Build
 
 2.8.03 is a strict child of exact 2.8.02. It makes another focused attempt at the unresolved Gen II party-target item transaction by owning the selected-target A press before the normal PartyMenu callback chain, and it pre-arms Gen II field-poison Whiteout/Blackout state before the native poison handler can synchronously warp.

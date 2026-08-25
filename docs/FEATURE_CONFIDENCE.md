@@ -1,3 +1,9 @@
+## 2.8.04 UI follow-up / protected runtime evidence
+
+- Crystal 2.8.03: Gen II party-target item use runtime PASS.
+- Crystal 2.8.03: Trainer Randomization runtime PASS; broader Randomizer options/sub-options observed working, with untested individual subsystems not promoted to independent PASS without direct evidence.
+- 2.8.04 changes only Nuzlocke-owned Gen II presentation/layout paths for the reported utility screens; the above gameplay paths are protected from intentional modification.
+
 # Feature Confidence — 2.8.01
 ## 2.8.01 runtime targets
 - Crystal Trainer Randomizer options: **2.8.00 FAIL / missing; 2.8.01 STATIC FIX — RUNTIME REQUIRED**.

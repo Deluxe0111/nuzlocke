@@ -872,9 +872,44 @@ return function(mod, deps)
       })
       if type(menu) == "table" then
           menu.screenId = "NuzlockeRunHistoryScreen"
-          menu.rows = mod.exports.__beta26.runtimeIsGen2(game) and 6 or 7
+          menu.rows = mod.exports.__beta26.runtimeIsGen2(game) and 8 or 7
           menu.footer = Strings("B:BACK")
-          if not mod.exports.__beta26.runtimeIsGen2(game) then
+          if mod.exports.__beta26.runtimeIsGen2(game) and type(menu.draw) == "function" then
+              -- 2.8.05: Gen II needs an actual Nuzlocke-owned framed renderer.
+              -- The generic ListMenu draw path is intentionally native/minimal and
+              -- produced the borderless RUN HISTORY screen seen in Crystal.
+              menu.draw = function(self)
+                  local Chrome = require("src.ui.gen2.Chrome")
+                  local GoldFont = require("src.render.Font")
+                  local UiSystem = mod.exports.__beta26.UiSystem
+                  UiSystem.gen2ScreenFrame(Chrome, { headerRows = 3, footerRows = 2 })
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                      "RUN HISTORY", nil, { row = 1 })
+                  local total = #(self.items or {})
+                  local rowsVisible = 8
+                  local index = math.max(1, math.min(math.max(1, total), self.index or 1))
+                  local scroll = math.max(0, math.floor(tonumber(self.scroll) or 0))
+                  if index <= scroll then scroll = index - 1 end
+                  if index > scroll + rowsVisible then scroll = index - rowsVisible end
+                  scroll = math.max(0, math.min(math.max(0, total - rowsVisible), scroll))
+                  self.scroll = scroll
+                  for slot = 1, rowsVisible do
+                      local i = scroll + slot
+                      local item = self.items and self.items[i]
+                      if not item then break end
+                      UiSystem.gen2Row(Chrome, GoldFont, {
+                          label = item.label or "",
+                          value = item.right or "",
+                          focused = i == index,
+                      }, { x = 2, y = 3 + slot - 1, rightCol = 18 })
+                  end
+                  if scroll > 0 then Chrome.cursor(18, 3, true) end
+                  if scroll + rowsVisible < total then
+                      GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
+                  end
+                  Chrome.print(Strings("B:BACK"), 7, 16)
+              end
+          else
               decorateNativeInfoList(menu, "RUN HISTORY")
           end
       end
@@ -3087,7 +3122,7 @@ return function(mod, deps)
               exportInfo = nil,
               reportScroll = math.max(0,
                   math.floor(tonumber(rememberedDev.reportScroll) or 0)),
-              reportSection = math.max(1, math.min(6,
+              reportSection = math.max(1, math.min(5,
                   math.floor(tonumber(rememberedDev.reportSection) or 1))),
               viewingReport = false,
               viewingFileInfo = false,
@@ -3434,7 +3469,7 @@ return function(mod, deps)
 
           -- 2.7.82: DEV REPORT is a semantic runtime dashboard. The old RAW
           -- machine-dump page and opaque generated codes are internal-only.
-          local DEV_REPORT_SECTIONS = { "CODE", "SUMMARY", "PROBLEMS", "HOOKS", "RULES", "RANDOM" }
+          local DEV_REPORT_SECTIONS = { "SUMMARY", "PROBLEMS", "HOOKS", "RULES", "RANDOM" }
           local function devReportSectionLines(report, rawText, width, rawFormatter)
               report = type(report) == "table" and report or {}
               local section = math.max(1, math.min(#DEV_REPORT_SECTIONS,
@@ -3596,7 +3631,7 @@ return function(mod, deps)
                   end
                   local width = mod.exports.__beta26.runtimeIsGen2(self.game)
                       and 18 or 16
-                  local visible = 7
+                  local visible = mod.exports.__beta26.runtimeIsGen2(self.game) and 11 or 7
                   local rawText = cachedReport()
                   local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                       or mod.exports.__beta26.Dev.lastExportReport
@@ -3613,7 +3648,7 @@ return function(mod, deps)
                       self.reportSection = ((self.reportSection - 1 + dir) % #DEV_REPORT_SECTIONS) + 1
                       self.reportScroll = 0
                   elseif input:wasPressed("a") then
-                      if self.reportSection == 1 then self.reportSection = 2 else refreshLiveReport() end
+                      refreshLiveReport()
                       self.reportScroll = 0
                   end
                   rememberedDev.reportScroll = self.reportScroll or 0
@@ -3628,7 +3663,7 @@ return function(mod, deps)
                       return
                   end
                   local width = mod.exports.__beta26.runtimeIsGen2(self.game) and 18 or 16
-                  local visible = 7
+                  local visible = mod.exports.__beta26.runtimeIsGen2(self.game) and 11 or 7
                   local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                       or mod.exports.__beta26.Dev.lastExportReport
                   local lines = knownIssueLines(report, width)
@@ -3652,7 +3687,7 @@ return function(mod, deps)
                   local width = mod.exports.__beta26.runtimeIsGen2(self.game)
                       and 18 or 16
                   local lines = storageInfoLines(width)
-                  local visible = 7
+                  local visible = mod.exports.__beta26.runtimeIsGen2(self.game) and 11 or 7
                   local maxScroll = math.max(0, #lines - visible)
                   if input:wasPressed("down") then
                       self.fileInfoScroll = math.min(maxScroll,
@@ -3871,20 +3906,20 @@ return function(mod, deps)
                       local rawText = cachedReport()
                       local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                           or mod.exports.__beta26.Dev.lastExportReport
-                      local lines = devReportSectionLines(report, rawText, 18, devReportDisplayLines)
-                      for i = 1, 7 do
+                      local lines = devReportSectionLines(report, rawText, 16, devReportDisplayLines)
+                      for i = 1, 11 do
                           local line = lines[(self.reportScroll or 0) + i]
                           if not line then break end
-                          Chrome.print(line, 1, 2 + i)
+                          Chrome.print(line, 2, 2 + i)
                       end
                       if self.reportScroll > 0 then
-                          Chrome.cursor(18, 2, true)
+                          Chrome.cursor(18, 3, true)
                       end
-                      if self.reportScroll + 7 < #lines then
-                          local GoldFont = require("src.render.Font")
-                          GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 12 * 8)
+                      if self.reportScroll + 11 < #lines then
+                          GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
                       end
-                      Chrome.print(Strings("L/R:PAGE B:BACK"), 3, 16)
+                      Chrome.print(Strings("L/R:PAGE"), 2, 16)
+                      Chrome.print(Strings("B:BACK"), 12, 16)
                       return
                   end
 
@@ -3893,38 +3928,38 @@ return function(mod, deps)
                       mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, "KNOWN ISSUES")
                       local report = self.liveReport or (self.exportInfo and self.exportInfo.report)
                           or mod.exports.__beta26.Dev.lastExportReport
-                      local lines = knownIssueLines(report, 18)
-                      for i = 1, 7 do
+                      local lines = knownIssueLines(report, 16)
+                      for i = 1, 11 do
                           local line = lines[(self.knownIssuesScroll or 0) + i]
                           if not line then break end
-                          Chrome.print(line, 1, 2 + i)
+                          Chrome.print(line, 2, 2 + i)
                       end
-                      if self.knownIssuesScroll > 0 then Chrome.cursor(18, 2, true) end
-                      if self.knownIssuesScroll + 7 < #lines then
-                          local GoldFont = require("src.render.Font")
-                          GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 12 * 8)
+                      if self.knownIssuesScroll > 0 then Chrome.cursor(18, 3, true) end
+                      if self.knownIssuesScroll + 11 < #lines then
+                          GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
                       end
-                      Chrome.print(Strings("UP/DN B:BACK"), 4, 16)
+                      Chrome.print(Strings("UP/DN"), 2, 16)
+                      Chrome.print(Strings("B:BACK"), 12, 16)
                       return
                   end
 
                   if self.viewingFileInfo then
                       local GoldFont = require("src.render.Font")
                       mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, "STORAGE INFO")
-                      local lines = storageInfoLines(18)
-                      for i = 1, 7 do
+                      local lines = storageInfoLines(16)
+                      for i = 1, 11 do
                           local line = lines[(self.fileInfoScroll or 0) + i]
                           if not line then break end
-                          Chrome.print(line, 1, 2 + i)
+                          Chrome.print(line, 2, 2 + i)
                       end
                       if self.fileInfoScroll > 0 then
-                          Chrome.cursor(18, 2, true)
+                          Chrome.cursor(18, 3, true)
                       end
-                      if self.fileInfoScroll + 7 < #lines then
-                          local GoldFont = require("src.render.Font")
-                          GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 12 * 8)
+                      if self.fileInfoScroll + 11 < #lines then
+                          GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
                       end
-                      Chrome.print(Strings("UP/DN B:BACK"), 4, 16)
+                      Chrome.print(Strings("UP/DN"), 2, 16)
+                      Chrome.print(Strings("B:BACK"), 12, 16)
                       return
                   end
 
@@ -3998,7 +4033,7 @@ return function(mod, deps)
                   end
                   devClassicScrollIndicators(Font, Theme,
                       self.reportScroll > 0, self.reportScroll + 7 < #lines)
-                  local reportFooter = Strings(self.reportSection == 1 and "A:SUMMARY B:BACK" or "A:REFRESH B:BACK")
+                  local reportFooter = Strings("A:REFRESH B:BACK")
                   local reportFooterWidth = type(Font.width) == "function"
                       and Font.width(reportFooter) or (#reportFooter * 8)
                   Font.draw(reportFooter, math.max(10, math.floor((160 - reportFooterWidth) / 2)), 126)
@@ -4545,90 +4580,96 @@ return function(mod, deps)
           end
 
           function self:draw()
-              -- Gold tracker presentation: native Gen 2 tile-grid chrome with
-              -- the same tracker data/model and tab semantics as R/B/Y.
+              -- 2.8.06: Gen II-only tracker cards. Long area names get two
+              -- left-column rows; the right column stacks state/species/source.
+              -- Do not expose compact O/C/F diagnostics as unexplained header text.
               if mod.exports.__beta26.runtimeIsGen2(self.game) then
                   local Chrome = require("src.ui.gen2.Chrome")
                   local GoldFont = require("src.render.Font")
+                  local UiSystem = mod.exports.__beta26.UiSystem
                   local guideEnabled = mod.save:get("area_guide_enabled", true) == true
-                  local frame = mod.exports.__beta26.UiSystem.gen2ScreenFrame(
-                      Chrome, { headerRows = 5, footerRows = 3 })
-                  local uiView = mod.exports.__beta26.UiSystem.view("TRACKER", self.game, {
-                      mode = self.tab == 1 and "LOG" or "MAP",
-                      footer = "B:BACK",
+                  UiSystem.gen2ScreenFrame(Chrome, { headerRows = 3, footerRows = 2 })
+                  local uiView = UiSystem.view("TRACKER", self.game, {
+                      mode = self.tab == 1 and "LOG" or "MAP", footer = "B:BACK",
                   })
                   mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
                       "ENC TRACKER", self.tab == 1 and "LOG" or "MAP",
                       { row = 1, subtitleRow = 2 })
-                  local summary = nuzTrackerSummary(self:trackerRows(2))
-                  Chrome.print(Strings("O%d C%d F%d", summary.open,
-                      summary.caught, summary.failed), 2, 3)
-                  mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
-                      label = Strings("AREA"), value = Strings("RESULT")
-                  }, { x = 2, y = 5, rightCol = 18 })
 
                   local rows = self:trackerRows(self.tab)
                   local listCount = #rows
-                  if listCount == 0 then
-                      Chrome.print(Strings("NO ENTRIES YET"), 2, 6)
+                  local visible = 3
+                  local maxScroll = math.max(0, listCount - visible)
+                  self.scroll = math.max(0, math.min(maxScroll, self.scroll or 0))
+                  local T = UiSystem.typography(GoldFont)
+                  local function fit(text, cells)
+                      return T.fit(Strings(tostring(text or "")), math.max(1, cells) * 8)
                   end
-                  for slot = 1, 4 do
+                  if listCount == 0 then Chrome.print(Strings("NO ENTRIES YET"), 2, 5) end
+
+                  for slot = 1, visible do
                       local i = self.scroll + slot
                       local row = rows[i]
                       if not row then break end
-                      local ty = 6 + (slot - 1) * 2
-                      local areaLabel
-                      local catch
+                      local areaLabel, catch
                       if self.tab == 1 then
-                          areaLabel = row.area == "__LEGACY__"
-                              and Strings("LEGACY") or routeName(row.area)
+                          areaLabel = row.area == "__LEGACY__" and Strings("LEGACY")
+                              or routeName(row.area)
                           catch = row.catch or {}
                       else
                           areaLabel = row.area and (row.area.name or row.area.id) or "???"
                           catch = row.catch
                       end
-                      local result = "..."
+
+                      local state, species = Strings("OPEN"), Strings("--")
                       if catch then
+                          species = catch.species and Strings(tostring(catch.species)) or Strings("--")
                           if catch.dead == true or catch.status == "DEAD" then
-                              result = Strings("DEAD %s", tostring(catch.species or "???"))
-                          elseif catch.failed then
-                              result = Strings("FAIL %s", tostring(catch.species or "???"))
-                          elseif catch.isShiny then
-                              result = "*" .. tostring(catch.species or "???")
-                          else
-                              result = tostring(catch.species or "???")
+                              state = Strings("DEAD")
+                          elseif catch.failed or catch.status == "FAILED" then
+                              state = Strings("FAILED")
+                          elseif catch.species then
+                              state = Strings("CAUGHT")
                           end
                       end
-                      mod.exports.__beta26.UiSystem.gen2Row(
-                          Chrome, GoldFont, {
-                              label = Strings(areaLabel),
-                              value = Strings(result),
-                              focused = slot == 1,
-                          }, { x = 2, y = ty, rightCol = 18, gap = 8 })
                       local context = mod.exports.__beta26.compat21
                           and mod.exports.__beta26.compat21.trackerCatchContext
                           and mod.exports.__beta26.compat21.trackerCatchContext(
-                              self.game, catch, areaLabel)
-                      if context and context.tag then
-                          Chrome.print(Strings(tostring(context.tag)), 11, ty + 1)
+                              self.game, catch, areaLabel) or nil
+                      local source = context and context.tag or
+                          (catch and (catch.encounterType or catch.source or catch.kind)) or
+                          (catch and catch.species and "WILD" or "--")
+
+                      local y = 4 + (slot - 1) * 4
+                      if slot == 1 then Chrome.cursor(1, y) end
+                      -- Left lane: area may occupy two rows instead of being crushed.
+                      local areaText = tostring(Strings(areaLabel))
+                      local first = fit(areaText, 10)
+                      Chrome.print(first, 2, y)
+                      if tostring(first) ~= areaText then
+                          -- A second bounded slice is preferable to border overflow.
+                          local rest = areaText
+                          if #areaText > #tostring(first) then
+                              rest = areaText:sub(#tostring(first) + 1):gsub("^%s+", "")
+                          end
+                          Chrome.print(fit(rest, 10), 2, y + 1)
                       end
+                      -- Right lane: all encounter facts remain visible.
+                      Chrome.print(fit(state, 7), 12, y)
+                      Chrome.print(fit(species, 7), 12, y + 1)
+                      Chrome.print(fit(source, 7), 12, y + 2)
                   end
 
-                  local maxScroll = math.max(0, listCount - 1)
-                  if self.scroll > 0 then Chrome.cursor(18, 5, true) end
+                  if self.scroll > 0 then Chrome.cursor(18, 3, true) end
                   if self.scroll < maxScroll then
                       GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
                   end
                   local cap = nextLevelCap(self.game and self.game.save)
                   Chrome.print(cap >= 100 and Strings("CAP MAX")
                       or Strings("CAP LV%d", cap), 2, 15)
-                  if self:selectedAreaCanReroll() then
-                      Chrome.print(Strings("A:RER"), 10, 15)
-                  elseif guideEnabled then
-                      Chrome.print(Strings("A:PG"), 10, 15)
-                  end
-                  mod.exports.__beta26.UiSystem.gen2Footer(
-                      Chrome, GoldFont, uiView, 16)
+                  if self:selectedAreaCanReroll() then Chrome.print(Strings("A:RER"), 10, 15)
+                  elseif guideEnabled then Chrome.print(Strings("A:PG"), 10, 15) end
+                  UiSystem.gen2Footer(Chrome, GoldFont, uiView, 16)
                   return
               end
 

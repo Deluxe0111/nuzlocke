@@ -1,3 +1,28 @@
+
+## 2.8.06
+- Gen II-only UI cleanup: redesigned NUZ STATUS hierarchy and ENC TRACKER three-row cards.
+- Tracker cards restore explicit encounter state, species, and source/type while giving long area names more room.
+- Removed cryptic compact tracker summary glyphs from the Gen II header.
+- Gen I menu layouts are intentionally unchanged.
+- Outcome-dependent Nuzlocke presentation contract: allowed actions must resolve natively before result-revealing feedback; rejection explanations remain immediate.
+## 2.8.06
+
+- Continued Gen II Nuzlocke-owned UI cleanup after Crystal runtime review.
+- ENC TRACKER LOG/MAP now uses compact one-line rows and shows more entries without wasting body space.
+- NUZ STATUS uses clearer fixed summary rows and gives AREA/LAST values the full content lane.
+- RUN HISTORY now has a framed Gen II renderer instead of the generic borderless list presentation.
+- MOD COMPAT uses compact one-line ownership rows and more of the available body.
+- Hardened the Gen II field-poison last-Pokémon whiteout path by promoting a proven wipe onto the native poison event before Gen1Recomp handles it.
+- Preserves runtime-PASS Crystal party-item use and Randomizer behavior from 2.8.03.
+
+# 2.8.06 — Gen II Nuzlocke UI hardening
+
+- Reworked the active Gen II NUZ STATUS screen around the shared Nuzlocke Chrome/title contract: centered emphasized title, separate edition subtitle, bounded label/value rows, cleaner RULES spacing, and split footer prompts.
+- Reworked Gen II MOD COMPAT into compact single-line label/owner rows with centered emphasized title, six visible rows, bounded text, and consistent footer spacing.
+- Reworked Gen II ENC TRACKER MAP/LOG spacing to use more of the 20x18 tile surface, five two-line result rows, and explicit STATE context instead of an unexplained trailing tag.
+- Reworked Gen II DEV REPORT presentation to open on semantic SUMMARY instead of exposing opaque report-code strings, use eleven bounded body rows, and apply consistent centered title/footer/navigation spacing to report, known-issues, and storage views.
+- Preserves the runtime-confirmed Crystal 2.8.03 Gen II party-item fix and Randomizer visibility/runtime fixes without changing their gameplay paths.
+
 # 2.8.03 — Gen II item/poison retry + Randomizer surface audit
 
 Strict child of exact 2.8.02 (`b9058576184a889e5a5cf8f31dc990e387fda66dead6cc25f9f11db3b29f3338`). This corrective build makes another targeted attempt at the two major Gen II runtime defects under active investigation and completes a full Gen II Randomizer configuration-surface audit.

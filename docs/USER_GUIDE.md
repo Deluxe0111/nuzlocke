@@ -497,3 +497,7 @@ Phase J has begun. The mod now exposes read-only static determinism, save/reload
 ### Why some rules disappear
 
 The Rules and Setup lists show only settings that can currently matter. Edition-specific mechanics are omitted when the active game does not have them. Child settings disappear while their parent feature is OFF, and redundant settings disappear while a stronger rule already controls the same behavior. Their saved choices are preserved and return if they become meaningful again. Compatible mods can expose specifically declared missing mechanics through Nuzlocke's compatibility capability contracts.
+
+## Gen II Nuzlocke utility-screen layout (2.8.04)
+
+Nuzlocke-owned Gold/Silver/Crystal utility screens use the shared Gen II Chrome layout. NUZ STATUS, MOD COMPAT, ENC TRACKER, and DEV REPORT reserve a centered emphasized title band, bounded body text inside the native 20x18 tile frame, and a dedicated footer row. Long labels/values are fitted to their assigned lane instead of being allowed to cross the border. DEV REPORT opens on its semantic SUMMARY view; machine-oriented report codes remain diagnostic data rather than the default player-facing page.

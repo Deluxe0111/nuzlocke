@@ -4109,7 +4109,7 @@ return function(mod, deps)
                     local input = self.game and self.game.input
                     if not input then return end
                     local names = G2.ruleNames()
-                    local visible = 3
+                    local visible = 2
                     local maxScroll = math.max(0, #names - visible)
                     if input:wasPressed("down") then
                         self.ruleScroll = math.min(maxScroll, (self.ruleScroll or 0) + 1)
@@ -4124,11 +4124,13 @@ return function(mod, deps)
   
                 function self:draw()
                     local Chrome = require("src.ui.gen2.Chrome")
-                    Chrome.clear()
-                    Chrome.box(0, 0, 20, 18)
-                    Chrome.print(Strings("NUZ STATUS "
-                        .. mod.exports.__beta26.Dev.gameLabel(self.game)), 2, 1)
-  
+                    local GoldFont = require("src.render.Font")
+                    local UiSystem = mod.exports.__beta26.UiSystem
+                    UiSystem.gen2ScreenFrame(Chrome, { headerRows = 3, footerRows = 2 })
+                    mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                        "NUZ STATUS", mod.exports.__beta26.Dev.gameLabel(self.game),
+                        { row = 1, subtitleRow = 2 })
+
                     local caught = countTrackerCatches()
                     local deaths = tonumber(mod.save:get("nuzlocke_losses", 0)) or 0
                     local lost = 0
@@ -4145,41 +4147,41 @@ return function(mod, deps)
                     local tokens = nuzStatusTokenBalance()
                     local areaLabel, areaStatus = nuzStatusEncounterSnapshot(self.game)
                     local lastEvent = nuzStatusLastHistoryEvent(self.game)
-                    local function clip18(text)
-                        text = tostring(text or "")
-                        return #text > 18 and text:sub(1, 18) or text
+                    local T = UiSystem.typography(GoldFont)
+                    local function fitRow(text)
+                        return T.fit(Strings(tostring(text or "")), 16 * 8)
                     end
-  
-                    Chrome.print(clip18(("C%d L%d D%d T%d"):format(
-                        caught, lost, deaths, tokens)), 2, 3)
-                    Chrome.print(clip18(cap >= 100 and "CAP MAX"
-                        or ("CAP LV%d"):format(cap)), 2, 4)
-                    Chrome.print(clip18("AREA " .. tostring(areaLabel)), 2, 5)
-                    Chrome.print(clip18("STATE " .. tostring(areaStatus)), 2, 6)
-                    Chrome.print(clip18("LAST " .. tostring(lastEvent)), 2, 7)
-                    Chrome.print(Strings("RULES"), 2, 9)
-  
+
+                    -- 2.8.06 Gen II-only status hierarchy: keep counters
+                    -- compact, then dedicate full-width rows to variable text.
+                    Chrome.print(fitRow(("CAUGHT %d   LOST %d"):format(caught, lost)), 2, 4)
+                    Chrome.print(fitRow(("DEATHS %d   TOKENS %d"):format(deaths, tokens)), 2, 5)
+                    Chrome.print(fitRow(cap >= 100 and "CAP MAX" or ("CAP LV%d"):format(cap)), 2, 6)
+                    Chrome.print(Strings("AREA"), 2, 8)
+                    Chrome.print(fitRow(tostring(areaLabel)), 2, 9)
+                    Chrome.print(Strings("LAST CAUGHT"), 2, 10)
+                    Chrome.print(fitRow(tostring(lastEvent)), 2, 11)
+                    Chrome.print(Strings("RULES"), 2, 13)
+
                     local names = G2.ruleNames()
-                    local visible = 3
+                    local visible = 2
                     local maxScroll = math.max(0, #names - visible)
                     self.ruleScroll = math.max(0, math.min(self.ruleScroll or 0, maxScroll))
                     if #names == 0 then
-                        Chrome.print(Strings("No rules active"), 2, 13)
+                        Chrome.print(Strings("NO RULES ACTIVE"), 2, 14)
                     else
                         for row = 1, visible do
                             local label = names[self.ruleScroll + row]
                             if not label then break end
-                            label = tostring(label)
-                            label = G2.clipStatusLabel(label, 16 * 8)
-                            Chrome.print(label, 2, 9 + row * 1)
+                            Chrome.print(fitRow(label), 2, 13 + row)
                         end
                     end
-                    if self.ruleScroll > 0 then Chrome.cursor(18, 10, true) end
+                    if self.ruleScroll > 0 then Chrome.cursor(18, 13, true) end
                     if self.ruleScroll + visible < #names then
-                        local Font = require("src.render.Font")
-                        Font.drawCode(Chrome.DOWN_ARROW, 18 * 8, 13 * 8)
+                        GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 15 * 8)
                     end
-                    Chrome.print(Strings("A:HIST B:EXIT"), 2, 16)
+                    Chrome.print(Strings("A:HIST"), 2, 16)
+                    Chrome.print(Strings("B:EXIT"), 12, 16)
                 end
 
                 -- 2.5.66: Silver uses the same Gen 2 status screen as Gold, but
@@ -4233,8 +4235,11 @@ return function(mod, deps)
                         end
                         pcall(function()
                             local Chrome = require("src.ui.gen2.Chrome")
-                            Chrome.clear(); Chrome.box(0, 0, 20, 18)
-                            Chrome.print(Strings("NUZ STATUS ERROR"), 2, 1)
+                            local GoldFont = require("src.render.Font")
+                            mod.exports.__beta26.UiSystem.gen2ScreenFrame(Chrome,
+                                { headerRows = 3, footerRows = 2 })
+                            mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                                "NUZ STATUS", "ERROR", { row = 1, subtitleRow = 2 })
                             local detail = tostring(failure and failure.detail or "unknown")
                             detail = detail:gsub("^.-:%s*", "")
                             if #detail > 72 then detail = detail:sub(1, 72) .. "..." end
@@ -4644,6 +4649,16 @@ return function(mod, deps)
                             and not hasHealthyParty(game)
                         local nativeWipeBefore = type(event) == "table"
                             and event.whiteout == true
+                        -- 2.8.05 / Discord report: if Nuzlocke can already prove
+                        -- the poison tick removed the final usable party member,
+                        -- promote that fact onto the native event before the
+                        -- engine handler runs. This lets Gen1Recomp's own poison
+                        -- script take its whiteout/warp branch instead of simply
+                        -- returning to overworld play with event.whiteout=false.
+                        if predictedWipe and type(event) == "table" then
+                            event.whiteout = true
+                            nativeWipeBefore = true
+                        end
                         local prearmedWipe = false
                         if self and active(game, nil)
                             and (predictedWipe or nativeWipeBefore) then
@@ -6113,8 +6128,8 @@ return function(mod, deps)
                     if requestGen2OwnerCycle(1) then return end
                 end
                 if self.index <= self.scroll then self.scroll = self.index - 1 end
-                if self.index > self.scroll + 5 then self.scroll = self.index - 5 end
-                local maxScroll = math.max(0, count - 5)
+                if self.index > self.scroll + 10 then self.scroll = self.index - 10 end
+                local maxScroll = math.max(0, count - 10)
                 self.scroll = math.max(0, math.min(maxScroll, self.scroll or 0))
                 rememberedCompat.index = self.index or 1
                 rememberedCompat.scroll = self.scroll or 0
@@ -6123,23 +6138,38 @@ return function(mod, deps)
                 local rows = mod.exports.__beta26.compat21.surfaceRows(self.game)
                 if mod.exports.__beta26.runtimeIsGen2(self.game) then
                     local Chrome = require("src.ui.gen2.Chrome")
-                    Chrome.clear()
-                    Chrome.box(0, 0, 20, 18)
-                    Chrome.print(Strings("MOD COMPAT"), 2, 1)
-                    for slot = 1, 5 do
+                    local GoldFont = require("src.render.Font")
+                    local UiSystem = mod.exports.__beta26.UiSystem
+                    UiSystem.gen2ScreenFrame(Chrome, { headerRows = 3, footerRows = 2 })
+                    mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                        "MOD COMPAT", nil, { row = 1 })
+                    local compactLabels = {
+                        ["STARTER RNG"] = "START RNG", ["ENCOUNTER RNG"] = "ENC RNG",
+                        ["LEARNSET RNG"] = "LEARN RNG", ["TRAINER MONEY"] = "TRNR MONEY",
+                        ["LEVEL CAPS"] = "LV CAPS", ["SPECIES DATA"] = "SPECIES",
+                        ["POKEMON ID"] = "PKMN ID", ["ENCOUNTERS"] = "ENCOUNTER",
+                        ["ESCAPE/WARPS"] = "ESC/WARP", ["PRESENTATION"] = "UI",
+                        ["TEXT LAYOUT"] = "TEXT",
+                    }
+                    for slot = 1, 10 do
                         local index = self.scroll + slot
                         local row = rows[index]
                         if not row then break end
-                        local y = 3 + (slot - 1) * 2
-                        if index == self.index then Chrome.cursor(1, y) end
-                        Chrome.print(Strings(row.label), 2, y)
-                        local owner = tostring(row.owner or "")
-                        if row.controlCapability then
-                            owner = owner .. " < >"
-                        end
-                        Chrome.print(Strings(owner), 2, y + 1)
+                        local y = 3 + (slot - 1)
+                        local rawLabel = tostring(row.label or "COMPAT")
+                        local translated = Strings(rawLabel)
+                        local label = translated == rawLabel
+                            and (compactLabels[rawLabel:upper()] or rawLabel) or translated
+                        local owner = tostring(row.owner or row.status or "")
+                        if owner == "Nuzlocke" then owner = "NUZ" end
+                        if row.controlCapability then owner = owner .. " <>" end
+                        UiSystem.gen2Row(Chrome, GoldFont, {
+                            label = Strings(label), value = Strings(owner),
+                            focused = index == self.index,
+                        }, { x = 2, y = y, rightCol = 18 })
                     end
-                    Chrome.print(Strings("L/R:OWNER B:BACK"), 2, 16)
+                    Chrome.print(Strings("L/R:OWNER"), 2, 16)
+                    Chrome.print(Strings("B:BACK"), 12, 16)
                     return
                 end
                 local Font = require("src.render.Font")

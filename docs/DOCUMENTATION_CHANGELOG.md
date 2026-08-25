@@ -1,3 +1,9 @@
+## 2.8.04
+
+- Documented Gen II Nuzlocke-owned utility-screen hardening for NUZ STATUS, MOD COMPAT, ENC TRACKER, and DEV REPORT.
+- Recorded that DEV REPORT no longer exposes the machine-oriented report-code page as its default/player-facing section.
+- Recorded preservation of 2.8.03 Crystal item-use and Randomizer runtime PASS evidence.
+
 # Documentation Changelog — 2.8.01
 - 2.8.01: Documented restored Gen II Trainer Randomizer controls, independent post-poison wipe detection, and the unchanged Gen II party-target item-use known issue.
 

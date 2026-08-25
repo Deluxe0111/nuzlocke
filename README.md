@@ -1,3 +1,7 @@
+## 2.8.06 Gen II UI cleanup
+
+2.8.06 is a strict child of exact 2.8.03. It is a presentation-only hardening pass for Nuzlocke-owned Gen II utility screens, focused on the spacing, title, overflow, wrapping, and unused-space problems seen at runtime in Crystal. The runtime-confirmed 2.8.03 item-use and Randomizer fixes are intentionally preserved.
+
 ## 2.8.03 corrective build
 
 2.8.03 retries the two major Gen II defects still under investigation: party-target item use after selecting a Pokémon, and last-usable-party overworld poison whiteout timing. The item path now intercepts the actual target-selection A press before compatibility callbacks; the poison path pre-arms Nuzlocke wipe state before any synchronous native warp.

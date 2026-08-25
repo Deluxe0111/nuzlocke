@@ -1,5 +1,5 @@
--- Nuzlocke 2.8.03
--- Full release, strict child of exact packaged 2.7.106. Repairs the Gen2 Pack
+-- Nuzlocke 2.8.06
+-- Full release, strict child of exact packaged 2.8.04. Repairs the Gen2 Pack
 -- party-consumable commit seam at the authoritative live party slot and retunes
 -- five-stage held UP/DOWN navigation. Protected TOOLS profile semantics, World
 -- Building T3 default, Random Starter and tracker/compat behavior remain intact.
@@ -35,14 +35,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.03",
+      build = "2.8.06",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.03",
+      manifestVersion = "2.8.06",
       setupProfileScope = "gen1",
-      parentVersion = "2.8.02",
-      parentSha256 = "b9058576184a889e5a5cf8f31dc990e387fda66dead6cc25f9f11db3b29f3338",
+      parentVersion = "2.8.04",
+      parentSha256 = "0c5f98230ac6149f7ddfe37139ab4d28dfcd94ed8e7f9ee0e6d55832b9a66676",
       compatibilityApi = 34,
       diagnosticsApi = 1,
   }
@@ -14863,8 +14863,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.8.02",
-      expectedParentSha256 = "b9058576184a889e5a5cf8f31dc990e387fda66dead6cc25f9f11db3b29f3338",
+      expectedParentVersion = "2.8.04",
+      expectedParentSha256 = "0c5f98230ac6149f7ddfe37139ab4d28dfcd94ed8e7f9ee0e6d55832b9a66676",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -25491,7 +25491,14 @@ return function(mod)
                 encounterTime = battle.nuzlockeEncounterTime,
                 roamerSpecies = battle.nuzlockeRoamerSpecies,
             })
-            mod.exports.__beta26.emitFailedEncounterFeedback(game, key)
+            -- 2.8.06: do not reveal a failed-encounter outcome while the
+            -- battle's native result presentation may still be resolving.
+            -- Queue consequential feedback for the first overworld step.
+            mod.exports.__beta26.pendingPostResultFeedback =
+                mod.exports.__beta26.pendingPostResultFeedback or {}
+            mod.exports.__beta26.pendingPostResultFeedback[#mod.exports.__beta26.pendingPostResultFeedback + 1] = {
+                kind = "failed_encounter", game = game, area = key,
+            }
         end
   
         -- 2.5.40: failed encounters resolve normally. F. TOKEN is now a
@@ -25989,6 +25996,19 @@ return function(mod)
         if currentGame then
             mod.exports.__beta26.releaseDeferredStartingBalls(currentGame)
             mod.exports.__beta26.releaseGoldDeferredStartingBalls(currentGame)
+        end
+        -- Post-result presentation contract: allowed gameplay resolves first.
+        -- Only after control returns to the overworld may outcome-dependent
+        -- Nuzlocke feedback announce what happened.
+        local pending = mod.exports.__beta26.pendingPostResultFeedback
+        if type(pending) == "table" and #pending > 0 then
+            mod.exports.__beta26.pendingPostResultFeedback = {}
+            for _, row in ipairs(pending) do
+                if row.kind == "failed_encounter" then
+                    mod.exports.__beta26.emitFailedEncounterFeedback(
+                        row.game or currentGame, row.area)
+                end
+            end
         end
     end)
   
