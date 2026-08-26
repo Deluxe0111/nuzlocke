@@ -1,3 +1,21 @@
+# Nuzlocke 2.8.31 — Release Notes
+
+## Gen II Random Starter Presentation
+
+- Preserves 2.8.30's Silver-confirmed 3-STAGE base-form filtering, randomized portrait, and actual awarded starter.
+- Fixes the Elm starter confirmation box showing only `...`.
+- Fixes the native `received` announcement temporarily naming Cyndaquil/Chikorita/Totodile instead of the randomized starter.
+- Changes presentation only; the starter transaction, story flags, rival branch, and nickname flow remain native-owned.
+
+## Runtime Test Target
+
+On Gold or Silver with Random Starter enabled, inspect an Elm ball and confirm the portrait/cry, confirmation name, `received` announcement, nickname prompt, and actual party species all agree.
+
+
+This focused update repairs two Gold/Gen II Random Starter issues. **3-STAGE** now selects base forms from genuine three-stage evolution lines instead of falling back to the unrestricted pool, and Elm's starter confirmation textbox now names the randomized Pokémon instead of displaying `...`. The randomized cry and final starter grant remain on the existing transaction-safe path.
+
+2.8.29's Crystal battle-menu and prohibited-item-denial fixes remain unchanged and runtime-protected. Gold runtime confirmation is required for the repaired starter flow.
+
 # Nuzlocke 2.8.29 — Release Notes
 
 This corrective build restores full Gen II battle-UI ownership to Gen1Recomp. The optional Nuzlocke Battle Menu UI remains available only in Red/Blue/Yellow. Gold/Silver/Crystal do not register its command-menu presentation hooks and do not expose its toggle.

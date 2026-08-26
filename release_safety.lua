@@ -91,6 +91,29 @@ return function(mod, deps)
   end
 
 
+
+  -- 2.8.31: protect the two Silver-observed Elm text repairs without
+  -- coupling them back into the already-working starter award transaction.
+  mod.exports.__beta26.gen2StarterTextFinalizationAudit = function()
+    local late = safeRead("late_runtime.lua") or ""
+    local report = { ok=true, checked=0, failures={} }
+    local required = {
+      'return self:showRaw(Strings(replacement), stay)',
+      'name == "getmonname" and type(commandVmState) == "table"',
+      '"elm_received_name_substitution"',
+      'rewrittenCmd.species = choiceIndex',
+      'mandatory.scriptKey == (ctx and ctx.scriptKey)',
+    }
+    for _, needle in ipairs(required) do
+      report.checked = report.checked + 1
+      if not late:find(needle, 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = needle
+      end
+    end
+    return report
+  end
+
   -- 2.7.94: protect the runtime-bisected Random Starter contract. The first
   -- known-bad build (2.7.45) coupled starter eligibility to the shared
   -- generation Species Pool. Starters must remain isolated from that filter

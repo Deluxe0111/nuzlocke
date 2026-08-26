@@ -1,3 +1,12 @@
+# Documentation Changelog — 2.8.31
+
+- 2.8.31: Records Silver 2.8.30 partial runtime PASS (3-STAGE base form, portrait, award) and narrows the remaining repair to Elm confirmation literal rendering plus the pre-GIVEPOKE getmonname receipt buffer.
+
+- Recorded 2.8.29 Crystal corrective runtime PASS and promotion to canonical parent.
+- Documented the Gen II 3-STAGE evolution-target field mismatch (`into` vs `species`) and style-aware stale-cache invalidation.
+- Documented Elm confirmation `rawtext` literal repair for the reported `...` textbox.
+- Kept 2.8.29 Gen II battle ownership and Wilds compatibility notes unchanged.
+
 # Documentation Changelog — 2.8.29
 
 - Recorded 2.8.28 and the prior 2.8.29 candidate as runtime-failed/quarantined.

@@ -1,3 +1,13 @@
+# Nuzlocke User Guide — 2.8.31
+
+## Gold / Gen II Random Starter
+
+With **Random Starter = ON** and **Starter Style = 3-STAGE**, each Elm ball now resolves to the **base form** of a genuine three-stage evolution line. A stale choice from an older build that no longer satisfies the selected Starter Style is discarded and regenerated from the same deterministic seed/style namespace.
+
+When inspecting an Elm starter ball, the randomized portrait/cry transaction and confirmation text use the same persisted choice. The confirmation textbox should name the randomized Pokémon rather than showing `...`. Choosing YES must grant that same species.
+
+2.8.29's native Gold/Silver/Crystal battle menu and blocked-item denial behavior remain unchanged.
+
 # Nuzlocke User Guide — 2.8.29
 
 In Gold, Silver, and Crystal, the battle command menu is always the game's native FIGHT / PKMN / PACK / RUN screen. The Nuzlocke Battle Menu UI option is Gen I-only and is not shown in Gen II Setup or NUZ RULES.

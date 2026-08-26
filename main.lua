@@ -1,5 +1,5 @@
--- Nuzlocke 2.8.29
--- Gen II battle-ownership repair, rebuilt from runtime-valid 2.8.27.
+-- Nuzlocke 2.8.31
+-- Gen II Random Starter text-finalization repair, strict child of Silver-tested 2.8.30.
 -- Battle Menu UI is Gen I-only; Gen II rule denials use the native BattleState resolving/message path
 -- instead of a Nuzlocke-owned custom battle phase. Wilds 2.2.0 hardening is ported.
 -- Historical version lineage is maintained in CHANGELOG.md and docs/DOCUMENTATION_CHANGELOG.md.
@@ -34,14 +34,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.29",
+      build = "2.8.31",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.29",
+      manifestVersion = "2.8.31",
       setupProfileScope = "gen1",
-      parentVersion = "2.8.27",
-      parentSha256 = "bc9b9646b4fa438865f7040e21acc954db9931ca8eb4264b1dc64141ac07c522",
+      parentVersion = "2.8.30",
+      parentSha256 = "7ec6a34e483d873522174c6bd24129b1b613f9ee55145278f6add17d72946858",
       compatibilityApi = 34,
       diagnosticsApi = 1,
   }
@@ -14923,8 +14923,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.8.27",
-      expectedParentSha256 = "bc9b9646b4fa438865f7040e21acc954db9931ca8eb4264b1dc64141ac07c522",
+      expectedParentVersion = "2.8.30",
+      expectedParentSha256 = "7ec6a34e483d873522174c6bd24129b1b613f9ee55145278f6add17d72946858",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",

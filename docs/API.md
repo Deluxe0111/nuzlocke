@@ -1,3 +1,7 @@
+# Nuzlocke API — 2.8.31
+
+No public API, Compatibility API, Diagnostics API, or save-schema version change. Internal Random Starter diagnostics now expose style-aware persisted-choice validation; Gen II starter lineage reads native evolution `into` targets.
+
 # Nuzlocke API — 2.8.29
 
 No public API or save-schema change. Gen II no longer registers Nuzlocke Battle Menu UI presentation hooks, and the retired Gen II battle-rule pager no longer wraps `BattleState.update`. Battle denials remain internal policy enforcement presented through native BattleState message handling.

@@ -1,3 +1,20 @@
+# 2.8.31 — Gen II Random Starter text finalization
+
+- Strict child of Silver-tested 2.8.30.
+- Preserves the runtime-confirmed 3-STAGE base-form selection, randomized starter portrait/cry, and actual GIVEPOKE award transaction.
+- Fixes Elm confirmation fallback rendering `...` by sending the one-shot randomized sentence through Vm:showRaw instead of re-feeding it to Vm:showText as though it were a generated text key.
+- Fixes the native `{PLAYER} received <starter>!` line naming the vanilla ball species by rewriting only Elm's same-script `getmonname` operand to the already-rendered randomized starter.
+- Does not mutate generated script data, story flags, yes/no flow, sound/prompt ordering, GIVEPOKE, or nickname handling.
+
+# 2.8.30 — Gold Random Starter 3-STAGE / confirmation repair
+
+- Built only from exact runtime-valid 2.8.29 (`4eb5df7fead2c88c817b2a512e828a492933edeb1fd2b225736772008d929155`).
+- Fixes Gen II Starter Style lineage parsing: native Gen II evolution rows use `into`, while the starter lineage resolver previously read only Gen I-style `species`. This made Gen II 3-STAGE appear empty and fall back to ANY, allowing middle/final forms such as Pupitar at level 5.
+- Revalidates persisted/scoped starter choices against the current Starter Style candidate pool so stale 3-STAGE fallback rolls are not resurrected after the parser fix.
+- Fixes Elm randomized confirmation substitution so the synthetic Gen II `rawtext` row carries its literal in `cmd.args[1]`, preventing the `...` missing-text fallback.
+- Does not change Gen II battle menu ownership, item-denial handling, party switching, or Wilds compatibility behavior.
+- Gold runtime test required before promotion.
+
 # 2.8.29 — Gen II native battle ownership repair
 
 - Rebuilt from exact runtime-valid 2.8.27; failed 2.8.28 and the prior 2.8.29 candidate are quarantined.

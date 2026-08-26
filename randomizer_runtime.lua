@@ -7360,8 +7360,12 @@ return function(mod, deps)
                   end
               end
               for _, evo in ipairs(type(originalRows) == "table" and originalRows or (def.evolutions or {})) do
+                  -- Gen I evolution rows use `species`; Gen II's native rows
+                  -- use `into`. Reading only `species` made every Gen II line
+                  -- look childless, so 3-STAGE fell back to the ANY pool and
+                  -- could award a middle form such as PUPITAR at level 5.
                   local target = type(evo) == "table"
-                      and tostring(evo.species or ""):upper() or ""
+                      and tostring(evo.species or evo.into or ""):upper() or ""
                   if target ~= "" and type(pokemon[target]) == "table"
                       and target ~= species then
                       children[#children + 1] = target
@@ -7573,6 +7577,24 @@ return function(mod, deps)
           and (type(specialAcquisitionDenied) ~= "function"
               or specialAcquisitionDenied(game, species, nil, "starter") == nil)
   end
+
+  -- 2.8.30: persisted/scoped starter choices must still belong to the
+  -- candidate pool produced by the CURRENT Starter Style. Older Gen II builds
+  -- misread native evolution rows (`into` as `species`), so 3-STAGE had no
+  -- preferred candidates and legitimately persisted an ANY fallback such as
+  -- PUPITAR. A bare hard-safety check would keep resurrecting that stale roll.
+  local function randomStarterChoiceValidForStyle(game, original, species)
+      species = tostring(species or ""):upper()
+      if not randomStarterChoiceValid(game, species) then return false end
+      local candidates = mod.exports.__beta26.randomStarterCandidates(
+          game, original, { record = false })
+      for _, candidate in ipairs(candidates or {}) do
+          if tostring(candidate or ""):upper() == species then return true end
+      end
+      return false
+  end
+  mod.exports.__beta26.randomStarterChoiceValidForStyle =
+      randomStarterChoiceValidForStyle
 
   local function randomStarterMap()
       local raw = mod.save:get(RANDOMIZER_SOURCE_MAPS.STARTER.saveKey, {})
@@ -7906,7 +7928,7 @@ return function(mod, deps)
       for _, original in ipairs(order) do
           local key = scope .. ":" .. original
           local choice = tostring(choices[key] or ""):upper()
-          if not randomStarterChoiceValid(game, choice)
+          if not randomStarterChoiceValidForStyle(game, original, choice)
               or (seen[choice] and not cachedRelaxed) then
               cacheHealthy = false
               break
@@ -7941,7 +7963,8 @@ return function(mod, deps)
                   }, ":")
               end
               local saved = tostring(choices[legacyKey] or ""):upper()
-              if randomStarterChoiceValid(game, saved) and not used[saved] then
+              if randomStarterChoiceValidForStyle(game, original, saved)
+                  and not used[saved] then
                   slate[original] = saved
                   used[saved] = true
               end
@@ -8588,6 +8611,24 @@ return function(mod, deps)
       if count == 0 then
           report.ok = false
           report.failures[#report.failures + 1] = "lineage_empty"
+      end
+
+      -- 2.8.30 regression tripwire for the native Gen II `into` field.
+      -- Larvitar -> Pupitar -> Tyranitar is present in the stock 251-species
+      -- registry and makes a compact proof that base/middle classification is
+      -- no longer collapsing every Gen II species to a single-stage node.
+      local pokemon = game and game.data and game.data.pokemon or {}
+      if mod.exports.__beta26.runtimeIsGen2(game)
+          and type(pokemon.LARVITAR) == "table"
+          and type(pokemon.PUPITAR) == "table"
+          and type(pokemon.TYRANITAR) == "table" then
+          report.checked = report.checked + 1
+          if lineage.threeStageBase("LARVITAR") ~= true
+              or lineage.stage("PUPITAR") ~= "middle"
+              or lineage.stage("TYRANITAR") ~= "final" then
+              report.ok = false
+              report.failures[#report.failures + 1] = "gen2_into_three_stage"
+          end
       end
       return report
   end

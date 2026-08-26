@@ -1,3 +1,9 @@
+# Nuzlocke 2.8.31
+
+2.8.31 is a focused Gen II Random Starter presentation repair built from Silver-tested 2.8.30. The 3-STAGE/base-form pool, randomized portrait/cry, and actual starter award remain unchanged. Elm confirmation fallback text now uses the VM raw-text path instead of treating a literal sentence as a generated text key, and the one same-script getmonname command feeding the native "received" line now names the randomized preview species rather than the vanilla ball species.
+
+2.8.29 Crystal native battle-menu and blocked-item denial behavior is runtime PASS and protected.
+
 # Nuzlocke 2.8.29
 
 Gen II battle command presentation is fully native. Battle Menu UI remains a Gen I-only optional feature. Gen II battle-rule denials now use the engine-owned BattleState message/resolving path and no longer install a custom BattleState update pager.

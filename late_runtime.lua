@@ -2162,7 +2162,17 @@ return function(mod, deps)
                                 local replacement = G2.randomStarterElmConfirmation(
                                     game, { vm=self }, "writetext", {}, {})
                                 if replacement then
-                                    return previousShowText(self, Strings(replacement), ...)
+                                    -- 2.8.31: Vm:showText expects a generated text-table KEY.
+                                    -- Passing the literal replacement back through showText
+                                    -- therefore resolves as missing text and renders "...".
+                                    -- The rendered Elm portrait already armed this one-shot
+                                    -- confirmation, so present the literal through Vm:showRaw
+                                    -- and preserve the native yes/no overlay ownership.
+                                    local stay = self.nextOp == "yesorno"
+                                    pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                                        "elm_confirmation_show_text_raw", state.confirmationPending
+                                            and state.confirmationPending.choice or "?")
+                                    return self:showRaw(Strings(replacement), stay)
                                 end
                             end
                             return previousShowText(self, textValue, ...)
@@ -2516,8 +2526,69 @@ return function(mod, deps)
                 G2.rewriteRandomStarterPresentation(game, ctx, name, args, cmd)
                 local elmText = G2.randomStarterElmConfirmation(game, ctx, name, args, cmd)
                 if elmText then
-                    return next(ctx, "rawtext", { elmText }, { text = elmText })
+                    -- The direct script.command path can dispatch a literal
+                    -- through the VM-only rawtext opcode.  Keep both text and
+                    -- args populated for compatibility wrappers, while current
+                    -- Gen1Recomp consumes cmd.text.
+                    return next(ctx, "rawtext", { elmText }, {
+                        op = "rawtext", args = { elmText },
+                        text = Strings.source(elmText),
+                    })
                 end
+
+                -- 2.8.31: Elm's script prints "{PLAYER} received <starter>!"
+                -- BEFORE GIVEPOKE.  The name is loaded by getmonname from the
+                -- vanilla ball operand, so the randomized givePoke transaction
+                -- cannot repair it later.  Rewrite only that one same-script
+                -- name-buffer command to the species that the rendered preview
+                -- already chose.  Story flags, ChoseStarterText, sound, prompt,
+                -- GIVEPOKE, nickname handling and the generated script row stay
+                -- native-owned.
+                if name == "getmonname" and type(commandVmState) == "table"
+                    and randomStarterRuleEnabled(game) then
+                    local mandatory = commandVmState.mandatoryStarter
+                    local sameScript = type(mandatory) == "table"
+                        and mandatory.scriptKey == (ctx and ctx.scriptKey)
+                    local original = sameScript
+                        and tostring(mandatory.original or ""):upper() or ""
+                    if original == "CHIKORITA" or original == "CYNDAQUIL"
+                        or original == "TOTODILE" then
+                        local rendered = commandVmState.renderedPreviewChoices
+                            and commandVmState.renderedPreviewChoices[original] or nil
+                        local intended = commandVmState.previewChoices
+                            and commandVmState.previewChoices[original] or nil
+                        local remembered = commandVmState.lastElmOriginal == original
+                            and commandVmState.lastElmChoice or nil
+                        local choice = randomStarterChoiceValid(game, rendered)
+                            and tostring(rendered):upper()
+                            or (randomStarterChoiceValid(game, intended)
+                                and tostring(intended):upper()
+                                or (randomStarterChoiceValid(game, remembered)
+                                    and tostring(remembered):upper() or nil))
+                        if not randomStarterChoiceValid(game, choice) then
+                            choice = mod.exports.__beta26.selectRandomStarter(game, original)
+                        end
+                        local choiceIndex = randomStarterChoiceValid(game, choice)
+                            and G2.speciesIndex(game, choice) or nil
+                        if choiceIndex then
+                            local rewrittenArgs = {}
+                            for i, value in ipairs(type(args) == "table" and args or {}) do
+                                rewrittenArgs[i] = value
+                            end
+                            rewrittenArgs[1] = choiceIndex
+                            local rewrittenCmd = {}
+                            for key, value in pairs(type(cmd) == "table" and cmd or {}) do
+                                rewrittenCmd[key] = value
+                            end
+                            rewrittenCmd.species = choiceIndex
+                            rewrittenCmd.args = rewrittenArgs
+                            pcall(mod.exports.__beta26.noteGen2AdapterReach,
+                                "elm_received_name_substitution", choice)
+                            return next(ctx, name, rewrittenArgs, rewrittenCmd)
+                        end
+                    end
+                end
+
                 if G2.skipCherrygroveTourCommand(game, ctx, name, args, cmd) then
                     return nil
                 end

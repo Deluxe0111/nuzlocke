@@ -1,3 +1,14 @@
+# Feature Confidence — 2.8.31
+
+- Silver 2.8.30 Random Starter 3-STAGE: runtime PASS for base-form filtering, randomized Bellsprout portrait, actual Bellsprout award, and later nickname species identity; receipt/confirmation text remained mismatched and is the only 2.8.31 target.
+
+- 2.8.29 Crystal native battle command UI + prohibited battle-item denial return: **runtime PASS**; protected.
+- Gold Random Starter 3-STAGE base-form filtering: **source/semantic repair; runtime required**.
+- Gold Elm randomized cry: reporter observed randomized cry before 2.8.31; preserved.
+- Silver Elm randomized confirmation text: 2.8.30 runtime FAIL (`...`); 2.8.31 literal/raw-text repair **runtime required**.
+- Gold final randomized starter grant: reporter received randomized Pupitar on 2.8.29; transaction execution is proven reachable, while corrected 3-STAGE species selection is **runtime required**.
+- Wilds 2.2.0 compatibility hardening: unchanged; coexistence runtime testing remains separate.
+
 # Feature Confidence — 2.8.29
 
 - Crystal 2.8.27: field NUZ INFO, battle-owned party cancel/switch, and Pack party-target item use **runtime PASS**.

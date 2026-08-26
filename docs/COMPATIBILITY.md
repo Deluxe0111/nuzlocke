@@ -1,3 +1,9 @@
+# Nuzlocke Compatibility — 2.8.31
+
+Gen II Random Starter now follows Gen1Recomp's native evolution-row shape (`into`) when classifying starter lineages, while remaining compatible with Gen I/provider rows that use `species`. Elm confirmation substitution supplies the current Gen II VM `rawtext` command shape without replacing GIVEPOKE ownership.
+
+2.8.29's native Gen II battle-command ownership and battle-rule denial path remain unchanged. Wilds of Kanto 2.2.0 compatibility behavior is unchanged from the reviewed 2.8.29 baseline.
+
 # Nuzlocke Compatibility — 2.8.29
 
 Gold/Silver/Crystal retain native battle command rendering and input ownership. Nuzlocke's optional Battle Menu UI hooks register only on Gen I. Gen II battle-item/capture refusals use the native `BattleState:showPages`/`resolving` path; the legacy `nuzlocke-rule-text` phase and `BattleState.update` wrapper are retired, including stale in-process wrapper sessions.
