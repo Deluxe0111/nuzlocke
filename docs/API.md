@@ -1,3 +1,25 @@
+2.8.37 full release: behavior-preserving promotion of the final corrected 2.8.36 candidate after Red standalone shiny runtime PASS; compatibility API/ownership contracts are unchanged.
+2.8.36 standalone shiny regression fix: external shiny ownership now requires a live separate provider handle before registry/API claims are trusted, preventing Nuzlocke-only runs from falsely standing down their built-in shiny system.
+# Nuzlocke API — 2.8.37
+
+## Shiny ownership / presentation
+
+`shinySystemOwner(game)` reports the active owner. `shinyExternalProvider(game)` returns a compatible external owner or nil. `nativeShinyFallbackActive(game)` reports whether Nuzlocke owns shiny gameplay. `shinyPresentationStatus(game)` reports `{ owner, external, colors, intro }` for the active presentation layer.
+
+External ownership is capability-based. The current explicit target exposes `isShiny` and `rollShiny`; future providers may explicitly claim shiny ownership while still supplying `isShiny`. Nuzlocke never requires the companion to be installed.
+
+Built-in visual presentation uses only `pokemon.sprite`, `pokemon.icon`, and `battle.overlay`. The cache path is implementation detail and is not a public content registry.
+
+# Nuzlocke API — 2.8.33
+
+No gameplay API or save-schema version change. Compatibility diagnostics add the capability name `presentation`, defaulting to `compose`. It is diagnostic/ownership metadata only: a presentation provider does not receive Nuzlocke rule, capture, encounter, randomizer, or progression authority.
+
+`potato_voxel` is an optional compatibility identity. When detected, MOD COMPAT can classify it as the presentation owner. Nuzlocke deliberately does not wrap `render.compose`, register `Gen2BattleState`, or replace native `BattleState.draw`, `drawWidescreen`, or `drawPic` as part of this contract.
+
+# Nuzlocke API — 2.8.32
+
+No public API or save-schema change. Starter Trio Typing now consumes `game.data.type_chart.matchups` when available and falls back to the legacy internal chart only when that runtime surface is absent. `steel_typing` is an optional compatibility dependency, not a required provider.
+
 # Nuzlocke API — 2.8.31
 
 No public API, Compatibility API, Diagnostics API, or save-schema version change. Internal Random Starter diagnostics now expose style-aware persisted-choice validation; Gen II starter lineage reads native evolution `into` targets.
@@ -327,3 +349,13 @@ For Nuzlocke preset design, however, the public API boundary matters: `mod.optio
 ## Experimental presentation API
 
 `nuzlocke_ui_system` apiVersion 2 is test-only. It adds screen policies and logical layout contexts. It is not yet a stable public compatibility API.
+
+## Gen1Recomp 0.2.27 catch nickname seam
+
+On 0.2.27+, Nuzlocke subscribes to `catch.nickname(mon, ctx)` for Red/Blue/Yellow catch-name policy. When Nickname Rule is active it returns `true` at the engine decision boundary and marks the mon as nickname-required; the existing naming-screen enforcement remains responsible for rejecting an empty result. The historical `battle.nickname` subscription is retained solely for supported older engine builds.
+## Shiny provider ownership detection (2.8.36 / Shiny Pokémon 1.2.7)
+
+Nuzlocke's external shiny-owner resolver prefers the existing public `nuzlocke.interop` provider registry. A `SHINY_POKEMON` registration advertising `SHINY_IDENTITY` plus `SHINY_PRESENTATION` is sufficient for Nuzlocke to stand down its own shiny generation/presentation. If registration order has not completed, Nuzlocke may read the companion's generation-neutral `exports.shiny_pokemon` / `exports.shiny_compat` API and ownership descriptors. The older top-level `isShiny` / `rollShiny` surface remains compatibility fallback only. This changes no Nuzlocke public API version.
+
+Palette/COLORS changes do not authorize Nuzlocke to invalidate engine Renderer/Assets state. Nuzlocke's custom-species fallback shiny cache is private and palette-signature-keyed instead.
+

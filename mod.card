@@ -5,7 +5,12 @@ return {
   tags = { "ruleset", "hardcore", "quality-of-life", "ui" },
   differences = {
     changed = {
-      "2.8.31 preserves the Silver-tested Gen-2 Random Starter selection/award path and fixes the two remaining Elm text surfaces: confirmation no longer falls back to ellipsis, and the native received announcement names the randomized starter instead of the vanilla ball species.",
+      "2.8.37 promotes the corrected 2.8.36 line to a full release after Red runtime PASS for standalone ALWAYS-shiny generation, species recoloring, and shiny intro presentation; the tested shiny code path is unchanged.",
+      "2.8.36 adds full provider-absent shiny presentation through current Gen1Recomp sprite/icon/overlay seams, with Shiny Colors and Shiny Intro controls and immediate full stand-down when a compatible external shiny provider owns the edition.",
+      "2.8.35 clarifies the adjacent shiny controls without changing mechanics: Shiny Clause controls catch exceptions only, while Shiny Rate controls rarity only; summaries and safety checks preserve the distinction.",
+      "2.8.34 adds explicit SHINY_POKEMON provider compatibility plus a built-in Shiny Rate fallback: Gen-I external providers own roll/presentation when healthy, provider-absent Gen I gains identity/rate semantics without DV/stat rewrites, and Gen II composes through the public shiny.roll seam.",
+      "2.8.33 adds explicit/generalized PotatoVoxel renderer compatibility: presentation ownership stays with the voxel mod while Nuzlocke keeps gameplay/rule authority, MOD COMPAT reports the provider, and Release Safety blocks Nuzlocke from seizing render.compose, Gen2BattleState, or native BattleState draw methods.",
+      "2.8.32 adds explicit live type-chart compatibility while preserving the Silver-tested Gen-2 Random Starter selection/award path and fixes the two remaining Elm text surfaces: confirmation no longer falls back to ellipsis, and the native received announcement names the randomized starter instead of the vanilla ball species.",
       "2.8.29 makes Battle Menu UI Gen-1-only at hook-registration time and replaces the Gen-2 custom battle-rule pager phase with the native BattleState refusal path; Wilds 2.2.0 compatibility observability is ported from the quarantined 2.8.28 comparison.",
       "2.8.27 removes all Nuzlocke method wrappers from Gen-2 PartyMenu so battle cancellation and direct item targeting remain native.",
       "2.8.03 retries Gen-2 party-item and field-poison wipe timing at earlier authoritative seams, and audits/restores the complete Gen-2 Randomizer parent/child configuration surface.",

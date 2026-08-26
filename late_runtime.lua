@@ -3998,11 +3998,29 @@ return function(mod, deps)
                     elseif rule.key == "shiny_clause" then
                         local mode = tonumber(value) or 0
                         if mode == 4 then
-                            label = Strings("Shiny UNLIMITED")
+                            label = Strings("Shiny Clause UNLIMITED")
                         elseif mode > 0 then
                             local used = math.max(0, math.floor(tonumber(mod.save:get("shiny_clause_used", 0)) or 0))
-                            label = Strings("Shiny %d/%d", math.max(0, mode - used), mode)
+                            label = Strings("Shiny Clause %d/%d", math.max(0, mode - used), mode)
                         end
+                    elseif rule.key == "shiny_rate_mode" then
+                        if mod.exports.__beta26.shinyExternalProvider(game) then
+                            label = Strings("Shiny Rate EXTERNAL")
+                        else
+                            local mode = tonumber(value) or 0
+                            if mode > 0 then
+                                label = Strings("Shiny Rate %s",
+                                    Strings(mod.exports.__beta26.shinyRateLabel(mode)))
+                            end
+                        end
+                    elseif rule.key == "shiny_colors" then
+                        label = mod.exports.__beta26.shinyExternalProvider(game)
+                            and Strings("Shiny Colors EXTERNAL")
+                            or (value ~= false and Strings("Shiny Colors ON") or nil)
+                    elseif rule.key == "shiny_intro" then
+                        label = mod.exports.__beta26.shinyExternalProvider(game)
+                            and Strings("Shiny Intro EXTERNAL")
+                            or (value ~= false and Strings("Shiny Intro ON") or nil)
                     elseif rule.key == "encounter_ball_limit" then
                         local limit = mod.exports.__beta26.encounterBallLimitValues[
                             tonumber(value) or 0] or 0
@@ -5381,6 +5399,14 @@ return function(mod, deps)
         add("POKEMON ID", identityOwner or "Nuzlocke",
             identityOwner and "EXTERNAL IDENTITY" or "NATIVE",
             "pokemon_identity", "Nuzlocke", true)
+        local shinyOwner = mod.exports.__beta26.shinySystemOwner(game)
+        local shinyExternal = mod.exports.__beta26.shinyExternalProvider(game)
+        add("SHINY SYS", shinyOwner,
+            shinyExternal and "EXTERNAL GEN+VISUALS"
+                or (mod.exports.__beta26.runtimeIsGen2(game)
+                    and "ENGINE SHINY.ROLL + NUZ RATE"
+                    or "NUZ FALLBACK + DV ID"),
+            nil, "Nuzlocke", false)
         local encounterOwner = compatOwner("encounters")
         add("ENCOUNTERS", encounterOwner or "Nuzlocke",
             encounterOwner and "SHARED PROVIDER" or "NATIVE",
@@ -5396,13 +5422,27 @@ return function(mod, deps)
             running and "COMPOSED HOLD-B OVERLAP"
                 or (movementOwner and "SHARED PROVIDER" or "NATIVE"),
             running and nil or "movement_speed", "Nuzlocke", false)
+        local presentationOwner = compatOwner("presentation")
+        local okVoxel, voxel = pcall(mod.find, "potato_voxel")
         local okModern, modern = pcall(mod.find, "gen1_modern_ui")
-        add("PRESENTATION",
-            okModern and modern and not mod.exports.__beta26.runtimeIsGen2(game)
-                and (modern.name or "Gen1 Modern UI") or "Nuzlocke",
-            mod.exports.__beta26.runtimeIsGen2(game)
-                and (mod.exports.__beta26.Dev.gameLabel(game) .. " NATIVE")
-                or (okModern and modern and "OPTIONAL BRIDGE" or "NATIVE"))
+        if presentationOwner then
+            add("PRESENTATION", presentationOwner, "SHARED PROVIDER",
+                "presentation", "Nuzlocke", false)
+        elseif okVoxel and voxel then
+            add("PRESENTATION", voxel.name or "PotatoVoxel",
+                mod.exports.__beta26.runtimeIsGen2(game)
+                    and "VOXEL WORLD + NATIVE GEN2 UI"
+                    or "VOXEL WORLD/BATTLE + NUZ UI",
+                nil, "Nuzlocke", false)
+        else
+            add("PRESENTATION",
+                okModern and modern and not mod.exports.__beta26.runtimeIsGen2(game)
+                    and (modern.name or "Gen1 Modern UI") or "Nuzlocke",
+                mod.exports.__beta26.runtimeIsGen2(game)
+                    and (mod.exports.__beta26.Dev.gameLabel(game) .. " NATIVE")
+                    or (okModern and modern and "OPTIONAL BRIDGE" or "NATIVE"),
+                "presentation", "Nuzlocke", false)
+        end
         local okKerning, Font = pcall(require, "src.render.Font")
         local kern = okKerning and type(Font) == "table"
             and Font._nuzlockeAdvanceOf ~= nil
@@ -6204,6 +6244,607 @@ return function(mod, deps)
         end
     end)
   
+
+    -------------------------------------------------------------------------
+    -- 2.8.36 BUILT-IN SHINY PRESENTATION
+    --
+    -- This is deliberately presentation-only. Shiny generation/identity is
+    -- owned by main.lua (Gen II through shiny.roll, Gen I after battle.started).
+    -- All art routes through Gen1Recomp's live pokemon.sprite / pokemon.icon
+    -- hooks and all battle sparkles through battle.overlay. We do NOT replace
+    -- Pokemon constructors or BattleState draw/update methods. If a compatible
+    -- external shiny provider is present, every Nuzlocke presentation hook
+    -- delegates immediately and draws nothing.
+    -------------------------------------------------------------------------
+    do
+        local shinyCacheDir = "nuzlocke-shiny-cache"
+        local shinySpriteCache = {}
+        local sparkleSessions = setmetatable({}, { __mode = "k" })
+        local SHINY_INTRO_SECONDS = 1.35
+        local SHINY_SFX = "Dex_Page_Added"
+
+        -- Official Gen II Crystal shiny mid-colors for the Gen I species.
+        -- Kept data-only inside this scoped subsystem so Nuzlocke can present
+        -- cartridge-accurate Gen I shinies without shipping ROM-derived art.
+        local OFFICIAL_SHINY = {
+          ABRA={{231,198,82},{165,74,156}}, AERODACTYL={{181,74,189},{99,74,173}},
+          ALAKAZAM={{156,156,24},{173,16,173}}, ARBOK={{148,156,90},{165,82,247}},
+          ARCANINE={{198,140,123},{156,140,8}}, ARTICUNO={{156,214,255},{107,107,181}},
+          BEEDRILL={{140,165,107},{66,57,222}}, BELLSPROUT={{165,165,57},{165,82,173}},
+          BLASTOISE={{115,173,57},{132,132,165}}, BULBASAUR={{165,231,90},{255,82,49}},
+          BUTTERFREE={{255,123,189},{123,255,0}}, CATERPIE={{222,198,49},{255,99,140}},
+          CHANSEY={{222,206,156},{107,156,8}}, CHARIZARD={{165,123,173},{66,173,115}},
+          CHARMANDER={{255,198,49},{255,132,16}}, CHARMELEON={{255,173,123},{189,74,107}},
+          CLEFABLE={{255,107,206},{66,148,0}}, CLEFAIRY={{255,107,206},{66,148,0}},
+          CLOYSTER={{165,99,231},{90,33,255}}, CUBONE={{181,181,189},{90,123,74}},
+          DEWGONG={{165,156,165},{148,90,115}}, DIGLETT={{156,90,33},{99,49,222}},
+          DITTO={{140,181,231},{74,99,222}}, DODRIO={{255,198,8},{148,132,0}},
+          DODUO={{231,189,0},{148,132,0}}, DRAGONAIR={{173,156,255},{165,123,255}},
+          DRAGONITE={{140,156,115},{156,0,115}}, DRATINI={{173,156,198},{115,90,198}},
+          DROWZEE={{198,107,222},{148,0,82}}, DUGTRIO={{156,90,33},{99,49,222}},
+          EEVEE={{156,156,173},{99,115,107}}, EKANS={{165,189,107},{74,90,41}},
+          ELECTABUZZ={{255,206,0},{148,165,0}}, ELECTRODE={{165,165,140},{74,16,231}},
+          EXEGGCUTE={{189,206,49},{156,99,74}}, EXEGGUTOR={{156,140,66},{198,115,74}},
+          FARFETCHD={{165,132,115},{99,165,8}}, FEAROW={{132,132,82},{198,140,57}},
+          FLAREON={{247,140,8},{198,74,0}}, GASTLY={{132,140,247},{41,57,90}},
+          GENGAR={{255,0,239},{123,99,189}}, GEODUDE={{198,140,123},{123,107,57}},
+          GLOOM={{255,173,41},{107,140,99}}, GOLBAT={{239,99,156},{57,123,0}},
+          GOLDEEN={{239,156,0},{247,115,0}}, GOLDUCK={{231,82,107},{57,140,247}},
+          GOLEM={{206,123,99},{156,57,24}}, GRAVELER={{189,115,99},{132,90,57}},
+          GRIMER={{132,156,8},{90,82,82}}, GROWLITHE={{189,165,57},{173,107,0}},
+          GYARADOS={{206,165,66},{222,82,41}}, HAUNTER={{82,74,222},{66,0,156}},
+          HITMONCHAN={{132,140,99},{66,24,255}}, HITMONLEE={{140,173,41},{107,66,107}},
+          HORSEA={{255,99,198},{99,123,255}}, HYPNO={{247,74,206},{148,82,107}},
+          IVYSAUR={{165,231,90},{255,198,74}}, JIGGLYPUFF={{255,140,255},{74,198,24}},
+          JOLTEON={{206,181,0},{123,123,49}}, JYNX={{115,16,123},{255,74,222}},
+          KABUTO={{189,198,165},{115,148,82}}, KABUTOPS={{156,165,90},{82,123,82}},
+          KADABRA={{231,198,82},{165,74,156}}, KAKUNA={{165,222,33},{107,140,57}},
+          KANGASKHAN={{132,132,156},{24,90,24}}, KINGLER={{173,181,74},{99,107,90}},
+          KOFFING={{132,165,206},{74,99,189}}, KRABBY={{173,165,181},{148,123,33}},
+          LAPRAS={{255,107,255},{132,90,255}}, LICKITUNG={{198,181,74},{231,74,115}},
+          MACHAMP={{115,140,90},{74,99,33}}, MACHOKE={{115,132,90},{57,49,206}},
+          MACHOP={{123,115,90},{49,66,74}}, MAGIKARP={{206,198,0},{132,132,0}},
+          MAGMAR={{255,115,247},{198,33,115}}, MAGNEMITE={{156,165,156},{165,57,57}},
+          MAGNETON={{123,132,148},{148,90,90}}, MANKEY={{156,181,90},{165,132,57}},
+          MAROWAK={{148,173,123},{115,123,33}}, MEOWTH={{255,181,99},{214,16,148}},
+          METAPOD={{231,156,107},{198,115,0}}, MEW={{148,198,255},{57,90,214}},
+          MEWTWO={{156,173,181},{123,123,0}}, MOLTRES={{255,90,115},{173,8,0}},
+          MR_MIME={{255,90,255},{140,156,0}}, MUK={{123,165,74},{82,107,24}},
+          NIDOKING={{107,140,255},{123,74,189}}, NIDOQUEEN={{255,132,255},{90,107,66}},
+          NIDORAN_F={{222,140,231},{41,140,8}}, NIDORAN_M={{148,173,255},{140,66,123}},
+          NIDORINA={{255,140,247},{49,123,82}}, NIDORINO={{165,189,255},{189,33,206}},
+          NINETALES={{222,181,206},{140,140,189}}, ODDISH={{255,214,33},{66,148,90}},
+          OMANYTE={{189,156,82},{99,90,90}}, OMASTAR={{206,231,16},{99,90,123}},
+          ONIX={{123,173,33},{115,90,57}}, PARAS={{222,156,24},{115,107,8}},
+          PARASECT={{255,173,74},{148,132,41}}, PERSIAN={{255,231,82},{231,74,222}},
+          PIDGEOT={{255,165,115},{123,140,16}}, PIDGEOTTO={{173,156,41},{156,115,41}},
+          PIDGEY={{247,231,99},{165,156,66}}, PIKACHU={{255,140,0},{165,16,90}},
+          PINSIR={{189,189,74},{90,90,123}}, POLIWAG={{214,66,140},{66,66,239}},
+          POLIWHIRL={{74,132,214},{66,82,255}}, POLIWRATH={{90,198,214},{66,140,123}},
+          PONYTA={{189,156,132},{156,107,99}}, PORYGON={{115,24,222},{99,90,206}},
+          PRIMEAPE={{189,140,49},{132,132,49}}, PSYDUCK={{173,156,255},{82,90,165}},
+          RAICHU={{173,156,165},{198,156,16}}, RAPIDASH={{181,156,165},{140,82,222}},
+          RATICATE={{189,206,123},{214,132,24}}, RATTATA={{181,189,156},{165,140,107}},
+          RHYDON={{181,173,173},{99,99,140}}, RHYHORN={{181,123,140},{123,90,107}},
+          SANDSHREW={{132,132,82},{90,66,123}}, SANDSLASH={{132,148,33},{173,49,8}},
+          SCYTHER={{140,198,0},{231,74,0}}, SEADRA={{255,90,222},{82,33,239}},
+          SEAKING={{173,222,148},{214,181,16}}, SEEL={{165,156,181},{239,57,41}},
+          SHELLDER={{198,140,57},{173,74,33}}, SLOWBRO={{173,82,255},{148,148,0}},
+          SLOWPOKE={{181,90,214},{140,0,255}}, SNORLAX={{222,181,90},{74,57,255}},
+          SPEAROW={{247,214,0},{198,107,8}}, SQUIRTLE={{107,189,66},{140,206,247}},
+          STARMIE={{239,74,90},{90,90,255}}, STARYU={{148,132,156},{66,107,247}},
+          TANGELA={{148,247,0},{140,49,49}}, TAUROS={{247,222,115},{74,115,82}},
+          TENTACOOL={{156,156,255},{66,156,107}}, TENTACRUEL={{140,165,255},{41,165,0}},
+          VAPOREON={{222,173,255},{123,82,198}}, VENOMOTH={{132,123,255},{140,49,173}},
+          VENONAT={{115,140,255},{90,41,181}}, VENUSAUR={{148,206,90},{255,181,24}},
+          VICTREEBEL={{165,189,24},{115,99,255}}, VILEPLUME={{255,173,24},{66,123,107}},
+          VOLTORB={{165,165,140},{74,16,231}}, VULPIX={{255,198,8},{181,132,8}},
+          WARTORTLE={{107,189,66},{148,156,255}}, WEEDLE={{189,222,41},{214,57,239}},
+          WEEPINBELL={{181,231,57},{156,74,156}}, WEEZING={{132,165,206},{74,99,189}},
+          WIGGLYTUFF={{255,140,255},{74,198,24}}, ZAPDOS={{255,156,0},{255,33,0}},
+          ZUBAT={{222,123,247},{82,140,49}},
+        }
+
+        local function gameNow()
+            return getCurrentGame() or mod.game
+        end
+
+        local function externalOwns(game)
+            local fn = mod.exports.__beta26.shinyExternalProvider
+            if type(fn) ~= "function" then return false end
+            local ok, provider = pcall(fn, game or gameNow())
+            return ok and provider ~= nil
+        end
+
+        local function visualRule(key, fallback)
+            if externalOwns() then return false end
+            local value = mod.save:get(key, fallback)
+            if value == nil then value = fallback end
+            return value ~= false and value ~= 0
+        end
+
+        -- Gen1Recomp 0.2.27 source revalidation + Crystal runtime safety:
+        -- the engine still carries the native queued `shiny-flash` send-out
+        -- event, and the 0.2.26 Crystal runtime failure remains relevant until
+        -- an exact-edition 0.2.27 test proves the native event safe. It can
+        -- leave both battler pictures hidden
+        -- after the animation. When Nuzlocke owns Gen-II shiny presentation,
+        -- consume only that unsafe presentation event, restore the picture
+        -- latches, then continue the native queue immediately. Our existing
+        -- battle.overlay hook supplies the optional sparkle/SFX; no draw/update
+        -- ownership is taken. If an external shiny provider owns this edition,
+        -- delegate untouched so that provider can apply its own certified fix.
+        do
+            local okBattle, Gen2BattleState = pcall(require, "src.ui.gen2.BattleState")
+            if okBattle and type(Gen2BattleState) == "table"
+                and type(Gen2BattleState.advanceQueue) == "function"
+                and not Gen2BattleState.__nuzlockeShinyFlashSafety2836 then
+                local originalAdvanceQueue = Gen2BattleState.advanceQueue
+                Gen2BattleState.advanceQueue = function(self, ...)
+                    local game = type(self) == "table" and self.game or gameNow()
+                    local isGen2 = false
+                    local gen2Fn = mod.exports.__beta26.shinyRuntimeIsGen2
+                    if type(gen2Fn) == "function" then
+                        local okGen2, yes = pcall(gen2Fn, game)
+                        isGen2 = okGen2 and yes == true
+                    end
+                    if isGen2 and not externalOwns(game) then
+                        local nextEvent = type(self) == "table"
+                            and type(self.queue) == "table" and self.queue[1] or nil
+                        if type(nextEvent) == "table"
+                            and nextEvent.kind == "shiny-flash" then
+                            table.remove(self.queue, 1)
+                            if type(self.picHidden) == "table" then
+                                self.picHidden.enemy = false
+                                self.picHidden.player = false
+                            end
+                            self.__nuzlockeShinyFlashSuppressed = true
+                            return originalAdvanceQueue(self, ...)
+                        end
+                    end
+                    return originalAdvanceQueue(self, ...)
+                end
+                Gen2BattleState.__nuzlockeShinyFlashSafety2836 = true
+                mod.exports.__beta26.gen2ShinyFlashSafetyStatus = {
+                    installed = true,
+                    audited_engine = "0.2.27",
+                    mode = "advance_queue_only",
+                    restores_picture_latches = true,
+                    owns_draw = false,
+                    owns_update = false,
+                    runtime_certified_0_2_27 = false,
+                }
+            elseif mod.exports.__beta26.gen2ShinyFlashSafetyStatus == nil then
+                mod.exports.__beta26.gen2ShinyFlashSafetyStatus = {
+                    installed = false,
+                    audited_engine = "0.2.27",
+                    mode = "unavailable_or_already_owned",
+                    restores_picture_latches = false,
+                    owns_draw = false,
+                    owns_update = false,
+                    runtime_certified_0_2_27 = false,
+                }
+            end
+        end
+
+        local function monShiny(mon)
+            if type(mon) ~= "table" then return false end
+            if type(mon.shiny) == "boolean" and mon.shiny then return true end
+            local ok, value = pcall(Identity.isShiny, mon)
+            return ok and value == true
+        end
+
+        local function hashText(text)
+            local h = 2166136261
+            text = tostring(text or "")
+            for i = 1, #text do
+                h = (h * 16777619 + text:byte(i)) % 4294967296
+            end
+            return string.format("%08x", h)
+        end
+
+        local function clampByte(n)
+            n = tonumber(n) or 0
+            if n < 0 then return 0 end
+            if n > 255 then return 255 end
+            return math.floor(n + 0.5)
+        end
+
+        local function rgbToHsv(r, g, b)
+            r, g, b = r / 255, g / 255, b / 255
+            local mx, mn = math.max(r, g, b), math.min(r, g, b)
+            local h, ss, v = 0, 0, mx
+            local d = mx - mn
+            if mx ~= 0 then ss = d / mx end
+            if d ~= 0 then
+                if mx == r then h = (g - b) / d + (g < b and 6 or 0)
+                elseif mx == g then h = (b - r) / d + 2
+                else h = (r - g) / d + 4 end
+                h = h / 6
+            end
+            return h, ss, v
+        end
+
+        local function hsvToRgb(h, ss, v)
+            local i = math.floor(h * 6)
+            local f = h * 6 - i
+            local pp = v * (1 - ss)
+            local q = v * (1 - f * ss)
+            local t = v * (1 - (1 - f) * ss)
+            local r, g, b
+            i = i % 6
+            if i == 0 then r, g, b = v, t, pp
+            elseif i == 1 then r, g, b = q, v, pp
+            elseif i == 2 then r, g, b = pp, v, t
+            elseif i == 3 then r, g, b = pp, q, v
+            elseif i == 4 then r, g, b = t, pp, v
+            else r, g, b = v, pp, q end
+            return clampByte(r * 255), clampByte(g * 255), clampByte(b * 255)
+        end
+
+        local function shinyColor(col, hue)
+            local r = col[1] or col.r or 0
+            local g = col[2] or col.g or 0
+            local b = col[3] or col.b or 0
+            local h, ss, v = rgbToHsv(r, g, b)
+            if v < 0.08 then return { r, g, b } end
+            if ss < 0.06 and v > 0.92 then return { r, g, b } end
+            h = (h + (hue or 0.48)) % 1
+            ss = math.min(1, math.max(0.28, ss * 1.25 + 0.08))
+            v = math.min(1, v * 1.02)
+            local nr, ng, nb = hsvToRgb(h, ss, v)
+            return { nr, ng, nb }
+        end
+
+        local function paletteFor(data, species)
+            -- Gen I uses the official Crystal shiny pair bundled as plain RGB
+            -- data. No ROM-derived sprite pixels are shipped or required.
+            local key = tostring(species or ""):upper():gsub("[^%w_]", "_")
+            local pair = OFFICIAL_SHINY[key]
+            if pair and pair[1] and pair[2] then
+                return { {255,255,255}, pair[1], pair[2], {0,0,0} }
+            end
+            -- Unknown/custom species fail soft to a deterministic derived
+            -- palette so mod-added Pokemon can still be visibly shiny.
+            local ok, PaletteFX = pcall(require, "src.render.PaletteFX")
+            local base = ok and PaletteFX and type(PaletteFX.monPal) == "function"
+                and PaletteFX.monPal(data, species) or nil
+            if type(base) ~= "table" then
+                base = { {255,255,255}, {184,184,184}, {96,96,96}, {24,24,24} }
+            end
+            local seed = tonumber("0x" .. hashText(species):sub(1, 4)) or 0
+            local hue = 0.36 + (seed % 29) / 100
+            return {
+                {255,255,255},
+                shinyColor(base[2] or base[1] or {184,184,184}, hue),
+                shinyColor(base[3] or base[2] or {96,96,96}, hue),
+                base[4] or {24,24,24},
+            }
+        end
+
+        -- Gen I has no engine shiny.roll seam. Roll the exact live wild at
+        -- the sanctioned pokemon.sprite boundary, before its battle art is
+        -- resolved, so identity and presentation are established together.
+        -- This is capability-based and never replaces Pokemon.new or
+        -- BattleState.newWild. The later battle.started listener is retained
+        -- only as a fail-soft path for presentations that never ask for art.
+        local function maybeRollGen1Wild(mon, ctx)
+            if externalOwns() or type(mon) ~= "table" then return end
+            local gen2 = mod.exports.__beta26.shinyRuntimeIsGen2
+            if type(gen2) == "function" then
+                local ok, yes = pcall(gen2, gameNow())
+                if ok and yes then return end
+            end
+            if type(ctx) ~= "table" or ctx.kind ~= "battle"
+                or ctx.side ~= "front" then return end
+            if mon.nuzlockeShinyRateRolled == true then return end
+
+            -- Only the active wild/safari enemy is eligible. Trainer front
+            -- sprites and menu/summary front sprites must never become shiny
+            -- simply because they cross the same live sprite hook.
+            local game = gameNow()
+            local stack = game and game.stack
+            local state = nil
+            if stack and type(stack.top) == "function" then
+                local ok, top = pcall(stack.top, stack)
+                if ok then state = top end
+            end
+            if state == nil and stack and type(stack.states) == "table" then
+                state = stack.states[#stack.states]
+            end
+            local battle = state
+            if type(state) == "table" and type(state.battle) == "table"
+                and state.enemy == nil then battle = state.battle end
+            if type(battle) ~= "table" then return end
+            local kind = battle.kind or (battle.battle and battle.battle.kind)
+            if kind ~= "wild" and kind ~= "safari" then return end
+            local enemy = battle.enemy
+            enemy = type(enemy) == "table" and (enemy.mon or enemy) or nil
+            if enemy ~= mon then return end
+
+            mon.nuzlockeShinyRateRolled = true
+            local modeFn = mod.exports.__beta26.shinyRateMode
+            local rollFn = mod.exports.__beta26.enhancedShinyRoll
+            local mode = type(modeFn) == "function" and modeFn() or 0
+            if mode <= 0 then return end
+            local natural = monShiny(mon)
+            if type(rollFn) == "function" and rollFn(mode, natural) then
+                mon.shiny = true
+                mon.nuzlockeShinySource = natural and "native_dv"
+                    or "nuzlocke_fallback"
+            end
+        end
+
+        local function shinyPaletteCacheSignature(species)
+            local speciesKey = tostring(species or ""):upper():gsub("[^%w_]", "_")
+            if OFFICIAL_SHINY[speciesKey] then
+                -- Official Gen-I Crystal pairs are deliberately independent of
+                -- the player's current Gen1Recomp COLORS mode.
+                return "official-crystal"
+            end
+            -- Custom/unknown species derive from PaletteFX.monPal. Include the
+            -- engine-owned mode/ramp state in Nuzlocke's PRIVATE cache key so a
+            -- COLORS transition naturally bakes a new private artifact without
+            -- ever invalidating engine Renderer/Assets resources (the 1.2.7
+            -- compatibility lesson).
+            local ok, PaletteFX = pcall(require, "src.render.PaletteFX")
+            if not (ok and type(PaletteFX) == "table") then return "fallback:none" end
+            local parts = { "fallback", tostring(PaletteFX.mode or "") }
+            local ramp = PaletteFX.customRamp
+            if type(ramp) == "table" then
+                for i = 1, 4 do
+                    local c = ramp[i]
+                    if type(c) == "table" then
+                        parts[#parts + 1] = table.concat({
+                            tostring(c[1] or c.r or 0),
+                            tostring(c[2] or c.g or 0),
+                            tostring(c[3] or c.b or 0),
+                        }, ",")
+                    end
+                end
+            end
+            return table.concat(parts, ":")
+        end
+
+        local function ensureShinyPath(path, ctx, kind)
+            if not visualRule("shiny_colors", true) then return nil end
+            if type(path) ~= "string" or path == "" then return nil end
+            local mon = ctx and ctx.mon
+            if not monShiny(mon) then return nil end
+            local species = (ctx and ctx.species) or (mon and mon.species) or "UNKNOWN"
+            local key = table.concat({ tostring(species), tostring(kind or "sprite"),
+                tostring(ctx and ctx.side or "front"), path,
+                shinyPaletteCacheSignature(species) }, "|")
+            if shinySpriteCache[key] then return shinySpriteCache[key] end
+            if not (love and love.image and love.graphics and love.filesystem
+                and love.image.newImageData and love.graphics.newImage) then
+                return nil
+            end
+            local okA, Assets = pcall(require, "src.render.Assets")
+            if not (okA and Assets and type(Assets.imageData) == "function") then return nil end
+            local rel = shinyCacheDir .. "/" .. hashText(key) .. ".png"
+            if love.filesystem.getInfo and love.filesystem.getInfo(rel) then
+                shinySpriteCache[key] = rel
+                return rel
+            end
+            local ok, result = pcall(function()
+                local id = Assets.imageData(path)
+                if not id or type(id.mapPixel) ~= "function" then return nil end
+                local colors = paletteFor(ctx and ctx.data, species)
+                id:mapPixel(function(_, _, r, g, b, a)
+                    if a == 0 then return r, g, b, a end
+                    -- Gen1Recomp extracted battle art uses the same four-shade
+                    -- contract as its native palette mapper. True-color/follower
+                    -- sheets are handled by luma/chroma below rather than by
+                    -- assuming a particular source palette.
+                    local byte = r > 1 or g > 1 or b > 1 or a > 1
+                    local R = byte and r / 255 or r
+                    local G = byte and g / 255 or g
+                    local B = byte and b / 255 or b
+                    local A = byte and a / 255 or a
+                    if A <= 0 then return r, g, b, a end
+                    local mx, mn = math.max(R,G,B), math.min(R,G,B)
+                    local chroma = mx - mn
+                    if chroma < 0.08 then
+                        local lum = 0.299 * R + 0.587 * G + 0.114 * B
+                        local c = lum > 0.83 and colors[1]
+                            or lum > 0.50 and colors[2]
+                            or lum > 0.17 and colors[3] or colors[4]
+                        if byte then return c[1], c[2], c[3], a end
+                        return c[1]/255, c[2]/255, c[3]/255, a
+                    end
+                    if mx > 0.94 and mn > 0.90 then return r,g,b,a end
+                    if mx < 0.08 then return r,g,b,a end
+                    local shifted = shinyColor({R*255,G*255,B*255}, 0.48)
+                    if byte then return shifted[1],shifted[2],shifted[3],a end
+                    return shifted[1]/255,shifted[2]/255,shifted[3]/255,a
+                end)
+                pcall(love.filesystem.createDirectory, shinyCacheDir)
+                local encoded = id:encode("png")
+                if not encoded then return nil end
+                local bytes = encoded.getString and encoded:getString() or encoded
+                if not bytes then return nil end
+                local wrote = love.filesystem.write(rel, bytes)
+                return wrote and rel or nil
+            end)
+            if ok and type(result) == "string" then
+                shinySpriteCache[key] = result
+                return result
+            end
+            return nil
+        end
+
+        if mod.hooks and type(mod.hooks.wrap) == "function" then
+            -- Current Gen1Recomp sanctioned per-instance art seam. It is used
+            -- by battle, summary, evolution, trade, HOF, dex-like consumers,
+            -- and is shared with Gen II.
+            mod.hooks:wrap("pokemon.sprite", function(nextFn, path, ctx)
+                local resolved = nextFn(path, ctx)
+                if externalOwns() then return resolved end
+                maybeRollGen1Wild(ctx and ctx.mon, ctx)
+                -- Gen II already applies its cartridge-accurate normal/shiny
+                -- palettes from mon.shiny. Do not replace that renderer with
+                -- a Gen-I derived true-color sheet; only Gen I needs this
+                -- dynamic recolor path.
+                local gen2 = mod.exports.__beta26.shinyRuntimeIsGen2
+                if type(gen2) == "function" then
+                    local ok, yes = pcall(gen2, gameNow())
+                    if ok and yes then return resolved end
+                end
+                local shinyPath = ensureShinyPath(resolved, ctx, "sprite")
+                if shinyPath then
+                    ctx.trueColor = true
+                    return shinyPath
+                end
+                return resolved
+            end)
+
+            mod.hooks:wrap("pokemon.icon", function(nextFn, path, ctx)
+                local resolved = nextFn(path, ctx)
+                if externalOwns() then return resolved end
+                local gen2 = mod.exports.__beta26.shinyRuntimeIsGen2
+                if type(gen2) == "function" then
+                    local ok, yes = pcall(gen2, gameNow())
+                    if ok and yes then return resolved end
+                end
+                return ensureShinyPath(resolved, ctx, "icon") or resolved
+            end)
+        end
+
+        local function monotime()
+            if love and love.timer and type(love.timer.getTime) == "function" then
+                return love.timer.getTime()
+            end
+            return os.clock()
+        end
+
+        local function battleMon(state, side)
+            if type(state) ~= "table" then return nil end
+            local node = state[side]
+            if type(node) == "table" then return node.mon or node end
+            local battle = state.battle
+            if type(battle) == "table" then
+                if type(state.activeMon) == "function" then
+                    local ok, mon = pcall(state.activeMon, state, side)
+                    if ok and type(mon) == "table" then return mon.mon or mon end
+                end
+                node = battle[side]
+                if type(node) == "table" then return node.mon or node end
+            end
+            return nil
+        end
+
+        local function monToken(mon)
+            if type(mon) ~= "table" then return nil end
+            return tostring(mon.nuzlockeId or mon.id or mon.uid
+                or (tostring(mon.species) .. ":" .. tostring(mon.level) .. ":" .. tostring(mon)))
+        end
+
+        local function playShinySound(state)
+            local okS, Sound = pcall(require, "src.core.Sound")
+            local game = (state and state.game) or gameNow()
+            local data = game and game.data
+            if okS and Sound and type(Sound.play) == "function" and data then
+                pcall(Sound.play, data, SHINY_SFX)
+            end
+        end
+
+        local function drawStar(x, y, scale)
+            if not (love and love.graphics) then return end
+            local g = love.graphics
+            scale = scale or 1
+            g.rectangle("fill", x - scale * 3, y - scale, scale * 7, scale * 2)
+            g.rectangle("fill", x - scale, y - scale * 3, scale * 2, scale * 7)
+        end
+
+        local function sparkleAnchor(state, side)
+            local width = 160
+            if type(state.uiSize) == "function" then
+                local ok, w = pcall(state.uiSize, state)
+                if ok and tonumber(w) then width = tonumber(w) end
+            end
+            local off = math.max(0, math.floor((width - 160) / 2))
+            if side == "enemy" then return off + 124, 42 end
+            return off + 40, 80
+        end
+
+        if mod.hooks and type(mod.hooks.wrap) == "function" then
+            -- battle.overlay is specifically documented by current Gen1Recomp
+            -- for shiny sparkles / HUD chrome and exists in both generations.
+            mod.hooks:wrap("battle.overlay", function(nextFn, state)
+                nextFn(state)
+                if externalOwns() or not visualRule("shiny_intro", true) then return end
+                if type(state) ~= "table" then return end
+                local session = sparkleSessions[state]
+                if not session then
+                    session = { enemy = {}, player = {} }
+                    sparkleSessions[state] = session
+                end
+                local now = monotime()
+                for _, side in ipairs({ "enemy", "player" }) do
+                    local mon = battleMon(state, side)
+                    local slot = session[side]
+                    local token = monToken(mon)
+                    if monShiny(mon) then
+                        if token ~= slot.token then
+                            slot.token, slot.started, slot.sound = token, now, false
+                        end
+                        local age = now - (slot.started or now)
+                        if age <= SHINY_INTRO_SECONDS then
+                            if not slot.sound then
+                                slot.sound = true
+                                playShinySound(state)
+                            end
+                            if love and love.graphics then
+                                local g = love.graphics
+                                local old = { g.getColor() }
+                                g.setColor(1, 1, 1, 1)
+                                local x, y = sparkleAnchor(state, side)
+                                local pulse = 1 + math.floor((age * 8) % 2)
+                                drawStar(x - 22, y - 10, pulse)
+                                drawStar(x + 19, y - 16, 1)
+                                drawStar(x + 25, y + 12, pulse)
+                                drawStar(x - 15, y + 18, 1)
+                                g.setColor(old[1] or 1, old[2] or 1,
+                                    old[3] or 1, old[4] or 1)
+                            end
+                        end
+                    else
+                        slot.token, slot.started, slot.sound = nil, nil, false
+                    end
+                end
+            end)
+        end
+
+        -- Visible-overworld compatibility: do not take ownership of a spawn
+        -- provider's renderer. If its entity already carries shiny identity,
+        -- mark the live mon/entity so its own sprite path can pass through the
+        -- same pokemon.sprite hook when it exposes one. Rich provider-specific
+        -- rendering remains owned by that provider; battle identity is shared.
+        local function syncExternalOverworldShiny(payload)
+            if externalOwns() then return end
+            local entity = type(payload) == "table" and (payload.entity or payload.mon)
+                or nil
+            if type(entity) == "table" and entity.shiny == true then
+                entity.nuzlockeShinySource = entity.nuzlockeShinySource or "overworld_provider"
+            end
+        end
+        mod.events:on("pokemon.spawned", syncExternalOverworldShiny)
+        mod.events:on("world.entity_spawned", syncExternalOverworldShiny)
+
+        mod.exports.__beta26.shinyPresentationStatus = function(game)
+            local ext = type(mod.exports.__beta26.shinyExternalProvider) == "function"
+                and mod.exports.__beta26.shinyExternalProvider(game or gameNow()) or nil
+            if ext then
+                return { owner = ext.id or ext.name or "EXTERNAL", external = true,
+                    colors = false, intro = false }
+            end
+            return { owner = "Nuzlocke", external = false,
+                colors = visualRule("shiny_colors", true),
+                intro = visualRule("shiny_intro", true) }
+        end
+    end
+
     -- Forgiveness Token shop metadata is published beside the shop bridge above.
     local function lifecycleGame(payload)
         return type(payload) == "table" and payload.game

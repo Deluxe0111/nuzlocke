@@ -7781,9 +7781,11 @@ return function(mod, deps)
       return starterStrengthScore(game, starterOriginalLineage(game), species)
   end
 
-  -- 2.6.80 Phase B #8: standard Gen 1/2 offensive super-effectiveness
-  -- relationships. AUTO uses full dual typing. Unknown/provider types do not
-  -- fabricate relationships; they simply make the type preference relax.
+  -- 2.8.32: Starter Trio Typing resolves against the live merged Gen1Recomp
+  -- type chart first. This keeps AUTO aligned with content mods that add or
+  -- modernize types (for example FAIRY) or alter existing relationships. The
+  -- legacy Gen I/II table remains only as a fail-soft fallback when the live
+  -- runtime chart is unavailable.
   local TYPE_SUPER = {
       NORMAL={},
       FIRE={GRASS=true,ICE=true,BUG=true,STEEL=true},
@@ -7795,12 +7797,12 @@ return function(mod, deps)
       POISON={GRASS=true},
       GROUND={FIRE=true,ELECTRIC=true,POISON=true,ROCK=true,STEEL=true},
       FLYING={GRASS=true,FIGHTING=true,BUG=true},
-      PSYCHIC={FIGHTING=true,POISON=true},
-      BUG={GRASS=true,PSYCHIC=true,DARK=true},
+      PSYCHIC_TYPE={FIGHTING=true,POISON=true},
+      BUG={GRASS=true,PSYCHIC_TYPE=true,DARK=true},
       ROCK={FIRE=true,ICE=true,FLYING=true,BUG=true},
-      GHOST={PSYCHIC=true,GHOST=true},
+      GHOST={PSYCHIC_TYPE=true,GHOST=true},
       DRAGON={DRAGON=true},
-      DARK={PSYCHIC=true,GHOST=true},
+      DARK={PSYCHIC_TYPE=true,GHOST=true},
       STEEL={ICE=true,ROCK=true},
   }
   local TYPE_RESIST = {
@@ -7810,11 +7812,11 @@ return function(mod, deps)
       ELECTRIC={ELECTRIC=true,GRASS=true,DRAGON=true,GROUND="immune"},
       GRASS={FIRE=true,GRASS=true,POISON=true,FLYING=true,BUG=true,DRAGON=true,STEEL=true},
       ICE={WATER=true,ICE=true,STEEL=true},
-      FIGHTING={POISON=true,FLYING=true,PSYCHIC=true,BUG=true,GHOST="immune"},
+      FIGHTING={POISON=true,FLYING=true,PSYCHIC_TYPE=true,BUG=true,GHOST="immune"},
       POISON={POISON=true,GROUND=true,ROCK=true,GHOST=true,STEEL="immune"},
       GROUND={GRASS=true,BUG=true,FLYING="immune"},
       FLYING={ELECTRIC=true,ROCK=true,STEEL=true},
-      PSYCHIC={PSYCHIC=true,STEEL=true,DARK="immune"},
+      PSYCHIC_TYPE={PSYCHIC_TYPE=true,STEEL=true,DARK="immune"},
       BUG={FIRE=true,FIGHTING=true,POISON=true,FLYING=true,GHOST=true,STEEL=true},
       ROCK={FIGHTING=true,GROUND=true,STEEL=true},
       GHOST={DARK=true,NORMAL="immune"},
@@ -7823,13 +7825,48 @@ return function(mod, deps)
       STEEL={FIRE=true,WATER=true,ELECTRIC=true,STEEL=true},
   }
 
+  local function normalizedTypeId(value)
+      local key = tostring(value or ""):upper():gsub("[%s%-]+", "_")
+      if key == "PSYCHIC" then key = "PSYCHIC_TYPE" end
+      return key
+  end
+
+  local function liveTypeMultiplier(game, attackType, defenseTypes)
+      local chart = game and game.data and game.data.type_chart
+      local rows = chart and chart.matchups
+      if type(rows) ~= "table" then return nil end
+      attackType = normalizedTypeId(attackType)
+      local wanted = {}
+      for _, defenseType in ipairs(defenseTypes or {}) do
+          local key = normalizedTypeId(defenseType)
+          if key ~= "" then wanted[key] = true end
+      end
+      if attackType == "" or next(wanted) == nil then return nil end
+      local mult, matched = 1, false
+      for _, row in pairs(rows) do
+          if type(row) == "table"
+              and normalizedTypeId(row.attacker) == attackType
+              and wanted[normalizedTypeId(row.defender)] then
+              local value = tonumber(row.multiplier)
+              if value then
+                  mult = mult * (value / 10)
+                  matched = true
+              end
+          end
+      end
+      -- A missing row is a canonical neutral relationship in Gen1Recomp. Once
+      -- the live chart exists, neutral must remain neutral rather than falling
+      -- back to Nuzlocke's historical table and overriding another mod.
+      return matched and mult or 1
+  end
+
   local function normalizedSpeciesTypes(game, species)
       local def = game and game.data and game.data.pokemon
           and game.data.pokemon[tostring(species or ""):upper()]
       local out, seen = {}, {}
       if type(def) == "table" and type(def.types) == "table" then
           for _, value in pairs(def.types) do
-              local t = tostring(value or ""):upper():gsub("[%s%-]+", "_")
+              local t = normalizedTypeId(value)
               if t ~= "" and not seen[t] then
                   seen[t] = true
                   out[#out + 1] = t
@@ -7840,10 +7877,12 @@ return function(mod, deps)
   end
 
   local function typeMultiplier(game, attackType, defenseTypes)
-      attackType = tostring(attackType or ""):upper()
+      local live = liveTypeMultiplier(game, attackType, defenseTypes)
+      if live ~= nil then return live end
+      attackType = normalizedTypeId(attackType)
       local mult = 1
       for _, defenseType in ipairs(defenseTypes or {}) do
-          defenseType = tostring(defenseType or ""):upper()
+          defenseType = normalizedTypeId(defenseType)
           local resist = TYPE_RESIST[attackType] and TYPE_RESIST[attackType][defenseType]
           local super = TYPE_SUPER[attackType] and TYPE_SUPER[attackType][defenseType]
           if not mod.exports.__beta26.runtimeIsGen2(game) then
@@ -7851,7 +7890,7 @@ return function(mod, deps)
                   super, resist = true, nil
               elseif attackType == "POISON" and defenseType == "BUG" then
                   super, resist = true, nil
-              elseif attackType == "GHOST" and defenseType == "PSYCHIC" then
+              elseif attackType == "GHOST" and defenseType == "PSYCHIC_TYPE" then
                   super, resist = nil, "immune"
               elseif attackType == "ICE" and defenseType == "FIRE" then
                   super, resist = nil, nil

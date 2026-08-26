@@ -1083,6 +1083,23 @@ return function(mod, deps)
                           return Strings("Shiny %d/%d", math.max(0, mode - used), mode)
                       end
                       return nil
+                  elseif rule.key == "shiny_rate_mode" then
+                      if mod.exports.__beta26.shinyExternalProvider(game) then
+                          return Strings("Shiny External")
+                      end
+                      local mode = tonumber(value) or 0
+                      return mode > 0 and Strings("Shiny Rate %s",
+                          Strings(mod.exports.__beta26.shinyRateLabel(mode))) or nil
+                  elseif rule.key == "shiny_colors" then
+                      if mod.exports.__beta26.shinyExternalProvider(game) then
+                          return Strings("Shiny Colors External")
+                      end
+                      return value ~= false and Strings("Shiny Colors ON") or nil
+                  elseif rule.key == "shiny_intro" then
+                      if mod.exports.__beta26.shinyExternalProvider(game) then
+                          return Strings("Shiny Intro External")
+                      end
+                      return value ~= false and Strings("Shiny Intro ON") or nil
                   elseif rule.key == "encounter_ball_limit" then
                       local limit = mod.exports.__beta26.encounterBallLimitValues[
                           tonumber(value) or 0] or 0
@@ -1649,18 +1666,7 @@ return function(mod, deps)
                   return
               end
 
-              love.graphics.setColor(1, 1, 1, 1)
-              love.graphics.rectangle("fill", 0, 0, 160, 144)
-              Font.drawBox(0, 0, 20, 18)
-
-              if mod.exports.__beta26.runtimeIsGen2(self.game) then
-                  mod.exports.__beta26.drawGen2NuzTitle(nil, Font, "NUZ STATUS",
-                      mod.exports.__beta26.Dev.gameLabel(self.game),
-                      { row = 1, subtitleRow = 2 })
-              else
-                  Font.draw(Strings("NUZ STATUS "
-                      .. mod.exports.__beta26.Dev.gameLabel(self.game)), 16, 8)
-              end
+              local gen2Status = mod.exports.__beta26.runtimeIsGen2(self.game)
 
               local caught = countTrackerCatches()
               local deaths = tonumber(mod.save:get("nuzlocke_losses", 0)) or 0
@@ -1681,6 +1687,64 @@ return function(mod, deps)
               local tokens = nuzStatusTokenBalance()
               local areaLabel, areaStatus = nuzStatusEncounterSnapshot(self.game)
               local lastEvent = nuzStatusLastHistoryEvent(self.game)
+
+              -- Gen1Recomp 0.2.27 palette compliance: every Gen II pixel on
+              -- this Nuzlocke-owned utility screen now goes through Chrome.
+              -- That lets COLOR/custom GB palettes recolor both paper and ink
+              -- instead of dropping back to literal white/black mid-session.
+              if gen2Status then
+                  local Chrome = require("src.ui.gen2.Chrome")
+                  local GoldFont = require("src.render.Font")
+                  Chrome.clear()
+                  Chrome.box(0, 0, 20, 18)
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                      "NUZ STATUS", mod.exports.__beta26.Dev.gameLabel(self.game),
+                      { row = 1, subtitleRow = 2 })
+
+                  Chrome.print(Strings("CATCH %d LOST %d", caught, lostEncounters), 2, 3)
+                  Chrome.print(Strings("DEATH %d TOKEN %d", deaths, tokens), 2, 4)
+                  Chrome.print(Strings("AREAS %d/%d", caughtAreasCount, totalAreas), 2, 5)
+                  Chrome.print(Strings("VIS %d/%d", visitedAreasCount, totalAreas), 12, 5)
+                  Chrome.print(cap >= 100 and Strings("NEXT CAP MAX")
+                      or Strings("NEXT CAP LV%d", cap), 2, 6)
+                  Chrome.printWrapped(Strings("AREA %s", tostring(areaLabel)), 2, 7, 16, 1)
+                  Chrome.printWrapped(Strings("STATUS %s", tostring(areaStatus)), 2, 8, 16, 1)
+                  Chrome.printWrapped(Strings("LAST %s", tostring(lastEvent)), 2, 9, 16, 1)
+
+                  local names = activeRuleNames()
+                  local visible = 2
+                  local maxScroll = math.max(0, #names - visible)
+                  if self.ruleScroll > maxScroll then self.ruleScroll = maxScroll end
+                  local canScrollDown = (self.ruleScroll + visible) < #names
+                  Chrome.print(Strings("RULES"), 2, 11)
+                  if #names == 0 then
+                      Chrome.print(Strings("NONE"), 2, 12)
+                  else
+                      for row = 1, visible do
+                          local name = names[self.ruleScroll + row]
+                          if name then
+                              Chrome.print(marqueeText(name, 16,
+                                  self.ruleMarqueeTime), 2, 11 + row)
+                          end
+                      end
+                  end
+                  if canScrollDown and math.floor(self.ruleArrowTime / 0.8) % 2 == 0 then
+                      GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 13 * 8)
+                  end
+                  if self.statusOnly then
+                      Chrome.print(Strings("B:EXIT"), 13, 16)
+                  else
+                      Chrome.print(Strings("A:CARD"), 2, 16)
+                      Chrome.print(Strings("B:EXIT"), 13, 16)
+                  end
+                  return
+              end
+
+              love.graphics.setColor(1, 1, 1, 1)
+              love.graphics.rectangle("fill", 0, 0, 160, 144)
+              Font.drawBox(0, 0, 20, 18)
+              Font.draw(Strings("NUZ STATUS "
+                  .. mod.exports.__beta26.Dev.gameLabel(self.game)), 16, 8)
 
               -- 2.6.5: compact paired rows preserve all pre-existing status
               -- facts while reserving bounded rows for TOKEN, AREA, and LAST.
@@ -2892,6 +2956,21 @@ return function(mod, deps)
 
           function self:draw()
               local Font = mod.ui.Font
+              local gen2Recovery = mod.exports.__beta26.runtimeIsGen2(self.game)
+              if self.notice and gen2Recovery then
+                  local Chrome = require("src.ui.gen2.Chrome")
+                  local GoldFont = require("src.render.Font")
+                  Chrome.clear(); Chrome.box(0, 0, 20, 18)
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                      self.notice.title or "RECOVERY")
+                  local text = tostring(self.notice.detail or "")
+                  if self.notice.code then
+                      text = text .. " CODE " .. tostring(self.notice.code)
+                  end
+                  Chrome.printWrapped(Strings(text), 2, 4, 16, 9)
+                  Chrome.print(Strings("A/B:BACK"), 6, 16)
+                  return
+              end
               if self.notice then
                   local Theme = require("src.ui.Theme")
                   love.graphics.setColor(1, 1, 1, 1)
@@ -2933,6 +3012,101 @@ return function(mod, deps)
                   if #spans <= glyphBudget then return out end
                   local span = spans[glyphBudget]
                   return span and span.to and out:sub(1, span.to) or out
+              end
+
+              if gen2Recovery then
+                  local Chrome = require("src.ui.gen2.Chrome")
+                  local GoldFont = require("src.render.Font")
+                  Chrome.clear(); Chrome.box(0, 0, 20, 18)
+                  local function footer(left)
+                      Chrome.print(Strings(left or "A:CHOOSE"), 2, 16)
+                      Chrome.print(Strings("B:BACK"), 13, 16)
+                  end
+                  local function cursorRow(row)
+                      Chrome.cursor(1, row)
+                  end
+
+                  if #list == 0 then
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                          "RECOVER CATCHES")
+                      Chrome.print(Strings("ALL RECOVERED!"), 3, 7)
+                      Chrome.print(Strings("B:BACK"), 7, 16)
+                      return
+                  end
+
+                  if self.mode == "list" then
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                          "RECOVER CATCHES", "SELECT A POKEMON",
+                          { row = 1, subtitleRow = 3 })
+                      local start = math.max(1, math.min(self.cursor - 3, #list - 5))
+                      for i = start, math.min(#list, start + 5) do
+                          local row = 5 + (i - start)
+                          if i == self.cursor then cursorRow(row) end
+                          local entry = list[i]
+                          local sp = tostring(entry.species or "???")
+                          local prefix = entry.assigned and "* "
+                              or (entry.provenance == "EDITED" and "E " or "L ")
+                          Chrome.print(Strings(prefix .. sp:sub(1, 11)), 3, row)
+                          if entry.assigned then
+                              Chrome.print(Strings("EDIT"), 15, row)
+                          else
+                              local count = type(entry.possibleAreas) == "table"
+                                  and #entry.possibleAreas or 0
+                              Chrome.print(count > 0 and tostring(count) or "?", 17, row)
+                          end
+                      end
+                      footer("A:CHOOSE")
+                  elseif self.mode == "actions" then
+                      local entry = list[self.cursor]
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                          "EDIT RECOVERY", tostring(entry.species or "???"):sub(1, 12),
+                          { row = 1, subtitleRow = 3 })
+                      local actions = { "CHANGE AREA", "CHANGE TYPE", "REMOVE ENTRY" }
+                      for i, action in ipairs(actions) do
+                          local row = 6 + (i - 1) * 2
+                          if i == self.actionCursor then cursorRow(row) end
+                          Chrome.print(Strings(action), 3, row)
+                      end
+                      footer("A:CHOOSE")
+                  elseif self.mode == "types" then
+                      local entry = list[self.cursor]
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                          "ENCOUNTER TYPE", tostring(entry.species or "???"):sub(1, 12),
+                          { row = 1, subtitleRow = 3 })
+                      local start = math.max(1, math.min(self.typeCursor - 3, #recoveryTypes - 5))
+                      for i = start, math.min(#recoveryTypes, start + 5) do
+                          local row = 5 + (i - start)
+                          if i == self.typeCursor then cursorRow(row) end
+                          Chrome.print(Strings(recoveryTypes[i]:upper()), 3, row)
+                      end
+                      footer("A:CONFIRM")
+                  elseif self.mode == "areas" then
+                      local entry = list[self.cursor]
+                      local c = candidates(entry)
+                      mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
+                          entry.assigned and "CHANGE AREA?" or "WHERE CAUGHT?",
+                          tostring(entry.species or "???"):sub(1, 12),
+                          { row = 1, subtitleRow = 3 })
+                      if #c == 0 then
+                          Chrome.print(Strings("NO AVAILABLE AREAS"), 2, 7)
+                          Chrome.print(Strings(recoveryEncounterLimitApplies()
+                              and "AREAS ALREADY TAKEN" or "NO KNOWN AREAS"), 2, 9)
+                          Chrome.print(Strings("B:BACK"), 13, 16)
+                          return
+                      end
+                      local start = math.max(1, math.min(self.areaCursor - 3, #c - 5))
+                      for i = start, math.min(#c, start + 5) do
+                          local row = 5 + (i - start)
+                          if i == self.areaCursor then cursorRow(row) end
+                          local areaId = c[i]
+                          if type(areaId) == "table" then
+                              areaId = areaId.id or areaId.mapId or areaId.key
+                          end
+                          Chrome.print(Strings(fitRecoveryText(routeName(areaId), 15)), 3, row)
+                      end
+                      footer("A:ASSIGN")
+                  end
+                  return
               end
 
               Font.drawBox(0, 0, 20, 18)

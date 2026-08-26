@@ -92,6 +92,148 @@ return function(mod, deps)
 
 
 
+  -- 2.8.33: presentation-renderer isolation. Nuzlocke challenge logic must
+  -- remain below/alongside renderer mods rather than seizing their world or
+  -- battle presentation owners. This is provider-neutral: it protects
+  -- PotatoVoxel today and other render.compose / Gen2BattleState providers
+  -- without hardcoding their implementation.
+  mod.exports.__beta26.presentationRendererIsolationAudit = function()
+    local files = {
+      "main.lua", "late_runtime.lua", "classic_ui.lua",
+      "nuzlocke_ui_system.lua", "modern_ui_integration.lua",
+    }
+    local report = { ok=true, checked=0, failures={} }
+    local combined = ""
+    for _, path in ipairs(files) do
+      local src = safeRead(path)
+      if type(src) == "string" then
+        combined = combined .. "\n-- " .. path .. "\n" .. src
+      end
+    end
+    local forbidden = {
+      'mod.hooks:wrap("render.compose"',
+      'screens:register("Gen2BattleState"',
+      "BattleState.drawWidescreen =",
+      "BattleState.drawPic =",
+      "function BattleState:drawWidescreen",
+      "function BattleState:drawPic",
+    }
+    for _, needle in ipairs(forbidden) do
+      report.checked = report.checked + 1
+      if combined:find(needle, 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = "renderer_owner:" .. needle
+      end
+    end
+    -- Gen I Battle Menu UI may remain on the public battle.overlay seam, but
+    -- Nuzlocke itself must not replace BattleState.draw: renderer mods commonly
+    -- wrap that method and still call the native/public hook chain underneath.
+    report.checked = report.checked + 1
+    if combined:find("BattleState.draw =", 1, true)
+        or combined:find("function BattleState:draw()", 1, true) then
+      report.ok = false
+      report.failures[#report.failures + 1] = "battle_draw_owner"
+    end
+    return report
+  end
+
+
+  -- 2.8.36: full built-in shiny presentation + provider isolation. A compatible
+  -- external provider owns generation AND visuals immediately; otherwise
+  -- Nuzlocke uses public shiny.roll / battle.started identity plus sanctioned
+  -- pokemon.sprite, pokemon.icon and battle.overlay presentation seams.
+  mod.exports.__beta26.shinyProviderIsolationAudit = function()
+    local main = safeRead("main.lua") or ""
+    local late = safeRead("late_runtime.lua") or ""
+    local catalog = safeRead("rule_catalog.lua") or ""
+    local manifest = safeRead("manifest.json") or ""
+    local report = { ok=true, checked=0, failures={} }
+    local required = {
+      { "optional_dependency", manifest, '"SHINY_POKEMON"' },
+      { "provider_id_list", main, '"SHINY_POKEMON", "shiny_pokemon", "gen1recomp_shiny_pokemon"' },
+      { "provider_live_handle_required", main, 'if liveProvider == nil then return nil end' },
+      { "provider_registry_preferred", main, 'public.getProvider, "SHINY_POKEMON"' },
+      { "provider_registry_identity", main, 'caps.SHINY_IDENTITY == true' },
+      { "provider_registry_presentation", main, 'caps.SHINY_PRESENTATION == true' },
+      { "provider_api_v1", main, 'exports.shiny_pokemon or exports.shiny_compat' },
+      { "provider_api_identity", main, 'compat.capability("shiny_identity")' },
+      { "provider_api_presentation", main, 'compat.capability("shiny_presentation")' },
+      { "provider_legacy_identity_fallback", main, 'type(exports.isShiny) == "function"' },
+      { "provider_legacy_roll_fallback", main, 'type(exports.rollShiny) == "function"' },
+      { "provider_owner_gate", main, 'mod.exports.__beta26.externalShinyOwns = function(game)' },
+      { "public_gen2_roll", main, 'mod.hooks:wrap("shiny.roll"' },
+      { "gen2_decision_handoff", main, "consumeGen2ShinyDecision" },
+      { "gen1_event_roll", main, 'mod.events:on("battle.started"' },
+      { "gen1_event_shape_fallback", main, 'payload and (payload.battle or payload)' },
+      { "rate_rule", catalog, 'key = "shiny_rate_mode"' },
+      { "colors_rule", catalog, 'key = "shiny_colors"' },
+      { "intro_rule", catalog, 'key = "shiny_intro"' },
+      { "sprite_seam", late, 'mod.hooks:wrap("pokemon.sprite"' },
+      { "icon_seam", late, 'mod.hooks:wrap("pokemon.icon"' },
+      { "overlay_seam", late, 'mod.hooks:wrap("battle.overlay"' },
+      { "external_visual_guard", late, 'if externalOwns() then return' },
+      { "external_controls_hidden", main, 'externalShinyControl = okProvider and provider ~= nil' },
+      { "gen2_shiny_flash_safety", late, 'nextEvent.kind == "shiny-flash"' },
+      { "gen2_pic_restore", late, 'self.picHidden.enemy = false' },
+      { "private_palette_cache_signature", late, 'shinyPaletteCacheSignature(species)' },
+      { "private_palette_cache_engine_owned_note", late, 'engine Renderer/Assets resources' },
+    }
+    for _, row in ipairs(required) do
+      report.checked = report.checked + 1
+      if not row[2]:find(row[3], 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = row[1]
+      end
+    end
+    local forbidden = {
+      "__nuzlockeShinyPokemonNewWrapper",
+      "__nuzlockeShinyBattleStateNewWildWrapper",
+      "function Pokemon.new(data, species, level, rng)",
+      "function BattleState.newWild(game, species, level, opts)",
+      "Gen2BattleState.draw = function",
+      "Gen2BattleState.update = function",
+      "Assets.invalidate",
+      "Assets.reset",
+      "Renderer.invalidate",
+      "Renderer.reset",
+      "PaletteFX.invalidate",
+    }
+    for _, needle in ipairs(forbidden) do
+      report.checked = report.checked + 1
+      if late:find(needle, 1, true) or main:find(needle, 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = "constructor_owner:" .. needle
+      end
+    end
+    return report
+  end
+
+  -- 2.8.35: shiny-control UX contract. Shiny Clause and Shiny Rate are
+  -- adjacent but semantically separate: catch exceptions vs rarity.
+  mod.exports.__beta26.shinyControlClarityAudit = function()
+    local catalog = safeRead("rule_catalog.lua") or ""
+    local report = { ok=true, checked=0, failures={} }
+    local clause = catalog:find('key = "shiny_clause"', 1, true)
+    local rate = catalog:find('key = "shiny_rate_mode"', 1, true)
+    local checks = {
+      { "shiny_clause_present", clause ~= nil },
+      { "shiny_rate_present", rate ~= nil },
+      { "shiny_controls_ordered", clause ~= nil and rate ~= nil and clause < rate },
+      { "shiny_controls_adjacent", clause ~= nil and rate ~= nil and rate - clause < 1500 },
+      { "clause_catch_wording", catalog:find("CATCH EXCEPTIONS ONLY", 1, true) ~= nil },
+      { "rate_rarity_wording", catalog:find("RARITY ONLY", 1, true) ~= nil },
+    }
+    for _, row in ipairs(checks) do
+      report.checked = report.checked + 1
+      if not row[2] then
+        report.ok = false
+        report.failures[#report.failures + 1] = row[1]
+      end
+    end
+    return report
+  end
+
+
   -- 2.8.31: protect the two Silver-observed Elm text repairs without
   -- coupling them back into the already-working starter award transaction.
   mod.exports.__beta26.gen2StarterTextFinalizationAudit = function()
@@ -739,7 +881,7 @@ return function(mod, deps)
     local late = safeRead("late_runtime.lua")
     local manifest = safeRead("manifest.json")
     if main then
-      check("audited_0_2_25", main:find('recompCompatAudited = "0.2.25"', 1, true) ~= nil)
+      check("audited_current_engine", main:find('recompCompatAudited = "0.2.27"', 1, true) ~= nil)
       check("engine_developer_signal", main:find("Dev.engineDeveloper = mod.developer == true", 1, true) ~= nil)
       local markerCount = 0
       for _ in main:gmatch("isModOptions%s*=%s*true") do markerCount = markerCount + 1 end
@@ -785,6 +927,86 @@ return function(mod, deps)
     check("gen2_commands_trap_guarded",
       main and main:find("require src.script.Commands for Gen2", 1, true) ~= nil
         and main:find("not mod.exports.__beta26.runtimeIsGen2(game)", 1, true) ~= nil)
+    return report
+  end
+
+  -- 2.8.36 / Gen1Recomp 0.2.27 compatibility gate. Protect the public
+  -- R/B/Y catch nickname seam, palette-aware Gen II Nuzlocke utility surfaces,
+  -- current audited profile, and the source-revalidated Crystal shiny-flash
+  -- safety boundary without claiming exact-edition runtime certification.
+  mod.exports.__beta26.gen1Recomp027FocusedAudit = function()
+    local report = { ok = true, checked = 0, failures = {}, skipped = {} }
+    local function check(id, condition)
+      report.checked = report.checked + 1
+      if condition then return end
+      report.ok = false
+      report.failures[#report.failures + 1] = id
+    end
+    local main = safeRead("main.lua")
+    local late = safeRead("late_runtime.lua")
+    local classic = safeRead("classic_ui.lua")
+    local compat = safeRead("docs/COMPATIBILITY.md")
+    if main then
+      check("audited_0_2_27",
+        main:find('recompCompatAudited = "0.2.27"', 1, true) ~= nil)
+      check("profile_0_2_27",
+        main:find('["0.2.27"] = {', 1, true) ~= nil)
+      check("catch_nickname_public_hook",
+        main:find('mod.hooks:wrap("catch.nickname"', 1, true) ~= nil)
+      check("catch_nickname_old_engine_fallback",
+        main:find('mod.hooks:wrap("battle.nickname"', 1, true) ~= nil)
+      check("nickname_ui_enforcement_preserved",
+        main:find('__nuzlockeNicknameScreenSession', 1, true) ~= nil)
+      check("shiny_127_target",
+        main:find('tested = "Stone fork 1.2.7"', 1, true) ~= nil)
+      check("shiny_127_registry_detection",
+        main:find('public.getProvider, "SHINY_POKEMON"', 1, true) ~= nil)
+      check("shiny_127_api_detection",
+        main:find('exports.shiny_pokemon or exports.shiny_compat', 1, true) ~= nil)
+    else
+      report.skipped[#report.skipped + 1] = "main.lua"
+    end
+    if classic then
+      check("gen2_status_chrome_palette",
+        classic:find('if gen2Status then', 1, true) ~= nil
+          and classic:find('Chrome.clear()', 1, true) ~= nil)
+      check("gen2_recovery_chrome_palette",
+        classic:find('if gen2Recovery then', 1, true) ~= nil
+          and classic:find('Chrome.printWrapped(Strings(text)', 1, true) ~= nil)
+    else
+      report.skipped[#report.skipped + 1] = "classic_ui.lua"
+    end
+    if late then
+      check("gen2_shiny_flash_event_guard",
+        late:find('nextEvent.kind == "shiny-flash"', 1, true) ~= nil)
+      check("gen2_shiny_flash_027_marker",
+        late:find('audited_engine = "0.2.27"', 1, true) ~= nil)
+      check("gen2_shiny_restore_enemy",
+        late:find('self.picHidden.enemy = false', 1, true) ~= nil)
+      check("gen2_shiny_restore_player",
+        late:find('self.picHidden.player = false', 1, true) ~= nil)
+      check("gen2_shiny_no_draw_owner",
+        late:find('Gen2BattleState.draw = function', 1, true) == nil)
+      check("gen2_shiny_no_update_owner",
+        late:find('Gen2BattleState.update = function', 1, true) == nil)
+      check("shiny_127_private_cache_signature",
+        late:find('shinyPaletteCacheSignature(species)', 1, true) ~= nil)
+      check("shiny_127_no_assets_reset",
+        late:find('Assets.reset', 1, true) == nil
+          and late:find('Assets.invalidate', 1, true) == nil
+          and late:find('Renderer.reset', 1, true) == nil
+          and late:find('Renderer.invalidate', 1, true) == nil)
+    else
+      report.skipped[#report.skipped + 1] = "late_runtime.lua"
+    end
+    if compat then
+      check("compat_docs_0_2_27",
+        compat:find('Gen1Recomp 0.2.27', 1, true) ~= nil)
+      check("compat_docs_runtime_caveat",
+        compat:find('runtime certification', 1, true) ~= nil)
+    else
+      report.skipped[#report.skipped + 1] = "docs/COMPATIBILITY.md"
+    end
     return report
   end
 
@@ -1041,6 +1263,7 @@ return function(mod, deps)
     run("compat_contract", mod.exports.__beta26.compatContractAudit)
     run("gen2_semantic_seams", mod.exports.__beta26.gen2SemanticSeamAudit)
     run("gen1recomp_0_2_24", mod.exports.__beta26.gen1Recomp024Audit)
+    run("gen1recomp_0_2_27", mod.exports.__beta26.gen1Recomp027FocusedAudit)
     run("gen2_tracker_map_order", mod.exports.__beta26.gen2TrackerPresentationAudit)
     run("difficulty_impact_warning", mod.exports.__beta26.difficultyImpactWarningAudit)
     run("compat_owner_controls", mod.exports.__beta26.compatOwnerControlAudit)
@@ -1309,6 +1532,10 @@ return function(mod, deps)
       mod.exports.__beta26.t3RunContextIsolationAudit)
     run("shared_ui_ownership",
       mod.exports.__beta26.sharedUiOwnershipAudit)
+    run("presentation_renderer_isolation",
+      mod.exports.__beta26.presentationRendererIsolationAudit)
+    run("shiny_provider_isolation",
+      mod.exports.__beta26.shinyProviderIsolationAudit)
     if worldSource then
       run("maximum_bst_message_detail",
         mod.exports.__beta26.maximumBstMessageDetailAudit, worldSource)

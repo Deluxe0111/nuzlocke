@@ -1,5 +1,5 @@
--- Nuzlocke 2.8.31
--- Gen II Random Starter text-finalization repair, strict child of Silver-tested 2.8.30.
+-- Nuzlocke 2.8.37
+-- Full built-in shiny presentation + provider failover, strict child of exact 2.8.36.
 -- Battle Menu UI is Gen I-only; Gen II rule denials use the native BattleState resolving/message path
 -- instead of a Nuzlocke-owned custom battle phase. Wilds 2.2.0 hardening is ported.
 -- Historical version lineage is maintained in CHANGELOG.md and docs/DOCUMENTATION_CHANGELOG.md.
@@ -34,14 +34,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.31",
+      build = "2.8.37",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.31",
+      manifestVersion = "2.8.37",
       setupProfileScope = "gen1",
-      parentVersion = "2.8.30",
-      parentSha256 = "7ec6a34e483d873522174c6bd24129b1b613f9ee55145278f6add17d72946858",
+      parentVersion = "2.8.36",
+      parentSha256 = "27e46934b6aaa2ee6665b02fa3078eb8863845d4922cfbb0251fd22df079d292",
       compatibilityApi = 34,
       diagnosticsApi = 1,
   }
@@ -557,7 +557,7 @@ return function(mod)
   -- through the 0.2.25 line. Mod API 2, save format 4 and the existing
   -- engine range remain valid. Crystal is now an intentional Nuzlocke target,
   -- but is explicitly ALPHA and carries independent runtime evidence.
-  mod.exports.__beta26.recompCompatAudited = "0.2.26"
+  mod.exports.__beta26.recompCompatAudited = "0.2.27"
   mod.exports.__beta26.crystalSupport = {
       stage = "ALPHA", runtime_certified = false,
       note = "Crystal support is experimental; shared Gen-2 rules are enabled, but Crystal-specific systems require independent runtime certification.",
@@ -1463,6 +1463,10 @@ return function(mod)
       wonder_trade = nil, pokemon_identity = nil, species_metadata = nil,
       battle_stats = nil, stat_growth = nil, identity_dvs = nil,
       move_category_model = nil, species_evolutions = nil,
+      -- 2.8.33: presentation is a diagnostic/ownership capability only.
+      -- It never grants gameplay authority; renderers may own world/battle
+      -- composition while Nuzlocke keeps challenge state and semantic actions.
+      presentation = nil,
   }
   -- 2.7.64: retain every live provider candidate, not only the first one.
   -- MOD COMPAT can then pin a capability to AUTO, Nuzlocke/Engine, or a
@@ -1500,6 +1504,11 @@ return function(mod)
       "start_menu_items", "screens", "static_encounters", "gambling",
       "encounter_area_projection", "trainer_party", "boss_level_caps",
       "battle_classification", "movement_speed", "starter_randomization",
+      -- 2.8.33: provider-neutral renderer/presentation ownership. No Nuzlocke
+      -- gameplay path delegates through this capability; it exists so MOD COMPAT
+      -- and future presentation mods can describe composition without screen-id
+      -- heuristics or direct renderer replacement.
+      "presentation",
       -- 2.4.34 internal mechanics dimensions. These are still private
       -- compatibility signals; exposing a stable third-party registration
       -- contract is intentionally deferred until the model has runtime proof.
@@ -1684,6 +1693,16 @@ return function(mod)
                   generation = { gen1 = true, gold = true, crystal = true },
                   note = "Current source/documentation audit. 0.2.25 preserves Mod API 2 and adds read-only mod.datasets imported-version views plus substantial Gen2 VM/battle/save/world work. Nuzlocke keeps active-game rule authority on mod.content, uses semantic Gen2 script/map identity for service and opening-clock gates, and treats datasets as a future read-only compatibility/randomizer data source rather than changing protected runtime transactions without certification.",
               },
+              ["0.2.26"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true, crystal = true },
+                  note = "Historical source-audited profile; Gen II native shiny.roll/mon.shiny and ROM-extracted palette ownership are retained alongside the existing Nuzlocke transaction seams. Crystal shiny presentation still requires the narrow send-out safety workaround and exact-edition runtime evidence.",
+              },
+              ["0.2.27"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true, crystal = true },
+                  note = "Current source/documentation-audited profile. Adds public R/B/Y catch.nickname and battle.style rule seams, palette-aware Gen II Chrome/UI infrastructure, revised battle presentation, launcher/input/platform work, and broad engine tests while retaining Mod API 2, Save Format 4, shiny.roll, protected Nuzlocke gameplay transactions, and the existing Gen II shiny-flash event. Shiny Pokemon 1.2.7 is the explicit external shiny target; Gen1Recomp alone owns COLORS-transition Renderer/Assets invalidation. Exact-edition runtime certification remains required.",
+              },
           },
           seams = {
               item_use = { generation = "gen1", module = "src.inventory.ItemEffects", member = "use", mode = "compose" },
@@ -1784,6 +1803,7 @@ return function(mod)
               battle_classification = "observe",
               movement_speed = "compose",
               starter_randomization = "compose",
+              presentation = "compose",
               battle_stats = "delegate",
               stat_growth = "delegate",
               identity_dvs = "compose",
@@ -1883,6 +1903,24 @@ return function(mod)
                   note = "The World 5.10.0 is a broad living-world/expanded-content overhaul. Nuzlocke composes live trainer parties, merged species facts and ordinary battle/weather effects; provider-owned encounters should opt out through the Content randomizer policy. Wonder Trade stays observe-only. Dynamic Champion/Rocket Ball/WX-specific semantics are consumed only when runtime metadata exposes them; Nuzlocke does not guess hidden package state.",
               },
               ["the-world"] = { alias = "the_world" },
+              SHINY_POKEMON = {
+                  tested = "Stone fork 1.2.7",
+                  games = "GEN1+GEN2",
+                  shiny_identity = "compose",
+                  shiny_generation = "external",
+                  presentation = "external",
+                  palette_transition = "engine_owned",
+                  note = "Explicit shiny-provider target through 1.2.7 / Gen1Recomp 0.2.27. Prefer the public Nuzlocke provider registry plus exports.shiny_pokemon compatibility API; retain the inherited direct export probe only for older builds. When active, SHINY_POKEMON owns shiny generation/presentation for the edition and Nuzlocke becomes a rules/tracker consumer only. Gen1Recomp exclusively owns renderer/resource invalidation during COLORS transitions; Nuzlocke never flushes engine Assets/Renderer state for shiny palette changes.",
+              },
+              shiny_pokemon = { alias = "SHINY_POKEMON" },
+              potato_voxel = {
+                  tested = "1.9.6",
+                  games = "GEN1+GEN2",
+                  presentation = "compose",
+                  screens = "compose",
+                  battle_classification = "observe",
+                  note = "PotatoVoxel owns voxel world/battle presentation and may wrap native battle drawing or the Gen2BattleState screen. Nuzlocke keeps challenge state/actions, does not own render.compose or Gen2BattleState, and composes through native/public gameplay seams. Cache prebuild is treated as render-data work, not map traversal or encounter progression.",
+              },
               ["gen1-better-menus"] = {
                   tested = "1.0.3",
                   games = "GEN1",
@@ -5095,6 +5133,285 @@ return function(mod)
           initializePokemonProvenance = initializePokemonProvenance,
       }
   end)()
+
+  ---------------------------------------------------------------------
+  -- 2.8.34 SHINY PROVIDER / NATIVE FALLBACK
+  --
+  -- SHINY_POKEMON is an explicit Gen-I + Gen-II compatibility target. When
+  -- its maintained provider/API surface is present it owns shiny generation
+  -- and presentation for that edition; Nuzlocke consumes only the resulting
+  -- shiny identity for challenge policy/tracking. Without an external owner,
+  -- Gen II uses the engine `shiny.roll` seam and Gen I uses Nuzlocke's narrow
+  -- live-wild fallback without replacing battle constructors or renderers.
+  ---------------------------------------------------------------------
+  mod.exports.__beta26.shinyRateLabels = {
+      [0] = "NATIVE",
+      [1] = "1/4096",
+      [2] = "1/1024",
+      [3] = "1/512",
+      [4] = "1/100",
+      [5] = "1/10",
+      [6] = "ALWAYS",
+  }
+  mod.exports.__beta26.shinyRateDenoms = {
+      [1] = 4096, [2] = 1024, [3] = 512, [4] = 100, [5] = 10, [6] = 1,
+  }
+  mod.exports.__beta26.shinyRateLabel = function(value)
+      local mode = math.max(0, math.min(6, math.floor(tonumber(value) or 0)))
+      return mod.exports.__beta26.shinyRateLabels[mode] or "NATIVE"
+  end
+
+  mod.exports.__beta26.shinyProvider = function()
+      -- Single-owner safety rule: registry/API capability claims are only
+      -- authoritative after Nuzlocke proves that a separate shiny mod handle
+      -- is actually live.  A registry-only/stale compatibility row must never
+      -- make standalone Nuzlocke disable its own shiny generation/presentation.
+      if type(mod.find) ~= "function" then return nil end
+
+      local liveProvider = nil
+      for _, id in ipairs({
+          "SHINY_POKEMON", "shiny_pokemon", "gen1recomp_shiny_pokemon",
+      }) do
+          local ok, provider = pcall(mod.find, id)
+          if ok and type(provider) == "table" then
+              local providerId = tostring(provider.id or id):upper()
+              local selfId = tostring(mod.id or mod.name or "NUZLOCKE"):upper()
+              if provider ~= mod and providerId ~= selfId then
+                  liveProvider = provider
+                  break
+              end
+          end
+      end
+      if liveProvider == nil then return nil end
+
+      -- Once the external mod is proven live, prefer its explicit provider
+      -- registration. Shiny Pokemon 1.2.7 advertises SHINY_IDENTITY and
+      -- SHINY_PRESENTATION on both generations.
+      local public = mod.exports.nuzlocke and mod.exports.nuzlocke.interop
+      if public and type(public.getProvider) == "function" then
+          local okRegistered, registered = pcall(public.getProvider, "SHINY_POKEMON")
+          if okRegistered and type(registered) == "table" then
+              local caps = type(registered.capabilities) == "table"
+                  and registered.capabilities or {}
+              local hasIdentity = caps.SHINY_IDENTITY == true
+                  or caps.shiny_identity == true
+              local hasPresentation = caps.SHINY_PRESENTATION == true
+                  or caps.shiny_presentation == true
+                  or caps.SHINY_GENERATION == true
+                  or caps.shiny_generation == true
+              if hasIdentity and hasPresentation then return liveProvider end
+          end
+      end
+
+      local exports = liveProvider.exports
+      if type(exports) ~= "table" then return nil end
+
+      -- Maintained API v1 (1.2.x): available on both generations.
+      local compat = exports.shiny_pokemon or exports.shiny_compat
+      if type(compat) == "table" and type(compat.isShiny) == "function" then
+          local presentation = type(compat.capability) == "function"
+              and compat.capability("shiny_presentation") or nil
+          local identity = type(compat.capability) == "function"
+              and compat.capability("shiny_identity") or nil
+          local ownsIdentity = type(identity) == "table"
+              and tostring(identity.owner or ""):upper() == "SHINY_POKEMON"
+          local ownsPresentation = type(presentation) == "table"
+              and tostring(presentation.owner or ""):upper() == "SHINY_POKEMON"
+          if ownsIdentity and ownsPresentation then return liveProvider end
+      end
+
+      -- Historical inherited Gen-I compatibility surface.
+      if type(exports.isShiny) == "function"
+          and (type(exports.rollShiny) == "function"
+              or exports.ownsShiny == true
+              or exports.shinyOwner == true
+              or type(exports.shinyOwner) == "function") then
+          return liveProvider
+      end
+      return nil
+  end
+
+  mod.exports.__beta26.shinyRuntimeIsGen2 = function(game)
+      -- This block is registered before the main runtime edition helper is
+      -- assigned later in the file. Prefer that helper once available, but
+      -- retain an engine capability fallback so an early shiny.roll callback
+      -- can never mistake a Gen-II boot for a Gen-I external-provider boot.
+      if type(mod.exports.__beta26.runtimeIsGen2) == "function" then
+          local ok, value = pcall(mod.exports.__beta26.runtimeIsGen2, game)
+          if ok then return value and true or false end
+      end
+      local ok, GameVersion = pcall(require, "src.core.GameVersion")
+      if ok and GameVersion and type(GameVersion.generation) == "function" then
+          local gok, generation = pcall(GameVersion.generation)
+          if gok then return tonumber(generation) == 2 end
+      end
+      return false
+  end
+
+  mod.exports.__beta26.externalShinyOwns = function(game)
+      -- If a compatible shiny provider is active for this edition, it owns
+      -- BOTH generation and presentation immediately. The loader already
+      -- edition-gates mods, so an active capability is stronger evidence than
+      -- a hard-coded generation assumption.
+      return mod.exports.__beta26.shinyProvider() ~= nil
+  end
+
+  mod.exports.__beta26.shinySystemOwner = function(game)
+      local provider = mod.exports.__beta26.externalShinyOwns(game) and mod.exports.__beta26.shinyProvider() or nil
+      return provider and (provider.name or provider.id or "SHINY_POKEMON")
+          or "Nuzlocke"
+  end
+  mod.exports.__beta26.shinyExternalProvider = function(game)
+      return mod.exports.__beta26.externalShinyOwns(game) and mod.exports.__beta26.shinyProvider() or nil
+  end
+
+  mod.exports.__beta26.shinyRateMode = function()
+      return math.max(0, math.min(6, math.floor(tonumber(
+          mod.save:get("shiny_rate_mode", defaultRuleValue("shiny_rate_mode"))) or 0)))
+  end
+
+  mod.exports.__beta26.shinyRandomUnit = function()
+      if love and love.math and type(love.math.random) == "function" then
+          return love.math.random()
+      end
+      return math.random()
+  end
+
+  -- A natural DV shiny already contributes 1/8192.  Enhanced modes add only
+  -- the extra probability needed to hit the requested total rate instead of
+  -- stacking a second full shiny roll on top.
+  mod.exports.__beta26.enhancedShinyRoll = function(mode, natural)
+      if natural then return true end
+      mode = math.max(0, math.min(6, math.floor(tonumber(mode) or 0)))
+      if mode <= 0 then return false end
+      local denom = mod.exports.__beta26.shinyRateDenoms[mode]
+      if denom == 1 then return true end
+      if not denom then return false end
+      local nativeDenom = 8192
+      if denom >= nativeDenom then return false end
+      local extra = (nativeDenom - denom) / (denom * (nativeDenom - 1))
+      return mod.exports.__beta26.shinyRandomUnit() < extra
+  end
+
+  mod.exports.__beta26.nativeShinyFallbackActive = function(game)
+      return not mod.exports.__beta26.externalShinyOwns(game)
+  end
+
+  -- Gen II: use the public engine seam.  No BattleState/Mon constructor
+  -- replacement is needed, and forced shininess remains a presentation fact
+  -- carried by mon.shiny without rewriting DVs/stat values.
+  --
+  -- 2.8.36 runtime hardening: keep a tiny decision ledger keyed by the exact
+  -- species/level/DV tuple that shiny.roll just evaluated. Crystal runtime
+  -- showed that a wild can otherwise reach battle with mon.shiny still false
+  -- even though the Nuzlocke wrapper was configured for ALWAYS. The ledger
+  -- lets battle.started verify/repair the identity handoff without re-rolling
+  -- a successful engine decision or stacking probabilities.
+  mod.exports.__beta26.gen2ShinyDecisionLedger = {}
+  mod.exports.__beta26.gen2ShinyDecisionKey = function(species, level, dvs)
+      dvs = type(dvs) == "table" and dvs or {}
+      return table.concat({ tostring(species or ""), tostring(level or ""),
+          tostring(dvs.attack or ""), tostring(dvs.defense or ""),
+          tostring(dvs.speed or ""), tostring(dvs.special or ""),
+          tostring(dvs.hp or "") }, "|")
+  end
+  mod.exports.__beta26.rememberGen2ShinyDecision = function(ctx, result, mode)
+      if type(ctx) ~= "table" then return end
+      local key = mod.exports.__beta26.gen2ShinyDecisionKey(ctx.species, ctx.level, ctx.dvs)
+      local ledger = mod.exports.__beta26.gen2ShinyDecisionLedger
+      ledger[#ledger + 1] = { key = key, shiny = result == true, mode = mode }
+      if #ledger > 32 then table.remove(ledger, 1) end
+  end
+  mod.exports.__beta26.consumeGen2ShinyDecision = function(mon)
+      if type(mon) ~= "table" then return nil end
+      local key = mod.exports.__beta26.gen2ShinyDecisionKey(mon.species, mon.level, mon.dvs)
+      local ledger = mod.exports.__beta26.gen2ShinyDecisionLedger
+      for i = #ledger, 1, -1 do
+          local row = ledger[i]
+          if row and row.key == key then
+              table.remove(ledger, i)
+              return row
+          end
+      end
+      return nil
+  end
+
+  if mod.hooks and type(mod.hooks.wrap) == "function" then
+      mod.hooks:wrap("shiny.roll", function(nextFn, ctx)
+          local natural = nextFn(ctx) and true or false
+          local game = currentGame or mod.game
+          if mod.exports.__beta26.externalShinyOwns(game) then return natural end
+          local mode = mod.exports.__beta26.shinyRateMode()
+          local result = natural
+          if mode > 0 then
+              result = mod.exports.__beta26.enhancedShinyRoll(mode, natural)
+          end
+          mod.exports.__beta26.rememberGen2ShinyDecision(ctx, result, mode)
+          return result
+      end, 150)
+  end
+
+  -- Gen I has no engine shiny.roll seam.  Apply the same odds once, after the
+  -- native wild battler exists but before Nuzlocke consumes its identity.
+  -- Gen II uses this same event only as an identity-handoff verifier for the
+  -- public shiny.roll decision above; it does not replace Gen II construction.
+  mod.events:on("battle.started", function(payload)
+      local game = payload and payload.game or currentGame or mod.game
+      if mod.exports.__beta26.externalShinyOwns(game) then return end
+      local mode = mod.exports.__beta26.shinyRateMode()
+      -- Gen1Recomp battle.started may deliver either { battle = state, game = ... }
+      -- or the battle state directly. All other Nuzlocke battle-start consumers
+      -- already accept both shapes; standalone Gen-I shiny fallback must too.
+      local battle = payload and (payload.battle or payload)
+      if type(battle) ~= "table" or battle.nuzlockeShinyFallbackRolled then return end
+      battle.nuzlockeShinyFallbackRolled = true
+
+      if type(mod.exports.__beta26.isTrainerBattleForNuzlocke) == "function"
+          and mod.exports.__beta26.isTrainerBattleForNuzlocke(battle) then
+          return
+      end
+      local mon = battle.enemy and (battle.enemy.mon or battle.enemy) or nil
+      if type(mon) ~= "table" then return end
+
+      if mod.exports.__beta26.shinyRuntimeIsGen2(game) then
+          -- Consume the exact engine-side decision if available. This makes
+          -- ALWAYS authoritative even if a downstream Gen II path failed to
+          -- copy the boolean onto the battle mon, while preserving a genuine
+          -- false decision for probabilistic modes (no accidental second roll).
+          local decision = mod.exports.__beta26.consumeGen2ShinyDecision(mon)
+          if decision ~= nil then
+              if decision.shiny == true and mon.shiny ~= true then
+                  mon.shiny = true
+                  mon.nuzlockeShinySource = "nuzlocke_gen2_handoff"
+              end
+              mon.nuzlockeShinyRateRolled = true
+              return
+          end
+          -- Nonstandard providers can bypass Mon.new/shiny.roll entirely. In
+          -- that case perform exactly one fail-soft roll at wild battle start.
+          if mon.nuzlockeShinyRateRolled == true or mode <= 0 then return end
+          mon.nuzlockeShinyRateRolled = true
+          local natural = mon.shiny == true
+          if mod.exports.__beta26.enhancedShinyRoll(mode, natural) then
+              mon.shiny = true
+              mon.nuzlockeShinySource = natural and "native" or "nuzlocke_gen2_fallback"
+          end
+          return
+      end
+
+      if mode <= 0 then return end
+      -- The live pokemon.sprite seam may have already rolled this exact Gen-I
+      -- wild before its battle art was resolved. Do not perform a second roll
+      -- at battle.started; this callback is only a fail-soft path for headless
+      -- or nonstandard battle presentations that never requested the sprite.
+      if mon.nuzlockeShinyRateRolled == true then return end
+      mon.nuzlockeShinyRateRolled = true
+      local natural = Identity.isShiny(mon)
+      if mod.exports.__beta26.enhancedShinyRoll(mode, natural) then
+          mon.shiny = true
+          mon.nuzlockeShinySource = natural and "native_dv" or "nuzlocke_fallback"
+      end
+  end)
 
   -- Normalize only Nuzlocke-owned records. The live Pokemon's species field is
   -- never rewritten: MissingNo and mod-defined glitch payloads may rely on the
@@ -13391,6 +13708,9 @@ return function(mod)
       no_escape = true,
       no_catching = true,
       encounter_ball_limit = true,
+      shiny_rate_mode = true,
+      shiny_colors = true,
+      shiny_intro = true,
       progression_pc_catches = true,
       no_tm_use = true,
       no_rare_candy_use = true,
@@ -13477,7 +13797,10 @@ return function(mod)
       failed_encounter = Strings.source("GEN 2 BETA / TEST REQUIRED: a failed first eligible encounter may consume the area after Soft Start is armed."),
       nickname_rule = Strings.source("GEN 2 BETA / TEST REQUIRED: catches and scripted gifts must receive a non-empty nickname through Gen 2's native naming screen."),
       dupes_mode = Strings.source("GEN 2 BETA / TEST REQUIRED: duplicate handling through Gen 2's capture gate. OFF = normal, SPEC = species, FAM = evolution family."),
-      shiny_clause = Strings.source("GEN 2 BETA / TEST REQUIRED: OFF disables shiny exceptions; 1/2/3 grant that many successful run-wide shiny exceptions; UNLIMITED preserves the traditional clause. Successful shiny exceptions consume exactly one allowance. Shiny Clause does not bypass Type Locke, No Catching, Static, or species/BST bans."),
+      shiny_clause = Strings.source("GEN 2 BETA / TEST REQUIRED — CATCH EXCEPTIONS ONLY; this does not change shiny odds. OFF disables shiny exceptions; 1/2/3 grant that many successful run-wide shiny exceptions; UNLIMITED preserves the traditional clause. Successful shiny exceptions consume exactly one allowance. Shiny Clause does not bypass Type Locke, No Catching, Static, or species/BST bans."),
+      shiny_rate_mode = Strings.source("GEN 2 / TEST REQUIRED — RARITY ONLY; this does not grant catch exceptions. NATIVE preserves the engine's 1/8192 shiny roll. Higher modes use the public shiny.roll seam without replacing Gen II battle or Pokemon constructors. If a compatible shiny provider is active for this edition, Nuzlocke stands down and displays EXTERNAL."),
+      shiny_colors = Strings.source("GEN 2 / TEST REQUIRED — VISUALS ONLY. When Nuzlocke owns shinies, live shiny Pokemon use the engine's sanctioned pokemon.sprite / pokemon.icon presentation seams. External shiny ownership disables Nuzlocke recoloring immediately."),
+      shiny_intro = Strings.source("GEN 2 / TEST REQUIRED — VISUALS/AUDIO ONLY. When Nuzlocke owns shinies, battle.overlay supplies a one-shot sparkle cue without taking BattleState ownership. External shiny ownership disables Nuzlocke sparkle/audio presentation immediately."),
       status_move_scope = Strings.source("GEN 2 BETA / TEST REQUIRED: bulk side-scope for the six outright status bans: Paralysis, Confusion, Sleep Ban, Poison/Toxic, Burn, and Freeze. OFF leaves them independent; SELF/ENEMY/ALL synchronize those six. Sleep Clause is separate and is never synchronized."),
       status_paralysis_scope = Strings.source("GEN 2 BETA / TEST REQUIRED: side-scoped paralysis ban. Secondary paralysis is suppressed without cancelling the damaging hit."),
       status_confusion_scope = Strings.source("GEN 2 BETA / TEST REQUIRED: side-scoped confusion ban. Secondary confusion is suppressed without cancelling the damaging hit."),
@@ -13880,7 +14203,16 @@ return function(mod)
           local visible = {}
           for _, rule in ipairs(cat.rules) do
               local r = mod.exports.__beta26.ruleForConfigSurface(rule, goldMode)
-              if r and (preGame or r.setupOnly ~= true) then
+              local externalShinyControl = false
+              if r and (r.key == "shiny_rate_mode" or r.key == "shiny_colors"
+                  or r.key == "shiny_intro") then
+                  local providerFn = mod.exports.__beta26.shinyExternalProvider
+                  if type(providerFn) == "function" then
+                      local okProvider, provider = pcall(providerFn, currentGame or mod.game)
+                      externalShinyControl = okProvider and provider ~= nil
+                  end
+              end
+              if r and not externalShinyControl and (preGame or r.setupOnly ~= true) then
                   visible[#visible + 1] = r
               end
           end
@@ -14923,8 +15255,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.8.30",
-      expectedParentSha256 = "7ec6a34e483d873522174c6bd24129b1b613f9ee55145278f6add17d72946858",
+      expectedParentVersion = "2.8.34",
+      expectedParentSha256 = "615456a31fac76af775e85176ba11e85e769cb6f37e17b58b3ba4c3b9d289c9e",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -15632,6 +15964,64 @@ return function(mod)
                       "one or both Wilds capture functions differ from recorded wrappers"
               end
               return "MISSING", "Wilds Nuzlocke capture session marker absent"
+          end)
+
+      -- 2.8.36 / Shiny Pokemon 1.2.7: maintained compatibility API v1 is
+      -- generation-neutral. Gen II no longer runs the inherited Gen-I entry,
+      -- so health must inspect exports.shiny_pokemon rather than requiring the
+      -- historical top-level isShiny/rollShiny pair.
+      addOptionalCompatHealth("shiny_pokemon", "SHINY_POKEMON",
+          function(provider)
+              local exports = provider.exports
+              local api = type(exports) == "table"
+                  and (exports.shiny_pokemon or exports.shiny_compat) or nil
+              if type(api) == "table" and type(api.isShiny) == "function"
+                  and type(api.capability) == "function" then
+                  local identity = api.capability("shiny_identity")
+                  local presentation = api.capability("shiny_presentation")
+                  if type(identity) == "table" and type(presentation) == "table"
+                      and tostring(identity.owner or ""):upper() == "SHINY_POKEMON"
+                      and tostring(presentation.owner or ""):upper() == "SHINY_POKEMON" then
+                      return "HEALTHY",
+                          (gen2 and "Gen II" or "Gen I")
+                          .. " shiny generation/presentation delegated through Shiny Pokemon API v1; Nuzlocke consumes identity/rules only"
+                  end
+              end
+              if type(exports) == "table" and type(exports.isShiny) == "function"
+                  and type(exports.rollShiny) == "function" then
+                  return "HEALTHY",
+                      "Legacy Shiny Pokemon identity/roll surface detected; delegated through compatibility fallback"
+              end
+              return "CHAINED",
+                  "Shiny Pokemon is loaded but neither its maintained API v1 nor legacy identity/roll surface is complete"
+          end)
+
+      -- 2.8.33: PotatoVoxel is presentation-only from Nuzlocke's perspective.
+      -- Do not key gameplay to its release/version strings: v1.9.6 exposes
+      -- capability surfaces while packaged internal version labels may lag the
+      -- release tag. Health is therefore capability-based and edition-aware.
+      addOptionalCompatHealth("potato_voxel_render", "potato_voxel",
+          function(provider)
+              local exports = provider.exports
+              if type(exports) ~= "table" then
+                  return "MISSING", "PotatoVoxel exports unavailable"
+              end
+              if gen2 then
+                  if exports.gen2Compatible == true
+                      and type(exports.goldBridgeStatus) == "function" then
+                      return "HEALTHY",
+                          "Gen II voxel renderer bridge present; Nuzlocke renderer ownership remains isolated"
+                  end
+                  return "CHAINED",
+                      "PotatoVoxel is loaded but its Gen II renderer bridge surface is incomplete"
+              end
+              if type(exports.isLoading) == "function"
+                  and type(exports.lib) == "table" then
+                  return "HEALTHY",
+                      "Gen I voxel renderer surface present; Nuzlocke gameplay hooks remain composed"
+              end
+              return "CHAINED",
+                  "PotatoVoxel is loaded but the audited Gen I renderer surface is incomplete"
           end)
 
       -- Hook health remains the detailed engine-facing view. Feature Health is
@@ -19081,6 +19471,11 @@ return function(mod)
                           return Strings(mod.exports.__beta26.movementAssistLabel(val))
                       elseif key == "shiny_clause" then
                           return ({ [0]="OFF", [1]="1", [2]="2", [3]="3", [4]="UNLIMITED" })[tonumber(val) or 4] or "UNLIMITED"
+                      elseif key == "shiny_rate_mode" then
+                          if mod.exports.__beta26.shinyExternalProvider(currentGame or mod.game) then
+                              return "EXTERNAL"
+                          end
+                          return Strings(mod.exports.__beta26.shinyRateLabel(val))
                       elseif key == "encounter_ball_limit" then
                           return ({ [0]="OFF", [1]="1", [2]="2", [3]="3", [4]="5", [5]="10" })[tonumber(val) or 0] or "OFF"
                       elseif key == "type_lock_mode" then
@@ -19682,6 +20077,11 @@ return function(mod)
                               local labels = { [0] = "OFF", [1] = "1", [2] = "2", [3] = "3", [4] = "UNLIMITED" }
                               Font.draw(marqueePixelText(labels[tonumber(val) or 0]
                                   or "OFF", 58, self.marqueeTime), 96 + valueShift, drawY)
+                          elseif key == "shiny_rate_mode" then
+                              local text = mod.exports.__beta26.shinyExternalProvider(currentGame or mod.game)
+                                  and "EXTERNAL" or mod.exports.__beta26.shinyRateLabel(val)
+                              Font.draw(marqueePixelText(Strings(text),
+                                  58, self.marqueeTime), 96 + valueShift, drawY)
                           elseif key == "encounter_ball_limit" then
                               local labels = { [0] = "OFF", [1] = "1", [2] = "2", [3] = "3", [4] = "5", [5] = "10" }
                               Font.draw(marqueePixelText(labels[tonumber(val) or 0]
@@ -21275,9 +21675,11 @@ return function(mod)
           BattleState.__nuzlockeCatchFinishPatched = true -- historical marker
       end
 
-      -- The public battle.nickname hook is not present in every recomp build.
-      -- Patch the engine's actual nickname-screen seam as well, so enabling
-      -- Nicknames cannot silently fall through to the normal auto-skip path.
+      -- Gen1Recomp 0.2.27 added the public catch.nickname decision seam.
+      -- Nickname Rule uses that hook as the preferred R/B/Y catch-policy
+      -- surface; this askNicknameUI wrapper remains as the enforcement layer
+      -- that prevents an empty/declined name and as compatibility for older
+      -- 0.2.24-0.2.26 engines that never call catch.nickname.
       do
           local healthy = ownedMethodSession(
               "__nuzlockeNicknameScreenSession", "askNicknameUI")
@@ -21477,17 +21879,34 @@ return function(mod)
   ---------------------------------------------------------------------
   -- NICKNAME ENFORCEMENT
   --
-  -- hooks:wrap("battle.nickname") fires after a successful catch,
-  -- before the nickname prompt. Returning true forces the prompt to
-  -- appear even when the player has auto-skip turned on. Returning
-  -- false skips it. We always return true when the Nicknames rule is
-  -- enabled so the player cannot avoid naming their catch.
+  -- Gen1Recomp 0.2.27+: preferred public catch nickname policy seam.
+  -- Returning true tells the engine to offer naming at the exact cart
+  -- decision point. The askNicknameUI enforcement above then prevents a
+  -- required nickname from being declined or confirmed empty.
   ---------------------------------------------------------------------
+  mod.hooks:wrap("catch.nickname", function(next, mon, ctx)
+      local battle = ctx and ctx.battle
+      local gameRef = (ctx and ctx.game) or (battle and battle.game)
+      if active(gameRef, battle)
+          and not mod.exports.__beta26.runtimeIsGen2(gameRef)
+          and mod.save:get("nickname_rule", defaultRuleValue("nickname_rule")) then
+          if mon then
+              mon.nuzlockeNicknameRequired = true
+              mon.nuzlockeNeedsNickname = true
+          end
+          mod.exports.__beta26.catchNicknameHookObserved = true
+          return true
+      end
+      return next(mon, ctx)
+  end)
+
+  -- 0.2.24-0.2.26 compatibility fallback. Those engines do not call
+  -- catch.nickname, so retain the historical battle.nickname seam. On
+  -- 0.2.27+ catch.nickname above is the authoritative decision surface.
   mod.hooks:wrap("battle.nickname", function(next, battle, mon)
       if active(battle and battle.game, battle)
           and not mod.exports.__beta26.runtimeIsGen2(battle and battle.game)
           and mod.save:get("nickname_rule", defaultRuleValue("nickname_rule")) then
-          -- Force the naming screen open regardless of options.
           return true
       end
       return next(battle, mon)

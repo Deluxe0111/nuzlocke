@@ -1,3 +1,33 @@
+# Feature Confidence — 2.8.37
+
+## 2.8.37 release certification update
+
+**PASS — Red standalone shiny smoke:** Nuzlocke only, Shiny Rate = ALWAYS, Shiny Colors ON, Shiny Intro ON. Wild Rattata and Kakuna both appeared with shiny coloration and the shiny intro presentation. This protects the standalone Gen I owner/roll/recolor/intro path.
+
+
+- Shiny Pokémon 1.2.7 provider/API ownership compatibility (Gen I + Gen II): **SOURCE AUDIT PASS — COMBINED RUNTIME CERTIFICATION REQUIRED**.
+- Gen1Recomp 0.2.27 COLORS-transition renderer/asset ownership: **SOURCE AUDIT PASS — Nuzlocke performs no engine cache invalidation; runtime palette-switch smoke recommended**.
+
+
+## Built-in shiny presentation
+
+**Static/source confidence: medium-high; runtime certification required.** The implementation now uses the current engine seams specifically intended for per-instance Pokemon art (`pokemon.sprite` / `pokemon.icon`) and shiny/HUD overlays (`battle.overlay`), and Release Safety forbids constructor or native battle-draw ownership. Runtime testing is still required for the first derived-image bake, battle sparkle/audio timing, Summary/party presentation, external-provider failover, and exact-edition Gen-II behavior.
+
+2.8.37 is the current full release. Red standalone shiny generation/presentation is runtime-PASS: Nuzlocke-only Shiny Rate = ALWAYS produced visibly recolored wild Rattata and Kakuna with shiny intro presentation. Other compatibility additions still retain exact-edition / combined-mod certification requirements where noted.
+
+# Feature Confidence — 2.8.33
+
+- Silver 2.8.31 Gen II Random Starter full identity chain: **RUNTIME PASS — PROTECTED**.
+- 2.8.32 live type-chart / `steel_typing` integration: **STATIC REVIEW PASS — COMBINED-MOD RUNTIME REQUIRED**.
+- PotatoVoxel 1.9.6 renderer/presentation coexistence: **SOURCE/STATIC AUDIT PASS — COMBINED-MOD RUNTIME REQUIRED**.
+- Generalized presentation ownership guard (`render.compose`, `Gen2BattleState`, native BattleState draw methods): **STATIC CONTRACT PASS**.
+- PotatoVoxel cache/prebuild non-progression behavior: **SOURCE AUDIT PASS — RUNTIME TRIPWIRE TEST RECOMMENDED**.
+
+# Feature Confidence — 2.8.32
+
+- Silver 2.8.31 Gen II Random Starter full identity chain: **RUNTIME PASS**.
+- Type-chart companion / Starter Trio Typing live-chart integration: **STATIC REVIEW PASS — COMBINED-MOD RUNTIME REQUIRED**.
+
 # Feature Confidence — 2.8.31
 
 - Silver 2.8.30 Random Starter 3-STAGE: runtime PASS for base-form filtering, randomized Bellsprout portrait, actual Bellsprout award, and later nickname species identity; receipt/confirmation text remained mismatched and is the only 2.8.31 target.
@@ -433,3 +463,16 @@ Red, Blue, Yellow, Gold and Silver are five independent runtime-evidence targets
 ## 2.7.56 evidence
 
 Logical-surface policy, wide Gen 1 Rules/Setup/Tracker composition, and the Dev UI Gallery are static/parse validated only. Runtime UI PASS is not claimed for any edition.
+
+- 2.8.36 Gen II Shiny Rate ALWAYS: Crystal RETEST REQUIRED after exact shiny.roll -> mon.shiny handoff verification repair.
+
+## Gen1Recomp 0.2.27 compatibility
+
+- R/B/Y `catch.nickname` integration: **STATIC PASS / RUNTIME REQUIRED**.
+- Older-engine nickname fallback and mandatory naming-screen enforcement: **PRESERVED**.
+- Gen II NUZ STATUS palette-aware Chrome migration: **STATIC PASS / VISUAL RUNTIME REQUIRED**.
+- Gen II Recover Catches palette-aware Chrome migration: **STATIC PASS / VISUAL RUNTIME REQUIRED**.
+- Gen II `shiny-flash` safety source revalidation: **STATIC/SOURCE PASS / EXACT-EDITION RUNTIME REQUIRED**.
+- 0.2.27 audited profile + diagnostics marker: **STATIC PASS**.
+- Overall 0.2.27 source/documentation compatibility review: **PASS**; gameplay/UI runtime certification remains edition-specific and pending.
+

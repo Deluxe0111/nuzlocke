@@ -1,3 +1,32 @@
+> Standalone Gen-I shiny fallback now accepts both Gen1Recomp `battle.started` payload shapes (`payload.battle` and a direct BattleState), fixing Shiny Rate ALWAYS doing nothing in Red/Blue/Yellow when Nuzlocke is the only shiny owner.
+
+2.8.36 standalone shiny regression fix: external shiny ownership now requires a live separate provider handle before registry/API claims are trusted, preventing Nuzlocke-only runs from falsely standing down their built-in shiny system.
+# Nuzlocke 2.8.37
+
+**Full release.** 2.8.37 is a behavior-preserving promotion of the latest corrected 2.8.36 candidate. Red runtime testing with Nuzlocke as the only mod confirmed Shiny Rate = ALWAYS, Gen I species recoloring, and the shiny intro presentation across multiple wild encounters. No shiny gameplay code was changed during promotion.
+
+2.8.36 expands Nuzlocke's built-in shiny support from gameplay identity/rate semantics into a complete in-mod presentation stack while preserving strict single-owner compatibility. If a compatible external shiny provider is active, that provider immediately owns shiny generation **and** presentation; Nuzlocke performs no second roll, recolor, sparkle, or shiny SFX and remains only a Shiny Clause/tracker/legality consumer.
+
+Without an external shiny owner, Nuzlocke now supplies **Shiny Rate**, **Shiny Colors**, and **Shiny Intro** itself. Gen I enhanced odds continue to mark the live wild mon without rewriting its DVs/stats; Gen II enhanced odds continue through the engine's public `shiny.roll` seam. Visuals now use current Gen1Recomp public hooks: `pokemon.sprite`/`pokemon.icon` for per-instance shiny art and `battle.overlay` for one-shot sparkle/audio cues. Nuzlocke does not replace Pokemon constructors, `BattleState.draw`, Gen-II battle screens, or renderer ownership.
+
+Shiny art is cached under Nuzlocke's own derived-image cache. Battle, Summary, evolution/trade/Hall-of-Fame and other current-engine consumers that pass a live mon through the sanctioned sprite seam automatically receive the shiny variant. Supported icon consumers receive the same ownership behavior. `Shiny Colors` can be disabled without changing shiny identity; `Shiny Intro` independently controls the sparkle/audio cue.
+
+The explicit `SHINY_POKEMON` compatibility target remains optional. **Shiny Pokémon 1.2.7** is the current audited target for Gen1Recomp 0.2.27 across Gen I and Gen II. Nuzlocke prefers its public provider registry plus Shiny Pokémon's generation-neutral `exports.shiny_pokemon` API, with the inherited direct `isShiny`/`rollShiny` probe retained only for older builds. If that provider is active, Nuzlocke immediately stands down its Shiny Rate / Shiny Colors / Shiny Intro generation/presentation surfaces while keeping Shiny Clause as Nuzlocke policy.
+
+Gen1Recomp exclusively owns Renderer/Assets invalidation during Gen-I COLORS transitions. Nuzlocke never flushes engine render resources for shiny palette changes; custom-species fallback art instead keys Nuzlocke's private derived-image cache by the active PaletteFX mode/custom ramp.
+
+# Nuzlocke 2.8.33
+
+2.8.33 adds explicit and generalized compatibility hardening for **PotatoVoxel 1.9.6** and similar presentation-heavy renderer mods. PotatoVoxel may own the voxel world and staged battle presentation; Nuzlocke keeps challenge rules, encounter/capture state, randomizer state, and native gameplay transactions. Nuzlocke now exposes a diagnostic `presentation` compatibility capability, reports PotatoVoxel in MOD COMPAT when present, and release-safety guards prevent Nuzlocke from taking ownership of `render.compose`, `Gen2BattleState`, or native `BattleState` draw methods.
+
+`potato_voxel` is an optional compatibility identity, never a required dependency. PotatoVoxel cache/prebuild activity is treated as rendering work rather than map traversal, encounter progression, or Nuzlocke state advancement. The 2.8.32 live type-chart companion work and the runtime-passed 2.8.31 Gen II Random Starter transaction remain unchanged.
+
+# Nuzlocke 2.8.32
+
+2.8.32 adds explicit compatibility with type-modernization/content mods such as **STEEL/FAIRY AND TYPING CHARTS 2.0.1**. Random Starter **Trio Typing: AUTO** now evaluates the live merged Gen1Recomp type chart, so Fairy and customized Steel/Dark relationships participate in starter-cycle selection. The companion mod is recommended but not required; Nuzlocke retains a fail-soft legacy chart only when the runtime chart is unavailable.
+
+The Silver-tested 2.8.31 Gen II Random Starter presentation/award path is unchanged.
+
 # Nuzlocke 2.8.31
 
 2.8.31 is a focused Gen II Random Starter presentation repair built from Silver-tested 2.8.30. The 3-STAGE/base-form pool, randomized portrait/cry, and actual starter award remain unchanged. Elm confirmation fallback text now uses the VM raw-text path instead of treating a literal sentence as a generated text key, and the one same-script getmonname command feeding the native "received" line now names the randomized preview species rather than the vanilla ball species.
@@ -388,3 +417,14 @@ See `RELEASE_NOTES.md`, `CHANGELOG.md`, and `docs/USER_GUIDE.md` for current beh
 ### Rule availability
 
 Nuzlocke filters configuration by the exact active edition and live compatibility capabilities. A rule whose mechanic does not exist in that game is not shown and is behaviorally inert; compatible providers can opt a declared mechanic into availability. Dependent or superseded child rules retain their saved preference but are hidden and inactive until meaningful again.
+
+**Standalone shiny ownership:** When no compatible shiny provider is active, Nuzlocke owns shiny odds/identity and Gen I presentation. Gen I uses official Crystal shiny color pairs over the player's normal imported sprites; no replacement sprite pack is required. Gen II keeps Gen1Recomp's native shiny identity and palette rendering. A compatible external shiny provider immediately takes full shiny generation/presentation ownership instead.
+
+### Shiny ownership
+
+When Nuzlocke is the active shiny owner, its **Shiny Rate**, **Shiny Colors**, and **Shiny Intro** controls are shown in Setup/NUZ RULES. If a compatible external shiny provider is detected, those three controls are hidden and the external provider keeps the shiny-generation/presentation controls. **Shiny Clause** remains visible because Nuzlocke still owns catch-exception policy and tracker/run-state semantics.
+
+## Gen1Recomp 0.2.27 compatibility
+
+The 0.2.27 compatibility pass is active in this 2.8.36 candidate. Red/Blue/Yellow Nickname Rule prefers the engine's public `catch.nickname` decision hook while preserving the older fallback path. Gold/Silver/Crystal NUZ STATUS and Recover Catches use palette-aware Gen II Chrome drawing so engine custom GB/COLOR palettes carry through those Nuzlocke utility screens. The Gen II `shiny-flash` safety boundary was source-revalidated against 0.2.27 and remains narrow: event suppression + picture-latch restore only, with no Gen II `draw`/`update` ownership. The global source/documentation-audited engine marker is now 0.2.27; exact-edition runtime certification remains separate.
+

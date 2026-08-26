@@ -1,3 +1,36 @@
+- 2.8.37 full-release promotion: synchronized versioned documentation and recorded Red runtime PASS for Nuzlocke-only ALWAYS shiny generation, Gen I recoloring, and shiny intro presentation. No behavior change from the final corrected 2.8.36 candidate.
+2.8.36 standalone shiny regression fix: external shiny ownership now requires a live separate provider handle before registry/API claims are trusted, preventing Nuzlocke-only runs from falsely standing down their built-in shiny system.
+- 2.8.36 Shiny Pokémon 1.2.7 compatibility: documented generation-neutral provider/API detection, Gen I + Gen II external-owner failover, Gen1Recomp 0.2.27 engine-owned COLORS invalidation, and palette-signature-keyed private fallback shiny cache behavior.
+- 2.8.36 corrective compile-budget rebuild: provider alias data is resolver-scoped; failed first package quarantined.
+# Documentation Changelog — 2.8.37
+
+- Documents the complete provider-absent shiny stack and the new Shiny Colors / Shiny Intro controls.
+- Replaces the older Gen-I-only ownership assumption with edition-active capability-based shiny ownership.
+- Documents immediate external-provider stand-down for generation, colors, sparkles, and SFX while preserving Nuzlocke shiny rule/tracker consumption.
+- Documents current Gen1Recomp `pokemon.sprite`, `pokemon.icon`, and `battle.overlay` seams as the built-in presentation boundary.
+- Records that Nuzlocke still must not replace Pokemon constructors, Gen-II battle screens, BattleState draw ownership, or renderer composition for shiny presentation.
+
+# Documentation Changelog — 2.8.35
+
+- Documents `SHINY_POKEMON` as an explicit optional Gen-I compatibility target.
+- Documents the single-owner rule: external provider owns Gen-I shiny roll/presentation when healthy; Nuzlocke otherwise owns a lightweight fallback.
+- Documents the new Shiny Rate rule and its NATIVE / enhanced values.
+- Documents Gen-II use of the public `shiny.roll` seam and native shiny field.
+- Clarifies that Nuzlocke's Gen-I fallback does not duplicate rich recolor/sparkle visuals and recommends the companion mod for those visuals.
+
+# Documentation Changelog — 2.8.33
+
+- 2.8.33: Documents explicit PotatoVoxel 1.9.6 compatibility and the generalized presentation-provider ownership contract.
+- Documents that Nuzlocke must not own `render.compose`, `Gen2BattleState`, or native BattleState draw methods when composing with renderer mods.
+- Documents PotatoVoxel cache/prebuild as graphics preparation rather than Nuzlocke traversal/progression.
+- Adds edition-scoped combined-mod runtime requirements and preserves the 2.8.32 type-chart companion contract unchanged.
+- Records the corrected executable lineage for this child: exact 2.8.32 parent.
+
+# Documentation Changelog — 2.8.32
+
+- 2.8.32: Documents explicit compatibility/recommendation for STEEL/FAIRY AND TYPING CHARTS 2.0.1 and the live merged type-chart ownership contract for Starter Trio Typing.
+- Records 2.8.31 as a flawless Silver runtime PASS and canonical parent.
+
 # Documentation Changelog — 2.8.31
 
 - 2.8.31: Records Silver 2.8.30 partial runtime PASS (3-STAGE base form, portrait, award) and narrows the remaining repair to Elm confirmation literal rendering plus the pre-GIVEPOKE getmonname receipt buffer.
@@ -506,3 +539,6 @@ Historical gameplay/release information removed from duplicated README/USER_GUID
 ## 2.7.56
 
 Documented logical-surface policy, responsive Gen 1 build coverage, centered child-flow continuity, Dev UI Gallery, and runtime-test-required status.
+
+- 2.8.36 / 0.2.27 phase 1: documented R/B/Y `catch.nickname` migration, older-engine fallback, and palette-aware Gen II NUZ STATUS / Recover Catches Chrome surfaces.
+

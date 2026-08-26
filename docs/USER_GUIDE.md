@@ -1,3 +1,38 @@
+# Nuzlocke User Guide — 2.8.37
+
+2.8.37 is the full-release promotion of the corrected 2.8.36 line. The standalone Gen I shiny path has a Red runtime PASS with `Shiny Rate = ALWAYS`, Shiny Colors ON, and Shiny Intro ON.
+
+### Gen1Recomp 0.2.27 UI / nickname compatibility
+
+On current 0.2.27 engines, R/B/Y catch nickname enforcement uses the engine's public catch-nickname decision seam. Gold/Silver/Crystal Nuzlocke utility screens use the engine's palette-aware Chrome drawing path, so custom GB/COLOR palettes continue through NUZ STATUS and Recover Catches. The Gen II shiny send-out workaround has also been source-revalidated for 0.2.27 and remains narrowly scoped to the queued `shiny-flash` presentation event. Older supported engine builds retain compatibility fallbacks.
+
+
+## Shiny support
+
+The shiny controls are separate on purpose. **Shiny Clause** controls catch exceptions. **Shiny Rate** controls rarity. **Shiny Colors** controls recoloring. **Shiny Intro** controls the battle sparkle/audio cue. Turning visuals off never makes a shiny non-shiny, and changing the rate never grants a catch exception.
+
+When Nuzlocke owns shinies, Red/Blue/Yellow use the virtual Gen-II DV pattern for natural shinies plus the selected enhanced-rate layer; an enhanced shiny is marked on the live mon without rewriting its DVs or stats. Gold/Silver/Crystal use Gen1Recomp's native shiny field and public `shiny.roll` seam. Nuzlocke also verifies that the exact Gen II roll result reaches the created wild mon before battle presentation; this does not add a second roll.
+
+Nuzlocke's visual layer uses Gen1Recomp's live Pokemon sprite/icon hooks, so screens that present a specific live shiny Pokemon can request its cached shiny art without Nuzlocke replacing the screen. The battle intro cue uses `battle.overlay` and therefore does not take ownership of the battle state machine.
+
+If a compatible external shiny provider is active, **the external provider owns everything shiny-facing for that edition**: roll/generation, recolor, sparkle, and shiny SFX. Nuzlocke immediately stops doing those jobs and only consumes the resulting shiny identity for Shiny Clause, legality, tracker/Catch Info, and run history.
+
+# Nuzlocke User Guide — 2.8.33
+
+## Optional Renderer Companion: PotatoVoxel
+
+Nuzlocke 2.8.33 explicitly supports coexistence with **PotatoVoxel 1.9.6**. PotatoVoxel may render the overworld and optional staged battle scene in 3D; Nuzlocke continues to enforce the challenge rules underneath. No PotatoVoxel installation is required to use Nuzlocke.
+
+For combined testing, use only one voxel-world mod at a time. With PotatoVoxel enabled, normal Nuzlocke encounters, catches, rule denials, switching, item targeting, tracker state, NUZ INFO, and lock-ins should behave the same as in the native 2D presentation. Building or rebuilding PotatoVoxel's cache is graphics preparation and should not consume encounters or advance Nuzlocke progression.
+
+On Gold, Silver, and Crystal the battle command/menu state remains native Gen II-owned. Nuzlocke does not add a competing battle renderer. Runtime support claims remain edition-specific.
+
+# Nuzlocke User Guide — 2.8.32
+
+## Recommended Companion: STEEL/FAIRY AND TYPING CHARTS
+
+Nuzlocke 2.8.32 explicitly supports the optional `steel_typing` companion. When it adds Fairy or changes Steel/Dark/type-chart relationships, Nuzlocke's typing-aware systems consume the merged runtime data. Random Starter **Trio Typing: AUTO** now uses the live battle type chart as well. The companion is recommended, not required; changes to that mod require its documented save/restart cycle.
+
 # Nuzlocke User Guide — 2.8.31
 
 ## Gold / Gen II Random Starter
@@ -118,7 +153,7 @@ Crystal remains intentionally supported in Alpha. 2.7.84 runtime testing reached
 
 Alpha means runtime coverage is incomplete. Crystal-specific story events, script specials, static/gift encounters, Battle Tower behavior, progression details, and edition-specific UI paths may still be unverified or incomplete. A feature working on Gold or Silver does **not** count as Crystal proof. Report Crystal failures with the exact rule, location/story state, and whether the run is NEW GAME or an existing save.
 
-The Gen1Recomp compatibility profile is now audited through the 0.2.24-era line, and **Gen1Recomp 0.2.24 or newer is required** for this build because Crystal is an explicit manifest target. No Nuzlocke save migration is required for this support change.
+The Gen1Recomp compatibility profile is now source/documentation-audited through **0.2.27**, and **Gen1Recomp 0.2.24 or newer is required** for this build because Crystal is an explicit manifest target. No Nuzlocke save migration is required for this support change.
 
 
 ## 2.7.83 Rules / Setup controls

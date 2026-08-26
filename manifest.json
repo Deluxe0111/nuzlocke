@@ -1,7 +1,7 @@
 {
   "id": "nuzlocke",
   "name": "Nuzlocke",
-  "version": "2.8.31",
+  "version": "2.8.37",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -30,7 +30,10 @@
     "quality_of_life",
     "g9-battle-engine",
     "gen1-better-menus",
-    "gen1_pt-br"
+    "gen1_pt-br",
+    "steel_typing",
+    "potato_voxel",
+    "SHINY_POKEMON"
   ],
   "conflicts": [],
   "description": "Configurable Nuzlocke enforcement, encounter tracking, challenge rules, run status, and quality-of-life options for Red, Blue, Yellow, beta Gold/Silver, and alpha Crystal support.",
