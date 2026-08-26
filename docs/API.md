@@ -1,4 +1,12 @@
-# Nuzlocke API — 2.8.27
+# Nuzlocke API — 2.8.29
+
+No public API or save-schema change. Gen II no longer registers Nuzlocke Battle Menu UI presentation hooks, and the retired Gen II battle-rule pager no longer wraps `BattleState.update`. Battle denials remain internal policy enforcement presented through native BattleState message handling.
+
+# Nuzlocke API — 2.8.29
+
+No public API or save-schema change. Battle Menu UI registers `battle.bottom_ui_visible` and `battle.overlay` composition only on Gen I. Gen II installs neither presentation wrapper. Gen II rule denials also no longer wrap `BattleState.update` or create a custom Nuzlocke battle phase.
+
+## Historical current note: Nuzlocke API — 2.8.27
 
 No public API or save-schema change. Gen II PartyMenu methods are no longer
 wrapped by Nuzlocke. Field NUZ INFO continues through `ui.party.submenu`, with

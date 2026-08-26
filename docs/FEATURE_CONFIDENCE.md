@@ -1,4 +1,23 @@
-# Feature Confidence — 2.8.27
+# Feature Confidence — 2.8.29
+
+- Crystal 2.8.27: field NUZ INFO, battle-owned party cancel/switch, and Pack party-target item use **runtime PASS**.
+- 2.8.28: **runtime FAIL/quarantined** after Nuzlocke battle-menu presentation and Gen II item-denial freeze were reproduced.
+- Prior 2.8.29 candidate: **runtime FAIL/quarantined**; Battle Menu UI was only guarded, not fully removed from Gen II runtime, and the denial freeze remained.
+- 2.8.29 corrective candidate: Gen II Battle Menu UI registration removed and legacy custom denial phase retired; **runtime test required**.
+- Gen I Battle Menu UI: preserved, no intentional behavior change.
+- Wilds 2.2.0 compatibility hardening: static/source-audited; coexistence runtime testing still required.
+
+# Feature Confidence — 2.8.29
+
+- 2.8.27 Crystal field NUZ INFO: **runtime PASS**.
+- 2.8.27 Crystal battle party cancel/switch ownership: **runtime PASS**.
+- 2.8.27 Crystal Pack party-target item application: **runtime PASS**.
+- 2.8.28 Crystal Battle Menu UI presentation: **runtime FAIL / quarantined**.
+- 2.8.29 Gold/Silver/Crystal native battle-command ownership: **runtime retest required**.
+- Gen I optional Battle Menu UI behavior is intentionally retained and requires no Gen II parity.
+- Gen II battle-item rule denial return/freeze repair: **source/static candidate; exact Crystal runtime retest required**.
+
+## Historical current note: Feature Confidence — 2.8.27
 
 - Gen II battle party routing: **2.8.26 runtime FAIL; 2.8.27 test required**.
 - Gen II PartyMenu method ownership: **source/static isolation complete**.
@@ -92,7 +111,7 @@
 
 - Battle Menu UI OFF: native battle command presentation must remain unchanged.
 - Battle Menu UI ON, one R/B/Y edition: ordinary FIGHT / POKEMON / BAG / RUN panel and native command behavior RETEST REQUIRED.
-- Battle Menu UI ON, Silver: same presentation/action parity RETEST REQUIRED.
+- Battle Menu UI is not exposed or rendered on Gold/Silver/Crystal; native Gen II presentation is the required behavior.
 - Special Safari / Bug Contest / tutorial battle menus must remain native.
 - Run / Surf OFF / HOLD B / ALWAYS: walking and Surf parity RETEST REQUIRED on one R/B/Y edition and Silver.
 - Old split movement values: conservative migration to the more restrictive value RETEST REQUIRED.

@@ -1,4 +1,22 @@
-# 2.8.27 — Gen II PartyMenu ownership isolation
+# 2.8.29 — Gen II native battle ownership repair
+
+- Rebuilt from exact runtime-valid 2.8.27; failed 2.8.28 and the prior 2.8.29 candidate are quarantined.
+- Battle Menu UI is now Gen I-only at registration time. Gold, Silver, and Crystal never register Nuzlocke's `battle.bottom_ui_visible` or `battle.overlay` command-menu wrappers, and the Battle Menu UI row is absent from Gen II Setup/NUZ RULES.
+- Retires the legacy Gen II `BattleState.update` rule pager and removes the custom `nuzlocke-rule-text` phase.
+- Gen II battle-item/capture denials now use the engine's native `showPages` + `resolving` message path, preserving A/B paging and native return to the battle command menu.
+- Ports the reviewed Wilds of Kanto 2.2.0 compatibility diagnostics from failed 2.8.28 without changing its capture transaction.
+- Runtime retest required in Crystal before promotion.
+
+# 2.8.29 — Gen II native battle-menu ownership
+
+- Rebuilt directly from exact runtime-valid 2.8.27; runtime-failed 2.8.28 is quarantined.
+- Removes Battle Menu UI from the Gold/Silver/Crystal rule surface.
+- Registers the optional custom battle command renderer only on Gen I; Gen II installs neither battle presentation hook and always keeps its native FIGHT / PKMN / BAG / RUN presentation.
+- Does not change native Gen II battle input, switching, item screens, party screens, or action dispatch.
+- Ports only the reviewed Wilds of Kanto 2.2.0 compatibility observability/session metadata from 2.8.28.
+- Replaces the Gen II custom `nuzlocke-rule-text` pager/update wrapper with the native BattleState refusal path so a blocked Pack item returns through engine-owned battle state.
+
+## Historical current note: 2.8.27 — Gen II PartyMenu ownership isolation
 
 - Quarantines 2.8.26 after Crystal wild-battle runtime testing reproduced the
   field-party/overworld escape failure unchanged.

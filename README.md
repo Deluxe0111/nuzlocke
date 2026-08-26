@@ -1,4 +1,12 @@
-# Nuzlocke 2.8.27
+# Nuzlocke 2.8.29
+
+Gen II battle command presentation is fully native. Battle Menu UI remains a Gen I-only optional feature. Gen II battle-rule denials now use the engine-owned BattleState message/resolving path and no longer install a custom BattleState update pager.
+
+# Nuzlocke 2.8.29
+
+Battle Menu UI is now strictly **Red/Blue/Yellow only**. Gold, Silver, and Crystal never suppress or redraw the native battle command menu, so Gen II keeps its native PKMN glyph, geometry, cursor presentation, and renderer ownership. The reviewed Wilds of Kanto 2.2.0 compatibility observability from the quarantined 2.8.28 candidate is ported narrowly; no failed 2.8.28 tree was used as a parent.
+
+## Historical current note: Nuzlocke 2.8.27
 
 Gen II PartyMenu construction is now engine-owned for both battle selection and
 native direct item targeting. Nuzlocke keeps its item execution at the selected

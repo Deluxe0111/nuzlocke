@@ -87,107 +87,41 @@ return function(mod, deps)
             return mod.exports.__beta26.catchRejectionMessage(game, reason, species)
         end
 
-        -- 2.5.42: own Nuzlocke-authored Gold battle-rule pagination instead of
-        -- depending on BattleState.messageTimer semantics. Current Gen1Recomp
-        -- already holds prompt text for A/B, but older supported builds used
-        -- different timing behavior and a direct self.message assignment never
-        -- guaranteed multiple pages. Keep every Nuzlocke denial at two native
-        -- 18-column lines per page and require A/B between pages.
+        -- 2.8.29: Gen II battle-rule denials remain entirely BattleState-owned.
+        -- Use the native resolving/message-page path that Gen1Recomp itself uses
+        -- for refused battle items. Never invent a Nuzlocke phase and never wrap
+        -- BattleState.update.
         function G2.showBattleRuleText(self, message)
             if type(self) ~= "table" then return false end
-            local lines = wrapText(
-                mod.exports.__beta26.cleanWorldText(message), 18)
-            local pages = {}
-            for i = 1, #lines, 2 do
-                local page = tostring(lines[i] or "")
-                if lines[i + 1] then page = page .. "\n" .. tostring(lines[i + 1]) end
-                pages[#pages + 1] = page
+            local clean = mod.exports.__beta26.cleanWorldText(message)
+            -- Clear any stale fields left by the retired 2.5.42/2.5.43 pager.
+            self.__nuzlockeRulePages = nil
+            self.__nuzlockeRulePage = nil
+            self.__nuzlockeRuleReturn = nil
+            if type(self.showPages) == "function" then
+                self:showPages(clean)
+            else
+                self.message = clean
+                self.messageTimer = 48
             end
-            if #pages == 0 then pages[1] = Strings("Nuzlocke rule blocked that action.") end
-            -- 2.5.43: this pager is an overlay on the current battle state, not
-            -- a native queue row. Preserve the exact fields we temporarily own
-            -- and never clear/advance BattleState.queue: doing so can discard
-            -- vanilla or other-mod messages/actions that were already pending.
-            if type(self.__nuzlockeRuleReturn) ~= "table" then
-                self.__nuzlockeRuleReturn = {
-                    phase = self.phase,
-                    message = self.message,
-                    messageTimer = self.messageTimer,
-                }
-            end
-            self.__nuzlockeRulePages = pages
-            self.__nuzlockeRulePage = 1
-            self.message = pages[1]
-            self.messageTimer = 0
-            self.phase = "nuzlocke-rule-text"
+            self.phase = "resolving"
             return true
         end
 
-        function G2.installBattleRulePager()
+        function G2.retireBattleRulePager()
             if not G2.isGen2() then return false end
             local ok, BS = pcall(require, "src.ui.gen2.BattleState")
-            if not ok or type(BS) ~= "table" or type(BS.update) ~= "function" then
-                return false
-            end
+            if not ok or type(BS) ~= "table" then return false end
             local session = BS.__nuzlockeRulePagerSession
-            if type(session) == "table" and session.owner ~= mod
+            if type(session) == "table"
                 and BS.update == session.wrapper
                 and type(session.previous) == "function" then
                 BS.update = session.previous
-                session = nil
             end
-            if type(session) == "table" and session.owner == mod
-                and BS.update == session.wrapper then
-                return true
-            end
-            local vanilla = BS.update
-            local updateWrapper
-            updateWrapper = function(self, dt)
-                local pages = self and self.__nuzlockeRulePages
-                if type(pages) == "table" then
-                    local input = (self.game and self.game.input)
-                        or (getCurrentGame() and getCurrentGame().input)
-                        or (mod.game and mod.game.input)
-                    if not input or type(input.wasPressed) ~= "function" then
-                        -- Never auto-advance a rule page. A missing input object
-                        -- can be transient during compatibility/lifecycle churn;
-                        -- keep the page owned until a valid input source returns.
-                        return
-                    end
-                    if input:wasPressed("a") or input:wasPressed("b") then
-                        local nextPage = (tonumber(self.__nuzlockeRulePage) or 1) + 1
-                        if pages[nextPage] ~= nil then
-                            self.__nuzlockeRulePage = nextPage
-                            self.message = pages[nextPage]
-                        else
-                            local returnState = self.__nuzlockeRuleReturn
-                            self.__nuzlockeRulePages = nil
-                            self.__nuzlockeRulePage = nil
-                            self.__nuzlockeRuleReturn = nil
-                            if type(returnState) == "table" then
-                                self.phase = returnState.phase
-                                self.message = returnState.message
-                                self.messageTimer = returnState.messageTimer
-                            else
-                                -- Defensive compatibility fallback for a pager
-                                -- session created by an older wrapper instance.
-                                self.phase = "menu"
-                                self.message = nil
-                                self.messageTimer = 0
-                            end
-                        end
-                    end
-                    return
-                end
-                return vanilla(self, dt)
-            end
-            BS.update = updateWrapper
-            BS.__nuzlockeRulePagerSession = {
-                owner = mod, previous = vanilla, wrapper = updateWrapper,
-            }
+            BS.__nuzlockeRulePagerSession = nil
             return true
         end
-  
+
         function G2.installCaptureGate()
             if not G2.isGen2() then return false end
             local ok, BS = pcall(require, "src.ui.gen2.BattleState")
@@ -5044,7 +4978,7 @@ return function(mod, deps)
             end
             checked("gen2.party_menu_native_ownership",
                 G2.retirePartyMenuMethodWrappers)
-            checked("gen2.battle_rule_pager", G2.installBattleRulePager)
+            checked("gen2.battle_rule_pager_retired", G2.retireBattleRulePager)
             checked("gen2.capture_gate", G2.installCaptureGate)
             checked("gen2.nickname_gate", G2.installNicknameGate)
             checked("gen2.healing_service_gate", G2.installHealingServiceGate)

@@ -358,7 +358,7 @@ return function(mod, deps)
               { key = "stat_info", default = true, name = Strings.source("Stat Page"), desc = Strings.source("Include the STAT page in Nuz Info. Shows current battle stats, DVs/IV-style values, and raw Stat EXP for the selected Pokemon. Gold/Silver correctly treat Special DV and Special Stat EXP as shared by Special Attack and Special Defense.") },
               { key = "move_info", default = true, name = Strings.source("Move Page"), desc = Strings.source("Include the MOVE page in Nuz Info. Shows each known move with type, power, accuracy, and current/max PP using the active merged move registry, so compatible move-data mods are reflected automatically.") },
               { key = "area_guide_enabled", default = true, name = Strings.source("Area Guide"), desc = Strings.source("Show the second Encounter Tracker page with all catchable areas. Turn OFF to restrict the tracker to your catches only.") },
-              { key = "battle_menu_ui", default = false, name = Strings.source("Battle Menu UI"), shortName = Strings.source("Battle Menu UI"), desc = Strings.source("Presentation only. OFF keeps Gen1Recomp's native battle command menu. ON replaces only the ordinary FIGHT / POKEMON / BAG / RUN command presentation with Nuzlocke's centered bottom battle panel while preserving the native battle state, cursor semantics, actions, move menu, item/party screens, Safari/Contest/tutorial menus, HP/status HUD, and all challenge-rule enforcement.") },
+              { key = "battle_menu_ui", default = false, nativeEditions = { red=true, blue=true, yellow=true }, name = Strings.source("Battle Menu UI"), shortName = Strings.source("Battle Menu UI"), desc = Strings.source("GEN 1 only. Presentation only. OFF keeps Gen1Recomp's native battle command menu. ON replaces only the ordinary FIGHT / POKEMON / BAG / RUN command presentation with Nuzlocke's centered bottom battle panel while preserving native battle state and actions. Gen II always uses its native battle menu.") },
               { key = "dev_mode", default = false, name = Strings.source("Dev Mode"), shortName = Strings.source("Dev Mode"), desc = Strings.source("Developer diagnostics for runtime validation. OFF has no gameplay effect. ON records a bounded breadcrumb trail for major Nuzlocke lifecycle events, logs compact state snapshots and invariant warnings, and exposes read-only diagnostic helpers through mod.exports.nuzlocke_dev. It never changes challenge legality, catches, battle outcomes, RNG, or save schema. Leave OFF for normal play unless testing or collecting crash context.") },
           }
       },
@@ -462,7 +462,6 @@ return function(mod, deps)
       "world_building_tier", "progression_pc_catches", "instant_text",
       "run_surf", "unlimited_bag_space",
       "trade_evolutions", "automatic_default_names", "skip_opening_intro",
-      "battle_menu_ui",
       "quick_nuzlocke_start", "skip_catch_tutorial",
       "pc_starting_heal_items", "pc_starting_vitamins",
   }

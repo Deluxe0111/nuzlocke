@@ -1,4 +1,14 @@
-# Nuzlocke User Guide — 2.8.27
+# Nuzlocke User Guide — 2.8.29
+
+In Gold, Silver, and Crystal, the battle command menu is always the game's native FIGHT / PKMN / PACK / RUN screen. The Nuzlocke Battle Menu UI option is Gen I-only and is not shown in Gen II Setup or NUZ RULES.
+
+When a Gen II battle item or capture attempt is blocked by a Nuzlocke rule, the refusal is shown through the native battle message box. Press A or B to page/close the message; control should return to the native battle command flow without an empty textbox or frozen battle.
+
+# Nuzlocke User Guide — 2.8.29
+
+**Battle Menu UI is Red/Blue/Yellow-only.** Gold, Silver, and Crystal always use the native battle command menu, including the native PKMN glyph and Gen II command-box layout. A saved Battle Menu UI value from an older build has no effect on Gen II and the option is no longer shown there. Blocked Gen II battle items use the native battle refusal state; Nuzlocke no longer creates a custom battle-message phase.
+
+## Historical current note: Nuzlocke User Guide — 2.8.27
 
 In Gold, Silver, and Crystal, the battle POKéMON command and its B/cancel path
 are native. NUZ INFO remains field-only. Party-target items continue to use the
@@ -52,7 +62,7 @@ Random Starter chooses from the hard-safe live species pool for the running edit
 
 ## 2.7.93 UI / movement consolidation
 
-**Battle Menu UI** is available under UI and defaults OFF. OFF uses the normal Gen1Recomp battle command menu. ON replaces only the ordinary command presentation with Nuzlocke's centered bottom 2x2 panel while the native battle state still owns selection and actions. Safari, Bug Contest, and tutorial/demo menus remain native.
+**Battle Menu UI** is available under UI in Red/Blue/Yellow and defaults OFF. OFF uses the normal Gen1Recomp battle command menu. ON replaces only the ordinary Gen I command presentation with Nuzlocke's centered bottom 2x2 panel while the native battle state still owns selection and actions. Gold/Silver/Crystal always use their native battle command menu; Safari and tutorial/demo menus remain native.
 
 QOL now has one **Run / Surf** selector instead of separate Running Shoes and Fast Surf rows: `OFF`, `HOLD B`, or `ALWAYS`. It applies the same selected mode to player-controlled walking and Surf. Biking, scripted movement, Surf initiation, Waterfall, fishing, menus, and cutscenes stay native. Existing saves/presets choose the more restrictive old movement setting when the two historical values disagree.
 

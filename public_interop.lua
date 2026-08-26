@@ -1445,7 +1445,7 @@ return function(mod, deps)
         end
 
 
-        -- 2.4.11: Wilds of Kanto 2.1.7 can complete an overworld Ball catch
+        -- 2.8.28: Wilds of Kanto 2.2.0 can complete an overworld Ball catch
         -- without entering the engine's normal battle-capture lifecycle.  Its
         -- public exports expose the live catching object and GameCompat facade,
         -- so compose at those exported seams instead of patching Wilds files.
@@ -1473,7 +1473,7 @@ return function(mod, deps)
                 return false, "unsupported_surface"
             end
 
-            local prior = catching.__nuzlockeCompat2411
+            local prior = catching.__nuzlockeCompat2828 or catching.__nuzlockeCompat2411
             if type(prior) == "table" and prior.owner == mod
                 and catching._resolveCapture == prior.resolveWrapper
                 and gameCompat.giveCaughtPokemon == prior.giveWrapper then
@@ -1607,14 +1607,22 @@ return function(mod, deps)
 
             catching._resolveCapture = resolveWrapper
             gameCompat.giveCaughtPokemon = giveWrapper
-            catching.__nuzlockeCompat2411 = {
+            local session = {
                 owner = mod,
                 previousResolve = previousResolve,
                 previousGive = previousGive,
                 resolveWrapper = resolveWrapper,
                 giveWrapper = giveWrapper,
                 providerVersion = tostring(exports.version or ""),
+                auditVersion = "2.2.0",
+                providerClass = "overworld_encounter_alternate_capture",
+                randomizerOwner = false,
+                surface = "catching._resolveCapture+gameCompat.giveCaughtPokemon",
             }
+            catching.__nuzlockeCompat2828 = session
+            -- Keep the legacy marker as an alias so an in-process reload of an
+            -- older Nuzlocke build can still recognize and unwrap our session.
+            catching.__nuzlockeCompat2411 = session
             return true
         end
 

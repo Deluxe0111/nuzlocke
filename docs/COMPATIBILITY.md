@@ -1,4 +1,16 @@
-# Nuzlocke Compatibility — 2.8.27
+# Nuzlocke Compatibility — 2.8.29
+
+Gold/Silver/Crystal retain native battle command rendering and input ownership. Nuzlocke's optional Battle Menu UI hooks register only on Gen I. Gen II battle-item/capture refusals use the native `BattleState:showPages`/`resolving` path; the legacy `nuzlocke-rule-text` phase and `BattleState.update` wrapper are retired, including stale in-process wrapper sessions.
+
+Wilds of Kanto 2.2.0 compatibility diagnostics from the 2.8.28 audit are preserved while its alternate-capture transaction remains unchanged.
+
+# Nuzlocke Compatibility — 2.8.29
+
+Gold/Silver/Crystal battle command presentation is fully engine-owned. Nuzlocke does not register its Battle Menu UI hooks on Gen II even when an older saved preference is ON; that preference applies only to Red/Blue/Yellow. Gen II rule denials also use the native BattleState refusal state rather than a Nuzlocke-owned update phase.
+
+Wilds of Kanto 2.2.0 remains an alternate overworld encounter/capture provider, not a Nuzlocke Randomizer owner. The existing pre/post direct-capture composition is unchanged; 2.8.29 ports only explicit provider-version/surface diagnostics from the reviewed 2.8.28 work.
+
+## Historical current note: Nuzlocke Compatibility — 2.8.27
 
 Gen II PartyMenu construction, battle cancellation, and native direct item
 targeting remain engine-owned. The R/B/Y custom Day Care constructor guard is
@@ -49,7 +61,7 @@ Random Starter no longer consumes `random_species_generation`. Its candidate eli
 
 ## 2.7.93 battle UI / movement contracts
 
-Battle Menu UI composes through Gen1Recomp's public `battle.bottom_ui_visible` and draw-only `battle.overlay` hooks. It does not replace battle update/input/action code, HP/status HUD rendering, move selection, party/PACK/Bag screens, or special Safari/Contest/tutorial menus. The toggle defaults OFF.
+In Red/Blue/Yellow only, Battle Menu UI composes through Gen1Recomp's public `battle.bottom_ui_visible` and draw-only `battle.overlay` hooks. It does not replace battle update/input/action code, HP/status HUD rendering, move selection, party/Bag screens, or special Safari/tutorial menus. Gold/Silver/Crystal never use this renderer. The Gen I toggle defaults OFF.
 
 Run / Surf continues to use the shared `movement.speed` hook and preserves the existing monotonic composition rule: Nuzlocke does not stack another 2x acceleration on a downstream provider that has already accelerated the same player-controlled step. The old `automatic_running_shoes` and `fast_surf` save fields are legacy compatibility mirrors; `run_surf` is authoritative after migration.
 

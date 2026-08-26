@@ -5,6 +5,7 @@ return {
   tags = { "ruleset", "hardcore", "quality-of-life", "ui" },
   differences = {
     changed = {
+      "2.8.29 makes Battle Menu UI Gen-1-only at hook-registration time and replaces the Gen-2 custom battle-rule pager phase with the native BattleState refusal path; Wilds 2.2.0 compatibility observability is ported from the quarantined 2.8.28 comparison.",
       "2.8.27 removes all Nuzlocke method wrappers from Gen-2 PartyMenu so battle cancellation and direct item targeting remain native.",
       "2.8.03 retries Gen-2 party-item and field-poison wipe timing at earlier authoritative seams, and audits/restores the complete Gen-2 Randomizer parent/child configuration surface.",
       "2.8.01 hotfix restores Gen-2 Trainer Randomizer Setup/Rules options and independently detects last-usable-party field-poison wipes so they cannot silently continue.",

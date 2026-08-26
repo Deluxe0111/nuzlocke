@@ -1,7 +1,7 @@
--- Nuzlocke 2.8.27
--- Focused Gen II PartyMenu ownership repair, rebuilt from runtime-valid 2.8.22.
--- Native battle and direct item-target menu construction remain engine-owned;
--- field NUZ INFO composes only through the public non-battle submenu hook.
+-- Nuzlocke 2.8.29
+-- Gen II battle-ownership repair, rebuilt from runtime-valid 2.8.27.
+-- Battle Menu UI is Gen I-only; Gen II rule denials use the native BattleState resolving/message path
+-- instead of a Nuzlocke-owned custom battle phase. Wilds 2.2.0 hardening is ported.
 -- Historical version lineage is maintained in CHANGELOG.md and docs/DOCUMENTATION_CHANGELOG.md.
 --
 -- Lineage:
@@ -34,14 +34,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.27",
+      build = "2.8.29",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.27",
+      manifestVersion = "2.8.29",
       setupProfileScope = "gen1",
-      parentVersion = "2.8.22",
-      parentSha256 = "932348659cc42a731f1a13266ab5fd72f4f4b0e28452dbfd4c418f0004f2ad3f",
+      parentVersion = "2.8.27",
+      parentSha256 = "bc9b9646b4fa438865f7040e21acc954db9931ca8eb4264b1dc64141ac07c522",
       compatibilityApi = 34,
       diagnosticsApi = 1,
   }
@@ -9343,6 +9343,11 @@ return function(mod)
   -- order. Safari, Bug Contest and tutorial/demo menus keep their native UI.
   ---------------------------------------------------------------------
   do
+      -- 2.8.29: Battle Menu UI is a Gen I-only feature. On Gen II, do not
+      -- register either presentation hook at all; native Crystal/Gold/Silver
+      -- retain their exact FIGHT / <PK><MN> / PACK / RUN command renderer.
+      local battleMenuUiGen2 = mod.exports.__beta26.runtimeIsGen2(currentGame or mod.game)
+      if not battleMenuUiGen2 then
       local function battleMenuUiEligible(state)
           if mod.save:get("battle_menu_ui", false) ~= true
               or type(state) ~= "table" or state.phase ~= "menu" then
@@ -9416,6 +9421,10 @@ return function(mod)
           end
           love.graphics.setColor(1, 1, 1, 1)
       end)
+      else
+          -- A saved Gen I toggle value is inert on Gen II by construction.
+          mod.exports.__beta26.battleMenuUiEligible = function() return false end
+      end
   end
 
 
@@ -13401,7 +13410,6 @@ return function(mod)
       stat_info = true,
       move_info = true,
       run_surf = true,
-      battle_menu_ui = true,
       unlimited_bag_space = true,
       trade_evolutions = true,
       system_clock_sync = true,
@@ -13538,7 +13546,6 @@ return function(mod)
       area_guide_enabled = Strings.source("GEN 2 BETA: toggles Gen 2's discovery-driven Tracker map page instead of preloading the Gen1 area list."),
       dev_mode = Strings.source("GEN 2 BETA diagnostics only: records bounded lifecycle breadcrumbs, compact state snapshots, and read-only invariant warnings to the mod log. It never changes battle, encounter, RNG, legality, or save-schema behavior."),
       run_surf = Strings.source("GEN 2 / TEST REQUIRED: shared walking/Surf assist. OFF preserves native movement; HOLD B applies 2x speed to player-controlled walking or Surf only while B is held; ALWAYS applies the same 2x speed continuously. Biking, scripted movement, Surf start, Waterfall, fishing, menus, and cutscenes remain native."),
-      battle_menu_ui = Strings.source("GEN 2 / TEST REQUIRED: presentation-only alternative for the ordinary FIGHT / POKEMON / BAG / RUN command menu. Native battle actions, cursor semantics, move selection, party/PACK screens, Contest/tutorial menus, HP/status HUD, and rule enforcement remain authoritative."),
       unlimited_bag_space = Strings.source("GEN 2 / TEST REQUIRED: ON removes distinct-item slot pressure from the ordinary ITEM and BALL pockets while preserving the native 99-per-item stack cap. KEY ITEM and TM/HM pocket limits, PC item storage, item legality, and story acquisition rules remain native. OFF restores the live engine/provider capacities without deleting carried items."),
       trade_evolutions = Strings.source("GEN 2 / TEST REQUIRED: ON lets EVOLVE_TRADE species evolve on level-up at level 40+. Trade-with-item branches still require the original held item, consume it on success, and suppress a competing ordinary level evolution while that item is held so branches such as Slowking remain reachable. Native link-trade evolution and Everstone behavior stay intact in Gold and Silver."),
       automatic_default_names = Strings.source("NEW GAME only: skips the Gen 2 player-name menu using the running edition's first canonical preset (GOLD or SILVER), then skips only the later police-report Rival naming screen using the counterpart edition name. The first Rival battle still correctly displays ???, and Pokemon nickname prompts are unaffected."),
@@ -14916,8 +14923,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.8.22",
-      expectedParentSha256 = "932348659cc42a731f1a13266ab5fd72f4f4b0e28452dbfd4c418f0004f2ad3f",
+      expectedParentVersion = "2.8.27",
+      expectedParentSha256 = "bc9b9646b4fa438865f7040e21acc954db9931ca8eb4264b1dc64141ac07c522",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -15604,7 +15611,7 @@ return function(mod)
               local catching = type(exports) == "table" and exports.catching or nil
               local gameCompat = type(exports) == "table" and exports.gameCompat or nil
               local session = type(catching) == "table"
-                  and catching.__nuzlockeCompat2411 or nil
+                  and (catching.__nuzlockeCompat2828 or catching.__nuzlockeCompat2411) or nil
               if type(catching) ~= "table" or type(gameCompat) ~= "table" then
                   return "MISSING", "Wilds capture compatibility surface unavailable"
               end
@@ -15613,7 +15620,13 @@ return function(mod)
                   and type(session.giveWrapper) == "function" then
                   if catching._resolveCapture == session.resolveWrapper
                       and gameCompat.giveCaughtPokemon == session.giveWrapper then
-                      return "HEALTHY", "pre/post capture wrappers are both live"
+                      local pv = tostring(session.providerVersion or (exports and exports.version) or "")
+                      local audit = tostring(session.auditVersion or "")
+                      if pv == "2.2.0" and audit == "2.2.0" then
+                          return "HEALTHY", "Wilds 2.2.0 audited pre/post capture wrappers are live"
+                      end
+                      return "CHAINED", "capture wrappers live; provider version " .. pv
+                          .. " is outside the explicit 2.2.0 audit"
                   end
                   return "CHAINED",
                       "one or both Wilds capture functions differ from recorded wrappers"

@@ -1,4 +1,16 @@
-# Nuzlocke 2.8.27 — Release Notes
+# Nuzlocke 2.8.29 — Release Notes
+
+This corrective build restores full Gen II battle-UI ownership to Gen1Recomp. The optional Nuzlocke Battle Menu UI remains available only in Red/Blue/Yellow. Gold/Silver/Crystal do not register its command-menu presentation hooks and do not expose its toggle.
+
+The Gen II battle-rule denial pager has also been retired. Illegal battle-item and capture attempts now display through the native BattleState message/resolving path instead of a custom Nuzlocke phase, preventing the empty-textbox/frozen-battle failure reproduced in Crystal. Runtime confirmation is required.
+
+# Nuzlocke 2.8.29 — Release Notes
+
+Gold, Silver, and Crystal now always use the engine's native battle command UI. The optional Battle Menu UI toggle remains available in Red/Blue/Yellow only. This removes Nuzlocke's Gen II command-panel redraw entirely, including the incorrect full POKEMON label that replaced Crystal's native PKMN glyph. The Gen II battle-item denial path no longer installs a custom BattleState phase/update wrapper; blocked Pack items now use the engine-owned refusal state. Runtime confirmation is required.
+
+The reviewed Wilds of Kanto 2.2.0 compatibility diagnostics from 2.8.28 were ported as specific changes; 2.8.28 itself remains quarantined and is not this build's parent.
+
+## Historical current note: Nuzlocke 2.8.27 — Release Notes
 
 Crystal testing proved 2.8.26 did not resolve the battle POKéMON menu failure.
 This follow-up removes every Nuzlocke method wrapper from the Gen II PartyMenu

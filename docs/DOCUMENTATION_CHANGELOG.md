@@ -1,4 +1,18 @@
-# Documentation Changelog — 2.8.27
+# Documentation Changelog — 2.8.29
+
+- Recorded 2.8.28 and the prior 2.8.29 candidate as runtime-failed/quarantined.
+- Documented Battle Menu UI as Gen I-only at registration and configuration-surface level.
+- Documented retirement of the custom Gen II battle-rule pager and native BattleState denial presentation.
+- Preserved the reviewed Wilds 2.2.0 compatibility audit notes.
+
+# Documentation Changelog — 2.8.29
+
+- Recorded 2.8.28 as runtime-failed/quarantined after Crystal exposed Nuzlocke's Gen II custom battle-menu redraw and a separate battle-item denial freeze.
+- Documented Battle Menu UI as Red/Blue/Yellow-only.
+- Documented full native battle-command presentation ownership for Gold/Silver/Crystal.
+- Replaced the custom Gen II rule-text BattleState phase/update pager with the native refusal state; exact runtime reproduction must pass before promotion.
+
+## Historical current note: Documentation Changelog — 2.8.27
 
 - Recorded the Crystal runtime failure of 2.8.26.
 - Documented complete Gen II PartyMenu method ownership by the engine.
