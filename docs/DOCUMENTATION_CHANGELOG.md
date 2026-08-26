@@ -1,3 +1,9 @@
+# Documentation Changelog — 2.8.27
+
+- Recorded the Crystal runtime failure of 2.8.26.
+- Documented complete Gen II PartyMenu method ownership by the engine.
+- Preserved native item-target and battle-menu responsibilities separately.
+
 ## 2.8.04
 
 - Documented Gen II Nuzlocke-owned utility-screen hardening for NUZ STATUS, MOD COMPAT, ENC TRACKER, and DEV REPORT.

@@ -6034,16 +6034,123 @@ return function(mod, deps)
   mod.exports.__beta26.randomizerTrainerSourceIdentity = trainerSourceIdentity
 
   local function trainerSpeciesRuntimeSafe(game, species, level)
+      -- 2.8.18: Trainer candidates have their own construction contract.
+      -- Do NOT reuse randomEncounterRuntimeSafe/randomStarterRuntimeSafe here:
+      -- those gates validate every theoretical learned move up through the
+      -- supplied level and can progressively collapse trainer pools as levels
+      -- rise. A trainer only needs the bounded move set its native constructor
+      -- will actually materialize.
       species = tostring(species or ""):upper()
-      local pokemon = game and game.data and game.data.pokemon or {}
+      level = math.max(1, math.floor(tonumber(level) or 5))
+      local data = game and game.data
+      local pokemon = data and data.pokemon or {}
+      local moves = data and data.moves or {}
       local def = pokemon[species]
       if species == "" or species == "EGG" or species == "NONE"
-          or type(def) ~= "table" then return false end
+          or type(def) ~= "table"
+          or type(def.name) ~= "string" or def.name == ""
+          or type(def.types) ~= "table"
+          or def.growthRate == nil then
+          return false
+      end
+
       local glitch = mod.exports.__beta26.getGlitchSpeciesInfo(game, species)
       if glitch and glitch.isGlitch then return false end
-      if type(mod.exports.__beta26.randomEncounterRuntimeSafe) == "function"
-          and not mod.exports.__beta26.randomEncounterRuntimeSafe(
-              game, species, tonumber(level) or 5) then return false end
+
+      local function pushBoundedMove(list, moveId)
+          if moveId == nil then return false end
+          -- Native constructors keep only the most recent four distinct moves.
+          for i = #list, 1, -1 do
+              if list[i] == moveId then table.remove(list, i) break end
+          end
+          list[#list + 1] = moveId
+          while #list > 4 do table.remove(list, 1) end
+          return true
+      end
+
+      local selectedMoves = {}
+      if mod.exports.__beta26.runtimeIsGen2(game) then
+          local stats = def.baseStats
+          if tonumber(def.index) == nil or type(stats) ~= "table"
+              or tonumber(stats.hp) == nil
+              or tonumber(stats.attack) == nil
+              or tonumber(stats.defense) == nil
+              or tonumber(stats.speed) == nil
+              or tonumber(stats.specialAttack) == nil
+              or tonumber(stats.specialDefense) == nil
+              or type(def.levelMoves) ~= "table" then
+              return false
+          end
+          for _, entry in ipairs(def.levelMoves) do
+              if type(entry) ~= "table" or tonumber(entry.level) == nil
+                  or entry.move == nil then
+                  return false
+              end
+              if tonumber(entry.level) <= level then
+                  pushBoundedMove(selectedMoves, entry.move)
+              end
+          end
+          for _, moveId in ipairs(selectedMoves) do
+              local moveDef = moves[moveId]
+              if type(moveDef) ~= "table" or tonumber(moveDef.pp) == nil then
+                  return false
+              end
+          end
+          return true
+      end
+
+      local stats = def.baseStats
+      if type(stats) ~= "table"
+          or tonumber(stats.hp) == nil
+          or tonumber(stats.attack) == nil
+          or tonumber(stats.defense) == nil
+          or tonumber(stats.speed) == nil
+          or tonumber(stats.special) == nil
+          or type(def.level1Moves) ~= "table"
+          or type(def.learnset) ~= "table" then
+          return false
+      end
+
+      for _, moveId in ipairs(def.level1Moves) do
+          if not pushBoundedMove(selectedMoves, moveId) then return false end
+      end
+      for _, entry in ipairs(def.learnset) do
+          if type(entry) ~= "table" or tonumber(entry.level) == nil
+              or entry.move == nil then
+              return false
+          end
+          if tonumber(entry.level) <= level then
+              pushBoundedMove(selectedMoves, entry.move)
+          end
+      end
+      for _, moveId in ipairs(selectedMoves) do
+          local moveDef = moves[moveId]
+          if type(moveDef) ~= "table"
+              or type(moveDef.name) ~= "string"
+              or tonumber(moveDef.pp) == nil then
+              return false
+          end
+      end
+
+      -- Gen I Stats.calc is the non-move portion of Pokemon.new's construction
+      -- contract. Probe it once per candidate without constructing a Pokemon or
+      -- consuming battle RNG.
+      local okStats, Stats = pcall(require, "src.pokemon.Stats")
+      if okStats and type(Stats) == "table"
+          and type(Stats.calc) == "function" then
+          local dvs = {
+              hp = 7, attack = 7, defense = 7, speed = 7, special = 7,
+          }
+          local okCalc, calculated = pcall(
+              Stats.calc, def, level, dvs, {
+                  hp = 0, attack = 0, defense = 0,
+                  speed = 0, special = 0,
+              })
+          if not okCalc or type(calculated) ~= "table"
+              or tonumber(calculated.hp) == nil then
+              return false
+          end
+      end
       return true
   end
 
@@ -6061,7 +6168,35 @@ return function(mod, deps)
           if species ~= "" then universe[#universe + 1] = species end
       end
       table.sort(universe)
-      return mod.exports.__beta26.randomizerSemanticSafeCandidates(
+
+      -- 2.8.15: a Gen-II-only shared Species Pool (mode 2) is impossible on
+      -- a normal Red/Blue/Yellow registry and previously collapsed Random
+      -- Trainers to an empty pool with no visible error. Keep the configured
+      -- value intact, but normalize the *effective trainer pool* to Gen I on a
+      -- Gen I runtime. BOTH/AUTO remain unchanged.
+      local configuredMode = effectiveRandomSpeciesGeneration()
+      local effectiveMode = configuredMode
+      local normalized = false
+      local gen2 = mod.exports.__beta26.runtimeIsGen2(game)
+      if not gen2 and configuredMode == 2 then
+          effectiveMode = 1
+          normalized = true
+      elseif gen2 and configuredMode == 1 then
+          effectiveMode = 2
+          normalized = true
+      end
+
+      local generationAllowed = 0
+      for _, species in ipairs(universe) do
+          local def = pokemon[species]
+          if type(def) == "table"
+              and mod.exports.__beta26.randomSpeciesPoolAllows(
+                  def, effectiveMode) then
+              generationAllowed = generationAllowed + 1
+          end
+      end
+
+      local safe = mod.exports.__beta26.randomizerSemanticSafeCandidates(
           universe, {
               function(species)
                   species = tostring(species or ""):upper()
@@ -6073,7 +6208,7 @@ return function(mod, deps)
                       return false, "missing_species"
                   end
                   if not mod.exports.__beta26.randomSpeciesPoolAllows(
-                      def, effectiveRandomSpeciesGeneration()) then
+                      def, effectiveMode) then
                       return false, "species_pool"
                   end
                   local glitch = mod.exports.__beta26.getGlitchSpeciesInfo(
@@ -6091,6 +6226,83 @@ return function(mod, deps)
                   return true
               end,
           })
+      return safe, {
+          configuredMode = configuredMode,
+          effectiveMode = effectiveMode,
+          normalized = normalized,
+          universe = #universe,
+          generationAllowed = generationAllowed,
+          trainerConstructionSafe = #safe,
+          safe = #safe,
+          level = level,
+      }
+  end
+
+  -- 2.8.18: last-resort trainer pool from the active native registry.
+  -- It now uses the same trainer-specific construction gate as the normal
+  -- candidate pool, so the emergency path cannot quietly reintroduce the
+  -- encounter/starter over-validation contract or a weaker parallel contract.
+  local function trainerNativeFallbackPool(game, level, original)
+      local pokemon = game and game.data and game.data.pokemon or {}
+      local configuredMode = effectiveRandomSpeciesGeneration()
+      local effectiveMode = configuredMode
+      local gen2 = mod.exports.__beta26.runtimeIsGen2(game)
+      if not gen2 and configuredMode == 2 then
+          effectiveMode = 1
+      elseif gen2 and configuredMode == 1 then
+          effectiveMode = 2
+      end
+      local out = {}
+      for id, def in pairs(pokemon) do
+          local species = tostring(id or ""):upper()
+          local safe = type(def) == "table"
+              and species ~= "" and species ~= "EGG" and species ~= "NONE"
+              and species ~= tostring(original or ""):upper()
+          if safe then
+              local okGeneration, generationAllowed = pcall(
+                  mod.exports.__beta26.randomSpeciesPoolAllows,
+                  def, effectiveMode)
+              safe = okGeneration and generationAllowed == true
+          end
+          if safe then
+              local okSafe, runtimeSafe = pcall(
+                  trainerSpeciesRuntimeSafe, game, species, level)
+              safe = okSafe and runtimeSafe == true
+          end
+          if safe and type(mod.exports.__beta26.pkmnBanContains) == "function" then
+              local okBan, banned = pcall(
+                  mod.exports.__beta26.pkmnBanContains, game, species)
+              if okBan and banned == true then safe = false end
+          end
+          if safe then out[#out + 1] = species end
+      end
+      table.sort(out)
+      return out, {
+          source = "native_registry_trainer_gate",
+          configuredMode = configuredMode,
+          effectiveMode = effectiveMode,
+          safe = #out,
+          level = level,
+      }
+  end
+
+  local function trainerSeededPick(source, pool)
+      if type(pool) ~= "table" or #pool == 0 then return nil end
+      local ok, index = pcall(
+          mod.exports.__beta26.randomizerSeededIndex,
+          "TRAINERS", source, #pool)
+      if ok and tonumber(index) and pool[tonumber(index)] then
+          return pool[tonumber(index)]
+      end
+      -- Emergency deterministic fallback if the shared seeded helper itself
+      -- is the failing link. This is deliberately local to Random Trainers.
+      local seed = tonumber(mod.exports.__beta26.randomizerSeed(nil, true)) or 1
+      local text = tostring(seed) .. ":" .. tostring(source or "")
+      local hash = 0
+      for i = 1, #text do
+          hash = (hash * 131 + text:byte(i)) % 2147483647
+      end
+      return pool[(hash % #pool) + 1]
   end
 
   -- Phase F #5-6: trainer balance is an optional deterministic preference
@@ -6155,8 +6367,17 @@ return function(mod, deps)
       }, "BALANCED"
   end
 
+  local function randomizerToggleOn(key)
+      local value = mod.save:get(key, false)
+      if value == true or value == 1 then return true end
+      local text = tostring(value or ""):upper()
+      return text == "1" or text == "ON" or text == "TRUE"
+  end
+
+  mod.exports.__beta26.randomizerToggleOn = randomizerToggleOn
+
   local function randomTrainerRuleEnabled(game)
-      return mod.save:get("random_trainers", false) == true
+      return randomizerToggleOn("random_trainers")
           and not (externalRuleDelegation
               and externalRuleDelegation("random_trainers", game))
   end
@@ -6246,7 +6467,9 @@ return function(mod, deps)
       return false
   end
 
-  mod.hooks:wrap("trainer.party", function(next, classId, partyIndex, party)
+  local function composeRandomTrainerParty(next, classId, partyIndex, party)
+      mod.exports.__beta26.gen1TrainerPrimaryEntered =
+          (tonumber(mod.exports.__beta26.gen1TrainerPrimaryEntered) or 0) + 1
       local resolved = next(classId, partyIndex, party) or party
       local game = getCurrentGame() or mod.game
       if not randomTrainerRuleEnabled(game) or type(resolved) ~= "table" then
@@ -6257,9 +6480,20 @@ return function(mod, deps)
       local node = out.party or out.team or out.roster or out.pokemon
           or out.mons or out.members or out
       if type(node) ~= "table" then return resolved end
-
+      local currentSeed = tonumber(
+          mod.exports.__beta26.randomizerSeed(nil, true)) or 0
+      local storedSeed = tonumber(
+          mod.save:get("__nuzlocke_random_trainer_seed", -1)) or -1
       local map = mod.save:get("__nuzlocke_random_trainer_slots", {})
       if type(map) ~= "table" then map = {} end
+      local seedReset = storedSeed ~= currentSeed
+      if seedReset then
+          -- Trainer slot mappings are deterministic products of the seed.
+          -- A seed reroll must invalidate them or the new seed can never affect
+          -- already-seen trainer identities.
+          map = {}
+          mod.save:set("__nuzlocke_random_trainer_seed", currentSeed)
+      end
       local changed = false
       local diversity = math.max(0, math.min(2, math.floor(tonumber(
           mod.save:get("random_trainer_diversity", 0)) or 0)))
@@ -6334,6 +6568,10 @@ return function(mod, deps)
               local choice
               if starterOwnsRival then
                   choice = synced
+                  -- 2.8.19: persist starter-owned rival synchronization into
+                  -- the deterministic trainer-slot map consumed by the final
+                  -- Trainer Randomizer authority.
+                  map[policySource] = choice
               else
                   local pool = trainerSpeciesPool(game, level)
                   local stages, requested =
@@ -6417,31 +6655,49 @@ return function(mod, deps)
                       -- intrinsic state. Difficulty runs after this wrapper and
                       -- can then adapt its own moves/items/stats normally.
                       local okMon, Gen2Mon = pcall(require, "src.battle.gen2.Mon")
-                      local built = okMon and type(Gen2Mon) == "table"
-                          and type(Gen2Mon.new) == "function"
-                          and Gen2Mon.new(game and game.data, choice, level, {
-                              dvs = mon.dvs,
-                              statExp = mon.statExp,
-                              item = mon.item,
-                              happiness = mon.happiness,
-                              pokerus = mon.pokerus,
-                              shiny = mon.shiny,
-                          }) or nil
+                      local built = nil
+                      if okMon and type(Gen2Mon) == "table"
+                          and type(Gen2Mon.new) == "function" then
+                          local okBuild, result = pcall(
+                              Gen2Mon.new, game and game.data, choice, level, {
+                                  dvs = mon.dvs,
+                                  statExp = mon.statExp,
+                                  item = mon.item,
+                                  happiness = mon.happiness,
+                                  pokerus = mon.pokerus,
+                                  shiny = mon.shiny,
+                              })
+                          if okBuild and type(result) == "table" then
+                              built = result
+                          else
+                              mod.exports.__beta26.lastGen2TrainerRandomizerError =
+                                  "native_mon_builder_failed:"
+                                  .. tostring(choice) .. ":"
+                                  .. tostring(not okBuild and result or "bad_return")
+                          end
+                      end
                       if type(built) == "table" then
                           node[key] = built
                           mon = built
                           changed = true
                       else
-                          -- Fail closed to the old projection only when the
-                          -- native builder is genuinely unavailable; record a
-                          -- diagnostic so runtime testing is actionable.
+                          -- Fail closed to the old projection whenever the
+                          -- native builder is unavailable OR throws at call
+                          -- time. Keep the species change and refresh whatever
+                          -- identity/stat surfaces the native module exposes.
                           mon.species = choice
                           local sync = okMon and Gen2Mon and Gen2Mon.syncIdentity
-                          if type(sync) == "function" then pcall(sync, mon, game and game.data) end
+                          if type(sync) == "function" then
+                              pcall(sync, mon, game and game.data)
+                          end
                           local refresh = okMon and Gen2Mon and Gen2Mon.refreshStats
-                          if type(refresh) == "function" then pcall(refresh, mon, game and game.data) end
+                          if type(refresh) == "function" then
+                              pcall(refresh, mon, game and game.data)
+                          end
                           mod.exports.__beta26.lastGen2TrainerRandomizerError =
-                              "native_mon_builder_unavailable:" .. tostring(choice)
+                              mod.exports.__beta26.lastGen2TrainerRandomizerError
+                                  or ("native_mon_builder_unavailable:"
+                                      .. tostring(choice))
                           changed = true
                       end
                   else
@@ -6452,6 +6708,8 @@ return function(mod, deps)
           end
       end
       mod.save:set("__nuzlocke_random_trainer_slots", map)
+      mod.exports.__beta26.gen1TrainerPrimaryCompleted =
+          (tonumber(mod.exports.__beta26.gen1TrainerPrimaryCompleted) or 0) + 1
       return changed and out or resolved
   -- Phase F #11: Random Trainers sits inside the built-in Difficulty wrapper
   -- (Difficulty is priority 90000) so provider/base trainer parties resolve
@@ -6459,7 +6717,518 @@ return function(mod, deps)
   -- adapt levels/moves/items/stats to the randomized species. This avoids the
   -- old 91000 ordering where Random Trainers could replace species after
   -- Difficulty had already built moves for a different Pokemon.
-  end, 89000)
+  end
+  mod.hooks:wrap("trainer.party", composeRandomTrainerParty, 89000)
+
+  -- 2.8.18: cross-generation final trainer-party authority.
+  --
+  -- Gen1Recomp consumes the final trainer.party definition and only then
+  -- materializes Pokemon.new records. Therefore Gen I does NOT need the Gen II
+  -- native-Mon rebuild. What it does need is a final definition that cannot be
+  -- restored to vanilla by another wrapper, and a fail-safe if the earlier
+  -- policy wrapper was skipped/failed. This highest-priority wrapper runs
+  -- outermost; after next() returns, its result is exactly what BattleState
+  -- will materialize.
+  local function finalizeRandomTrainerParty(next, classId, partyIndex, party)
+      mod.exports.__beta26.gen1TrainerFinalizerEntered =
+          (tonumber(mod.exports.__beta26.gen1TrainerFinalizerEntered) or 0) + 1
+      -- Preserve the engine-authored Gen I roster before any inner trainer.party
+      -- wrapper (Random Trainers, Difficulty, providers) mutates a copy.
+      local authored = starterCopy(party)
+      local resolved = next(classId, partyIndex, party) or party
+      local game = getCurrentGame() or mod.game
+      if not randomTrainerRuleEnabled(game)
+          or type(resolved) ~= "table" then
+          return resolved
+      end
+      local gen2 = mod.exports.__beta26.runtimeIsGen2(game) == true
+
+      local out = starterCopy(resolved)
+      local node = out.party or out.team or out.roster or out.pokemon
+          or out.mons or out.members or out
+      if type(node) ~= "table" then return resolved end
+      local authoredNode = type(authored) == "table"
+          and (authored.party or authored.team or authored.roster
+              or authored.pokemon or authored.mons or authored.members
+              or authored) or nil
+
+      local currentSeed = tonumber(
+          mod.exports.__beta26.randomizerSeed(nil, true)) or 0
+      local storedSeed = tonumber(
+          mod.save:get("__nuzlocke_random_trainer_seed", currentSeed))
+          or currentSeed
+      local seedReset = storedSeed ~= currentSeed
+      local map = mod.save:get("__nuzlocke_random_trainer_slots", {})
+      if type(map) ~= "table" then map = {} end
+      local balance = math.max(0, math.min(3, math.floor(tonumber(
+          mod.save:get("random_trainer_balance", 0)) or 0)))
+      local diversity = math.max(0, math.min(2, math.floor(tonumber(
+          mod.save:get("random_trainer_diversity", 0)) or 0)))
+      local theme = math.max(0, math.min(1, math.floor(tonumber(
+          mod.save:get("random_trainer_theme", 0)) or 0)))
+      local boss = trainerBossClass(classId)
+      local usedSpecies = {}
+      local changed, reapplied, generated = false, 0, 0
+      local pokemon = game and game.data and game.data.pokemon or {}
+      local memberDiagnostics = {}
+
+      local memberKeys = {}
+      for key, mon in pairs(node) do
+          if type(key) == "number" and type(mon) == "table"
+              and mon.species ~= nil then
+              memberKeys[#memberKeys + 1] = key
+          end
+      end
+      table.sort(memberKeys)
+
+      local themeTypes = {}
+      if theme == 1 and #memberKeys > 0 then
+          local anchorKey = boss and memberKeys[#memberKeys] or memberKeys[1]
+          local anchor = node[anchorKey]
+          local okTheme, value = pcall(
+              trainerSpeciesTypes, game, anchor and anchor.species)
+          if okTheme and type(value) == "table" then themeTypes = value end
+      end
+
+      for _, key in ipairs(memberKeys) do
+          local mon = node[key]
+          local authoredMon = type(authoredNode) == "table"
+              and authoredNode[key] or nil
+          local original = tostring(
+              authoredMon and authoredMon.species or mon.species or ""):upper()
+          local level = tonumber(mon.level or mon.lvl
+              or (authoredMon and (authoredMon.level or authoredMon.lvl))) or 5
+          local source = trainerSourceIdentity(classId, partyIndex, key)
+          local basePolicySource = balance == 0 and source or
+              (source .. ":tp" .. tostring(TRAINER_POLICY_VERSION)
+                  .. ":b" .. tostring(balance))
+          local teamPolicyActive = diversity > 0 or theme > 0
+          local policySource = teamPolicyActive
+              and (basePolicySource .. ":tt"
+                  .. tostring(TRAINER_TEAM_POLICY_VERSION)
+                  .. ":d" .. tostring(diversity)
+                  .. ":t" .. tostring(theme))
+              or basePolicySource
+          if boss and balance > 0 then
+              policySource = policySource .. ":bp"
+                  .. tostring(TRAINER_BOSS_POLICY_VERSION)
+          end
+
+          local choice = tostring(map[policySource] or ""):upper()
+          local poolDiag = nil
+          -- 2.8.13: a persisted mapping equal to the authored species is not a
+          -- successful Random Trainers projection. Older failed builds could
+          -- save exactly that value and every later finalizer treated it as a
+          -- valid cache hit forever (the Yellow Bug Catcher Weedle/Kakuna
+          -- reproduction). Recompute those stale same-species rows whenever a
+          -- legal alternative exists.
+          local staleSameSpecies = choice ~= "" and choice == original
+          if choice == "" or type(pokemon[choice]) ~= "table"
+              or staleSameSpecies then
+              -- The normal 89000 policy wrapper should have persisted this
+              -- mapping already. If it did not, or an older failed build
+              -- persisted the authored species, rebuild the same hard-safe
+              -- preference here instead of silently shipping vanilla.
+              local pool, poolMeta
+              local okPool, normalPool, normalMeta =
+                  pcall(trainerSpeciesPool, game, level)
+              if okPool and type(normalPool) == "table" then
+                  pool, poolDiag = normalPool, normalMeta
+              else
+                  pool, poolDiag = {}, {
+                      source = "trainerSpeciesPool_error",
+                      error = tostring(normalPool),
+                      safe = 0,
+                  }
+              end
+
+              local stages, requested = {}, "CHAOS"
+              local okStages, builtStages, builtRequested =
+                  pcall(trainerPreferenceStages, game, original, balance)
+              if okStages and type(builtStages) == "table" then
+                  stages = builtStages
+                  requested = builtRequested or requested
+              end
+
+              local candidates = {}
+              local okCandidates, value =
+                  pcall(mod.exports.__beta26.randomizerResolveCandidatePolicy, {
+                      subsystem = "TRAINERS",
+                      source = source,
+                      requested = requested,
+                      reason = gen2 and "gen2_final_authority"
+                          or "gen1_final_authority",
+                  }, pool, {}, stages)
+              if okCandidates and type(value) == "table" then
+                  candidates = value
+              end
+
+              -- If the normal candidate engine collapses to zero, use only
+              -- structurally valid rows from the ACTIVE engine registry. This
+              -- is the key 2.8.16 fail-safe: Random Trainers ON may degrade its
+              -- soft balance/theme preference, but it may not silently become
+              -- an authored vanilla party while the engine has alternatives.
+              if #candidates == 0 then
+                  local fallback, fallbackDiag =
+                      trainerNativeFallbackPool(game, level, original)
+                  candidates = fallback
+                  poolDiag = fallbackDiag
+              end
+
+              if theme == 1 and next(themeTypes) ~= nil and #candidates > 1 then
+                  local themed = {}
+                  for _, species in ipairs(candidates) do
+                      local okShares, shares = pcall(
+                          trainerSharesType, game, species, themeTypes)
+                      if okShares and shares then themed[#themed + 1] = species end
+                  end
+                  if #themed > 0 then candidates = themed end
+              end
+              if diversity > 0 and #candidates > 1 then
+                  local unused = {}
+                  for _, species in ipairs(candidates) do
+                      if not usedSpecies[species] then
+                          unused[#unused + 1] = species
+                      end
+                  end
+                  if #unused > 0 then candidates = unused end
+              end
+
+              local alternatives = {}
+              for _, species in ipairs(candidates) do
+                  if tostring(species):upper() ~= original then
+                      alternatives[#alternatives + 1] = species
+                  end
+              end
+              if #alternatives > 0 then candidates = alternatives end
+
+              if #candidates > 0 then
+                  choice = tostring(trainerSeededPick(
+                      policySource .. ":final2818", candidates)
+                      or original):upper()
+                  map[policySource] = choice
+                  generated = generated + 1
+              else
+                  choice = original
+              end
+          end
+
+          if choice ~= "" and type(pokemon[choice]) == "table" then
+              usedSpecies[choice] = true
+              if choice ~= original then
+                  if gen2 then
+                      local okMon, Gen2Mon = pcall(
+                          require, "src.battle.gen2.Mon")
+                      local built = nil
+                      if okMon and type(Gen2Mon) == "table"
+                          and type(Gen2Mon.new) == "function" then
+                          local okBuild, result = pcall(
+                              Gen2Mon.new, game and game.data,
+                              choice, level, {
+                                  -- At this FINAL hook boundary the original
+                                  -- trainer Mon is already materialized. Keep
+                                  -- authored/Difficulty move and held-state
+                                  -- data while refreshing species identity and
+                                  -- species-derived stats.
+                                  moves = mon.moves,
+                                  dvs = mon.dvs,
+                                  statExp = mon.statExp,
+                                  item = mon.item,
+                                  happiness = mon.happiness,
+                                  pokerus = mon.pokerus,
+                                  shiny = mon.shiny,
+                              })
+                          if okBuild and type(result) == "table" then
+                              built = result
+                          else
+                              mod.exports.__beta26.lastGen2TrainerRandomizerError =
+                                  "final_native_mon_builder_failed:"
+                                  .. tostring(choice) .. ":"
+                                  .. tostring(not okBuild and result
+                                      or "bad_return")
+                          end
+                      end
+                      if type(built) == "table" then
+                          node[key] = built
+                          mon = built
+                      else
+                          mon.species = choice
+                          local sync = okMon and Gen2Mon
+                              and Gen2Mon.syncIdentity
+                          if type(sync) == "function" then
+                              pcall(sync, mon, game and game.data)
+                          end
+                          local refresh = okMon and Gen2Mon
+                              and Gen2Mon.refreshStats
+                          if type(refresh) == "function" then
+                              pcall(refresh, mon, game and game.data)
+                          end
+                      end
+                  else
+                      -- Gen I has not materialized Pokemon yet: BattleState
+                      -- consumes this final {species,level,...} row afterwards.
+                      mon.species = choice
+                  end
+                  changed = true
+                  reapplied = reapplied + 1
+              end
+          end
+          memberDiagnostics[#memberDiagnostics + 1] = {
+              slot = key,
+              original = original,
+              final = tostring(mon.species or ""):upper(),
+              choice = choice,
+              level = level,
+              pool = poolDiag,
+          }
+      end
+
+      mod.save:set("__nuzlocke_random_trainer_slots", map)
+      local report = {
+          generation = gen2 and 2 or 1,
+          classId = classId, partyIndex = partyIndex or 1,
+          reapplied = reapplied, generated = generated,
+          members = #memberKeys,
+          seed = currentSeed, seedReset = seedReset,
+          configuredSpeciesMode = effectiveRandomSpeciesGeneration(),
+          details = memberDiagnostics,
+          allVanilla = (#memberKeys > 0 and reapplied == 0),
+      }
+      mod.exports.__beta26.lastTrainerRandomizerFinalizer = report
+      if gen2 then
+          mod.exports.__beta26.lastGen2TrainerRandomizerFinalizer = report
+      else
+          mod.exports.__beta26.lastGen1TrainerRandomizerFinalizer = report
+      end
+      mod.exports.__beta26.gen1TrainerFinalizerCompleted =
+          (tonumber(mod.exports.__beta26.gen1TrainerFinalizerCompleted) or 0) + 1
+      return changed and out or resolved
+  end
+  mod.hooks:wrap("trainer.party", finalizeRandomTrainerParty, 1000000000)
+
+  do -- 2.8.22 Gen I trainer construction seam
+      local function identityNext(_, _, party) return party end
+
+      local function composeDirect(game, classId, partyIndex, party)
+          local transformed = composeRandomTrainerParty(
+              identityNext, classId, partyIndex, party) or party
+          local difficulty = mod.exports.__beta26.Difficulty
+          if type(difficulty) == "table"
+              and type(difficulty.composeParty) == "function" then
+              local ok, value = pcall(
+                  difficulty.composeParty, classId, partyIndex, transformed)
+              if ok and type(value) == "table" then transformed = value end
+          end
+          local final = finalizeRandomTrainerParty(
+              function() return transformed end,
+              classId, partyIndex, party)
+          return type(final) == "table" and final or transformed
+      end
+
+      local function acceptedSpecies(battle)
+          local out = {}
+          for i, mon in ipairs(type(battle) == "table"
+              and type(battle.enemyParty) == "table"
+              and battle.enemyParty or {}) do
+              out[i] = tostring(type(mon) == "table"
+                  and mon.species or ""):upper()
+          end
+          return out
+      end
+
+      local function install()
+          local okBattle, BattleState = pcall(require, "src.battle.BattleState")
+          if not okBattle or type(BattleState) ~= "table"
+              or type(BattleState.newTrainer) ~= "function" then
+              return false
+          end
+
+          local session = BattleState.__nuzlockeGen1TrainerConstructionSession2822
+          if type(session) == "table" then
+              if session.owner == mod and BattleState.newTrainer == session.wrapper then
+                  return true
+              end
+              if BattleState.newTrainer ~= session.wrapper then return true end
+              if type(session.previous) == "function" then
+                  BattleState.newTrainer = session.previous
+              end
+          end
+
+          local previous = BattleState.newTrainer
+          local wrapper
+          wrapper = function(game, classId, partyIndex, opts)
+              if mod.exports.__beta26.runtimeIsGen2(game) then
+                  return previous(game, classId, partyIndex, opts)
+              end
+
+              local configOn = mod.save:get("random_trainers", false) == true
+              local delegatedOwner = externalRuleDelegation
+                  and externalRuleDelegation("random_trainers", game) or nil
+              local ruleEnabled = configOn and delegatedOwner == nil
+
+              local okRuntime, Runtime = pcall(require, "src.mods.Runtime")
+              local wantsHook = false
+              local primaryRegistered, finalizerRegistered = false, false
+              if okRuntime and type(Runtime) == "table"
+                  and type(Runtime.wantsHook) == "function" then
+                  local okWants, value = pcall(Runtime.wantsHook, "trainer.party")
+                  wantsHook = okWants and value == true
+                  local hooks = Runtime.hooks
+                  local chain = type(hooks) == "table"
+                      and type(hooks.chains) == "table"
+                      and hooks.chains["trainer.party"] or nil
+                  if type(chain) == "table" then
+                      for _, entry in ipairs(chain) do
+                          if type(entry) == "table" then
+                              if entry.callback == composeRandomTrainerParty then
+                                  primaryRegistered = true
+                              elseif entry.callback == finalizeRandomTrainerParty then
+                                  finalizerRegistered = true
+                              end
+                          end
+                      end
+                  end
+              end
+
+              local beforePE = tonumber(
+                  mod.exports.__beta26.gen1TrainerPrimaryEntered) or 0
+              local beforePC = tonumber(
+                  mod.exports.__beta26.gen1TrainerPrimaryCompleted) or 0
+              local beforeFE = tonumber(
+                  mod.exports.__beta26.gen1TrainerFinalizerEntered) or 0
+              local beforeFC = tonumber(
+                  mod.exports.__beta26.gen1TrainerFinalizerCompleted) or 0
+              local beforeSample =
+                  mod.exports.__beta26.lastGen1TrainerRandomizerFinalizer
+
+              local diag = {
+                  classId=classId, partyIndex=partyIndex or 1,
+                  configOn=configOn, ruleEnabled=ruleEnabled,
+                  delegated=delegatedOwner ~= nil,
+                  runtimeWantsHook=wantsHook,
+                  primaryRegistered=primaryRegistered,
+                  finalizerRegistered=finalizerRegistered,
+                  fallbackApplied=false, finalizerObserved=false,
+                  acceptedSpecies={},
+              }
+              mod.exports.__beta26.lastGen1TrainerConstruction = diag
+
+              if not ruleEnabled
+                  or (wantsHook and primaryRegistered and finalizerRegistered) then
+                  local battle = previous(game, classId, partyIndex, opts)
+                  diag.primaryEntered =
+                      (tonumber(mod.exports.__beta26.gen1TrainerPrimaryEntered) or 0) > beforePE
+                  diag.primaryCompleted =
+                      (tonumber(mod.exports.__beta26.gen1TrainerPrimaryCompleted) or 0) > beforePC
+                  diag.finalizerEntered =
+                      (tonumber(mod.exports.__beta26.gen1TrainerFinalizerEntered) or 0) > beforeFE
+                  diag.finalizerCompleted =
+                      (tonumber(mod.exports.__beta26.gen1TrainerFinalizerCompleted) or 0) > beforeFC
+                  diag.finalizerObserved =
+                      mod.exports.__beta26.lastGen1TrainerRandomizerFinalizer ~= beforeSample
+                  diag.acceptedSpecies = acceptedSpecies(battle)
+                  diag.acceptedCount = #diag.acceptedSpecies
+                  return battle
+              end
+
+              local trainer = game and game.data and game.data.trainers
+                  and game.data.trainers[classId]
+              local index = partyIndex or 1
+              local authored = type(trainer) == "table"
+                  and type(trainer.parties) == "table"
+                  and trainer.parties[index] or nil
+              if type(authored) ~= "table" then
+                  diag.fallbackReason = "authored_party_unavailable"
+                  local battle = previous(game, classId, partyIndex, opts)
+                  diag.acceptedSpecies = acceptedSpecies(battle)
+                  diag.acceptedCount = #diag.acceptedSpecies
+                  return battle
+              end
+
+              local transformed = composeDirect(game, classId, index, authored)
+              if type(transformed) ~= "table" then
+                  diag.fallbackReason = "composition_failed"
+                  local battle = previous(game, classId, partyIndex, opts)
+                  diag.acceptedSpecies = acceptedSpecies(battle)
+                  diag.acceptedCount = #diag.acceptedSpecies
+                  return battle
+              end
+
+              trainer.parties[index] = transformed
+              local okCall, battleOrError = pcall(
+                  previous, game, classId, partyIndex, opts)
+              trainer.parties[index] = authored
+              if not okCall then error(battleOrError, 0) end
+
+              diag.fallbackApplied = true
+              if not wantsHook then
+                  diag.fallbackReason = "trainer_party_hook_unavailable"
+              elseif not primaryRegistered and not finalizerRegistered then
+                  diag.fallbackReason = "nuzlocke_trainer_hooks_missing"
+              elseif not primaryRegistered then
+                  diag.fallbackReason = "nuzlocke_primary_hook_missing"
+              else
+                  diag.fallbackReason = "nuzlocke_finalizer_hook_missing"
+              end
+              diag.primaryEntered =
+                  (tonumber(mod.exports.__beta26.gen1TrainerPrimaryEntered) or 0) > beforePE
+              diag.primaryCompleted =
+                  (tonumber(mod.exports.__beta26.gen1TrainerPrimaryCompleted) or 0) > beforePC
+              diag.finalizerEntered =
+                  (tonumber(mod.exports.__beta26.gen1TrainerFinalizerEntered) or 0) > beforeFE
+              diag.finalizerCompleted =
+                  (tonumber(mod.exports.__beta26.gen1TrainerFinalizerCompleted) or 0) > beforeFC
+              diag.finalizerObserved =
+                  type(mod.exports.__beta26.lastGen1TrainerRandomizerFinalizer) == "table"
+              diag.acceptedSpecies = acceptedSpecies(battleOrError)
+              diag.acceptedCount = #diag.acceptedSpecies
+              return battleOrError
+          end
+
+          BattleState.newTrainer = wrapper
+          BattleState.__nuzlockeGen1TrainerConstructionSession2822 = {
+              owner=mod, previous=previous, wrapper=wrapper,
+          }
+          return true
+      end
+
+      mod.exports.__beta26.installGen1TrainerConstructionSeam = install
+      install()
+      mod.events:on("mods.loaded", install)
+      mod.events:on("game.ready", install)
+      mod.events:on("save.loaded", install)
+  end
+
+  -- 2.8.18: observe the roster the battle engine ACTUALLY accepted. This is
+  -- diagnostic only and runs after both generations have consumed trainer.party.
+  -- It lets the next runtime report distinguish "hook produced a randomized
+  -- roster" from "battle construction later restored vanilla".
+  mod.events:on("battle.started", function(ev)
+      if type(ev) ~= "table" or tostring(ev.kind or "") ~= "trainer"
+          or not randomizerToggleOn("random_trainers") then
+          return
+      end
+      local battle = ev.battle
+      local party = type(battle) == "table"
+          and (battle.enemyParty
+              or (type(battle.trainer) == "table" and battle.trainer.party))
+          or nil
+      local species = {}
+      if type(party) == "table" then
+          for i, mon in ipairs(party) do
+              species[i] = tostring(
+                  type(mon) == "table" and mon.species or ""):upper()
+          end
+      end
+      mod.exports.__beta26.lastTrainerRandomizerBattleObserved = {
+          generation = mod.exports.__beta26.runtimeIsGen2(
+              getCurrentGame() or mod.game) and 2 or 1,
+          trainerId = ev.trainerId,
+          species = species,
+          count = #species,
+          firstSpecies = tostring(ev.species or ""):upper(),
+      }
+  end)
 
   -- A starter candidate has to satisfy more than "there is a pokemon
   -- record".  Pokemon.new consumes growth/base-stat/learnset data, and the

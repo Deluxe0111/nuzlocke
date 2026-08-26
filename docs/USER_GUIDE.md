@@ -1,4 +1,9 @@
-# Nuzlocke User Guide — 2.8.01
+# Nuzlocke User Guide — 2.8.27
+
+In Gold, Silver, and Crystal, the battle POKéMON command and its B/cancel path
+are native. NUZ INFO remains field-only. Party-target items continue to use the
+native direct target list rather than the ordinary field action submenu.
+
 ## 2.8.01 hotfix note
 Gold/Silver/Crystal Setup and NUZ RULES again expose Random Trainers plus Trainer Balance, Trainer Diversity, and Trainer Theme. When an overworld poison tick kills the final usable party Pokémon, Nuzlocke now independently evaluates Whiteout/Blackout instead of relying only on the engine's whiteout flag. The known Gen II party-item-use issue remains open.
 

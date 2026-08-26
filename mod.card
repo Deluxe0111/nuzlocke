@@ -5,6 +5,7 @@ return {
   tags = { "ruleset", "hardcore", "quality-of-life", "ui" },
   differences = {
     changed = {
+      "2.8.27 removes all Nuzlocke method wrappers from Gen-2 PartyMenu so battle cancellation and direct item targeting remain native.",
       "2.8.03 retries Gen-2 party-item and field-poison wipe timing at earlier authoritative seams, and audits/restores the complete Gen-2 Randomizer parent/child configuration surface.",
       "2.8.01 hotfix restores Gen-2 Trainer Randomizer Setup/Rules options and independently detects last-usable-party field-poison wipes so they cannot silently continue.",
       "2.8.00 full release moves Gen-2 simple party-consumable commit ownership to the Pack seam using the authoritative live save-party slot and native ItemEffects, and slightly slows the five-stage Setup/Rules navigation ramp.",

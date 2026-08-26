@@ -1,3 +1,10 @@
+# Feature Confidence — 2.8.27
+
+- Gen II battle party routing: **2.8.26 runtime FAIL; 2.8.27 test required**.
+- Gen II PartyMenu method ownership: **source/static isolation complete**.
+- Gen II party-target item execution: preserved at native/per-instance seams;
+  **regression retest required**.
+
 ## 2.8.04 UI follow-up / protected runtime evidence
 
 - Crystal 2.8.03: Gen II party-target item use runtime PASS.

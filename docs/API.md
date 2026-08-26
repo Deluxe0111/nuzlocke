@@ -1,4 +1,9 @@
-# Nuzlocke API — 2.8.01
+# Nuzlocke API — 2.8.27
+
+No public API or save-schema change. Gen II PartyMenu methods are no longer
+wrapped by Nuzlocke. Field NUZ INFO continues through `ui.party.submenu`, with
+`ctx.battle=true` returned unchanged.
+
 ## 2.8.01 API note
 No public API version changes. This hotfix changes only Gen II rule visibility and Nuzlocke-owned field-poison wipe reconciliation.
 

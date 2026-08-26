@@ -37,6 +37,26 @@ return function(mod, deps)
       battle_status = { battle, { "src.battle.gen2.Battle", "gen2.sleep", "gen2.status" } },
       battle_stages = { battle, { "gen2.evasion", "gen2.stat_drops", "gen2.setup" } },
       randomizer_gen2 = { randomizer, { "GEN2", "gen2" } },
+      battle_party_native = { main, {
+        "Gen2 BattleState owns its battle-party lifecycle",
+        "and ctx and ctx.battle == true then return result end",
+        "src.ui.PartyMenu is a write-through facade on Gen II",
+        "PartyMenu.__nuzlockeNoDayCarePickSession2649 = nil",
+      } },
+      party_item_instance_scope = { late, {
+        "intercept the target A press on this exact",
+        "chooser.update = function(screen, dt, ...)",
+        "function G2.installPartyConsumableExecution",
+        "prompt = \"useItem\"",
+      } },
+      party_wrapper_retirement = { late, {
+        "function G2.retirePartyMenuMethodWrappers",
+        "gen2.party_menu_native_ownership",
+        "retire(\"__nuzlockeUseItemChooserSession27105\", \"new\")",
+        "retire(\"__nuzlockeNoDayCarePickSession2649\", \"new\")",
+        "retire(\"__nuzlockeUseItemOpenSession27105\", \"openSubmenu\")",
+        "retire(\"__nuzlockeNuzInfoFallbackSession2677\", \"submenuItems\")",
+      } },
     }
     for id, row in pairs(required) do
       report.checked = report.checked + 1
@@ -48,6 +68,23 @@ return function(mod, deps)
       if not ok then
         report.ok = false
         report.failures[#report.failures + 1] = id
+      end
+    end
+    report.checked = report.checked + 1
+    local retiredPartyInstallers = {
+      "function G2.installPartyItemChooserContract",
+      "PartyMenu.new = wrapper",
+      "PartyMenu.openSubmenu = openWrapper",
+      "function G2.installPartySubmenuFallback",
+      "PartyMenu.submenuItems = wrapper",
+      "gen2.party_nuz_info_fallback",
+      "gen2.party_item_chooser",
+    }
+    for _, needle in ipairs(retiredPartyInstallers) do
+      if late:find(needle, 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] =
+          "party_method_wrapper_retired:" .. needle
       end
     end
     return report

@@ -3593,7 +3593,134 @@ return function(mod, deps)
                       end
                   end
               elseif name == "RANDOM" then
-                  local r=report.randomizer_integrity or {}; put("STATUS " .. tostring(r.status or "?")); put("SCANNED " .. tostring(r.scanned or 0)); put("VIOLATIONS " .. tostring(r.violation_count or 0)); for _,row in ipairs(r.violations or {}) do put(tostring(row.path or "?") .. " " .. tostring(row.reason or "?")) end
+                  local r = report.randomizer_integrity or {}
+                  local gen1 = not mod.exports.__beta26.runtimeIsGen2(self.game)
+                  local construction = gen1
+                      and mod.exports.__beta26.lastGen1TrainerConstruction or nil
+                  local trainerConfigured = gen1
+                      and mod.save:get("random_trainers", false) == true
+                  local runtimeTrainerWarn = trainerConfigured == true
+                      and type(construction) == "table"
+                      and (construction.ruleEnabled ~= true
+                          or (construction.fallbackApplied ~= true
+                              and (construction.primaryRegistered ~= true
+                                  or construction.finalizerRegistered ~= true))
+                          or construction.primaryCompleted ~= true
+                          or construction.finalizerCompleted ~= true
+                          or construction.finalizerObserved ~= true)
+
+                  local status = tostring(r.status or "?")
+                  if runtimeTrainerWarn then status = "WARN" end
+                  if trainerConfigured == true
+                      and type(construction) == "table"
+                      and construction.fallbackApplied == true then
+                      status = "FALLBACK"
+                  end
+
+                  put("STATUS " .. status)
+                  put("SCANNED " .. tostring(r.scanned or 0))
+                  put("VIOLATIONS " .. tostring(r.violation_count or 0))
+                  for _, row in ipairs(r.violations or {}) do
+                      put(tostring(row.path or "?") .. " "
+                          .. tostring(row.reason or "?"))
+                  end
+
+                  if gen1 then
+                      put("")
+                      put("TRAINER RANDOMIZER")
+                      if type(construction) == "table" then
+                          put("CONFIG "
+                              .. (construction.configOn == true and "ON" or "OFF")
+                              .. " RULE "
+                              .. (construction.ruleEnabled == true and "ON" or "OFF"))
+                          put("HOOK BUS "
+                              .. (construction.runtimeWantsHook == true
+                                  and "ACTIVE" or "INACTIVE"))
+                          put("PRIMARY REG "
+                              .. (construction.primaryRegistered == true
+                                  and "YES" or "NO")
+                              .. " RUN "
+                              .. (construction.primaryEntered == true
+                                  and (construction.primaryCompleted == true
+                                      and "OK" or "FAILED")
+                                  or "NO"))
+                          put("FINAL REG "
+                              .. (construction.finalizerRegistered == true
+                                  and "YES" or "NO")
+                              .. " RUN "
+                              .. (construction.finalizerEntered == true
+                                  and (construction.finalizerCompleted == true
+                                      and "OK" or "FAILED")
+                                  or "NO"))
+                          put("FINAL SAMPLE "
+                              .. (construction.finalizerObserved == true
+                                  and "YES" or "NO"))
+                          put("DIRECT "
+                              .. (construction.fallbackApplied == true
+                                  and "FALLBACK" or "NO"))
+                          if construction.fallbackReason then
+                              put("REASON " .. tostring(construction.fallbackReason))
+                          end
+                          if type(construction.acceptedSpecies) == "table"
+                              and #construction.acceptedSpecies > 0 then
+                              put("CONSTRUCT ACCEPTED "
+                                  .. table.concat(construction.acceptedSpecies, ","))
+                          end
+                      end
+
+                      local tr =
+                          mod.exports.__beta26.lastGen1TrainerRandomizerFinalizer
+                      if type(tr) ~= "table" then
+                          if type(construction) ~= "table" then
+                              put("NO TRAINER SAMPLE")
+                              put("FIGHT TRAINER THEN A:REFRESH")
+                          elseif construction.ruleEnabled ~= true then
+                              put("WARN RULE NOT OWNED/ACTIVE")
+                          elseif construction.primaryRegistered ~= true
+                              or construction.finalizerRegistered ~= true then
+                              put("WARN NUZ HOOK MISSING")
+                          elseif construction.primaryCompleted ~= true
+                              or construction.finalizerCompleted ~= true then
+                              put("WARN HOOK CALLBACK FAILED")
+                          else
+                              put("WARN FINALIZER NOT OBSERVED")
+                          end
+                      else
+                          put(string.format("CLASS %s PARTY %s",
+                              tostring(tr.classId or "?"),
+                              tostring(tr.partyIndex or "?")))
+                          put(string.format("MEM %d GEN %d REAP %d",
+                              tonumber(tr.members or 0),
+                              tonumber(tr.generated or 0),
+                              tonumber(tr.reapplied or 0)))
+                          put(string.format("SEED %s RESET %s",
+                              tostring(tr.seed or "?"),
+                              tr.seedReset == true and "YES" or "NO"))
+                          put("VANILLA "
+                              .. (tr.allVanilla == true and "YES" or "NO"))
+                          put("SPECIES MODE "
+                              .. tostring(tr.configuredSpeciesMode or "?"))
+                          for _, d in ipairs(tr.details or {}) do
+                              put(string.format(
+                                  "S%s %s>%s CHOICE %s",
+                                  tostring(d.slot or "?"),
+                                  tostring(d.original or "?"),
+                                  tostring(d.final or "?"),
+                                  tostring(d.choice or "?")))
+                              local pd = d.pool
+                              if type(pd) == "table" then
+                                  put(string.format(
+                                      " POOL U%d G%d S%d M%s>%s%s",
+                                      tonumber(pd.universe or 0),
+                                      tonumber(pd.generationAllowed or 0),
+                                      tonumber(pd.safe or 0),
+                                      tostring(pd.configuredMode or "?"),
+                                      tostring(pd.effectiveMode or "?"),
+                                      pd.normalized == true and " NORM" or ""))
+                              end
+                          end
+                      end
+                  end
               else
                   return rawFormatter(rawText, width)
               end

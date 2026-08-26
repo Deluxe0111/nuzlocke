@@ -1,4 +1,10 @@
-# Nuzlocke Compatibility — 2.8.01
+# Nuzlocke Compatibility — 2.8.27
+
+Gen II PartyMenu construction, battle cancellation, and native direct item
+targeting remain engine-owned. The R/B/Y custom Day Care constructor guard is
+explicitly removed when the shared PartyMenu facade is serving Gen II, including
+legacy wrapper sessions retained through an in-process mod reload.
+
 ## 2.8.01 Gen II hotfix compatibility
 Trainer Randomizer configuration is restored to the Gen II allowlist without changing trainer randomization runtime ownership. Field-poison wipe detection now derives from the live post-prune party state as well as the engine event flag, preserving the existing native spawn-warp/recovery seam when Whiteout survives.
 

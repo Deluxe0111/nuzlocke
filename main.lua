@@ -1,8 +1,7 @@
--- Nuzlocke 2.8.09
--- Full release, strict child of exact packaged 2.8.04. Repairs the Gen2 Pack
--- party-consumable commit seam at the authoritative live party slot and retunes
--- five-stage held UP/DOWN navigation. Protected TOOLS profile semantics, World
--- Building T3 default, Random Starter and tracker/compat behavior remain intact.
+-- Nuzlocke 2.8.27
+-- Focused Gen II PartyMenu ownership repair, rebuilt from runtime-valid 2.8.22.
+-- Native battle and direct item-target menu construction remain engine-owned;
+-- field NUZ INFO composes only through the public non-battle submenu hook.
 -- Historical version lineage is maintained in CHANGELOG.md and docs/DOCUMENTATION_CHANGELOG.md.
 --
 -- Lineage:
@@ -35,14 +34,14 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.09",
+      build = "2.8.27",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.09",
+      manifestVersion = "2.8.27",
       setupProfileScope = "gen1",
-      parentVersion = "2.8.04",
-      parentSha256 = "0c5f98230ac6149f7ddfe37139ab4d28dfcd94ed8e7f9ee0e6d55832b9a66676",
+      parentVersion = "2.8.22",
+      parentSha256 = "932348659cc42a731f1a13266ab5fd72f4f4b0e28452dbfd4c418f0004f2ad3f",
       compatibilityApi = 34,
       diagnosticsApi = 1,
   }
@@ -558,7 +557,7 @@ return function(mod)
   -- through the 0.2.25 line. Mod API 2, save format 4 and the existing
   -- engine range remain valid. Crystal is now an intentional Nuzlocke target,
   -- but is explicitly ALPHA and carries independent runtime evidence.
-  mod.exports.__beta26.recompCompatAudited = "0.2.25"
+  mod.exports.__beta26.recompCompatAudited = "0.2.26"
   mod.exports.__beta26.crystalSupport = {
       stage = "ALPHA", runtime_certified = false,
       note = "Crystal support is experimental; shared Gen-2 rules are enabled, but Crystal-specific systems require independent runtime certification.",
@@ -9856,7 +9855,7 @@ return function(mod)
               installed = okBall == true or installed
           end
 
-          -- 2.8.09: HiddenItems.pickupScript is the native BGEVENT_ITEM path.
+          -- 2.8.22: HiddenItems.pickupScript is the native BGEVENT_ITEM path.
           -- It was previously omitted from Random Field Items entirely.
           if type(HiddenItems.pickupScript) == "function" then
               local okHiddenPickup = installOwnedMethodWrapper(
@@ -10016,10 +10015,25 @@ return function(mod)
   -- talk script with their own PartyMenu pick flow. Guard only pick-only
   -- selection while physically inside the DAYCARE map, so existing deposited
   -- parents/eggs remain retrievable and every other PartyMenu stays native.
-  local function installCustomDayCareDepositGate()
+  local function installCustomDayCareDepositGate(game)
       local okParty, PartyMenu = pcall(require, "src.ui.PartyMenu")
       if not okParty or type(PartyMenu) ~= "table"
           or type(PartyMenu.new) ~= "function" then return false end
+      -- 2.8.27: src.ui.PartyMenu is a write-through facade on Gen II. This
+      -- custom-provider safety net is R/B/Y-only, so never leave its constructor
+      -- wrapper installed on the live Gold/Silver/Crystal PartyMenu class.
+      local session = PartyMenu.__nuzlockeNoDayCarePickSession2649
+      if mod.exports.__beta26.runtimeIsGen2(game or currentGame or mod.game) then
+          if type(session) == "table" and PartyMenu.new == session.wrapper
+              and type(session.previous) == "function" then
+              PartyMenu.new = session.previous
+              PartyMenu.__nuzlockeNoDayCarePickSession2649 = nil
+          end
+          -- If another legacy wrapper currently sits above this one, retain
+          -- the session record. Late Runtime unwraps the outer layer first and
+          -- then removes this newly exposed R/B/Y-only constructor wrapper.
+          return true
+      end
       installOwnedMethodWrapper(
           PartyMenu, "__nuzlockeNoDayCarePickSession2649", "new",
           function(previousNew)
@@ -10047,13 +10061,15 @@ return function(mod)
   end
 
   -- 2.3.10 / 2.6.49: deferred until lifecycle boundaries for boot/reload safety.
-  mod.events:on("game.ready", function()
+  mod.events:on("game.ready", function(ev)
+      local game = type(ev) == "table" and (ev.game or ev) or currentGame or mod.game
       pcall(installNoDayCareHooks)
-      pcall(installCustomDayCareDepositGate)
+      pcall(installCustomDayCareDepositGate, game)
   end)
-  mod.events:on("save.loaded", function()
+  mod.events:on("save.loaded", function(ev)
+      local game = type(ev) == "table" and (ev.game or ev) or currentGame or mod.game
       pcall(installNoDayCareHooks)
-      pcall(installCustomDayCareDepositGate)
+      pcall(installCustomDayCareDepositGate, game)
   end)
   end
 
@@ -14900,8 +14916,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.8.04",
-      expectedParentSha256 = "0c5f98230ac6149f7ddfe37139ab4d28dfcd94ed8e7f9ee0e6d55832b9a66676",
+      expectedParentVersion = "2.8.22",
+      expectedParentSha256 = "932348659cc42a731f1a13266ab5fd72f4f4b0e28452dbfd4c418f0004f2ad3f",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -17569,29 +17585,43 @@ return function(mod)
 
           local allItemList = H.buildFlatItemList(preGame, goldMode)
 
-          -- 2.8.09: Gen II-only Randomizer menu organization. Keep the
-          -- Red/Blue/Yellow layout/order untouched, but on Gold/Silver/Crystal
-          -- place each child immediately after its owning parent. Hidden child
-          -- rows still use the existing dependency contract below, so turning a
-          -- parent OFF removes its whole cluster without losing stored values.
-          if goldMode then
+          -- 2.8.22: one Randomizer hierarchy for BOTH Gen I and Gen II.
+          -- Every true child is immediately below its owning parent; global
+          -- Randomizer controls stay at the top. Existing dependency filtering
+          -- below remains authoritative, so child rows disappear while their
+          -- parent is OFF without losing their stored value.
+          do
               local randomizerOrder = {
-                  randomizer_preset=10, randomizer_seed=20, randomizer_info_policy=30,
+                  randomizer_preset=10,
+                  randomizer_seed=20, reroll_randomizer_seed=21,
+                  auto_randomizer_seed=22,
+                  randomizer_info_policy=30,
+                  random_species_generation=40,
+
                   random_starter=100, random_starter_style=101,
                   random_starter_balance=102, random_starter_trio_typing=103,
-                  random_starter_rerolls=104,
-                  random_encounter_tables=200, random_species_generation=201,
-                  random_encounter_balance=202, random_encounter_repetition=203,
-                  random_encounter_diversity_strength=204,
+                  random_starter_rerolls=104, reroll_random_starter=105,
+
+                  random_encounter_tables=200,
+                  random_encounter_balance=201,
+                  random_encounter_repetition=202,
+                  random_encounter_diversity_strength=203,
+
                   random_field_items=300, random_field_item_balance=301,
                   random_field_item_repetition=302,
+
                   random_learnsets=400, random_learnset_generation=401,
                   random_learnset_stab=402,
+
                   random_trainers=500, random_trainer_balance=501,
                   random_trainer_diversity=502, random_trainer_theme=503,
+
                   random_evolutions=600, random_evolution_balance=601,
+
                   random_shops=700, random_shop_balance=701,
+
                   random_tms=800, random_tm_compatibility=801,
+
                   random_gift_items=900,
               }
               local rebuilt = {}
@@ -17599,7 +17629,7 @@ return function(mod)
               while i <= #allItemList do
                   local row = allItemList[i]
                   if row and row.isHeader
-                      and sectionKey(row) == "RANDOMIZER" then
+                      and tostring(row.name or "") == "RANDOMIZER" then
                       rebuilt[#rebuilt + 1] = row
                       i = i + 1
                       local block = {}
@@ -19734,6 +19764,18 @@ return function(mod)
                               Font.draw(marqueePixelText(
                                   mod.exports.__beta26.maximumBstDisplayLabel(val),
                                   42, self.marqueeTime), 112 + valueShift, drawY)
+                          elseif key == "random_trainer_balance" then
+                              Font.draw(marqueePixelText(
+                                  ({ [0]="CHAOS", [1]="EVO", [2]="SIM BST", [3]="BALANCED" })[tonumber(val) or 0] or "CHAOS",
+                                  50, self.marqueeTime), 104 + valueShift, drawY)
+                          elseif key == "random_trainer_diversity" then
+                              Font.draw(marqueePixelText(
+                                  ({ [0]="OFF", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(val) or 0] or "OFF",
+                                  50, self.marqueeTime), 104 + valueShift, drawY)
+                          elseif key == "random_trainer_theme" then
+                              Font.draw(marqueePixelText(
+                                  ({ [0]="OFF", [1]="TYPE" })[tonumber(val) or 0] or "OFF",
+                                  50, self.marqueeTime), 104 + valueShift, drawY)
                           elseif key == "random_shop_balance" then
                               Font.draw(marqueePixelText(
                                   ({ [0]="CHAOS", [1]="PRICE", [2]="BALANCED" })[tonumber(val) or 2] or "BALANCED",
@@ -21083,6 +21125,11 @@ return function(mod)
       local result = next(game, items, mon, ctx)
       if type(result) ~= "table" then result = items end
       if type(result) ~= "table" then return result end
+      -- 2.8.27: Gen2 BattleState owns its battle-party lifecycle and supplies
+      -- ctx.battle=true for the native SWITCH/STATS/CANCEL submenu. NUZ INFO is
+      -- field-only and must not modify that list or its cancel callbacks.
+      if mod.exports.__beta26.runtimeIsGen2(game)
+          and ctx and ctx.battle == true then return result end
       if mod.exports.__beta26.runtimeIsGen2(game) then
           pcall(mod.exports.__beta26.noteGen2AdapterReach,
               "party_shared_hook", { rows=#result })
@@ -25599,7 +25646,7 @@ return function(mod)
                 encounterTime = battle.nuzlockeEncounterTime,
                 roamerSpecies = battle.nuzlockeRoamerSpecies,
             })
-            -- 2.8.09: do not reveal a failed-encounter outcome while the
+            -- 2.8.22: do not reveal a failed-encounter outcome while the
             -- battle's native result presentation may still be resolving.
             -- Queue consequential feedback for the first overworld step.
             mod.exports.__beta26.pendingPostResultFeedback =

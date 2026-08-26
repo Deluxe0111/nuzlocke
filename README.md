@@ -1,3 +1,9 @@
+# Nuzlocke 2.8.27
+
+Gen II PartyMenu construction is now engine-owned for both battle selection and
+native direct item targeting. Nuzlocke keeps its item execution at the selected
+instance/callback seam and no longer wraps the shared Gen II PartyMenu methods.
+
 ## 2.8.09 Gen II UI cleanup
 
 2.8.09 is a strict child of exact 2.8.03. It is a presentation-only hardening pass for Nuzlocke-owned Gen II utility screens, focused on the spacing, title, overflow, wrapping, and unused-space problems seen at runtime in Crystal. The runtime-confirmed 2.8.03 item-use and Randomizer fixes are intentionally preserved.

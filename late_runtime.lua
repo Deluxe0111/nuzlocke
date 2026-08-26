@@ -5004,180 +5004,27 @@ return function(mod, deps)
             return true
         end
 
-        -- 2.7.105: Gen2 party-item chooser contract. Runtime on Crystal
-        -- proved that USE reached the correct "Use on which Pokemon?" screen,
-        -- but selecting the target opened the ordinary field Pokemon submenu
-        -- instead of invoking the chooser callback. A useItem PartyMenu is not
-        -- a field/submenu screen: force only that explicit prompt back to the
-        -- native direct-onChoose contract. Ordinary field Party menus, battle
-        -- party menus, TM/HM choosers, held-item menus, and NUZ INFO remain
-        -- untouched.
-        function G2.installPartyItemChooserContract()
+        -- 2.8.27: retire every legacy Nuzlocke PartyMenu method wrapper before
+        -- Gen II opens a battle or item chooser. Module tables may survive a
+        -- mod reload, so deleting old installers from source is insufficient:
+        -- unwrap the active outer layer, then the R/B/Y Day Care facade layer
+        -- that may have been captured beneath it. No replacement is installed.
+        function G2.retirePartyMenuMethodWrappers()
             local ok, PartyMenu = pcall(require, "src.ui.gen2.PartyMenu")
-            if not ok or type(PartyMenu) ~= "table"
-                or type(PartyMenu.new) ~= "function" then return false end
-            local session = PartyMenu.__nuzlockeUseItemChooserSession27105
-            if not (type(session) == "table" and session.owner == mod
-                and PartyMenu.new == session.wrapper) then
-                if type(session) == "table" and PartyMenu.new == session.wrapper
+            if not ok or type(PartyMenu) ~= "table" then return false end
+            local function retire(sessionKey, method)
+                local session = PartyMenu[sessionKey]
+                if type(session) == "table"
+                    and PartyMenu[method] == session.wrapper
                     and type(session.previous) == "function" then
-                    PartyMenu.new = session.previous
+                    PartyMenu[method] = session.previous
                 end
-                local previous = PartyMenu.new
-                local wrapper
-                wrapper = function(game, opts, ...)
-                    local incoming = opts
-                    local prompt = type(incoming) == "table" and incoming.prompt or nil
-                    local nativeUsePrompt = PartyMenu.PROMPTS
-                        and PartyMenu.PROMPTS.useItem or nil
-                    local inBattle = false
-                    local stack = game and game.stack
-                    if stack and type(stack.states) == "table" then
-                        for _, state in ipairs(stack.states) do
-                            if type(state) == "table" and state.battle ~= nil
-                                and (state.phase ~= nil or state.tutorial ~= nil
-                                    or state.contest ~= nil) then
-                                inBattle = true
-                                break
-                            end
-                        end
-                    end
-                    local useItemChooser = G2.isGen2(game) and not inBattle
-                        and (prompt == "useItem"
-                            or (nativeUsePrompt ~= nil and prompt == nativeUsePrompt))
-                    if not useItemChooser then
-                        return previous(game, incoming, ...)
-                    end
-
-                    -- Never mutate a caller-owned options table. A compatibility
-                    -- provider may reuse it after construction.
-                    local clean = {}
-                    for key, value in pairs(incoming or {}) do clean[key] = value end
-                    clean.submenu = false
-                    clean.battleSubmenu = false
-                    local screen = previous(game, clean, ...)
-                    if type(screen) == "table" then
-                        screen.wantsSubmenu = false
-                        screen.wantsBattleSubmenu = false
-                        screen.__nuzlockeUseItemChooser27105 = true
-                    end
-                    return screen
-                end
-                PartyMenu.new = wrapper
-                PartyMenu.__nuzlockeUseItemChooserSession27105 = {
-                    owner = mod, previous = previous, wrapper = wrapper,
-                }
+                PartyMenu[sessionKey] = nil
             end
-
-            -- Defense in depth: if a later compatibility wrapper re-enables
-            -- field-submenu mode after construction, the explicit useItem marker
-            -- still wins at the only method that could open that submenu. Route
-            -- the selection to the chooser callback instead of drawing actions.
-            if type(PartyMenu.openSubmenu) == "function" then
-                local openSession = PartyMenu.__nuzlockeUseItemOpenSession27105
-                if type(openSession) == "table"
-                    and PartyMenu.openSubmenu == openSession.wrapper
-                    and openSession.owner ~= mod
-                    and type(openSession.previous) == "function" then
-                    PartyMenu.openSubmenu = openSession.previous
-                end
-                openSession = PartyMenu.__nuzlockeUseItemOpenSession27105
-                if not (type(openSession) == "table" and openSession.owner == mod
-                    and PartyMenu.openSubmenu == openSession.wrapper) then
-                    local previousOpen = PartyMenu.openSubmenu
-                    local openWrapper
-                    openWrapper = function(self, ...)
-                        if self and self.__nuzlockeUseItemChooser27105 == true then
-                            local mon = type(self.party) == "table"
-                                and self.party[self.index] or nil
-                            if mon and type(self.onChoose) == "function" then
-                                return self.onChoose(self.index, mon)
-                            end
-                            return nil
-                        end
-                        return previousOpen(self, ...)
-                    end
-                    PartyMenu.openSubmenu = openWrapper
-                    PartyMenu.__nuzlockeUseItemOpenSession27105 = {
-                        owner = mod, previous = previousOpen, wrapper = openWrapper,
-                    }
-                end
-            end
-            return true
-        end
-
-        function G2.installPartySubmenuFallback()
-            -- 2.7.82: install the real Gen-2 PartyMenu wrapper without trusting
-            -- an early global edition snapshot. Exact-edition gating remains
-            -- inside submenuItems(), where self.game is authoritative.
-            local ok, PartyMenu = pcall(require, "src.ui.gen2.PartyMenu")
-            if not ok or type(PartyMenu) ~= "table"
-                or type(PartyMenu.submenuItems) ~= "function" then
-                ok, PartyMenu = pcall(require, "src.ui.PartyMenu")
-            end
-            if not ok or type(PartyMenu) ~= "table"
-                or type(PartyMenu.submenuItems) ~= "function" then return false end
-            local session = PartyMenu.__nuzlockeNuzInfoFallbackSession2677
-            if type(session) == "table" and session.owner == mod
-                and PartyMenu.submenuItems == session.wrapper then return true end
-            if type(session) == "table" and PartyMenu.submenuItems == session.wrapper
-                and type(session.previous) == "function" then
-                PartyMenu.submenuItems = session.previous
-            end
-            local previous = PartyMenu.submenuItems
-            local wrapper
-            wrapper = function(self, ...)
-                local out = previous(self, ...)
-                if type(out) ~= "table" then return out end
-                local game = (self and self.game) or getCurrentGame() or mod.game
-                if not G2.isGen2(game) then return out end
-                pcall(mod.exports.__beta26.noteGen2AdapterReach,
-                    "party_native_submenu", { rows=#out })
-                if self and (self.battle ~= nil or self.isBattle == true
-                    or tostring(self.mode or ""):lower() == "battle") then return out end
-                local anyInfo = mod.save:get("catch_info", true) == true
-                    or mod.save:get("stat_info", true) == true
-                    or mod.save:get("move_info", true) == true
-                if not anyInfo then return out end
-                for _, row in ipairs(out) do
-                    if type(row) == "table" and (row.nuzlockeNuzInfo == true
-                        or row.id == "nuzlocke_nuz_info"
-                        or row.id == "nuzlocke_catch_info") then
-                        pcall(mod.exports.__beta26.noteGen2AdapterReach,
-                            "party_shared_row_present", true)
-                        return out
-                    end
-                end
-                local mon = self and (self.mon or self.pokemon) or nil
-                if not mon and self and type(self.party) == "table" then
-                    local index = tonumber(self.index or self.cursor or self.partyIndex) or 1
-                    mon = self.party[index]
-                end
-                if type(mon) ~= "table" then return out end
-                local row = {
-                    id = "nuzlocke_nuz_info", nuzlockeNuzInfo = true,
-                    label = Strings("NUZ INFO"),
-                    onSelect = function()
-                        mod.ui.push(game, "NuzlockeCatchInfoScreen", { mon=mon })
-                    end,
-                }
-                local inserted = false
-                for i, existing in ipairs(out) do
-                    local label = tostring(type(existing) == "table"
-                        and (existing.label or existing.id) or existing or ""):upper()
-                    if label == "CANCEL" then
-                        table.insert(out, i, row); inserted = true; break
-                    end
-                end
-                if not inserted then table.insert(out, row) end
-                pcall(mod.exports.__beta26.noteGen2AdapterReach,
-                    "party_fallback_inserted", true)
-                return out
-            end
-            PartyMenu.submenuItems = wrapper
-            PartyMenu.__nuzlockeNuzInfoFallbackSession2677 = {
-                owner=mod, previous=previous, wrapper=wrapper,
-            }
+            retire("__nuzlockeUseItemChooserSession27105", "new")
+            retire("__nuzlockeNoDayCarePickSession2649", "new")
+            retire("__nuzlockeUseItemOpenSession27105", "openSubmenu")
+            retire("__nuzlockeNuzInfoFallbackSession2677", "submenuItems")
             return true
         end
 
@@ -5195,6 +5042,8 @@ return function(mod, deps)
                 local ok = attempt(name, fn)
                 if ok ~= true then allOk = false end
             end
+            checked("gen2.party_menu_native_ownership",
+                G2.retirePartyMenuMethodWrappers)
             checked("gen2.battle_rule_pager", G2.installBattleRulePager)
             checked("gen2.capture_gate", G2.installCaptureGate)
             checked("gen2.nickname_gate", G2.installNicknameGate)
@@ -5208,9 +5057,7 @@ return function(mod, deps)
             checked("gen2.random_starter_transaction", G2.installRandomStarterTransaction)
             checked("gen2.system_clock_fallback", G2.installSystemClockFallback)
             checked("gen2.gift_tracking", G2.installGiftTracking)
-            checked("gen2.party_item_chooser", G2.installPartyItemChooserContract)
             checked("gen2.party_consumable_execution", G2.installPartyConsumableExecution)
-            checked("gen2.party_nuz_info_fallback", G2.installPartySubmenuFallback)
             checked("gen2.trade_gate", G2.installTradeGate)
             checked("gen2.static_tracking", G2.installStaticTracking)
             checked("gen2.gambling_gate", G2.installGamblingGate)

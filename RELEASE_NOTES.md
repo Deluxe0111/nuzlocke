@@ -1,3 +1,89 @@
+# Nuzlocke 2.8.27 — Release Notes
+
+Crystal testing proved 2.8.26 did not resolve the battle POKéMON menu failure.
+This follow-up removes every Nuzlocke method wrapper from the Gen II PartyMenu
+class. Battle switching/cancellation and direct item-target construction remain
+native, while Nuzlocke retains only its exact selected-item callback and public
+field submenu composition. A startup retirement step also removes older wrapper
+sessions that survived a mod reload. Runtime reproduction testing is required.
+
+## 2.8.22
+- Recovered from the last runtime-valid 2.8.19 parent after quarantining load-invalid 2.8.20 and 2.8.21.
+- Internal runtime compatibility hardening for Gen I Trainer Randomizer.
+- Added exact hook-registration and entry/completion diagnostics without moving callbacks out of scope.
+- Added a Gen-I-only trainer-construction fallback when Nuzlocke owns Random Trainers but its live trainer hooks are absent.
+- DEV REPORT now distinguishes hook-bus state, exact Nuzlocke hook registration, callback completion, final sample, fallback use, and constructed species.
+- Gen II behavior is unchanged.
+- Runtime testing required before Gen I Trainer Randomizer is marked PASS.
+
+## 2.8.22
+- Strict child of exact 2.8.18 recovery build.
+- Ports only the two reviewed Trainer Randomizer changes that were missing from 2.8.18.
+- Canonical rival starter-family synchronization now persists its chosen species into the deterministic Trainer Randomizer slot map, preventing the final authority from regenerating that starter-owned rival slot as an ordinary trainer member.
+- DEV REPORT > RANDOM now surfaces Gen I Trainer Randomizer runtime evidence: trainer class/party, members/generated/reapplied, seed/reset, all-vanilla state, configured species mode, per-slot original/final/choice, candidate-pool counts/mode normalization, and the roster observed when the battle actually started.
+- 2.8.18's recovered trainer candidate safety, symmetric Species Pool normalization, final trainer authority, battle-observed diagnostics, Gen II Mon rematerialization hardening, and other unrelated behavior are preserved unchanged.
+- No Crystal item-randomizer or tutorial-skip work is included in this build.
+- Runtime testing required; do not mark Gen I or Gen II Trainer Randomization PASS based on this build alone.
+
+## 2.8.22
+- Quarantines compiler-invalid 2.8.16 and 2.8.17; rebuilt from exact 2.8.15, the last valid parent.
+- Fixes the Mod Manager syntax failure caused by the unintended `local local function randomizerToggleOn2816` tangent by excluding that unrelated field-item code entirely.
+- Ports forward only the reviewed PHASE F Trainer Randomizer work from the invalid 2.8.16/2.8.17 packages.
+- Trainer candidates now use a dedicated construction-safety gate rather than the wild/starter level-scaled completeness gate.
+- Trainer safety validates native species/stat structure plus only the bounded move set the native trainer constructor can actually materialize.
+- Trainer Species Pool normalization is symmetric between generations without rewriting the saved player setting.
+- Gen I keeps deterministic persisted trainer mappings and final runtime projection.
+- Gen II keeps its native Mon rematerialization path and protected constructor fallback.
+- No Crystal field-item tangent from 2.8.16/2.8.17 was carried forward.
+- Runtime testing required; Yellow Trainer Randomizer remains FAIL until confirmed otherwise.
+
+## 2.8.22
+- Yellow/Gen I Trainer Randomizer remains runtime-confirmed FAIL on 2.8.14; this build is another targeted repair and requires runtime testing.
+- Gen I trainer candidate pools now normalize an impossible Gen-II-only shared Species Pool to an effective Gen-I pool without rewriting the player's configured value.
+- Added per-trainer diagnostics for configured/effective species-pool mode, registry size, generation-allowed count, hard-safe count, seed, original species, final species, generated/reapplied members, and all-vanilla detection.
+- Gen I final trainer authority now snapshots the engine-authored roster before inner `trainer.party` wrappers so balance/randomization decisions are based on the true vanilla source party rather than an already-mutated downstream result.
+- Trainer slot mappings are now seed-aware. Changing/rerolling the Randomizer seed invalidates cached trainer-slot choices so the new seed can actually produce new trainer mappings.
+- Persisted authored/same-species mappings continue to be treated as stale when a legal alternative exists.
+- Gen II Trainer Randomizer behavior is unchanged from 2.8.14.
+- No claim of a confirmed Gen I Trainer Randomizer fix until Yellow runtime testing passes.
+
+## 2.8.22
+- Hardened the Gen II Trainer Randomizer native Mon rematerialization path.
+- `Gen2Mon.new(...)` itself is now protected with `pcall`; previously only the module `require` was guarded.
+- A constructor exception or invalid return now falls into the existing species/sync/stat-refresh fallback instead of escaping the `trainer.party` hook chain.
+- Added actionable `lastGen2TrainerRandomizerError` diagnostics distinguishing builder failure/bad return from builder unavailability.
+- Reviewed Gen1Recomp 0.2.26 `Mon.new`: missing DVs/stat EXP are natively defaulted, so nil authored DV/stat-exp fields alone are not confirmed as the cause of the reported Gen II Trainer Randomizer uncertainty.
+- No Gen I Trainer Randomizer behavior changed in this build.
+- Runtime testing is required before claiming any Gen II Trainer Randomizer behavior change.
+
+## 2.8.22
+- Gen1Recomp 0.2.26 compatibility/documentation review completed.
+- Mod API 2, the existing `trainer.party` contract, hook priority semantics, and the current `>=0.2.24 <2.0.0` engine range remain compatible; no manifest range bump is required.
+- Recorded 0.2.26 as the latest audited Gen1Recomp compatibility surface.
+- 0.2.26 additions reviewed for future Nuzlocke use include public `mod.developer`, Gen I `battle.field_residual`, conditional map occupancy/active-block APIs, Crystal target documentation, and broader Gen II fixes. None require replacing Nuzlocke's current gameplay owners in this build.
+- Gen I Trainer Randomizer follow-up: stale persisted trainer mappings equal to the authored species are now invalidated and deterministically recomputed whenever a legal alternative exists. This targets the Yellow Weedle/Kakuna runtime reproduction that survived 2.8.12.
+- Gen I Trainer Balance / Diversity / Theme now render semantic named modes instead of raw numeric values.
+- Gen II trainer materialization remains untouched.
+- Runtime testing is required before claiming the Gen I Trainer Randomizer failure fixed.
+
+## 2.8.22
+- Full Randomizer configuration hierarchy audit across both Gen I and Gen II.
+- Every true Randomizer child is now ordered directly beneath its parent on Setup/NUZ RULES. Parent-dependent rows retain their saved values but disappear while the parent is OFF.
+- Global Randomizer controls (Preset, Seed, Info Policy, shared Species Pool) remain top-level rather than being falsely assigned to one subsystem.
+- Starter reroll action now stays with the Random Starter cluster; seed actions stay with Randomizer Seed.
+- Gen I Trainer Randomizer: replaced the 2.8.11 map-only late guard with an outermost, self-sufficient final party-definition authority.
+- If the normal trainer policy mapping is missing, Gen I now deterministically rebuilds a hard-safe replacement at the exact final trainer.party boundary instead of silently materializing the authored vanilla species.
+- This Gen I fallback does not run on Gen II and does not change trainer party size, order, or authored levels.
+- Gen I Trainer Randomizer repair requires runtime confirmation; Yellow Bug Catcher is the primary reproduction case.
+
+## 2.8.22
+- Targeted Gen I Trainer Randomizer repair.
+- Confirmed the 2.8.07 Gen II native-Mon rematerialization fix is Gen II-specific; Gen I materializes fresh Pokemon only after the `trainer.party` hook returns.
+- Added a Gen I-only late trainer-party projection guard that reasserts the already-determined deterministic slot mapping after downstream hook/provider composition, preventing a later wrapper from silently restoring the vanilla species.
+- The guard does not reroll, change authored levels, party size, or move fields, and does not run on Gen II.
+- Added a diagnostic record when the late Gen I guard actually has to reapply one or more trainer species.
+- Other 2.8.10 behavior is unchanged.
+
 ## 2.8.09
 - Crystal/Gen II Randomizer UI: Shop Balance and TM Compatibility now render semantic values instead of raw 0/1/2 in the Setup/Rules value lane.
 - Gen II Randomizer rows are grouped parent -> children without changing Red/Blue/Yellow menu ordering. Existing dependency visibility remains authoritative, so children appear under their parent only while active.
