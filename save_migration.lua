@@ -30,6 +30,14 @@ return function(mod, deps)
       return true
   end
 
+  -- Presence and value are separate facts. Lua's `and/or` conditional idiom
+  -- cannot represent a present literal false, so transaction/migration
+  -- snapshots must select values explicitly.
+  local function copyPresentValue(present, value)
+      if present ~= true then return nil end
+      return deps.copy(value)
+  end
+
   mod.exports.__beta26.saveUpgrade.newShadowStore = function(baseStore)
       baseStore = baseStore or mod.save
       local entries, order = {}, {}
@@ -50,7 +58,7 @@ return function(mod, deps)
               row = {
                   key = key,
                   before_present = before ~= sentinel,
-                  before_value = before ~= sentinel and deps.copy(before) or nil,
+                  before_value = copyPresentValue(before ~= sentinel, before),
               }
               entries[key] = row
               order[#order + 1] = key
@@ -218,7 +226,7 @@ return function(mod, deps)
           return false, "busy"
       end
       local txn = {
-          version = 1, id = id, kind = kind, state = "intent",
+          version = TX.api, id = id, kind = kind, state = "intent",
           payload = deps.copy(type(payload) == "table" and payload or {}),
           build = tostring(mod.exports.__beta26.build),
       }
@@ -395,7 +403,7 @@ return function(mod, deps)
       opts = type(opts) == "table" and opts or {}
       local txn = txGet(txStore(opts), TX.storage_key, nil)
       if type(txn) ~= "table" then return true, "clean" end
-      if tonumber(txn.version) ~= 1 then return false, "newer_transaction" end
+      if tonumber(txn.version) ~= TX.api then return false, "newer_transaction" end
       -- TX.execute resolves the durable receipt before consulting the current
       -- handler table. This lets a receipt-proven completed transaction clean
       -- up a stale journal even if its historical handler was later retired.
@@ -435,7 +443,7 @@ return function(mod, deps)
       end,
       perform = function(payload, txn, opts)
           return txSet(txStore(opts), payload.key,
-              payload.after_present == false and nil or deps.copy(payload.after_value))
+              copyPresentValue(payload.after_present ~= false, payload.after_value))
       end,
   })
 
@@ -446,7 +454,7 @@ return function(mod, deps)
       return TX.execute(id, "save.set_exact", {
           key = tostring(key),
           before_present = before ~= sentinel,
-          before_value = before ~= sentinel and deps.copy(before) or nil,
+          before_value = copyPresentValue(before ~= sentinel, before),
           after_present = value ~= nil,
           after_value = deps.copy(value),
       }, opts)

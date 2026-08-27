@@ -1,4 +1,4 @@
--- Nuzlocke 2.8.37
+-- Nuzlocke 2.8.72
 -- Full built-in shiny presentation + provider failover, strict child of exact 2.8.36.
 -- Battle Menu UI is Gen I-only; Gen II rule denials use the native BattleState resolving/message path
 -- instead of a Nuzlocke-owned custom battle phase. Wilds 2.2.0 hardening is ported.
@@ -34,15 +34,15 @@ return function(mod)
   local currentGymProgressCount
 
   mod.exports.__beta26 = {
-      build = "2.8.37",
+      build = "2.8.72",
       -- Version titles are numeric-only from 2.5.41 onward. The updater-safe
       -- behavior previously obtained with +DEV is preserved by simply using
       -- the canonical numeric release/build identity.
-      manifestVersion = "2.8.37",
+      manifestVersion = "2.8.72",
       setupProfileScope = "gen1",
-      parentVersion = "2.8.36",
-      parentSha256 = "27e46934b6aaa2ee6665b02fa3078eb8863845d4922cfbb0251fd22df079d292",
-      compatibilityApi = 34,
+      parentVersion = "2.8.71",
+      parentSha256 = "a4657d86de901c6810d1832c286f056c1acfc319d02ac3cf53d4a97af258014e",
+      compatibilityApi = 35,
       diagnosticsApi = 1,
   }
   -- 2.6.57: central fail-soft install / hook / feature-health foundation.
@@ -397,11 +397,17 @@ return function(mod)
       if first > last or not spans[first] or not spans[last] then return "" end
       return text:sub(spans[first].from, spans[last].to)
   end
+  -- Internal generation-neutral helpers for split UI/adapters. These expose
+  -- no new public compatibility contract; they keep every Nuzlocke-owned
+  -- module on one glyph-boundary implementation.
+  mod.exports.__beta26.nuzGlyphSpans = nuzGlyphSpans
+  mod.exports.__beta26.nuzGlyphLen = nuzGlyphLen
+  mod.exports.__beta26.nuzGlyphSlice = nuzGlyphSlice
   -- Public, generation-neutral localization seam for companion mods and
   -- translator test harnesses. English source text remains the stable key;
   -- missing entries safely fall back through the engine's Strings module.
   mod.exports.nuzlocke_translation = {
-      api = 1,
+      api = 2,
       build = mod.exports.__beta26.build,
       get = function(source, ...)
           return Strings(source, ...)
@@ -412,16 +418,246 @@ return function(mod)
        known_companions = {
           ["gen1_pt-br"] = {
               name = "(PT-BR) Versao Brasileira",
-              reviewed = "0.1.4",
+              reviewed = "0.1.5",
               behavior = "localization_only",
+              status = "legacy_upstream_unverified",
+              targetClass = "legacy",
+              certificationEligible = false,
+          },
+          ["versaovermelha"] = {
+              name = "VersaoVermelha",
+              reviewed = "0.2.5",
+              behavior = "localization_plus_presentation",
+              status = "current_brazilian_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+          },
+          ["translation-german-universal"] = {
+              name = "Translation German Universal",
+              reviewed = "0.2.0",
+              behavior = "localization_plus_presentation",
+              status = "current_german_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red", "blue", "yellow", "gold", "silver", "crystal" },
+              toggleAware = true,
+              inactiveLanguage = "en",
+          },
+          ["traduccion_es"] = {
+              name = "Traduccion Espanola",
+              reviewed = "0.1.0",
+              behavior = "localization_plus_cartridge_content",
+              status = "current_spanish_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red", "blue" },
+              partialWithoutImportedSource = true,
+          },
+          ["spanish_translation"] = {
+              name = "Edicion Roja (Traduccion Español)",
+              reviewed = "0.1.0",
+              behavior = "localization_content_presentation_replacement_scripts",
+              status = "alternate_spanish_red_target",
+              targetClass = "current_alternate",
+              certificationEligible = true,
+              editions = { "red" },
+              editionScope = "red_only_from_upstream_identity",
+              lineage = "fork_of_versaovermelha",
+              sourceTextProject = "einstein95/pokered-es",
+              engineRange = ">=0.0.0-dev <1.0.0",
+              engineInternalsPresentationWrappers = true,
+              battleUiOverride = true,
+              replacementMapScripts = true,
+              replacementMapScriptsPresent = true,
+              mutationReviewRequired = true,
+              certificationFocus = {
+                  "battle ui layout",
+                  "museum payment replacement handler",
+                  "bike voucher/bicycle replacement handler",
+              },
+          },
+          ["translation-fr"] = {
+              name = "Translation French",
+              reviewed = "0.8.0",
+              behavior = "localization_generated_content",
+              status = "current_french_base_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red", "blue", "yellow", "gold", "silver", "crystal" },
+              generatedBy = "gen1recomp-translation-mod-generator",
+          },
+          ["trad-fr-extended"] = {
+              name = "Traduction FR etendue",
+              reviewed = "0.2.0",
+              behavior = "localization_overlay",
+              status = "current_french_overlay_target",
+              targetClass = "current_overlay",
+              certificationEligible = true,
+              requiresCompanion = "translation-fr",
+          },
+          ["translation-ja-hrkt"] = {
+              name = "JP GREEN - Poketto Monsuta Midori",
+              reviewed = "0.4.2",
+              behavior = "localization_generated_content_ttf",
+              status = "current_japanese_red_blue_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red", "blue" },
+              partialEngineStrings = true,
+              requiresRomImport = true,
+              fontModel = "engine_plain_pixel_ttf",
+              fixedCellKana = true,
+          },
+          ["translation-it"] = {
+              name = "Italian translation",
+              reviewed = "0.6.0",
+              behavior = "localization_generated_content_wrappers",
+              status = "current_italian_primary_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red", "blue", "yellow" },
+              generatedBy = "gen1recomp-translation-mod-generator-0.6.0",
+              fontModel = "fusion_pixel_proportional_ttf",
+              presentationWrappers = true,
+              replacementMapScripts = true,
+              mutationReviewRequired = true,
+          },
+          ["recomp-italian"] = {
+              name = "Traduzione ITA",
+              reviewed = "0.1.0",
+              behavior = "localization_content_custom_glyphs",
+              status = "alternate_italian_beta_target",
+              targetClass = "legacy_alternate",
+              certificationEligible = false,
+              editionScope = "upstream_not_explicitly_documented",
+              replacementMapScripts = false,
+          },
+          ["recomp-polish"] = {
+              name = "POKéMON Edycja Czerwona PL",
+              reviewed = "1.0.0",
+              behavior = "localization_content_custom_glyphs",
+              status = "current_polish_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red" },
+              editionScope = "conservative_red_only_from_upstream_identity",
+              fixedCellExtendedLatin = true,
+              partialEnglishFallback = true,
+              replacementMapScriptsPresent = true,
+              mutationReviewRequired = true,
+          },
+          ["zh_cn"] = {
+              name = "ZH-CN / Simplified Chinese (Mainland)",
+              reviewed = "0.3.1",
+              behavior = "localization_content_fixed_cell_cjk_wrappers",
+              status = "current_simplified_chinese_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red", "blue", "yellow" },
+              engineRange = ">=0.1.56 <1.0.0",
+              fixedCellCJK = true,
+              glyphPages = 8,
+              glyphCountReviewed = 1995,
+              engineInternalsPresentationWrappers = true,
+              dynamicScriptPresentationWrapper = true,
+              stringsGetWrapper = true,
+              fontDrawWrapper = true,
+              optionRowsWrapper = true,
+              namingGridWrapper = true,
+              partialEnglishFallback = true,
+              mutationReviewRequired = false,
+              certificationFocus = {
+                  "stat/status labels",
+                  "starter/gift names",
+                  "badge substitutions",
+                  "options footer",
+                  "party/summary status labels",
+                  "mixed CJK/numeric alignment",
+              },
+          },
+          ["translation-nl"] = {
+              name = "Dutch translation",
+              reviewed = "0.0.2",
+              behavior = "localization_generated_content_replacement_scripts",
+              status = "current_dutch_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red", "blue" },
+              engineRange = ">=0.0.0-dev",
+              generatedBy = "gen1recomp-dutch-generator",
+              asciiFoldedAccents = true,
+              noLocalizedFont = true,
+              partialEnglishFallback = true,
+              romCatalogCoverage = "3106/3106",
+              engineRbyCoverage = "285/383",
+              engineAllCoverage = "290/533",
+              replacementMapScripts = true,
+              replacementMapScriptsPresent = true,
+              mutationReviewRequired = true,
+              certificationFocus = {
+                  "museum payment replacement handler",
+                  "bike voucher/bicycle replacement handler",
+                  "mixed Dutch/English fallback",
+              },
           },
           ["finnish"] = {
               name = "Suomi",
               reviewed = "0.1.0",
-              behavior = "localization_only",
+              behavior = "localization_content_presentation_replacement_scripts",
+              status = "current_finnish_target",
+              targetClass = "current_primary",
+              certificationEligible = true,
+              editions = { "red" },
+              editionScope = "conservative_red_only_from_upstream_identity",
+              engineRange = ">=0.0.0-dev <1.0.0",
+              fixedCellExtendedLatin = true,
+              partialEnglishFallback = true,
+              engineInternalsPresentationWrappers = true,
+              namingGridWrapper = true,
+              replacementMapScripts = true,
+              replacementMapScriptsPresent = true,
+              mutationReviewRequired = true,
+              certificationFocus = {
+                  "choice box width",
+                  "battle ui layout",
+                  "level-up stat box",
+                  "bindings capture box",
+                  "bill pc box overlay",
+                  "move learn layout",
+                  "trainer card layout",
+                  "museum payment replacement handler",
+                  "bike voucher/bicycle replacement handler",
+              },
           },
       },
   }
+  -- 2.8.69 translation discovery consolidation. These reviewed repositories
+  -- are deliberately NOT runtime companions and therefore do not participate
+  -- in translation detection or optional dependency ordering.
+  mod.exports.__beta26.translationReviewExclusions = {
+      ["yyoossk/Gen1Recomp-translation-jp-mod"] = {
+          classification = "placeholder_incomplete",
+          runtimeEligible = false,
+          reason = "repository contains README only; no manifest/main/version/mod id",
+      },
+      ["ShiraTheMogul/gen1recomp-lzh"] = {
+          classification = "engine_fork_alternate_distribution",
+          runtimeEligible = false,
+          reason = "translation is delivered as a Gen1Recomp fork with engine/gameplay changes",
+      },
+      ["zhangjiyz/gen1recomp-translation-mod-generator-cn"] = {
+          classification = "tooling_generator",
+          runtimeEligible = false,
+          reason = "generator/tooling repository; no stable reviewed runtime companion identity",
+      },
+      ["nevespt/VersaoEncarnada"] = {
+          classification = "fork_variant_existing_identity",
+          runtimeEligible = false,
+          canonicalRuntimeId = "versaovermelha",
+          reason = "Brazilian Portuguese fork sharing the existing versaovermelha runtime identity",
+      },
+  }
+
   -- 2.3.22 generic presentation-owner contract.
   -- UI overhauls may replace how Nuzlocke screens are drawn, but Nuzlocke
   -- remains the owner of their state/actions.  This is intentionally
@@ -508,6 +744,47 @@ return function(mod)
       for id, meta in pairs(mod.exports.nuzlocke_translation.known_companions) do
           local ok, other = pcall(mod.find, id)
           if ok and type(other) == "table" then
+              local exports = type(other.exports) == "table" and other.exports or {}
+              local trainerCard = exports.trainer_card
+              local priceLine = exports.precos_linha
+              local moveLanguage = exports.idioma_golpes
+              local enemyLabel = exports.mostrar_inimigo
+              local presentationSignals = trainerCard ~= nil
+                  or priceLine ~= nil or moveLanguage ~= nil or enemyLabel ~= nil
+
+              -- Translation presence and translation activity are distinct.
+              -- Toggle-aware companions may be installed while deliberately
+              -- running their English/no-op mode for the current boot.
+              local bootLanguage = type(exports.bootLanguage) == "string"
+                  and exports.bootLanguage or nil
+              local edition = type(exports.edition) == "string"
+                  and exports.edition or nil
+              local pendingLanguage = nil
+              if type(exports.pendingLanguage) == "function" then
+                  local okPending, value = pcall(exports.pendingLanguage, mod.game)
+                  if okPending and type(value) == "string" then
+                      pendingLanguage = value
+                  end
+              end
+              local restartRequired = false
+              if type(exports.restartRequired) == "function" then
+                  local okRestart, value = pcall(exports.restartRequired, mod.game)
+                  if okRestart then restartRequired = value == true end
+              end
+
+              local translationActive = true
+              if meta.toggleAware == true and bootLanguage ~= nil then
+                  translationActive = bootLanguage ~= tostring(
+                      meta.inactiveLanguage or "en")
+              end
+              local activity = translationActive and "active" or "installed_inactive"
+              if restartRequired then activity = "restart_required" end
+
+              local certificationFocus = {}
+              for _, value in ipairs(meta.certificationFocus or {}) do
+                  certificationFocus[#certificationFocus + 1] = tostring(value)
+              end
+
               out[#out + 1] = {
                   id = id,
                   name = other.name or (other.manifest and other.manifest.name)
@@ -515,25 +792,53 @@ return function(mod)
                   version = other.version or (other.manifest and other.manifest.version),
                   reviewed = meta.reviewed,
                   behavior = meta.behavior,
+                  status = meta.status,
+                  targetClass = meta.targetClass,
+                  certificationEligible = meta.certificationEligible ~= false,
+                  installed = true,
+                  translationActive = translationActive,
+                  activity = activity,
+                  bootLanguage = bootLanguage,
+                  pendingLanguage = pendingLanguage,
+                  restartRequired = restartRequired,
+                  edition = edition,
                   semanticUiMatching = true,
-                  nativeTrainerCardOwnedByTranslation = id == "gen1_pt-br",
-                  trainerCardOverrideEnabled = id == "gen1_pt-br"
-                      and type(other.exports) == "table"
-                      and other.exports.trainer_card == true or false,
-                  inventoryLineBreakEnabled = id == "gen1_pt-br"
-                      and type(other.exports) == "table"
-                      and other.exports.precos_linha == true or false,
+                  nativeTrainerCardOwnedByTranslation = trainerCard == true,
+                  trainerCardOverrideEnabled = trainerCard == true,
+                  inventoryLineBreakEnabled = priceLine == true,
+                  moveLanguage = moveLanguage,
+                  enemyLabelEnabled = enemyLabel == true,
+                  presentationSignals = presentationSignals == true,
+                  replacementMapScripts = meta.replacementMapScripts == true,
+                  replacementMapScriptsPresent =
+                      meta.replacementMapScriptsPresent == true,
+                  mutationReviewRequired = meta.mutationReviewRequired == true,
+                  fixedCellCJK = meta.fixedCellCJK == true,
+                  engineInternalsPresentationWrappers =
+                      meta.engineInternalsPresentationWrappers == true,
+                  dynamicScriptPresentationWrapper =
+                      meta.dynamicScriptPresentationWrapper == true,
+                  stringsGetWrapper = meta.stringsGetWrapper == true,
+                  fontDrawWrapper = meta.fontDrawWrapper == true,
+                  optionRowsWrapper = meta.optionRowsWrapper == true,
+                  namingGridWrapper = meta.namingGridWrapper == true,
+                  certificationFocus = certificationFocus,
               }
           end
       end
+      table.sort(out, function(a, b)
+          return tostring(a.id) < tostring(b.id)
+      end)
       return out
   end
   mod.events:on("mods.loaded", function()
       for _, row in ipairs(mod.exports.nuzlocke_translation.detect()) do
           if mod.log and type(mod.log.info) == "function" then
-              mod.log:info("[Nuzlocke:Compat] translation companion detected: %s %s (reviewed %s)",
+              mod.log:info("[Nuzlocke:Compat] translation companion detected: %s %s (reviewed %s; %s%s%s)",
                   tostring(row.id), tostring(row.version or "?"),
-                  tostring(row.reviewed or "?"))
+                  tostring(row.reviewed or "?"), tostring(row.activity or "active"),
+                  row.bootLanguage and ("; language=" .. tostring(row.bootLanguage)) or "",
+                  row.edition and ("; edition=" .. tostring(row.edition)) or "")
           end
       end
   end)
@@ -557,7 +862,7 @@ return function(mod)
   -- through the 0.2.25 line. Mod API 2, save format 4 and the existing
   -- engine range remain valid. Crystal is now an intentional Nuzlocke target,
   -- but is explicitly ALPHA and carries independent runtime evidence.
-  mod.exports.__beta26.recompCompatAudited = "0.2.27"
+  mod.exports.__beta26.recompCompatAudited = "0.2.29"
   mod.exports.__beta26.crystalSupport = {
       stage = "ALPHA", runtime_certified = false,
       note = "Crystal support is experimental; shared Gen-2 rules are enabled, but Crystal-specific systems require independent runtime certification.",
@@ -955,6 +1260,11 @@ return function(mod)
       return report
   end
 
+  local function schemaTxnValue(present, value)
+      if present ~= true then return nil end
+      return value
+  end
+
   mod.exports.__beta26.saveUpgrade.recoverSchemaTransaction = function(version)
       local upgrade = mod.exports.__beta26.saveUpgrade
       local txn = mod.save:get(upgrade.transactionKey, nil)
@@ -999,7 +1309,7 @@ return function(mod)
           local row = writes[i]
           if type(row) == "table" and row.key ~= nil then
               local rollbackOk, rollbackResult = pcall(mod.save.set, mod.save,
-                  row.key, row.before_present and row.before_value or nil)
+                  row.key, schemaTxnValue(row.before_present, row.before_value))
               if not rollbackOk or rollbackResult == false then
                   return false, "rollback_failed:" .. tostring(row.key)
               end
@@ -1049,18 +1359,18 @@ return function(mod)
       local applied = {}
       for _, row in ipairs(writes) do
           local writeOk, writeResult = pcall(mod.save.set, mod.save, row.key,
-              row.after_present and row.after_value or nil)
+              schemaTxnValue(row.after_present, row.after_value))
           if not writeOk or writeResult == false then
               local rollbackOk = true
               -- Restore the failing row too: a setter that throws after mutating
               -- must not escape rollback merely because it never reached applied.
               local currentOk, currentResult = pcall(mod.save.set, mod.save, row.key,
-                  row.before_present and row.before_value or nil)
+                  schemaTxnValue(row.before_present, row.before_value))
               if not currentOk or currentResult == false then rollbackOk = false end
               for i = #applied, 1, -1 do
                   local old = applied[i]
                   local rok, rresult = pcall(mod.save.set, mod.save, old.key,
-                      old.before_present and old.before_value or nil)
+                      schemaTxnValue(old.before_present, old.before_value))
                   if not rok or rresult == false then rollbackOk = false end
               end
               if rollbackOk then
@@ -1686,12 +1996,12 @@ return function(mod)
               ["0.2.24"] = {
                   api = 2, save_format = 4,
                   generation = { gen1 = true, gold = true, crystal = true },
-                  note = "Current aggregate source/documentation audit through the 0.2.24-era line. Upstream now treats Crystal as a sixth playable edition and gen2 target; Nuzlocke intentionally opts Crystal in as ALPHA. New public seams include activeBlockAt/map.occupancy_allowed, battle.field_residual (Gen1 only), mod.developer, expanded Gen2 translation, Custom Carts and stronger in-process session lifecycle. Exact-edition runtime certification remains required.",
+                  note = "Historical aggregate source/documentation audit through the 0.2.24-era line. Upstream now treats Crystal as a sixth playable edition and gen2 target; Nuzlocke intentionally opts Crystal in as ALPHA. New public seams include activeBlockAt/map.occupancy_allowed, battle.field_residual (Gen1 only), mod.developer, expanded Gen2 translation, Custom Carts and stronger in-process session lifecycle. Exact-edition runtime certification remains required.",
               },
               ["0.2.25"] = {
                   api = 2, save_format = 4,
                   generation = { gen1 = true, gold = true, crystal = true },
-                  note = "Current source/documentation audit. 0.2.25 preserves Mod API 2 and adds read-only mod.datasets imported-version views plus substantial Gen2 VM/battle/save/world work. Nuzlocke keeps active-game rule authority on mod.content, uses semantic Gen2 script/map identity for service and opening-clock gates, and treats datasets as a future read-only compatibility/randomizer data source rather than changing protected runtime transactions without certification.",
+                  note = "Historical source/documentation audit. 0.2.25 preserves Mod API 2 and adds read-only mod.datasets imported-version views plus substantial Gen2 VM/battle/save/world work. Nuzlocke keeps active-game rule authority on mod.content, uses semantic Gen2 script/map identity for service and opening-clock gates, and treats datasets as a future read-only compatibility/randomizer data source rather than changing protected runtime transactions without certification.",
               },
               ["0.2.26"] = {
                   api = 2, save_format = 4,
@@ -1701,7 +2011,17 @@ return function(mod)
               ["0.2.27"] = {
                   api = 2, save_format = 4,
                   generation = { gen1 = true, gold = true, crystal = true },
-                  note = "Current source/documentation-audited profile. Adds public R/B/Y catch.nickname and battle.style rule seams, palette-aware Gen II Chrome/UI infrastructure, revised battle presentation, launcher/input/platform work, and broad engine tests while retaining Mod API 2, Save Format 4, shiny.roll, protected Nuzlocke gameplay transactions, and the existing Gen II shiny-flash event. Shiny Pokemon 1.2.7 is the explicit external shiny target; Gen1Recomp alone owns COLORS-transition Renderer/Assets invalidation. Exact-edition runtime certification remains required.",
+                  note = "Historical source/documentation-audited profile. Adds public R/B/Y catch.nickname and battle.style rule seams, palette-aware Gen II Chrome/UI infrastructure, revised battle presentation, launcher/input/platform work, and broad engine tests while retaining Mod API 2, Save Format 4, shiny.roll, protected Nuzlocke gameplay transactions, and the existing Gen II shiny-flash event. Shiny Pokemon 1.2.7 is the explicit external shiny target; Gen1Recomp alone owns COLORS-transition Renderer/Assets invalidation. Exact-edition runtime certification remains required.",
+              },
+              ["0.2.28"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true, crystal = true },
+                  note = "Source-audited compatibility profile. Relative to 0.2.27, upstream changes are confined to HostShell subprocess command construction plus iOS release metadata. No battle, Pokemon, mod-hook, Strings, Chrome, Gen-II gameplay, save, shiny, or registry seam used by Nuzlocke changed. Existing Nuzlocke gameplay integration remains valid; exact-edition runtime evidence is still independent.",
+              },
+              ["0.2.29"] = {
+                  api = 2, save_format = 4,
+                  generation = { gen1 = true, gold = true, crystal = true },
+                  note = "Current source-audited profile. Relative to 0.2.28, upstream changes are launcher/input/importer UI focused: L2/R2 raw gamepad trigger mapping, Linux-handheld VirtualKeyboard scoping/trigger scrolling, RomImporter navigation/input, and a small UI Kit adjustment. No battle, Pokemon, hook registry, Strings, Chrome, Gen-II gameplay, save, shiny, or Randomizer-consumed data seam changed. Mod API 2 and Save Format 4 remain the audited engine contracts.",
               },
           },
           seams = {
@@ -2048,6 +2368,29 @@ return function(mod)
           or "compose"
   end
 
+  -- 2.8.39: compatibility fallback inventory.  These rows are diagnostic
+  -- only; retaining a fallback never makes it authoritative over a newer
+  -- public seam.  Removal requires raising the supported engine/provider
+  -- floor or proving the legacy consumer is unreachable.
+  mod.exports.__beta26.compat.Mods.fallbacks = {
+      { id="catch_nickname_legacy", preferred="catch.nickname",
+        fallback="battle.nickname + naming-screen enforcement",
+        required_for="Gen1Recomp 0.2.24-0.2.26", status="retained" },
+      { id="shiny_direct_exports", preferred="provider registry / shiny_compat API",
+        fallback="direct isShiny/rollShiny exports",
+        required_for="older Shiny Pokemon builds", status="retained" },
+      { id="legacy_provider_metadata", preferred="public Interop provider registry",
+        fallback="nuzlocke_provider / compatibility relationship metadata",
+        required_for="pre-registry compatibility providers", status="retained" },
+      { id="automatic_legacy_adapters", preferred="explicit provider registration",
+        fallback="capability inference adapters",
+        required_for="supported mods without provider registration", status="retained" },
+  }
+
+  mod.exports.__beta26.compat.Mods.fallbackInventory = function()
+      return compatPublicCopy(mod.exports.__beta26.compat.Mods.fallbacks)
+  end
+
   mod.exports.__beta26.compat.Mods.report = function()
       return {
           supported_relationships = compatPublicCopy(
@@ -2056,6 +2399,7 @@ return function(mod)
           relationships = compatPublicCopy(
               mod.exports.__beta26.compat.Mods.relationships),
           discovered = compatPublicCopy(mod.exports.__beta26.compat.Mods.discovered),
+          fallbacks = mod.exports.__beta26.compat.Mods.fallbackInventory(),
       }
   end
 
@@ -2209,6 +2553,43 @@ return function(mod)
       end
       provider.value=value; provider.version=other.version
       return provider
+  end
+
+  -- 2.8.39: one diagnostic vocabulary for contract-backed providers.
+  -- Detection, advertisement and actual selection are intentionally distinct
+  -- so MOD COMPAT can explain why Nuzlocke uses its native path even when a
+  -- compatible mod is installed. This never invokes provider mechanic callbacks.
+  mod.exports.__beta26.compat.Mods.capabilityStatus = function(capability, game, battle)
+      capability = tostring(capability or "")
+      local preference = compatOwnerPreference(capability)
+      local candidates = COMPAT_PROVIDER_CANDIDATES[capability] or {}
+      local selected = activeCompatProvider(capability, game, battle)
+      local rows = {}
+      for _, candidate in ipairs(candidates) do
+          rows[#rows + 1] = {
+              id = candidate.id, version = candidate.version,
+              relationship = candidate.relationship, source = candidate.source,
+              advertised = true,
+          }
+      end
+      local state = "nuzlocke_fallback"
+      local degraded = false
+      if preference == "nuzlocke" or preference == "engine" then
+          state = "native_selected"
+      elseif selected then
+          state = "external_selected"
+      elseif #rows > 0 then
+          state = "detected_not_active"
+          degraded = preference ~= "auto"
+      end
+      return {
+          capability = capability, preference = preference,
+          detected = #rows > 0, advertised = #rows > 0,
+          candidate_count = #rows, candidates = rows,
+          selected = selected and { id=selected.id, version=selected.version,
+              relationship=selected.relationship, source=selected.source } or nil,
+          state = state, degraded = degraded,
+      }
   end
 
   mod.exports.__beta26.compatOwnerPreference = compatOwnerPreference
@@ -2736,7 +3117,13 @@ return function(mod)
               engine = compatPublicCopy(mod.exports.__beta26.compat.Engine),
               engine_features = mod.exports.__beta26.enginePublicFeatures(),
               mods = mod.exports.__beta26.compat.Mods.report(),
+              fallbacks = mod.exports.__beta26.compat.Mods.fallbackInventory(),
           }
+      end,
+      getCapabilityStatus = function(capability, game, battle)
+          return compatPublicCopy(
+              mod.exports.__beta26.compat.Mods.capabilityStatus(
+                  capability, game, battle))
       end,
       getModRelationship = function(modId, capability)
           return mod.exports.__beta26.compat.Mods.relationshipFor(modId, capability)
@@ -8318,6 +8705,229 @@ return function(mod)
           return true
       end)
 
+  -- 2.8.55: stable Nuzlocke-authored UI source catalog.
+  -- These strings were already passed through Strings() at runtime, but were
+  -- not discoverable through nuzlocke_translation.sources(). Keep the first
+  -- catalog focused on high-value player-facing status/tracker/world-summary
+  -- surfaces; future localization passes can extend it without changing rule
+  -- semantics or introducing per-language branches.
+  local TRANSLATION_UI_SOURCES = {
+      { source="RUN STATUS", kind="ui_status" },
+      { source="CAUGHT", kind="ui_status" },
+      { source="LOST ENC.", kind="ui_status" },
+      { source="DEATHS", kind="ui_status" },
+      { source="CAUGHT A.", kind="ui_status" },
+      { source="VISITED A.", kind="ui_status" },
+      { source="NEXT CAP", kind="ui_status" },
+      { source="F. TOKEN", kind="ui_status" },
+      { source="AREA", kind="ui_status" },
+      { source="SLOT", kind="ui_status" },
+      { source="LAST EVENT", kind="ui_status" },
+      { source="NONE", kind="ui_common" },
+      { source="UNKNOWN", kind="ui_common" },
+      { source="OPEN", kind="tracker" },
+      { source="FAILED", kind="tracker" },
+      { source="DIED", kind="history" },
+      { source="ENCOUNTER LOG", kind="tracker" },
+      { source="AREA GUIDE", kind="tracker" },
+      { source="NO ENTRIES YET", kind="tracker" },
+      { source="A: REROLL", kind="ui_footer" },
+      { source="LEFT/RIGHT: PAGE", kind="ui_footer" },
+      { source="A/LEFT/RIGHT: PAGE", kind="ui_footer" },
+      { source="B: BACK", kind="ui_footer" },
+      { source="NEXT CAP: MAX", kind="tracker_summary" },
+      { source="NEXT CAP: %d", kind="tracker_summary" },
+      { source="OPEN %d / CAUGHT %d / FAILED %d", kind="tracker_summary" },
+      { source="%d entries", kind="tracker_summary" },
+      { source="RNG: %s", kind="tracker_summary" },
+      { source="TYPE: %s", kind="tracker_summary" },
+      { source="%s\nDEATHS: %d", kind="world_summary" },
+      { source="NUZLOCKE OVER\nBADGES: %d\nCAUGHT: %d  DEATHS: %d\nLAST DEATH: %s\n%s",
+        kind="world_summary" },
+
+      -- Randomizer active-status and setup/value labels that are authored by
+      -- Nuzlocke rather than supplied by the engine's base game catalog.
+      { source="RNG Preset %s", kind="randomizer_ui" },
+      { source="RNG %08d v%d", kind="randomizer_ui" },
+      { source="Starter %s", kind="randomizer_ui" },
+      { source="Starter BALANCED", kind="randomizer_ui" },
+      { source="Starter INDEPENDENT", kind="randomizer_ui" },
+      { source="Trio AUTO", kind="randomizer_ui" },
+      { source="Trio OFF", kind="randomizer_ui" },
+      { source="Items %s", kind="randomizer_ui" },
+      { source="ItemRep %s", kind="randomizer_ui" },
+      { source="Enc %s", kind="randomizer_ui" },
+      { source="Repeats %s", kind="randomizer_ui" },
+      { source="Diversity %s", kind="randomizer_ui" },
+      { source="Evos %s", kind="randomizer_ui" },
+      { source="Shops %s", kind="randomizer_ui" },
+      { source="TM Compat %s", kind="randomizer_ui" },
+      { source="Trainers %s", kind="randomizer_ui" },
+      { source="Theme %s", kind="randomizer_ui" },
+      { source="RNG BLIND", kind="randomizer_ui" },
+      { source="RNG OPEN", kind="randomizer_ui" },
+      { source="CUSTOM", kind="randomizer_value" },
+      { source="CHAOS", kind="randomizer_value" },
+      { source="BALANCED", kind="randomizer_value" },
+      { source="ANY", kind="randomizer_value" },
+      { source="3-STAGE", kind="randomizer_value" },
+      { source="BASE", kind="randomizer_value" },
+      { source="SIM BST", kind="randomizer_value" },
+      { source="INDEPENDENT", kind="randomizer_value" },
+      { source="AUTO", kind="randomizer_value" },
+      { source="OFF", kind="randomizer_value" },
+      { source="CATEGORY", kind="randomizer_value" },
+      { source="ALLOW", kind="randomizer_value" },
+      { source="DIVERSE", kind="randomizer_value" },
+      { source="UNIQUE", kind="randomizer_value" },
+      { source="EVO", kind="randomizer_value" },
+      { source="LIGHT", kind="randomizer_value" },
+      { source="STANDARD", kind="randomizer_value" },
+      { source="STRONG", kind="randomizer_value" },
+      { source="DEPTH", kind="randomizer_value" },
+      { source="PRICE", kind="randomizer_value" },
+      { source="MOVE", kind="randomizer_value" },
+      { source="SLOT", kind="randomizer_value" },
+      { source="FULL", kind="randomizer_value" },
+      { source="TYPE", kind="randomizer_value" },
+      { source="OPEN INFO", kind="randomizer_value" },
+      { source="BLIND INFO", kind="randomizer_value" },
+      { source="GEN1", kind="randomizer_value" },
+      { source="GEN2", kind="randomizer_value" },
+      { source="BOTH", kind="randomizer_value" },
+      { source="PREFER", kind="randomizer_value" },
+
+      -- Dynamic rejection details authored in world_building.lua.
+      { source="%s\nAllowed: %s", kind="world_building_dynamic" },
+      { source="%s\nBST: %s / Limit: %s", kind="world_building_dynamic" },
+      { source="That catch is not allowed by your Nuzlocke rules.",
+        kind="world_building_dynamic" },
+
+      -- Forgiveness/F. TOKEN player-facing surfaces. These already resolve
+      -- through Strings() in forgiveness.lua; source discovery lets language
+      -- packs cover the complete flow without parsing implementation code.
+      { source="INFO", kind="forgiveness_ui" },
+      { source="REVIVE", kind="forgiveness_ui" },
+      { source="REROLL AREA", kind="forgiveness_ui" },
+      { source="REVIVE POKEMON", kind="forgiveness_ui" },
+      { source="REROLL ENCOUNTER", kind="forgiveness_ui" },
+      { source="REVIVE WHO?", kind="forgiveness_ui" },
+      { source="Choose how to", kind="forgiveness_ui" },
+      { source="Choose how to spend it.", kind="forgiveness_ui" },
+      { source="TOKENS %d", kind="forgiveness_ui" },
+      { source="A:SELECT B:BACK", kind="forgiveness_ui" },
+      { source="A:OK B:CANCEL", kind="forgiveness_ui" },
+      { source="MOVE:CHOOSE", kind="forgiveness_ui" },
+      { source="MOVE:CHOOSE A:OK", kind="forgiveness_ui" },
+      { source="You have no F. TOKEN.", kind="forgiveness_message" },
+      { source="The save is unavailable.", kind="forgiveness_message" },
+      { source="No PC storage is available.", kind="forgiveness_message" },
+      { source="No reroll area is selected.", kind="forgiveness_message" },
+      { source="Route Forgiveness is not active.", kind="forgiveness_message" },
+      { source="F. TOKEN transaction unavailable.", kind="forgiveness_message" },
+      { source="The PC is full. No token was spent.", kind="forgiveness_message" },
+      { source="F. TOKEN state changed during recovery.", kind="forgiveness_message" },
+      { source="That fallen Pokemon cannot be restored.", kind="forgiveness_message" },
+      { source="No fallen Pokemon are available to revive.", kind="forgiveness_message" },
+      { source="The F. TOKEN could not be committed safely.",
+        kind="forgiveness_message" },
+      { source="There is no encounter slot to reroll there.",
+        kind="forgiveness_message" },
+      { source="No failed encounter areas are available to reroll.",
+        kind="forgiveness_message" },
+      { source="This area's catch is already complete.", kind="forgiveness_message" },
+      { source="This area's encounter is already open.", kind="forgiveness_message" },
+      { source="F. TOKEN used.\n%s was revived!", kind="forgiveness_message" },
+      { source="F. TOKEN used.\n%s is open again.", kind="forgiveness_message" },
+      { source="F. TOKEN could not be used safely: %s", kind="forgiveness_message" },
+      { source="Are you sure? This will spend your F. TOKEN on %s.",
+        kind="forgiveness_message" },
+
+      -- Battle Clause authored denials. Policy remains keyed by semantic rule
+      -- identifiers; only the player-facing explanation is translated.
+      { source="OHKO Clause blocked the move.", kind="battle_clause_message" },
+      { source="Sleep Clause blocked the move.", kind="battle_clause_message" },
+      { source="Evasion Clause blocked the boost.", kind="battle_clause_message" },
+      { source="Flinch Clause blocked the effect.", kind="battle_clause_message" },
+      { source="Trap Clause blocked the trapping effect.", kind="battle_clause_message" },
+      { source="No Setup Moves blocked the boost.", kind="battle_clause_message" },
+      { source="Accuracy Drops blocked the drop.", kind="battle_clause_message" },
+      { source="Other Stat Drops blocked the drop.", kind="battle_clause_message" },
+      { source="Sleep ban blocked the effect.", kind="battle_clause_message" },
+      { source="Freeze ban blocked the effect.", kind="battle_clause_message" },
+      { source="Paralysis ban blocked the effect.", kind="battle_clause_message" },
+      { source="Burn ban blocked the effect.", kind="battle_clause_message" },
+      { source="Poison ban blocked the effect.", kind="battle_clause_message" },
+      { source="Confusion ban blocked the effect.", kind="battle_clause_message" },
+
+      -- Common Nuzlocke-authored runtime/status labels still outside the first
+      -- status catalog batches.
+      { source="NUZ INFO", kind="ui_common" },
+      { source="NUZ MENU", kind="ui_common" },
+      { source="NUZLOCKE STATUS", kind="ui_status" },
+      { source="NO RULES ACTIVE", kind="ui_status" },
+      { source="No rules active", kind="ui_status" },
+      { source="LAST CAUGHT", kind="ui_status" },
+      { source="MOD COMPAT", kind="compat_ui" },
+      { source="PROVIDER", kind="compat_ui" },
+      { source="EXTERNAL", kind="compat_ui" },
+      { source="LEGALITY", kind="compat_ui" },
+      { source="RECOVERY", kind="compat_ui" },
+      { source="RULES SEALED", kind="ui_status" },
+      { source="Rules are LOCKED.", kind="ui_status" },
+      { source="Buying is disabled.", kind="runtime_message" },
+      { source="Selling is disabled.", kind="runtime_message" },
+      { source="Item use is blocked!", kind="runtime_message" },
+      { source="Held items are banned by your Nuzlocke rules.",
+        kind="runtime_message" },
+      { source="The level cap blocks that RARE CANDY.", kind="runtime_message" },
+      { source="Rare Candy batch stopped safely.", kind="runtime_message" },
+
+      -- Pokegear Cards integration authored labels. The adapter uses its
+      -- injected translate callback and glyph-safe cell fitting.
+      { source="NUZ %d/4", kind="pokegear_ui" },
+      { source="RUN ACTIVE", kind="pokegear_ui" },
+      { source="RUN OFF", kind="pokegear_ui" },
+      { source="CAUGHT %d", kind="pokegear_ui" },
+      { source="DEATHS %d", kind="pokegear_ui" },
+      { source="TOKENS %d", kind="pokegear_ui" },
+      { source="LOAD %s", kind="pokegear_ui" },
+      { source="ENCOUNTERS", kind="pokegear_ui" },
+      { source="CAUGHT A %d", kind="pokegear_ui" },
+      { source="VISITED %d", kind="pokegear_ui" },
+      { source="LOST %d", kind="pokegear_ui" },
+      { source="TOTAL C %d", kind="pokegear_ui" },
+      { source="RULES %d/%d", kind="pokegear_ui" },
+      { source="NEXT CAP %d", kind="pokegear_ui" },
+      { source="CAPS & DIFF", kind="pokegear_ui" },
+      { source="BOSS %s", kind="pokegear_ui" },
+      { source="DIFF %s", kind="pokegear_ui" },
+      { source="A:MORE U/D:PG B:X", kind="pokegear_ui" },
+      { source="UP/DN PAGE B:BACK", kind="pokegear_ui" },
+
+      -- Gen-II compact status templates.
+      { source="CAUGHT %d   LOST %d", kind="gen2_status" },
+      { source="DEATHS %d   TOKENS %d", kind="gen2_status" },
+      { source="CAP MAX", kind="gen2_status" },
+      { source="CAP LV%d", kind="gen2_status" },
+
+      -- Dev localization certification surface.
+      { source="LOCAL CERT", kind="localization_cert_ui" },
+      { source="SESSION ONLY / MANUAL", kind="localization_cert_ui" },
+      { source="SETUP / NUZ RULES", kind="localization_cert_check" },
+      { source="NUZ STATUS / ENC TRACKER", kind="localization_cert_check" },
+      { source="BATTLE DENIAL", kind="localization_cert_check" },
+      { source="MART BUY / SELL", kind="localization_cert_check" },
+      { source="PARTY / NUZ INFO", kind="localization_cert_check" },
+      { source="MOVE LEARN / RARE CANDY", kind="localization_cert_check" },
+      { source="F. TOKEN / FORGIVENESS", kind="localization_cert_check" },
+      { source="RANDOMIZER LABELS", kind="localization_cert_check" },
+      { source="WORLD BUILDING TEXT", kind="localization_cert_check" },
+      { source="DEV REPORT / LOCALIZATION", kind="localization_cert_check" },
+      { source="A:MARK  U/D:CHECK", kind="localization_cert_ui" },
+      { source="L/R:SECTION  B:BACK", kind="localization_cert_ui" },
+  }
+
   -- 2.3.20 translation-tooling seam:
   -- Rule/section source strings are already marked with Strings.source().
   -- Expose the live definitions so translation tooling can discover them
@@ -8338,6 +8948,32 @@ return function(mod)
               add(rule.desc, "rule_description", rule.key)
           end
       end
+      for _, row in ipairs(TRANSLATION_UI_SOURCES) do
+          add(row.source, row.kind or "ui", row.key)
+      end
+
+      -- World Building's authored rule/flavor catalog is already resolved
+      -- through Strings() when presented. Expose every authored variant so
+      -- translation tooling can cover T1/T2 and Kanto/Johto flavor without
+      -- duplicating or parsing world_building.lua.
+      local worldCatalog = mod.exports.__beta26.worldRuleCatalog
+      if type(worldCatalog) == "table" then
+          for key, row in pairs(worldCatalog) do
+              if type(row) == "table" then
+                  for _, field in ipairs({ "t1", "t2", "kanto", "johto" }) do
+                      local value = row[field]
+                      if type(value) == "table" then
+                          for _, text in ipairs(value) do
+                              add(text, "world_building_" .. field, tostring(key))
+                          end
+                      else
+                          add(value, "world_building_" .. field, tostring(key))
+                      end
+                  end
+              end
+          end
+      end
+
       table.sort(out, function(a, b)
           if tostring(a.kind) == tostring(b.kind) then
               return tostring(a.source) < tostring(b.source)
@@ -12562,8 +13198,14 @@ return function(mod)
       local g = currentGame or mod.game
       local id = tostring((g and (g.id or g.gameId or g.version or g.name)) or ""):lower()
       if id:find("yellow",1,true) then return "yellow" end
-      if id:find("gold",1,true) or id:find("gen2",1,true) then return "gold" end
+      if id:find("crystal",1,true) then return "crystal" end
+      if id:find("silver",1,true) then return "silver" end
+      if id:find("gold",1,true) then return "gold" end
       if id:find("blue",1,true) then return "blue" end
+      if id:find("red",1,true) then return "red" end
+      -- Generic Gen2 identities are retained only as a fail-soft Gold-family
+      -- fallback. Exact Silver/Crystal identities above must never inherit RBY.
+      if id:find("gen2",1,true) then return "gold" end
       return "red"
   end
   -- Built-ins intentionally advertise only dimensions this mod actually
@@ -12634,6 +13276,36 @@ return function(mod)
               bstBoost=28, bossBstBoost=42, moveTier=2, bossMoveTier=3,
               aiTier=2, bossAiTier=3, heldTier=2, bossHeldTier=3,
               note="Legacy-style trainer enhancement with better teams, moves, held items and boss AI."},
+      },
+      silver = {
+          {id="silver_polished", name="SILVER POLISHED*", levelPct=107,
+              bossLevelPct=112, statExp=3, bossStatExp=4, perfectIV=false,
+              dvFloor=8, bossDvFloor=10, teamChance=28, bossTeamChance=64,
+              bstBoost=38, bossBstBoost=54, moveTier=3, bossMoveTier=3,
+              aiTier=3, bossAiTier=3, heldTier=3, bossHeldTier=3,
+              noBadgeBoosts=true,
+              note="Silver-focused polished profile: stronger teams, legal moves, DVs, held items and full Gen 2 AI."},
+          {id="silver_legacy", name="SILVER LEGACY*", levelPct=105,
+              bossLevelPct=109, statExp=3, bossStatExp=4, perfectIV=false,
+              dvFloor=6, bossDvFloor=9, teamChance=18, bossTeamChance=44,
+              bstBoost=26, bossBstBoost=40, moveTier=2, bossMoveTier=3,
+              aiTier=2, bossAiTier=3, heldTier=2, bossHeldTier=3,
+              note="Silver legacy-style profile: moderate regular-trainer upgrades with stronger boss moves, items and AI."},
+      },
+      crystal = {
+          {id="crystal_polished", name="CRYSTAL POLISHED*", levelPct=108,
+              bossLevelPct=114, statExp=3, bossStatExp=4, perfectIV=false,
+              dvFloor=8, bossDvFloor=11, teamChance=32, bossTeamChance=72,
+              bstBoost=44, bossBstBoost=62, moveTier=3, bossMoveTier=3,
+              aiTier=3, bossAiTier=3, heldTier=3, bossHeldTier=3,
+              noBadgeBoosts=true,
+              note="Crystal-focused polished profile: broad trainer upgrades with stronger boss levels, teams, DVs, held items and full Gen 2 AI."},
+          {id="crystal_legacy", name="CRYSTAL LEGACY*", levelPct=106,
+              bossLevelPct=111, statExp=3, bossStatExp=4, perfectIV=false,
+              dvFloor=7, bossDvFloor=10, teamChance=22, bossTeamChance=52,
+              bstBoost=30, bossBstBoost=46, moveTier=2, bossMoveTier=3,
+              aiTier=2, bossAiTier=3, heldTier=2, bossHeldTier=3,
+              note="Crystal legacy-style profile: measured regular upgrades and stronger boss moves, items and AI."},
       },
   }
   Difficulty.medium = {id="medium", name="NUZ MEDIUM", levelPct=104,
@@ -12811,11 +13483,12 @@ return function(mod)
   Difficulty.profileSummary = function(row)
       if type(row) ~= "table" then return "" end
       if row.external == true then
-          return tostring(Strings("ACTIVE DIFFICULTY: %s — external provider.",
+          return tostring(Strings("ACTIVE: %s\nExternal trainer provider controls its own details.",
               tostring(row.name or row.id or "MOD")))
       end
       if tostring(row.id or "vanilla") == "vanilla" then
-          return tostring(Strings("ACTIVE DIFFICULTY: VANILLA — no built-in trainer transforms."))
+          return tostring(Strings(
+              "ACTIVE: VANILLA\nNo built-in trainer changes.\nExternal trainer mods may still apply."))
       end
 
       local function n(value, fallback)
@@ -12827,45 +13500,63 @@ return function(mod)
           return n(Difficulty.profileValue(row, false, key)),
               n(Difficulty.profileValue(row, true, key))
       end
+      local function levelGain(scale, base)
+          return math.max(0, math.floor(base * scale / 100 + 0.5) - base)
+      end
+      local function moveName(tier)
+          return ({ [0]="VANILLA", [1]="LEVEL-UP", [2]="LEGAL TM",
+              [3]="COMPETITIVE" })[math.max(0, math.min(3, n(tier)))]
+              or "VANILLA"
+      end
+      local function aiName(tier)
+          return ({ [0]="VANILLA", [1]="TYPE-AWARE", [2]="TACTICAL",
+              [3]="FULL SMART" })[math.max(0, math.min(3, n(tier)))]
+              or "VANILLA"
+      end
+      local function heldName(tier)
+          return ({ [0]="NONE", [1]="LIGHT", [2]="STRONG",
+              [3]="BEST-FIT" })[math.max(0, math.min(3, n(tier)))]
+              or "NONE"
+      end
       local level, bossLevel = pair("levelPct")
       local team, bossTeam = pair("teamChance")
       local bst, bossBst = pair("bstBoost")
       local moves, bossMoves = pair("moveTier")
       local ai, bossAi = pair("aiTier")
-      local stat, bossStat = pair("statExp")
       local dv, bossDv = pair("dvFloor")
       local held, bossHeld = pair("heldTier")
-      local labels = mod.exports.__beta26.statExpPresetLabels or {}
-      local statLabel = tostring(Strings(labels[math.max(0, math.min(5, stat))] or "0%"))
-      local bossStatLabel = tostring(Strings(labels[math.max(0, math.min(5, bossStat))] or "0%"))
       local perfect = Difficulty.profileValue(row, false, "perfectIV") == true
       local bossPerfect = Difficulty.profileValue(row, true, "perfectIV") == true
 
       local parts = {
           tostring(Strings("ACTIVE: %s", tostring(row.name or row.id))),
-          tostring(Strings("LV %d%%/%d%%  TEAM %d%%/%d%%  BST +%d/+%d",
-              level, bossLevel, team, bossTeam, bst, bossBst)),
-          tostring(Strings("MOVES T%d/T%d  AI T%d/T%d  STAT EXP %s/%s",
-              moves, bossMoves, ai, bossAi, statLabel, bossStatLabel)),
+          tostring(Strings("LEVELS AT 25: +%d REG / +%d BOSS",
+              levelGain(level,25), levelGain(bossLevel,25))),
+          tostring(Strings("LEVELS AT 50: +%d REG / +%d BOSS",
+              levelGain(level,50), levelGain(bossLevel,50))),
+          tostring(Strings("TEAM UPGRADES: %d OF 100 / %d OF 100",
+              team, bossTeam)),
+          tostring(Strings("SPECIES: STRONGER SAME-TYPE OPTIONS")),
+          tostring(Strings("MOVES: %s / %s", moveName(moves), moveName(bossMoves))),
+          tostring(Strings("AI: %s / %s", aiName(ai), aiName(bossAi))),
       }
       if perfect or bossPerfect then
-          parts[#parts + 1] = tostring(Strings("DVs %s/%s",
-              perfect and "PERFECT" or ("FLOOR " .. tostring(dv)),
-              bossPerfect and "PERFECT" or ("FLOOR " .. tostring(bossDv))))
+          parts[#parts + 1] = tostring(Strings("DVs: %s / %s",
+              perfect and "PERFECT" or ("MIN " .. tostring(dv) .. "/15"),
+              bossPerfect and "PERFECT" or ("MIN " .. tostring(bossDv) .. "/15")))
       elseif dv > 0 or bossDv > 0 then
-          parts[#parts + 1] = tostring(Strings("DV FLOOR %d/%d", dv, bossDv))
+          parts[#parts + 1] = tostring(Strings(
+              "DVs: MIN %d/15 REG / %d/15 BOSS", dv, bossDv))
       end
       if held > 0 or bossHeld > 0 then
-          parts[#parts + 1] = tostring(Strings("GOLD HELD T%d/T%d", held, bossHeld))
+          parts[#parts + 1] = tostring(Strings(
+              "HELD ITEMS: %s / %s", heldName(held), heldName(bossHeld)))
       end
       if row.noBadgeBoosts == true then
           parts[#parts + 1] = tostring(Strings("BADGE BOOSTS: OFF"))
       end
-      if type(row.note) == "string" and row.note ~= "" then
-          parts[#parts + 1] = tostring(Strings(row.note))
-      end
       parts[#parts + 1] = tostring(Strings(
-          "* Inspired behavior only; live composed trainer data remains the base."))
+          "Full mechanics are documented outside the in-game selector."))
       return table.concat(parts, "\n")
   end
   mod.exports.__beta26.difficultyProfileSummary = function(id)
@@ -12902,14 +13593,40 @@ return function(mod)
           add("TRAINER PROVIDER", tostring(from and from.name or "VANILLA"), tostring(to and to.name or "VANILLA"))
           return out
       end
-      add("TRAINER LEVEL", pairText(from, "levelPct", "%"), pairText(to, "levelPct", "%"))
-      add("TEAM EXPANSION", pairText(from, "teamChance", "%"), pairText(to, "teamChance", "%"))
-      add("SPECIES BST", pairText(from, "bstBoost", ""), pairText(to, "bstBoost", ""))
-      add("MOVE QUALITY", pairText(from, "moveTier", ""), pairText(to, "moveTier", ""))
-      add("TRAINER AI", pairText(from, "aiTier", ""), pairText(to, "aiTier", ""))
+      local function levelText(row)
+          local a, b = value(row, "levelPct", false), value(row, "levelPct", true)
+          local function gain(scale, base)
+              if scale <= 0 then return 0 end
+              return math.max(0, math.floor(base * scale / 100 + 0.5) - base)
+          end
+          if a <= 0 and b <= 0 then return "NONE" end
+          return string.format("LV25 +%d/+%d", gain(a,25), gain(b,25))
+      end
+      local function chanceText(row)
+          local a, b = value(row, "teamChance", false), value(row, "teamChance", true)
+          if a <= 0 and b <= 0 then return "NONE" end
+          return string.format("%d/100 %d/100", a, b)
+      end
+      local function tierText(row, key, names)
+          local a, b = value(row,key,false), value(row,key,true)
+          if a <= 0 and b <= 0 then return "VANILLA" end
+          return tostring(names[a] or ("T"..tostring(a))) .. "/"
+              .. tostring(names[b] or ("T"..tostring(b)))
+      end
+      add("TRAINER LEVELS", levelText(from), levelText(to))
+      add("TEAM UPGRADES", chanceText(from), chanceText(to))
+      add("SPECIES BST ROOM", pairText(from, "bstBoost", ""), pairText(to, "bstBoost", ""))
+      add("MOVE QUALITY",
+          tierText(from,"moveTier",{[0]="VAN",[1]="LEVEL",[2]="TM",[3]="COMP"}),
+          tierText(to,"moveTier",{[0]="VAN",[1]="LEVEL",[2]="TM",[3]="COMP"}))
+      add("TRAINER AI",
+          tierText(from,"aiTier",{[0]="VAN",[1]="TYPE",[2]="TACT",[3]="SMART"}),
+          tierText(to,"aiTier",{[0]="VAN",[1]="TYPE",[2]="TACT",[3]="SMART"}))
       add("TRAINER STAT EXP", pairText(from, "statExp", ""), pairText(to, "statExp", ""))
       add("TRAINER DV FLOOR", pairText(from, "dvFloor", ""), pairText(to, "dvFloor", ""))
-      add("GOLD HELD ITEMS", pairText(from, "heldTier", ""), pairText(to, "heldTier", ""))
+      add("GEN2 HELD ITEMS",
+          tierText(from,"heldTier",{[0]="NONE",[1]="LIGHT",[2]="STRONG",[3]="BEST"}),
+          tierText(to,"heldTier",{[0]="NONE",[1]="LIGHT",[2]="STRONG",[3]="BEST"}))
       add("BADGE BOOSTS", (from and from.noBadgeBoosts == true) and "OFF" or "RULE",
           (to and to.noBadgeBoosts == true) and "OFF" or "RULE")
       return out
@@ -15152,26 +15869,157 @@ return function(mod)
       isShiny = Identity.isShiny,
   })
 
-  mod.exports.__beta26.Dev.push = function(kind, detail, game)
+  -- 2.8.45: severity-aware breadcrumb ring with repetition coalescing.
+  -- INFO rows preserve full sequencing. Consecutive identical WARN/ERROR rows
+  -- are folded into one bounded entry with count/lastSeq so a noisy failure
+  -- cannot evict all other diagnostic context.
+  mod.exports.__beta26.Dev.severityFor = function(kind, explicit)
+      local value = tostring(explicit or ""):upper()
+      if value == "ERROR" or value == "WARN" or value == "INFO" then return value end
+      local key = tostring(kind or ""):lower()
+      if key:find("error", 1, true) or key:find("fail", 1, true)
+          or key:find("exception", 1, true) then return "ERROR" end
+      if key:find("warn", 1, true) or key:find("assert", 1, true)
+          or key:find("degraded", 1, true) or key:find("drift", 1, true) then
+          return "WARN"
+      end
+      return "INFO"
+  end
+
+  mod.exports.__beta26.Dev.push = function(kind, detail, game, severity)
       if not mod.exports.__beta26.Dev.enabled() then return false end
       local dev = mod.exports.__beta26.Dev
       dev.sequence = (tonumber(dev.sequence) or 0) + 1
+      local gameId = mod.exports.__beta26.Dev.gameId(game or currentGame or mod.game)
+      local sev = mod.exports.__beta26.Dev.severityFor(kind, severity)
+      local kindText = tostring(kind or "event")
+      local detailText = tostring(detail or "")
+      local previous = dev.breadcrumbs[#dev.breadcrumbs]
+      if sev ~= "INFO" and type(previous) == "table"
+          and previous.severity == sev
+          and previous.kind == kindText
+          and previous.detail == detailText
+          and previous.game == gameId then
+          previous.count = (tonumber(previous.count) or 1) + 1
+          previous.lastSeq = dev.sequence
+          pcall(function()
+              mod.log:info("[Nuzlocke:Dev] #%d [%s/%s/%s] %s (x%d)",
+                  dev.sequence, gameId, sev, kindText, detailText, previous.count)
+          end)
+          return true
+      end
       local row = {
-          seq = dev.sequence,
-          kind = tostring(kind or "event"),
-          detail = tostring(detail or ""),
+          seq = dev.sequence, lastSeq = dev.sequence, count = 1,
+          severity = sev,
+          kind = kindText,
+          detail = detailText,
           build = mod.exports.__beta26.build,
-          game = mod.exports.__beta26.Dev.gameId(game or currentGame or mod.game),
+          game = gameId,
       }
       dev.breadcrumbs[#dev.breadcrumbs + 1] = row
       while #dev.breadcrumbs > (tonumber(dev.maxBreadcrumbs) or 48) do
           table.remove(dev.breadcrumbs, 1)
       end
       pcall(function()
-          mod.log:info("[Nuzlocke:Dev] #%d [%s/%s] %s", row.seq, row.game,
-              row.kind, row.detail)
+          mod.log:info("[Nuzlocke:Dev] #%d [%s/%s/%s] %s",
+              row.seq, row.game, row.severity, row.kind, row.detail)
       end)
       return true
+  end
+
+  -- 2.8.45: cheap in-memory Dev-only performance counters. Production paths
+  -- pay only the enabled() branch; counters never alter RNG, cache ownership,
+  -- mappings, save data, or builder results.
+  mod.exports.__beta26.Dev.perfCounters = mod.exports.__beta26.Dev.perfCounters or {}
+  mod.exports.__beta26.Dev.perfCount = function(name, amount)
+      if not mod.exports.__beta26.Dev.enabled() then return false end
+      local key = tostring(name or "")
+      if key == "" then return false end
+      local delta = tonumber(amount) or 1
+      local counters = mod.exports.__beta26.Dev.perfCounters
+      counters[key] = (tonumber(counters[key]) or 0) + delta
+      return true
+  end
+  mod.exports.__beta26.Dev.performanceCounters = function()
+      local out = {}
+      for key, value in pairs(mod.exports.__beta26.Dev.perfCounters or {}) do
+          out[#out + 1] = { name=tostring(key), count=tonumber(value) or 0 }
+      end
+      table.sort(out, function(a, b)
+          if a.count ~= b.count then return a.count > b.count end
+          return a.name < b.name
+      end)
+      return {
+          status=#out > 0 and "OK" or "N/A",
+          enabled=mod.exports.__beta26.Dev.enabled(),
+          count=#out,
+          rows=out,
+      }
+  end
+
+  -- 2.8.41: bounded semantic rule-decision trace. This is diagnostic-only:
+  -- callers report decisions that already happened; this surface never invokes
+  -- a rule, provider, RNG path, or mutation on its own.
+  mod.exports.__beta26.Dev.maxDecisions = 32
+  mod.exports.__beta26.Dev.decisions = mod.exports.__beta26.Dev.decisions or {}
+  mod.exports.__beta26.Dev.recordDecision = function(domain, rule, result, detail, game)
+      if not mod.exports.__beta26.Dev.enabled() then return false end
+      local dev = mod.exports.__beta26.Dev
+      dev.decisionSequence = (tonumber(dev.decisionSequence) or 0) + 1
+      local resultText = tostring(result or "INFO"):upper()
+      local severity = "INFO"
+      if resultText == "ERROR" or resultText == "FAIL" then
+          severity = "ERROR"
+      elseif resultText == "BLOCK" or resultText == "DENY"
+          or resultText == "WARN" then
+          severity = "WARN"
+      end
+      local domainText = tostring(domain or "rule")
+      local ruleText = tostring(rule or "unknown")
+      local detailText = tostring(detail or "")
+      local gameId = mod.exports.__beta26.Dev.gameId(game or currentGame or mod.game)
+      local previous = dev.decisions[#dev.decisions]
+      if severity ~= "INFO" and type(previous) == "table"
+          and previous.severity == severity
+          and previous.domain == domainText and previous.rule == ruleText
+          and previous.result == resultText and previous.detail == detailText
+          and previous.game == gameId then
+          previous.count = (tonumber(previous.count) or 1) + 1
+          previous.lastSeq = dev.decisionSequence
+          return true
+      end
+      local row = {
+          seq = dev.decisionSequence, lastSeq = dev.decisionSequence, count = 1,
+          severity = severity,
+          domain = domainText,
+          rule = ruleText,
+          result = resultText,
+          detail = detailText,
+          build = mod.exports.__beta26.build,
+          game = gameId,
+      }
+      dev.decisions[#dev.decisions + 1] = row
+      while #dev.decisions > (tonumber(dev.maxDecisions) or 32) do
+          table.remove(dev.decisions, 1)
+      end
+      return true
+  end
+
+  mod.exports.__beta26.Dev.decisionTrace = function(limit)
+      local rows = mod.exports.__beta26.Dev.decisions or {}
+      limit = math.max(1, math.floor(tonumber(limit) or #rows))
+      local first = math.max(1, #rows - limit + 1)
+      local out = {}
+      for i = first, #rows do
+          local row = rows[i]
+          out[#out + 1] = {
+              seq=row.seq, lastSeq=row.lastSeq, count=row.count,
+              severity=row.severity,
+              domain=row.domain, rule=row.rule, result=row.result,
+              detail=row.detail, build=row.build, game=row.game,
+          }
+      end
+      return out
   end
 
   -- 2.4.59: guarded-call diagnostics. Preserve pcall semantics while routing
@@ -15255,8 +16103,8 @@ return function(mod)
       -- Independent Release Safety parent inputs identify the exact immediate
       -- canonical parent. They remain separate from executable provenance so
       -- the audit can detect a mismatched/stale parent during version bumps.
-      expectedParentVersion = "2.8.34",
-      expectedParentSha256 = "615456a31fac76af775e85176ba11e85e769cb6f37e17b58b3ba4c3b9d289c9e",
+      expectedParentVersion = "2.8.40",
+      expectedParentSha256 = "f7fd535a184b7ce40d73587a1251ce27950c53fe0ba8d0ab4bf45eb7685b8457",
       expectedModuleOwners = {
           ["battle_clauses.lua"] = "Module owner: BattleClauses",
           ["classic_ui.lua"] = "Module owner: ClassicUI",
@@ -17022,6 +17870,10 @@ return function(mod)
       else
           value = mod.exports.__beta26.coerceRuleValue(key, value, "write")
       end
+      local achievementPriorValue = nil
+      if not preGame then
+          achievementPriorValue = mod.save:get(key, defaultRuleValue(key))
+      end
 
       if preGame then
           if not pendingNewGameRules then
@@ -17283,6 +18135,18 @@ return function(mod)
               pcall(mod.exports.__beta26.randomizerEncounterSplitChanged,
                   currentGame or mod.game, key)
           end
+      end
+
+      -- Preserve run-integrity evidence for future achievements. This only
+      -- records after Run History already exists and never starts a run from
+      -- title/setup configuration.
+      if mod.exports.__beta26.RunHistory
+          and type(mod.exports.__beta26.RunHistory.recordRuleConfigurationChange)
+              == "function" then
+          local achievementAfterValue = mod.save:get(key, value)
+          pcall(mod.exports.__beta26.RunHistory.recordRuleConfigurationChange,
+              currentGame or mod.game, key, achievementPriorValue,
+              achievementAfterValue, "setConfigValue")
       end
 
       -- Trainer Card and other live UI consumers can use this revision as a
@@ -17648,7 +18512,8 @@ return function(mod)
           local startId = tostring(ctx.proposedId or ctx.currentId or "vanilla")
           local _, startIndex = difficultyOptionById(options, startId)
           local self = { game=game, screenId="NuzlockeDifficultyReview", isOpaque=true,
-              options=options, index=(tonumber(startIndex) or 0)+1, elapsed=0, onConfirm=ctx.onConfirm }
+              options=options, index=(tonumber(startIndex) or 0)+1, elapsed=0,
+              summaryScroll=0, onConfirm=ctx.onConfirm }
           mod.exports.__beta26.UiSystem.applyLayout(self,"centered")
           local function current() return self.options[self.index] or self.options[1] end
           local function summary(row)
@@ -17658,25 +18523,95 @@ return function(mod)
           end
           function self:update(dt)
               self.elapsed=self.elapsed+(dt or 0)
-              if game.input:wasPressed("up") or game.input:wasPressed("left") then self.index=((self.index-2)%#self.options)+1
-              elseif game.input:wasPressed("down") or game.input:wasPressed("right") then self.index=(self.index%#self.options)+1
-              elseif game.input:wasPressed("b") then game.stack:pop()
-              elseif game.input:wasPressed("a") then local row=current(); game.stack:pop(); if self.onConfirm and row then self.onConfirm(row) end end
+              if #self.options <= 0 then
+                  if game.input:wasPressed("b") then game.stack:pop() end
+                  return
+              end
+              if game.input:wasPressed("up") or game.input:wasPressed("left") then
+                  self.index=((self.index-2)%#self.options)+1
+                  self.summaryScroll=0
+              elseif game.input:wasPressed("down") or game.input:wasPressed("right") then
+                  self.index=(self.index%#self.options)+1
+                  self.summaryScroll=0
+              elseif game.input:wasPressed("select") then
+                  local detailLines=wrapText(summary(current()),16)
+                  local maxScroll=math.max(0,#detailLines-3)
+                  self.summaryScroll=maxScroll > 0
+                      and (((tonumber(self.summaryScroll) or 0)+1)%(maxScroll+1)) or 0
+              elseif game.input:wasPressed("b") then
+                  game.stack:pop()
+              elseif game.input:wasPressed("a") then
+                  local row=current()
+                  game.stack:pop()
+                  if self.onConfirm and row then self.onConfirm(row) end
+              end
           end
           function self:draw()
-              local row=current(); local name=tostring(Strings(row and row.name or "VANILLA")); local text=summary(row)
-              local lines=wrapText(text,16); local first=math.max(1, math.min(#lines,1))
+              local row=current()
+              local name=tostring(Strings(row and row.name or "VANILLA"))
+              local text=summary(row)
+              local lines=wrapText(text,16)
+              local maxSummaryScroll=math.max(0,#lines-3)
+              self.summaryScroll=math.max(0,math.min(
+                  tonumber(self.summaryScroll) or 0,maxSummaryScroll))
+              local firstSummary=self.summaryScroll+1
               if mod.exports.__beta26.runtimeIsGen2(game) then
-                  local Chrome=require("src.ui.gen2.Chrome"); local GoldFont=require("src.render.Font")
-                  Chrome.clear(); Chrome.box(0,0,20,18); mod.exports.__beta26.drawGen2NuzTitle(Chrome,GoldFont,"DIFFICULTY",name,{row=1,subtitleRow=3})
-                  local top=5; local visible=math.min(#self.options,5); local base=math.max(1,math.min(self.index-2,#self.options-visible+1))
-                  for i=base,base+visible-1 do if i==self.index then Chrome.cursor(1,top) end; Chrome.print(marqueeText(Strings(self.options[i].name or self.options[i].id),15,self.elapsed,1.2),3,top); top=top+1 end
-                  Chrome.printWrapped(text,2,11,16,4); Chrome.print(Strings("A:CHOOSE B:BACK"),2,16); return
+                  local Chrome=require("src.ui.gen2.Chrome")
+                  local GoldFont=require("src.render.Font")
+                  Chrome.clear()
+                  Chrome.box(0,0,20,18)
+                  mod.exports.__beta26.drawGen2NuzTitle(
+                      Chrome,GoldFont,"DIFFICULTY",name,{row=1,subtitleRow=3})
+                  local top=5
+                  local visible=math.min(#self.options,5)
+                  local base=math.max(1,math.min(
+                      self.index-2,math.max(1,#self.options-visible+1)))
+                  for i=base,math.min(#self.options,base+visible-1) do
+                      if i==self.index then Chrome.cursor(1,top) end
+                      Chrome.print(marqueeText(Strings(
+                          self.options[i].name or self.options[i].id),
+                          15,self.elapsed,1.2),3,top)
+                      top=top+1
+                  end
+                  for i=0,2 do
+                      local detail=lines[firstSummary+i]
+                      if detail then Chrome.print(detail,2,11+i) end
+                  end
+                  if maxSummaryScroll>0 then
+                      Chrome.print(Strings("SEL:MORE"),2,15)
+                      Chrome.print(Strings("%d/%d",
+                          self.summaryScroll+1,maxSummaryScroll+1),13,15)
+                  end
+                  Chrome.print(Strings("LR:PROFILE A:OK B:BACK"),2,16)
+                  return
               end
-              local Font=mod.ui.Font; love.graphics.setColor(1,1,1,1); love.graphics.rectangle("fill",0,0,160,144); Font.drawBox(0,0,20,18); Font.draw(Strings("DIFFICULTY"),44,8); Font.draw(marqueeText(name,16,self.elapsed,1.2),14,20)
-              local y=34; local visible=math.min(#self.options,5); local base=math.max(1,math.min(self.index-2,#self.options-visible+1))
-              for i=base,base+visible-1 do if i==self.index then Font.draw(Strings(">"),10,y) end; Font.draw(marqueeText(Strings(self.options[i].name or self.options[i].id),18,self.elapsed,1.2),22,y); y=y+10 end
-              local sum=wrapPixelText(text,136); for i=1,math.min(3,#sum) do Font.draw(sum[i],12,88+(i-1)*12) end; Font.draw(Strings("A:CHOOSE B:BACK"),28,130)
+              local Font=mod.ui.Font
+              love.graphics.setColor(1,1,1,1)
+              love.graphics.rectangle("fill",0,0,160,144)
+              Font.drawBox(0,0,20,18)
+              Font.draw(Strings("DIFFICULTY"),44,8)
+              Font.draw(marqueeText(name,16,self.elapsed,1.2),14,20)
+              local Theme=require("src.ui.Theme")
+              local y=34
+              local visible=math.min(#self.options,5)
+              local base=math.max(1,math.min(
+                  self.index-2,math.max(1,#self.options-visible+1)))
+              for i=base,math.min(#self.options,base+visible-1) do
+                  if i==self.index then Font.drawCode(Theme.cursor,10,y) end
+                  Font.draw(marqueeText(Strings(
+                      self.options[i].name or self.options[i].id),
+                      18,self.elapsed,1.2),22,y)
+                  y=y+10
+              end
+              for i=0,2 do
+                  local detail=lines[firstSummary+i]
+                  if detail then Font.draw(detail,12,88+i*12) end
+              end
+              if maxSummaryScroll>0 then
+                  Font.draw(Strings("SEL:MORE %d/%d",
+                      self.summaryScroll+1,maxSummaryScroll+1),12,124)
+              end
+              Font.draw(Strings("LR:PROFILE A:OK B:BACK"),12,134)
           end
           return self
       end,
@@ -17785,8 +18720,11 @@ return function(mod)
               if count > 4 then
                   Font.draw(Strings("%d-%d/%d UP/DN", first, last, count), 14, 96)
               end
-              Font.draw((self.cursor == 1 and "> " or "  ") .. Strings("APPLY"), 22, 116)
-              Font.draw((self.cursor == 2 and "> " or "  ") .. Strings("CANCEL"), 84, 116)
+              local Theme=require("src.ui.Theme")
+              if self.cursor==1 then Font.drawCode(Theme.cursor,10,116) end
+              if self.cursor==2 then Font.drawCode(Theme.cursor,72,116) end
+              Font.draw(Strings("APPLY"),22,116)
+              Font.draw(Strings("CANCEL"),84,116)
           end
           return self
       end,
@@ -19423,6 +20361,8 @@ return function(mod)
                           return selectedSetupPresetSlot > 0 and "SAVE" or "OFF"
                       elseif item.isSetupPresetLoad then
                           if self.setupPresetFlash and self.setupPresetFlash < 0 then return "EMPTY" end
+                          if self.setupPresetFlash and self.setupPresetFlash > 0
+                              and selectedSetupPresetSlot > 0 then return "LOADED" end
                           if selectedSetupPresetSlot <= 0 then return "OFF" end
                           return H.setupPresetExists(selectedSetupPresetSlot) and "LOAD" or "EMPTY"
                       elseif item.isSetupSave then
@@ -19948,7 +20888,9 @@ return function(mod)
                           valueStartX = 118 + valueShift
                       elseif item.isRandomizerRerollControl or item.isRandomizerAutoSeedControl or item.isStarterRerollControl then
                           valueStartX = 112 + valueShift
-                      elseif item.isSetupSave or item.isInGameSave then
+                      elseif item.isSetupSave or item.isInGameSave
+                          or item.isSetupPresetSlot or item.isSetupPresetSave
+                          or item.isSetupPresetLoad then
                           valueStartX = 112 + valueShift
                       elseif item.rule.numeric then
                           if mod.exports.__beta26.isBattleScopeRuleKey(key) then
@@ -20032,6 +20974,38 @@ return function(mod)
                               label = "ERROR"
                           end
                           Font.draw(marqueePixelText(label, 42, self.marqueeTime), 112 + valueShift, drawY)
+                      elseif item.isSetupPresetSlot then
+                          local label = "OFF"
+                          if selectedSetupPresetSlot > 0 then
+                              local exists = H.setupPresetExists(selectedSetupPresetSlot)
+                              label = tostring(selectedSetupPresetSlot)
+                                  .. (exists and "*" or "")
+                          end
+                          Font.draw(marqueePixelText(label, 42, self.marqueeTime),
+                              112 + valueShift, drawY)
+                      elseif item.isSetupPresetSave then
+                          local label = selectedSetupPresetSlot > 0 and "SAVE" or "OFF"
+                          if self.setupPresetFlash and self.setupPresetFlash > 0 then
+                              label = "SAVED"
+                          elseif self.setupPresetFlash and self.setupPresetFlash < 0 then
+                              label = "ERROR"
+                          end
+                          Font.draw(marqueePixelText(label, 42, self.marqueeTime),
+                              112 + valueShift, drawY)
+                      elseif item.isSetupPresetLoad then
+                          local label = "OFF"
+                          if selectedSetupPresetSlot > 0 then
+                              label = H.setupPresetExists(selectedSetupPresetSlot)
+                                  and "LOAD" or "EMPTY"
+                          end
+                          if self.setupPresetFlash and self.setupPresetFlash < 0 then
+                              label = "EMPTY"
+                          elseif self.setupPresetFlash and self.setupPresetFlash > 0
+                              and selectedSetupPresetSlot > 0 then
+                              label = "LOADED"
+                          end
+                          Font.draw(marqueePixelText(label, 42, self.marqueeTime),
+                              112 + valueShift, drawY)
                       elseif item.isPkmnBanControl then
                           local count = mod.exports.__beta26.pkmnBanCount(self.preGame, self.game)
                           local label = count > 0 and (tostring(count) .. " BAN") or "NONE"
@@ -22086,6 +23060,11 @@ return function(mod)
       if type(extra) == "table" then
           for k, v in pairs(extra) do decision[k] = v end
       end
+      local Dev = mod.exports.__beta26.Dev
+      if Dev and type(Dev.recordDecision) == "function" then
+          pcall(Dev.recordDecision, "item", key or code or "item_use", "BLOCK",
+              tostring(code or key or "blocked"), currentGame or mod.game)
+      end
       return false, decision
   end
 
@@ -22351,6 +23330,11 @@ return function(mod)
           local kind = tostring(context.kind or ""):lower()
           if (kind == "item_shop" or kind == "shop_item")
               and mod.save:get("no_buying", false) == true then
+              local Dev = mod.exports.__beta26.Dev
+              if Dev and type(Dev.recordDecision) == "function" then
+                  pcall(Dev.recordDecision, "economy", "no_buying", "BLOCK",
+                      "item_shop", game)
+              end
               return false, "no_buying"
           end
           return true
@@ -22362,6 +23346,11 @@ return function(mod)
           local kind = tostring(context.kind or ""):lower()
           if (kind == "item_shop" or kind == "shop_item")
               and mod.save:get("no_selling", false) == true then
+              local Dev = mod.exports.__beta26.Dev
+              if Dev and type(Dev.recordDecision) == "function" then
+                  pcall(Dev.recordDecision, "economy", "no_selling", "BLOCK",
+                      "item_shop", game)
+              end
               return false, "no_selling"
           end
           return true
@@ -23990,6 +24979,19 @@ return function(mod)
           encounterTime = record.encounterTime,
           roamerSpecies = record.roamerSpecies,
       })
+      if mod.exports.__beta26.RunHistory
+          and type(mod.exports.__beta26.RunHistory.recordEncounterFailed) == "function" then
+          pcall(mod.exports.__beta26.RunHistory.recordEncounterFailed,
+              policyGame, {
+                  area = key, species = species,
+                  encounterType = record.encounterType,
+                  encounterMethod = record.encounterMethod,
+                  encounterTime = record.encounterTime,
+                  roamerSpecies = record.roamerSpecies,
+                  sourceMapId = physical,
+                  dedupe = "encounter_failed:" .. tostring(key),
+              })
+      end
   end
 
   mod.exports.__beta26.markEncounterCaught = function(key, species, encounterType, sourceMapId,
@@ -25055,6 +26057,55 @@ return function(mod)
       end
       return { active=true, state="counts", area=areaKey(game,b),
           text=Strings("AREA:COUNT") }
+  end
+
+  -- 2.8.41: read-only encounter provenance snapshot for Dev Mode and bug
+  -- reports. It reports already-materialized state only and never assigns an
+  -- area, consumes a slot, creates an identity, or queries Randomizer RNG.
+  mod.exports.__beta26.activeEncounterProvenance = function(targetBattle)
+      local pending = activeWildEncounter
+      local battle = targetBattle or (pending and pending.battle)
+      if type(battle) ~= "table" then
+          return { active=false, state="none" }
+      end
+      local game = battle.game or (pending and pending.game) or currentGame or mod.game
+      local mon = battle.enemy and (battle.enemy.mon or battle.enemy) or nil
+      local key = (pending and pending.battle == battle and pending.key)
+          or battle.nuzlockeEncounterAreaKey or areaKey(game, battle)
+      local sourceMap = (pending and pending.battle == battle and pending.encounterMapId)
+          or battle.nuzlockeEncounterMapId
+          or (game and game.save and game.save.player and game.save.player.map)
+      local indicator = mod.exports.__beta26.encounterSpendIndicator(battle)
+      local caught = key and caughtAreas()[key] or nil
+      local state = key and getEncounterState(key) or nil
+      return {
+          active=true, state=indicator and indicator.state or "observed",
+          area=key, physical_area=sourceMap,
+          species=mon and mon.species or (pending and pending.species),
+          pokemon_id=mon and mon.nuzlockeId or nil,
+          encounter_type=(pending and pending.battle == battle and pending.encounterType)
+              or battle.encounterType or battle.nuzlockeEncounterMethod or "wild",
+          encounter_method=(pending and pending.battle == battle and pending.encounterMethod)
+              or battle.nuzlockeEncounterMethod,
+          encounter_time=(pending and pending.battle == battle and pending.encounterTime)
+              or battle.nuzlockeEncounterTime,
+          source=(pending and pending.battle == battle and pending.encounterSource)
+              or battle.nuzlockeEncounterSource or "vanilla",
+          provider=(pending and pending.battle == battle and pending.encounterProvider)
+              or battle.nuzlockeEncounterProvider or battle.encounterProvider,
+          provider_version=(pending and pending.battle == battle
+              and pending.encounterProviderVersion)
+              or battle.nuzlockeEncounterProviderVersion or battle.encounterProviderVersion,
+          eligible=battle.nuzlockeEncounterEligible,
+          will_spend=battle.nuzlockeEncounterWillSpendArea,
+          spend_area=battle.nuzlockeEncounterSpendArea,
+          free_reason=battle.nuzlockeFreeEncounterReason,
+          clause_conflict=battle.nuzlockeClauseConflict,
+          caught_area=caught ~= nil,
+          area_status=type(state) == "table" and state.status or nil,
+          shiny=mon and Identity.isShiny(mon) or false,
+          resolved=pending and pending.battle == battle and pending.resolved or nil,
+      }
   end
 
   -- 2.7.70: no built-in encounter-spend battle HUD is installed. BattleState
@@ -26379,8 +27430,21 @@ return function(mod)
         local function denied(reason)
             local allowed, refusal = mod.exports.__beta26.tryProgressionCatchOverride(
                 game, battle, reason, battle)
-            if allowed == true then return nil end
-            return refusal or reason
+            if allowed == true then
+                local Dev = mod.exports.__beta26.Dev
+                if Dev and type(Dev.recordDecision) == "function" then
+                    pcall(Dev.recordDecision, "catch", tostring(reason), "OVERRIDE",
+                        "progression_pc_catch", game)
+                end
+                return nil
+            end
+            local final = refusal or reason
+            local Dev = mod.exports.__beta26.Dev
+            if Dev and type(Dev.recordDecision) == "function" then
+                pcall(Dev.recordDecision, "catch", tostring(reason), "BLOCK",
+                    tostring(final), game)
+            end
+            return final
         end
 
         -- Malformed/glitch safety is outside the progression exception. Keep
@@ -26388,6 +27452,11 @@ return function(mod)
         -- provider may bypass that challenge rule, but it must never turn an
         -- unsupported/glitch species into a permitted acquisition.
         if glitch.isGlitch and not mod.exports.__beta26.glitchCatchesAllowed() then
+            local Dev = mod.exports.__beta26.Dev
+            if Dev and type(Dev.recordDecision) == "function" then
+                pcall(Dev.recordDecision, "catch", "allow_glitch_pokemon", "BLOCK",
+                    "glitch", game)
+            end
             return "glitch"
         end
   
@@ -30063,8 +31132,31 @@ return function(mod)
         end
         local previous = ListMenu.new
         local wrapper
+        local function semanticShopKind(title, opts)
+            -- Prefer semantic ListMenu metadata when supplied by the engine or
+            -- another compatible menu layer. Display text is never uppercased
+            -- and compared to English literals.
+            if type(opts) == "table" then
+                local raw = opts.kind or opts.shopKind or opts.action
+                    or opts.semanticKind
+                local kind = tostring(raw or ""):lower()
+                if kind == "buy" or kind == "shop_buy" or kind == "mart_buy"
+                    or kind == "item_shop_buy" then return "BUY" end
+                if kind == "sell" or kind == "shop_sell" or kind == "mart_sell"
+                    or kind == "item_shop_sell" then return "SELL" end
+            end
+            -- Older native ListMenu constructors expose only the already
+            -- localized title. Compare against the canonical Strings source so
+            -- translation packs remain authoritative; never add language-
+            -- specific BUY/SELL spellings here.
+            local shown = tostring(title or "")
+            if shown == tostring(Strings("BUY")) then return "BUY" end
+            if shown == tostring(Strings("SELL")) then return "SELL" end
+            return nil
+        end
+
         wrapper = function(game, title, items, opts, ...)
-            local shop = tostring(title or ""):upper()
+            local shop = semanticShopKind(title, opts)
             local tokenId = tostring(
                 mod.exports.__beta26.forgivenessTokenItemId or "")
             local function filter(rows)

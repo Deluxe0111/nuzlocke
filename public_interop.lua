@@ -106,6 +106,37 @@ return function(mod, deps)
             return out
         end
 
+        local function providerStaticState(provider)
+            if type(provider) ~= "table" then return "missing" end
+            if provider.enabled == false or provider.active == false
+                or provider.disabled == true then return "disabled" end
+            return "available"
+        end
+
+        local function providerCapabilities(provider)
+            local out = {}
+            for key, value in pairs(type(provider) == "table"
+                and provider.capabilities or {}) do
+                if value == true then out[#out + 1] = norm(key):lower() end
+            end
+            table.sort(out)
+            return out
+        end
+
+        function Interop.providerStatus(id)
+            local provider = Interop.getProvider(id)
+            if type(provider) ~= "table" then
+                return { id=norm(id), detected=false, advertised=false,
+                    state="not_detected", capabilities={} }
+            end
+            return {
+                id=provider.id, name=provider.name, version=provider.version,
+                detected=true, advertised=true, automatic=provider.automatic == true,
+                source=provider.source, state=providerStaticState(provider),
+                capabilities=providerCapabilities(provider),
+            }
+        end
+
         function Interop.resolveCapability(capability)
             local requested = norm(capability)
             local aliases = {
@@ -128,6 +159,7 @@ return function(mod, deps)
             }
             local canonical = aliases[requested] or requested
             local explicit, automatic = {}, {}
+            local eligibleExplicit, eligibleAutomatic = {}, {}
             for _, provider in pairs(Interop.providers) do
                 local matched = false
                 for k, v in pairs(provider.capabilities or {}) do
@@ -139,18 +171,83 @@ return function(mod, deps)
                     end
                 end
                 if matched then
-                    if provider.automatic == true then automatic[#automatic+1]=provider
-                    else explicit[#explicit+1]=provider end
+                    local eligible = providerStaticState(provider) == "available"
+                    if provider.automatic == true then
+                        automatic[#automatic+1]=provider
+                        if eligible then eligibleAutomatic[#eligibleAutomatic+1]=provider end
+                    else
+                        explicit[#explicit+1]=provider
+                        if eligible then eligibleExplicit[#eligibleExplicit+1]=provider end
+                    end
                 end
             end
-            table.sort(explicit, function(a,b) return tostring(a.id)<tostring(b.id) end)
-            table.sort(automatic, function(a,b) return tostring(a.id)<tostring(b.id) end)
+            local function byId(a,b) return tostring(a.id)<tostring(b.id) end
+            table.sort(explicit, byId)
+            table.sort(automatic, byId)
+            table.sort(eligibleExplicit, byId)
+            table.sort(eligibleAutomatic, byId)
             return {
                 capability=canonical:lower(),
                 supplied=(#explicit + #automatic) > 0,
                 explicit=explicit,
                 automatic=automatic,
-                preferred=explicit[1] or automatic[1],
+                preferred=eligibleExplicit[1] or eligibleAutomatic[1],
+            }
+        end
+
+        function Interop.capabilityStatus(capability)
+            local resolved = Interop.resolveCapability(capability)
+            local preferred = resolved.preferred
+            local state = "nuzlocke_fallback"
+            local degraded = false
+            if type(preferred) == "table" then
+                state = "external_selected"
+            elseif resolved.supplied == true then
+                state, degraded = "external_advertised_inactive", true
+            end
+            return {
+                capability=resolved.capability,
+                detected=resolved.supplied == true,
+                advertised=resolved.supplied == true,
+                explicit_count=#resolved.explicit,
+                automatic_count=#resolved.automatic,
+                selected_owner=type(preferred) == "table" and preferred.id or nil,
+                selected_kind=type(preferred) == "table"
+                    and (preferred.automatic == true and "automatic" or "explicit") or nil,
+                selected_state=providerStaticState(preferred),
+                state=state, degraded=degraded,
+            }
+        end
+
+        function Interop.compatibilitySnapshot()
+            local providers = Interop.listProviders()
+            local capabilitySet = {}
+            for _, provider in ipairs(providers) do
+                for _, capability in ipairs(providerCapabilities(provider)) do
+                    local resolved = Interop.resolveCapability(capability)
+                    capabilitySet[tostring(resolved.capability or capability)] = true
+                end
+            end
+            local capabilities = {}
+            for capability in pairs(capabilitySet) do
+                capabilities[#capabilities + 1] = Interop.capabilityStatus(capability)
+            end
+            table.sort(capabilities, function(a,b)
+                return tostring(a.capability) < tostring(b.capability)
+            end)
+            local providerRows = {}
+            for _, provider in ipairs(providers) do
+                providerRows[#providerRows + 1] = Interop.providerStatus(provider.id)
+            end
+            local selected, degraded = 0, 0
+            for _, row in ipairs(capabilities) do
+                if row.state == "external_selected" then selected = selected + 1 end
+                if row.degraded then degraded = degraded + 1 end
+            end
+            return {
+                api=1, provider_count=#providerRows, providers=providerRows,
+                capability_count=#capabilities, capabilities=capabilities,
+                external_selected=selected, degraded=degraded,
             }
         end
 
@@ -1813,6 +1910,20 @@ return function(mod, deps)
             pc_withdraw_release={rules={"progression_pc_catches"},editions="RBYGS",seam="PC withdraw/release gates",provider="pcPolicy",evidence="source"},
             battle_status_application={rules={"sleep_clause","status_burn_scope","status_poison_scope","status_freeze_scope"},editions="RBYGS",seam="battle status application wrappers",provider="battle hooks",evidence="source"},
             battle_stat_stage={rules={"status_accuracy_scope","evasion_clause","other_stat_drop_scope"},editions="RBYGS",seam="battle stat-stage wrappers",provider="battle hooks",evidence="source"},
+            translation_replacement_script_mutation={
+                rules={"no_buying","no_selling","allow_gifts","allow_trades","no_poke_center","no_mom_heal","no_day_care","no_gambling","no_field_healing","no_held_items"},
+                editions="provider/content dependent",
+                seam="translation/content replacement scripts must preserve native Nuzlocke-gated entrypoints or call semantic policy before gameplay mutation",
+                provider="source translation/content mod + Nuzlocke semantic policy",
+                evidence="contract",
+            },
+            translation_presentation_wrapper={
+                rules={"presentation_only"},
+                editions="provider/content dependent",
+                seam="translation-owned Strings/Font/UI wrappers must be narrow, compositional, delegate next/original behavior, and never make Nuzlocke-owned UI depend on caller path or fixed engine coordinates",
+                provider="translation/content presentation owner + Nuzlocke Strings/glyph-safe UI",
+                evidence="contract",
+            },
         }
         local function copyCoverage()
             local out={}
@@ -1863,7 +1974,7 @@ return function(mod, deps)
             for i,case in ipairs(classifyCases) do check("classify_"..i,Acquisition.classify(case[1])==case[2]) end
             local policyCases={{true,"allow"},{false,"deny"},{"allow","allow"},{"deny","deny"},{"provider","provider"},{"preserve","deny"},{"story","deny"},{"external","provider"},{"owned","provider"}}
             for i,case in ipairs(policyCases) do check("randomizer_policy_"..i,normalizeRandomizerPolicy(case[1])==case[2]) end
-            for _,id in ipairs({"capture_attempt","special_acquisition","daycare_deposit","held_item_give","purchase_commit","sale_commit","center_heal","mom_heal","static_capture","encounter_randomization","learnset_randomization","pc_withdraw_release","battle_status_application","battle_stat_stage"}) do
+            for _,id in ipairs({"capture_attempt","special_acquisition","daycare_deposit","held_item_give","purchase_commit","sale_commit","center_heal","mom_heal","static_capture","encounter_randomization","learnset_randomization","pc_withdraw_release","battle_status_application","battle_stat_stage","translation_replacement_script_mutation","translation_presentation_wrapper"}) do
                 local row=SEMANTIC_ENFORCEMENT_COVERAGE[id]
                 check("coverage_"..id,type(row)=="table" and type(row.rules)=="table" and #row.rules>0 and type(row.seam)=="string" and row.seam~="" and type(row.editions)=="string" and row.editions~="" and type(row.evidence)=="string" and row.evidence~="")
             end
@@ -1909,6 +2020,9 @@ return function(mod, deps)
             mod.exports.nuzlocke_compat.autoCompat = AutoCompat
             mod.exports.nuzlocke_compat.scanCompatibility = AutoCompat.scan
             mod.exports.nuzlocke_compat.resolveCapability = Interop.resolveCapability
+            mod.exports.nuzlocke_compat.providerStatus = Interop.providerStatus
+            mod.exports.nuzlocke_compat.capabilityStatus = Interop.capabilityStatus
+            mod.exports.nuzlocke_compat.compatibilitySnapshot = Interop.compatibilitySnapshot
             mod.exports.nuzlocke_compat.hasProviderCapability = Interop.hasCapability
             mod.exports.nuzlocke_compat.providersWithCapability = Interop.providersWith
             mod.exports.nuzlocke_compat.listProviders = Interop.listProviders

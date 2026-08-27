@@ -851,11 +851,11 @@ return function(mod, deps)
                   local Chrome = require("src.ui.gen2.Chrome")
                   Chrome.clear(); Chrome.box(0,0,20,18)
                   local GoldFont = require("src.render.Font")
-                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, "REROLL AREA")
+                  mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, Strings("REROLL AREA"))
                   if self.notice then
                       local GoldFont = require("src.render.Font")
                       local notice = mod.exports.__beta26.UiSystem.notice(
-                          "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                          Strings("INFO"), Strings("F. TOKEN"), self.notice, Strings("A/B:BACK"))
                       mod.exports.__beta26.UiSystem.gen2Notice(Chrome, GoldFont, notice, {
                           x = 2, y = 4, widthCols = 16, footerRow = 15,
                       })
@@ -894,7 +894,7 @@ return function(mod, deps)
               Font.draw(Strings("REROLL AREA"), 36, 10)
               if self.notice then
                   local notice = mod.exports.__beta26.UiSystem.notice(
-                      "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                      Strings("INFO"), Strings("F. TOKEN"), self.notice, Strings("A/B:BACK"))
                   mod.exports.__beta26.UiSystem.gen1Notice(Font, notice, 160)
                   return
               end
@@ -991,7 +991,7 @@ return function(mod, deps)
                   local GoldFont = require("src.render.Font")
                   if self.notice then
                       local notice = mod.exports.__beta26.UiSystem.notice(
-                          "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                          Strings("INFO"), Strings("F. TOKEN"), self.notice, Strings("A/B:BACK"))
                       mod.exports.__beta26.UiSystem.gen2Notice(Chrome, GoldFont, notice, {
                           x = 2, y = 4, widthCols = 16, footerRow = 15,
                       })
@@ -999,10 +999,10 @@ return function(mod, deps)
                   end
                   Chrome.printWrapped(Strings("Choose how to spend it."), 2, 5, 16, 2)
                   mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
-                      label = "REROLL ENCOUNTER", focused = self.cursor == 1,
+                      label = Strings("REROLL ENCOUNTER"), focused = self.cursor == 1,
                   }, { x = 3, y = 8, rightCol = 18 })
                   mod.exports.__beta26.UiSystem.gen2Row(Chrome, GoldFont, {
-                      label = "REVIVE POKEMON", focused = self.cursor == 2,
+                      label = Strings("REVIVE POKEMON"), focused = self.cursor == 2,
                   }, { x = 3, y = 10, rightCol = 18 })
                   Chrome.print(Strings("TOKENS %d", tokens), 4, 13)
                   Chrome.print(Strings("B:CANCEL"), 4, 15)
@@ -1019,17 +1019,17 @@ return function(mod, deps)
               Font.draw(Strings("F. TOKEN"), 48, 10)
               if self.notice then
                   local notice = mod.exports.__beta26.UiSystem.notice(
-                      "INFO", "F. TOKEN", self.notice, "A/B:BACK")
+                      Strings("INFO"), Strings("F. TOKEN"), self.notice, Strings("A/B:BACK"))
                   mod.exports.__beta26.UiSystem.gen1Notice(Font, notice, 160)
               else
                   Font.draw(Strings("Choose how to"), 24, 34)
                   Font.draw(Strings("spend it."), 40, 46)
                   local Theme = require("src.ui.Theme")
                   mod.exports.__beta26.UiSystem.gen1Row(Font, Theme, {
-                      label = "REROLL ENCOUNTER", focused = self.cursor == 1,
+                      label = Strings("REROLL ENCOUNTER"), focused = self.cursor == 1,
                   }, { x = 30, y = 70, right = 148 })
                   mod.exports.__beta26.UiSystem.gen1Row(Font, Theme, {
-                      label = "REVIVE POKEMON", focused = self.cursor == 2,
+                      label = Strings("REVIVE POKEMON"), focused = self.cursor == 2,
                   }, { x = 30, y = 86, right = 148 })
                   Font.draw(Strings("TOKENS %d", tokens), 48, 108)
                   Font.draw(Strings("B:CANCEL"), 48, 122)
@@ -1091,7 +1091,7 @@ return function(mod, deps)
                   local GoldFont = require("src.render.Font")
                   if self.notice then
                       local notice = mod.exports.__beta26.UiSystem.notice(
-                          "INFO", "REVIVE", self.notice, "A/B:BACK")
+                          Strings("INFO"), Strings("REVIVE"), self.notice, Strings("A/B:BACK"))
                       mod.exports.__beta26.UiSystem.gen2Notice(Chrome, GoldFont, notice, {
                           x = 2, y = 4, widthCols = 16, footerRow = 15,
                       })
@@ -1117,7 +1117,7 @@ return function(mod, deps)
               Font.draw(Strings("REVIVE WHO?"),36,10)
               if self.notice then
                   local notice = mod.exports.__beta26.UiSystem.notice(
-                      "INFO", "REVIVE", self.notice, "A/B:BACK")
+                      Strings("INFO"), Strings("REVIVE"), self.notice, Strings("A/B:BACK"))
                   mod.exports.__beta26.UiSystem.gen1Notice(Font, notice, 160)
               else
                   for n=1,5 do

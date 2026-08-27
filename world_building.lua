@@ -1145,7 +1145,8 @@ return function(mod, deps)
           local allowed = mod.exports.__beta26.typeLockAllowedTypes()
           local labels = {}
           for _, key in ipairs(allowed) do
-              labels[#labels + 1] = key == "PSYCHIC_TYPE" and "PSYCHIC" or key
+              local label = key == "PSYCHIC_TYPE" and "PSYCHIC" or key
+              labels[#labels + 1] = Strings(label)
           end
           local base = mod.exports.__beta26.worldRuleText(game, "type_lock_mode")
           if #labels > 0 then

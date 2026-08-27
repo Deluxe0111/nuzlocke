@@ -1,11 +1,138 @@
-# Nuzlocke User Guide — 2.8.37
+# Nuzlocke User Guide — 2.8.72
 
-2.8.37 is the full-release promotion of the corrected 2.8.36 line. The standalone Gen I shiny path has a Red runtime PASS with `Shiny Rate = ALWAYS`, Shiny Colors ON, and Shiny Intro ON.
+## Current 2.8.48 release contract
+
+This section is authoritative for the current package. Older version notes retained later in this file are historical and describe the build named in their heading.
+
+- **Supported manifest editions:** Red, Blue, Yellow, Gold, Silver, and Crystal.
+- **Support stage:** R/B/Y are the mature baseline; Gold/Silver are beta targets; Crystal is an explicit alpha target. Runtime evidence remains exact-edition rather than automatically carrying between games.
+- **Gen1Recomp requirement:** `>=0.2.24 <2.0.0`.
+- **Source/documentation compatibility audited through:** Gen1Recomp **0.2.29**.
+- **Mod API:** 2.
+- **Save Schema:** 5.
+- **Compatibility API:** 35.
+- **Diagnostics API:** 1.
+- **Randomizer algorithm version:** 1.
+- **Battle Menu UI:** Gen I only. Gold/Silver/Crystal always retain the native Gen II battle command presentation.
+- **Dev Mode:** diagnostics-only. Its health, bug-report, transaction, hook-drift, shiny, Randomizer reproducibility, performance, rule-consistency, save/run identity, and ownership-history pages do not repair or mutate a run.
+
+### Shiny ownership
+
+Nuzlocke has built-in shiny rate, colors, and intro support when no compatible external shiny provider owns the active edition. **Shiny Clause remains Nuzlocke challenge policy regardless of presentation owner.** When a compatible external shiny provider such as the current `SHINY_POKEMON` target owns shiny generation/presentation, Nuzlocke stands down its own roll/recolor/intro work and consumes the resulting shiny identity for legality, Shiny Clause, tracking, Catch Info, and Run History.
+
+### Randomizer scope
+
+The current Nuzlocke-owned Randomizer has nine independently-owned subsystems: **Starter, Encounters, Field Items, Learnsets, Trainers, Evolutions, Shops, TMs, and Gift Items**. Shared controls provide deterministic seed/reproducibility, presets, spoiler/info policy, species-generation policy, and subsystem-specific balance/diversity settings.
+
+Native Gen II hidden field-item/BG-event sources are supported when their adapter explicitly marks them as Nuzlocke-owned. Nuzlocke does not claim arbitrary third-party hidden-item sources merely because they are hidden.
+
+### Compatibility model
+
+Optional companions are never required to run Nuzlocke. Compatibility is capability/ownership based where possible: detecting a mod or advertised capability is not the same as selecting it as owner. MOD COMPAT and Dev diagnostics distinguish detected, advertised, selected, degraded, and Nuzlocke-fallback states.
+
+Current optional compatibility identities declared by the manifest include:
+`pokegear_cards`, `pokemon_randomizer`, `wide-menus`, `variable_width_kerning`, `gen1_modern_ui`, `gen_2_randomizer_plus`, `overworld_wild_spawns`, `modern_party_ui`, `kanto_ascendant`, `delta_type`, `dex_overflow`, `safari_all`, `wonder_trade`, `qol_toggles`, `quality_of_life`, `g9-battle-engine`, `gen1-better-menus`, `gen1_pt-br`, `steel_typing`, `potato_voxel`, and `SHINY_POKEMON`.
+
+## Achievement readiness
+
+Nuzlocke does not display or award achievements yet. Starting with 2.8.49, Run History keeps a durable background evidence ledger so future achievements can evaluate catches, deaths, failed encounters, badges, forgiveness, blackouts, completions, shiny outcomes, rule changes, and related run facts even after old detailed history rows roll off. Older runs may be marked **partial** when a fact was not historically recorded; the future achievement system must not guess missing evidence.
+
+## Brazilian Portuguese companion
+
+Nuzlocke 2.8.50 explicitly recognizes current **VersaoVermelha 0.2.5** as an optional Brazilian Portuguese compatibility target while retaining the older `gen1_pt-br` identity separately. Installing a translation companion does not change Nuzlocke rules; it only supplies localization/presentation where that mod supports it.
+
+Nuzlocke-authored text that has no translation override may still appear in English. Compatibility means the translated game and Nuzlocke can coexist safely; complete translation coverage is a separate language-pack task.
+
+## German Universal companion
+
+Translation German Universal 0.2.0 is an explicit optional compatibility target. If it is installed in English/no-op mode, Nuzlocke reports it as installed but not actively translating. Pending language changes may be shown as requiring restart; Nuzlocke does not pretend the language changed before the companion actually rematerializes its catalogs on restart.
+
+Changing language does not reset encounter areas or alter Nuzlocke rules.
+
+## Localization diagnostics
+
+Dev Mode's DEV REPORT now includes **LOCALIZATION**. It shows installed/active translation companions, pending restart state, and how much of Nuzlocke's discoverable source catalog currently resolves to a different localized value.
+
+This is diagnostic only. Missing Nuzlocke-specific translations do not change rules, saves, encounters, or compatibility ownership.
+
+## Longer translated text
+
+Nuzlocke-owned shared UI rows and diagnostic pages now use glyph-aware fitting/wrapping where the engine exposes it. Gen-II NUZ STATUS summary lines are bounded with marquee behavior instead of overflowing the native frame.
+
+This does not change rules or Randomizer results; it only improves presentation under longer translations and variable-width fonts.
+
+## Spanish companion
+
+Traduccion Espanola 0.1.0 is an explicit optional compatibility target for Red/Blue. With the matching Spanish EUR cartridge in `imports/`, the companion can apply its official cartridge-derived Spanish layer. Without it, its engine-authored Spanish strings still work but cartridge dialogue/content remains English.
+
+Nuzlocke does not read or require your Spanish cartridge and does not change rules based on language.
+
+## French companions
+
+Nuzlocke recognizes the generated `translation-fr` French translation and the optional `trad-fr-extended` overlay. The overlay requires the base translation and fills additional text gaps; it does not replace Nuzlocke rules or gameplay behavior.
+
+The reviewed base generator supports all six Nuzlocke editions, but each exact game/mod combination still requires runtime certification.
+
+## Translation support status
+
+The current reviewed translation targets are summarized in the compatibility matrix. A listed target may be source-compatible while still awaiting exact runtime certification for a particular edition.
+
+Forgiveness/F. TOKEN and Battle Clause messages are now part of Nuzlocke's discoverable translation source catalog.
+
+## LOCAL CERT
+
+In Dev Mode, open **DEV REPORT → LOCAL CERT** to record translation runtime checks for the current exact combination.
+
+- Up/Down: choose a check.
+- A: cycle UNTESTED / PASS / FAIL.
+- Left/Right: change Dev Report section.
+- B: back.
+
+The checklist is session-only and does not touch your save. A translation setup is not considered certified until a companion is present and every check is manually marked PASS.
+
+## Current player-facing notes
+
+- **Gen II battle menus are native.** The Battle Menu UI toggle is R/B/Y-only. Gen II PKMN/PACK targeting remains engine-owned.
+- **World Building defaults to T3** on fresh/default configurations; existing explicitly-stored values are preserved.
+- **TOOLS profiles** use one Profile Slot selector (`OFF / 1 / 2 / 3`) plus Save Profile and Load Profile actions.
+- **Localization infrastructure is active but coverage is incomplete.** Rule Catalog, Setup/NUZ RULES, substantial Classic UI/Forgiveness text, and the first localization hardening batch use the engine `Strings` registry. World Building and Randomizer authored text remain larger future localization phases.
+- **Exact-edition evidence is required.** A runtime PASS in Red does not certify Blue/Yellow, and a Gold/Silver PASS does not certify Crystal.
+
+## Historical user-guide notes
+
+The following retained notes are ordered by the build in which behavior changed. Any statement such as “current,” “supported,” or an API/engine value inside those sections is historical to that version.
+
+2.8.46 adds **DEV REPORT > RULE CONFIG**, **SAVE/RUN**, and **OWNER HISTORY**. They report configuration consistency, cross-surface run identity, and compatibility owner transitions without changing gameplay or repairing state.
+
+2.8.45 improves Dev signal quality by coalescing repeated warning/error diagnostics and adds **DEV REPORT > PERFORMANCE** for cheap Dev-only Randomizer builder counters.
+
+2.8.44 adds **DEV REPORT > SHINY** and **DEV REPORT > RANDOM REPRO**. Both are read-only: SHINY reports ownership/configuration/materialized identity, while RANDOM REPRO reports the persisted run contract and source-map counts without consuming RNG.
+
+2.8.43 adds **DEV REPORT > TRANSACTIONS** and **DEV REPORT > HOOK DRIFT**. TRANSACTIONS shows journal/receipt health and pending state without repairing anything. HOOK DRIFT shows whether Nuzlocke's registered wrappers are still direct, have another mod layered above them, or cannot be live-probed. Both are diagnostics-only.
+
+2.8.42 adds **DEV REPORT > BUG REPORT**, a compact shareable diagnostics snapshot covering build/engine/edition, save/run identity, subsystem health, provider ownership, current encounter provenance, recent decisions, warnings/errors, and recent breadcrumbs. It is read-only and does not invoke gameplay logic or RNG.
+
+# Nuzlocke User Guide — 2.8.41
+
+Dev Mode's DEV REPORT now has HEALTH, PROVIDERS, ENCOUNTER, and DECISIONS sections. HEALTH summarizes major subsystem state; PROVIDERS distinguishes detection from selected ownership; ENCOUNTER reports already-materialized provenance only; DECISIONS shows a bounded trace of recent core rule denials. These views are read-only.
+
+
+
+2.8.40 is a strict child of 2.8.39. Player-facing gameplay is unchanged; the update strengthens Release Safety so known regression shapes are caught during promotion instead of being rediscovered in play.
+
+
+2.8.39 is a strict child of 2.8.38. Gameplay behavior is unchanged; the update improves MOD COMPAT/provider diagnostics and documents the compatibility fallbacks that remain intentionally supported. Provider status now separates detected/advertised capability metadata from an actually selected external owner, while Nuzlocke fallback remains explicit.
+
+2.8.38 is a strict child of full-release 2.8.37. It keeps the runtime-passed Red standalone shiny behavior unchanged and begins the next localization coverage pass using Gen1Recomp 0.2.27's `Strings` registry.
 
 ### Gen1Recomp 0.2.27 UI / nickname compatibility
 
 On current 0.2.27 engines, R/B/Y catch nickname enforcement uses the engine's public catch-nickname decision seam. Gold/Silver/Crystal Nuzlocke utility screens use the engine's palette-aware Chrome drawing path, so custom GB/COLOR palettes continue through NUZ STATUS and Recover Catches. The Gen II shiny send-out workaround has also been source-revalidated for 0.2.27 and remains narrowly scoped to the queued `shiny-flash` presentation event. Older supported engine builds retain compatibility fallbacks.
 
+
+## Localization status
+
+Nuzlocke localization infrastructure is active. Rule names/descriptions, Setup/NUZ RULES, substantial Classic UI text, and Forgiveness already use the engine string registry. 2.8.38 additionally covers Battle Clause denials, Forgiveness action choices, NUZ STATUS / Run History labels and templates, and Legacy Recovery fallbacks. If no translation override exists, English remains the automatic fallback. Randomizer and World Building authored text remain future dedicated coverage phases.
 
 ## Shiny support
 
@@ -154,6 +281,117 @@ Crystal remains intentionally supported in Alpha. 2.7.84 runtime testing reached
 Alpha means runtime coverage is incomplete. Crystal-specific story events, script specials, static/gift encounters, Battle Tower behavior, progression details, and edition-specific UI paths may still be unverified or incomplete. A feature working on Gold or Silver does **not** count as Crystal proof. Report Crystal failures with the exact rule, location/story state, and whether the run is NEW GAME or an existing save.
 
 The Gen1Recomp compatibility profile is now source/documentation-audited through **0.2.27**, and **Gen1Recomp 0.2.24 or newer is required** for this build because Crystal is an explicit manifest target. No Nuzlocke save migration is required for this support change.
+
+
+
+## Difficulty Profiles — Full Mechanical Reference (2.8.72)
+
+The in-game Difficulty chooser is intentionally concise. It is meant to help you choose a profile without turning Setup into a technical manual. This section is the authoritative player-facing explanation of every built-in Difficulty profile.
+
+A profile changes trainer construction only. It does not rewrite the underlying trainer tables wholesale, and it does not disable an external trainer mod's own hooks. Historical names marked with `*` are inspired profiles, not byte-for-byte recreations of ROM hacks.
+
+### How to read the profile numbers
+
+**Trainer level scale.** A value such as `108/100` means the trainer's original level is multiplied by 108 and divided by 100, then rounded to the nearest whole level and clamped to 1–100. Example: level 25 becomes 27; level 50 becomes 54. Bosses can use a different scale.
+
+**Team upgrade chance.** A value such as `30 of 100` means each eligible non-rival trainer slot gets a deterministic 30-in-100 upgrade roll. Rival species are deliberately preserved. An upgrade keeps at least one type in common with the original species, excludes legendary, mythical, and glitch species, and requires valid battle art in the live merged registry.
+
+**Species BST tuning.** When a slot upgrades, Nuzlocke aims near `base BST + BST boost`; bosses receive another +12 target bias. The allowed ceiling is the target plus 40 BST for regular trainers or plus 55 BST for bosses, capped at 600. Candidates are sorted by closeness to the target, then stronger BST, then species name; one of the five closest candidates is selected deterministically.
+
+**Move quality.**
+- Tier 0 — vanilla moves are left alone.
+- Tier 1 — legal level-up moves are optimized.
+- Tier 2 — Tier 1 plus legal damaging TM/HM candidates.
+- Tier 3 — aggressive competitive-style scoring over the same legal live move pool.
+Provider-created/legal move data remains the source pool; the profile does not invent unavailable moves.
+
+**Trainer AI.**
+- Tier 0 — no Nuzlocke AI additions.
+- Tier 1 — type-aware/basic decision layer.
+- Tier 2 — tactical layer. In Gen I this composes AI modifiers 1 and 3; in Gen II it adds BASIC, SETUP, TYPES, OFFENSIVE, and STATUS behavior bits.
+- Tier 3 — full smart layer. In Gen I this composes AI modifiers 1, 2, and 3. In Gen II it enables the broader SMART/OPPORTUNIST/AGGRESSIVE/CAUTIOUS set in addition to the Tier-2 behaviors. Bosses at Gen-II Tier 3 also receive the additional boss AI bit.
+Existing trainer AI behavior is merged rather than stripped.
+
+**Trainer Stat EXP.** Difficulty profiles use the same preset ladder as the independent trainer Stat EXP rule:
+- Tier 0 = 0
+- Tier 1 = 8192
+- Tier 2 = 16384
+- Tier 3 = 24576
+- Tier 4 = 32768
+- Tier 5 = 65535
+
+**DVs.** A DV floor such as `8/15` means every applicable DV is raised to at least 8 on the 0–15 Gen-I/II DV scale. `PERFECT` means the profile requests perfect DVs instead of merely a floor.
+
+**Held items, Gen II only.**
+- Tier 0 — no item enrichment.
+- Tier 1 — bosses can receive a Berry; type-matching held items may also be selected.
+- Tier 2 — bosses can receive Gold Berry or MiracleBerry; type items remain eligible; Berry is added to the general candidate set.
+- Tier 3 — bosses can also receive Leftovers, MiracleBerry, or Gold Berry, plus type-matching options.
+An item already supplied by the composed trainer/provider data wins and is not overwritten.
+
+**Badge Boosts.** Profiles marked `OFF` suppress Nuzlocke's badge-boost behavior while that profile owns trainer difficulty.
+
+### Universal profiles
+
+| Profile | Levels regular / boss | Team upgrades regular / boss | BST boost regular / boss | Stat EXP regular / boss | DVs regular / boss | Moves regular / boss | AI regular / boss | Held regular / boss | Badge Boosts |
+|---|---|---|---|---|---|---|---|---|---|
+| VANILLA | 100/100 / 100/100 | none | none | independent rule | independent rule | vanilla | vanilla | none | rule-owned |
+| NUZ MEDIUM | 104/100 / 106/100 | 8 of 100 / 22 of 100 | +14 / +26 | T2 / T2 | no forced floor | T1 / T2 | T1 / T2 | T1 / T2 | rule-owned |
+
+`NUZ MEDIUM` is available in every supported edition and is designed as a modest built-in step above vanilla.
+
+### Red profiles
+
+| Profile | Levels regular / boss | Team upgrades | BST boost | Stat EXP | DVs | Moves | AI | Held | Badge Boosts |
+|---|---|---|---|---|---|---|---|---|---|
+| SHIN HARD* | 108/100 / 112/100 | 15 of 100 / 35 of 100 | +25 / +38 | T3 / T4 | min 8/15 / 10/15 | T2 / T3 | T3 / T3 | none | OFF |
+| PURE RGB* | 105/100 / 109/100 | 28 of 100 / 52 of 100 | +22 / +34 | T2 / T3 | no regular floor / min 8/15 boss | T2 / T3 | T2 / T3 | none | rule-owned |
+
+### Blue profiles
+
+| Profile | Levels regular / boss | Team upgrades | BST boost | Stat EXP | DVs | Moves | AI | Held | Badge Boosts |
+|---|---|---|---|---|---|---|---|---|---|
+| SHIN HARD* | 108/100 / 112/100 | 15 of 100 / 35 of 100 | +25 / +38 | T3 / T4 | min 8/15 / 10/15 | T2 / T3 | T3 / T3 | none | OFF |
+| BLUE KAIZO* | 115/100 / 121/100 | 62 of 100 / 90 of 100 | +65 / +88 | T4 / T5 | PERFECT / PERFECT | T3 / T3 | T3 / T3 | none | rule-owned |
+
+### Yellow profiles
+
+| Profile | Levels regular / boss | Team upgrades | BST boost | Stat EXP | DVs | Moves | AI | Held | Badge Boosts |
+|---|---|---|---|---|---|---|---|---|---|
+| YELLOW LEGACY* | 108/100 / 113/100 | 25 of 100 / 68 of 100 | +36 / +52 | T3 / T4 | PERFECT / PERFECT | T3 / T3 | T3 / T3 | none | rule-owned |
+| SHIN-STYLE* | 106/100 / 111/100 | 18 of 100 / 42 of 100 | +28 / +40 | T3 / T4 | min 8/15 / 10/15 | T2 / T3 | T3 / T3 | none | OFF |
+
+### Gold profiles
+
+| Profile | Levels regular / boss | Team upgrades | BST boost | Stat EXP | DVs | Moves | AI | Held | Badge Boosts |
+|---|---|---|---|---|---|---|---|---|---|
+| POLISHED* | 108/100 / 113/100 | 30 of 100 / 68 of 100 | +42 / +58 | T3 / T4 | min 8/15 / 10/15 | T3 / T3 | T3 / T3 | T3 / T3 | OFF |
+| LEGACY-STYLE* | 106/100 / 110/100 | 20 of 100 / 46 of 100 | +28 / +42 | T3 / T4 | PERFECT / PERFECT | T2 / T3 | T2 / T3 | T2 / T3 | rule-owned |
+
+### Silver profiles
+
+Silver has its own exact-edition catalog; it no longer falls through to Red or inherits an unrelated Gen-I profile list.
+
+| Profile | Levels regular / boss | Team upgrades | BST boost | Stat EXP | DVs | Moves | AI | Held | Badge Boosts |
+|---|---|---|---|---|---|---|---|---|---|
+| SILVER POLISHED* | 107/100 / 112/100 | 28 of 100 / 64 of 100 | +38 / +54 | T3 / T4 | min 8/15 / 10/15 | T3 / T3 | T3 / T3 | T3 / T3 | OFF |
+| SILVER LEGACY* | 105/100 / 109/100 | 18 of 100 / 44 of 100 | +26 / +40 | T3 / T4 | min 6/15 / 9/15 | T2 / T3 | T2 / T3 | T2 / T3 | rule-owned |
+
+### Crystal profiles
+
+Crystal also has its own exact-edition catalog. These are conservative Nuzlocke-built Crystal-focused profiles, not claims that Crystal originally shipped with these trainer changes.
+
+| Profile | Levels regular / boss | Team upgrades | BST boost | Stat EXP | DVs | Moves | AI | Held | Badge Boosts |
+|---|---|---|---|---|---|---|---|---|---|
+| CRYSTAL POLISHED* | 108/100 / 114/100 | 32 of 100 / 72 of 100 | +44 / +62 | T3 / T4 | min 8/15 / 11/15 | T3 / T3 | T3 / T3 | T3 / T3 | OFF |
+| CRYSTAL LEGACY* | 106/100 / 111/100 | 22 of 100 / 52 of 100 | +30 / +46 | T3 / T4 | min 7/15 / 10/15 | T2 / T3 | T2 / T3 | T2 / T3 | rule-owned |
+
+### In-game chooser versus documentation
+
+The in-game chooser intentionally shows only the most useful decision information: representative level gains at levels 25 and 50, the deterministic team-upgrade rate written as `N OF 100`, whether same-type species upgrades are active, move quality, AI quality, DV quality, held-item quality, and Badge Boost ownership.
+
+The full formulas, tier meanings, exact per-profile values, and provider-composition behavior must always remain documented here whenever a built-in profile changes.
+
 
 
 ## 2.7.83 Rules / Setup controls
@@ -445,7 +683,7 @@ Ordinary hard-safe items are now classified into semantic categories: BALL, HEAL
 
 **Field Item Repeats** controls duplicate pressure across physical visible pickup sources. `ALLOW` preserves independent rolls. `DIVERSE` usually follows a deterministic source-placement lane but periodically uses the independent lane, reducing repeat pressure without forbidding candidates. `UNIQUE` maps native numeric source/object ordinals into a seeded permutation of the shared semantic pool; distinct ordinals remain distinct until the pool wraps/exhausts. Provider sources with only nonnumeric ids degrade deterministically and are reported rather than silently claiming strict uniqueness.
 
-Visible-vs-hidden ownership is explicit. Native item-ball adapters identify themselves as `VISIBLE`. Explicit `HIDDEN` / BG-event sources are not owned and remain unchanged. For backward compatibility, a legacy call that omits source-kind context is treated as the historical visible-item path. Hidden items, gifts, shops, fruit/apricorn trees, and scripted rewards remain outside this rule.
+Field-item source ownership is explicit. Native item-ball adapters identify themselves as `VISIBLE`. Native Gen II hidden/BG-event sources may also be owned when their adapter explicitly marks `nuzlockeOwnedHidden=true`; other hidden/provider sources remain unchanged by default. For backward compatibility, a legacy call that omits source-kind context is treated as the historical visible-item path. Hidden items, gifts, shops, fruit/apricorn trees, and scripted rewards remain outside this rule.
 
 
 Field Item data also has an explicit generation model without creating a second registry. R/B/Y is treated as `GEN1_FLAT`: ball capability and TM/HM record/id semantics are normalized from the flat item table. Gold/Silver is treated as `GEN2_POCKETS`: BALL, KEY ITEM, and TM/HM pocket semantics are normalized explicitly. Both still use the engine's merged `game.data.items`.

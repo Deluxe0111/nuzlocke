@@ -231,22 +231,22 @@ return function(mod, deps)
                         local childKey, message
                         if id:find("PARALYZE", 1, true) then
                             childKey = "status_paralysis_scope"
-                            message = "Paralysis ban blocked the effect."
+                            message = Strings("Paralysis ban blocked the effect.")
                         elseif id:find("CONFUSION", 1, true) then
                             childKey = "status_confusion_scope"
-                            message = "Confusion ban blocked the effect."
+                            message = Strings("Confusion ban blocked the effect.")
                         elseif id == "SLEEP_EFFECT" then
                             childKey = "status_sleep_scope"
-                            message = "Sleep ban blocked the effect."
+                            message = Strings("Sleep ban blocked the effect.")
                         elseif id:find("POISON", 1, true) or id == "TWINEEDLE_EFFECT" then
                             childKey = "status_poison_scope"
-                            message = "Poison ban blocked the effect."
+                            message = Strings("Poison ban blocked the effect.")
                         elseif id:find("BURN", 1, true) then
                             childKey = "status_burn_scope"
-                            message = "Burn ban blocked the effect."
+                            message = Strings("Burn ban blocked the effect.")
                         elseif id:find("FREEZE", 1, true) then
                             childKey = "status_freeze_scope"
-                            message = "Freeze ban blocked the effect."
+                            message = Strings("Freeze ban blocked the effect.")
                         end
                         if childKey then
                             local scopedKey, scopedMessage = childKey, message
@@ -414,7 +414,7 @@ return function(mod, deps)
                                                 and other.nuzlockeSleepClauseBy == sourceSide then
                                                 if type(self.emit) == "function" then
                                                     self:emit({ kind = "message",
-                                                        text = "Sleep Clause blocked the move." })
+                                                        text = Strings("Sleep Clause blocked the move.") })
                                                 end
                                                 return false
                                             end
@@ -445,22 +445,22 @@ return function(mod, deps)
                                 local childKey, message
                                 if status == "paralyze" then
                                     childKey = "status_paralysis_scope"
-                                    message = "Paralysis ban blocked the effect."
+                                    message = Strings("Paralysis ban blocked the effect.")
                                 elseif status == "confuse" then
                                     childKey = "status_confusion_scope"
-                                    message = "Confusion ban blocked the effect."
+                                    message = Strings("Confusion ban blocked the effect.")
                                 elseif status == "sleep" then
                                     childKey = "status_sleep_scope"
-                                    message = "Sleep ban blocked the effect."
+                                    message = Strings("Sleep ban blocked the effect.")
                                 elseif status == "poison" or status == "toxic" then
                                     childKey = "status_poison_scope"
-                                    message = "Poison ban blocked the effect."
+                                    message = Strings("Poison ban blocked the effect.")
                                 elseif status == "burn" then
                                     childKey = "status_burn_scope"
-                                    message = "Burn ban blocked the effect."
+                                    message = Strings("Burn ban blocked the effect.")
                                 elseif status == "freeze" then
                                     childKey = "status_freeze_scope"
-                                    message = "Freeze ban blocked the effect."
+                                    message = Strings("Freeze ban blocked the effect.")
                                 end
                                 local sourceSide = source and type(self.sideOf) == "function"
                                     and self:sideOf(source) or nil
@@ -530,7 +530,7 @@ return function(mod, deps)
                                     and clauseOn("evasion_clause", getCurrentGame() or mod.game) then
                                     if type(self.emit) == "function" then
                                         self:emit({ kind = "message",
-                                            text = "Evasion Clause blocked the boost." })
+                                            text = Strings("Evasion Clause blocked the boost.") })
                                     end
                                     return nil
                                 end
@@ -551,7 +551,7 @@ return function(mod, deps)
                                     and setupBlocks(sourceSide) then
                                     if type(self.emit) == "function" then
                                         self:emit({ kind = "message",
-                                            text = "No Setup Moves blocked the boost." })
+                                            text = Strings("No Setup Moves blocked the boost.") })
                                     end
                                     return nil
                                 end
@@ -566,7 +566,7 @@ return function(mod, deps)
                                         sourceSide) then
                                     if type(self.emit) == "function" then
                                         self:emit({ kind = "message",
-                                            text = "Other Stat Drops blocked the drop." })
+                                            text = Strings("Other Stat Drops blocked the drop.") })
                                     end
                                     return nil
                                 end
@@ -598,14 +598,14 @@ return function(mod, deps)
                                         and scopedRuleBlocks("status_accuracy_scope", side) then
                                         if type(self.emit) == "function" then
                                             self:emit({ kind = "message",
-                                                text = "Accuracy Drops blocked the drop." })
+                                                text = Strings("Accuracy Drops blocked the drop.") })
                                         end
                                         return false
                                     elseif stat ~= "accuracy"
                                         and scopedRuleBlocks("other_stat_drop_scope", side) then
                                         if type(self.emit) == "function" then
                                             self:emit({ kind = "message",
-                                                text = "Other Stat Drops blocked the drop." })
+                                                text = Strings("Other Stat Drops blocked the drop.") })
                                         end
                                         return false
                                     end
@@ -639,7 +639,7 @@ return function(mod, deps)
                                     state.flinched = nil
                                     if type(self.emit) == "function" then
                                         self:emit({ kind = "message",
-                                            text = "Flinch Clause blocked the effect." })
+                                            text = Strings("Flinch Clause blocked the effect.") })
                                     end
                                 end
 
@@ -669,7 +669,7 @@ return function(mod, deps)
                                     end
                                     if type(self.emit) == "function" then
                                         self:emit({ kind = "message",
-                                            text = "Trap Clause blocked the trapping effect." })
+                                            text = Strings("Trap Clause blocked the trapping effect.") })
                                     end
                                 end
                                 return result
@@ -688,7 +688,7 @@ return function(mod, deps)
                                     if type(self.markMissed) == "function" then self:markMissed() end
                                     if type(self.emit) == "function" then
                                         self:emit({ kind = "message",
-                                            text = "OHKO Clause blocked the move." })
+                                            text = Strings("OHKO Clause blocked the move.") })
                                     end
                                     return nil
                                 end

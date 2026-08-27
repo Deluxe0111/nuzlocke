@@ -35,8 +35,40 @@ return function(mod, deps)
             suffix = tostring(suffix == nil and "..." or suffix)
             if T.measure(text) <= budget then return text end
             if budget <= 0 then return "" end
-            while #text > 0 and T.measure(text .. suffix) > budget do
-                text = text:sub(1, -2)
+
+            -- Prefer the engine glyph-span API so variable-width and multibyte
+            -- translation text is never truncated at an arbitrary byte.
+            if Font and type(Font.split) == "function"
+                and type(Font.spansFitting) == "function" then
+                local okSplit, spans = pcall(Font.split, text)
+                if okSplit and type(spans) == "table" and #spans > 0 then
+                    local suffixWidth = T.measure(suffix)
+                    local contentBudget = math.max(0, budget - suffixWidth)
+                    local okFit, count = pcall(Font.spansFitting, spans, contentBudget)
+                    count = okFit and math.max(0, math.floor(tonumber(count) or 0)) or 0
+                    if count <= 0 then
+                        return suffixWidth <= budget and suffix or ""
+                    end
+                    local last = spans[math.min(#spans, count)]
+                    local fitted = last and last.to and text:sub(1, last.to) or ""
+                    return fitted .. suffix
+                end
+            end
+
+            -- Fallback path stays UTF-8 boundary-safe when the runtime exposes
+            -- Lua's utf8 library. Byte truncation is used only as a final
+            -- compatibility fallback for legacy single-byte fonts.
+            local function removeLastGlyph(value)
+                if type(utf8) == "table" and type(utf8.offset) == "function" then
+                    local okOffset, pos = pcall(utf8.offset, value, -1)
+                    if okOffset and type(pos) == "number" then
+                        return value:sub(1, pos - 1)
+                    end
+                end
+                return value:sub(1, -2)
+            end
+            while text ~= "" and T.measure(text .. suffix) > budget do
+                text = removeLastGlyph(text)
             end
             if text == "" and T.measure(suffix) > budget then return "" end
             return text .. suffix
@@ -357,8 +389,16 @@ return function(mod, deps)
         local right = math.floor(tonumber(opts.right) or 144)
         local gap = math.max(8, math.floor(tonumber(opts.gap) or 12))
         local value = tostring(Strings(row.value or ""))
-        local valueX = value ~= "" and T.rightX(value, right) or right
-        local labelRight = value ~= "" and (valueX - gap) or right
+        local displayValue = value
+        if value ~= "" and row.preFitted ~= true then
+            -- Reserve at most roughly half of the row for a translated value,
+            -- then right-align the fitted value. This prevents a long localized
+            -- value from pushing its origin off-screen before fitting occurs.
+            local valueBudget = math.max(8, math.floor((right - x) * 0.48))
+            displayValue = T.fit(value, valueBudget)
+        end
+        local valueX = displayValue ~= "" and T.rightX(displayValue, right) or right
+        local labelRight = displayValue ~= "" and (valueX - gap) or right
         local cursorX = x - 8
         if row.focused == true and Theme and Theme.cursor then
             Font.drawCode(Theme.cursor, cursorX, y)
@@ -368,14 +408,10 @@ return function(mod, deps)
             label = T.fit(label, math.max(0, labelRight - x))
         end
         Font.draw(label, x, y)
-        if value ~= "" then
-            local displayValue = value
-            if row.preFitted ~= true then
-                displayValue = T.fit(value, math.max(0, right - valueX))
-            end
+        if displayValue ~= "" then
             Font.draw(displayValue, valueX, y)
         end
-        return { label = label, value = value, valueX = valueX,
+        return { label = label, value = displayValue, valueX = valueX,
             statusKind = UI.statusKind(value) }
     end
 
@@ -387,23 +423,24 @@ return function(mod, deps)
         local rightCol = math.max(x + 1, math.floor(tonumber(opts.rightCol) or 18))
         local value = tostring(Strings(row.value or ""))
         local rightPx = (rightCol + 1) * 8
-        local valueX = value ~= "" and T.rightX(value, rightPx) or rightPx
+        local displayValue = value
+        if value ~= "" and row.preFitted ~= true then
+            local availablePx = math.max(8, (rightCol - x + 1) * 8)
+            local valueBudget = math.max(8, math.floor(availablePx * 0.48))
+            displayValue = T.fit(value, valueBudget)
+        end
+        local valueX = displayValue ~= "" and T.rightX(displayValue, rightPx) or rightPx
         local valueCol = math.max(x, math.floor(valueX / 8))
-        local labelCols = value ~= "" and math.max(1, valueCol - x - 1)
+        local labelCols = displayValue ~= "" and math.max(1, valueCol - x - 1)
             or math.max(1, rightCol - x + 1)
         if row.focused == true then Chrome.cursor(math.max(0, x - 1), y) end
         local label = tostring(Strings(row.label or ""))
         if row.preFitted ~= true then label = T.fit(label, labelCols * 8) end
         Chrome.print(label, x, y)
-        if value ~= "" then
-            local displayValue = value
-            if row.preFitted ~= true then
-                displayValue = T.fit(value,
-                    math.max(8, (rightCol - valueCol + 1) * 8))
-            end
+        if displayValue ~= "" then
             Chrome.print(displayValue, valueCol, y)
         end
-        return { value = value, valueCol = valueCol,
+        return { value = displayValue, valueCol = valueCol,
             statusKind = UI.statusKind(value) }
     end
 

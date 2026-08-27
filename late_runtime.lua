@@ -4234,9 +4234,10 @@ return function(mod, deps)
 
                     -- 2.8.07 Gen II-only status hierarchy: keep counters
                     -- compact, then dedicate full-width rows to variable text.
-                    Chrome.print(fitRow(("CAUGHT %d   LOST %d"):format(caught, lost)), 2, 4)
-                    Chrome.print(fitRow(("DEATHS %d   TOKENS %d"):format(deaths, tokens)), 2, 5)
-                    Chrome.print(fitRow(cap >= 100 and "CAP MAX" or ("CAP LV%d"):format(cap)), 2, 6)
+                    Chrome.print(fitRow(Strings("CAUGHT %d   LOST %d", caught, lost)), 2, 4)
+                    Chrome.print(fitRow(Strings("DEATHS %d   TOKENS %d", deaths, tokens)), 2, 5)
+                    Chrome.print(fitRow(cap >= 100 and Strings("CAP MAX")
+                        or Strings("CAP LV%d", cap)), 2, 6)
                     Chrome.print(Strings("AREA"), 2, 8)
                     Chrome.print(fitRow(tostring(areaLabel)), 2, 9)
                     Chrome.print(Strings("LAST CAUGHT"), 2, 10)
@@ -4322,7 +4323,12 @@ return function(mod, deps)
                                 "NUZ STATUS", "ERROR", { row = 1, subtitleRow = 2 })
                             local detail = tostring(failure and failure.detail or "unknown")
                             detail = detail:gsub("^.-:%s*", "")
-                            if #detail > 72 then detail = detail:sub(1, 72) .. "..." end
+                            local beta = mod.exports and mod.exports.__beta26 or {}
+                            if type(beta.nuzGlyphLen) == "function"
+                                and type(beta.nuzGlyphSlice) == "function"
+                                and beta.nuzGlyphLen(detail) > 72 then
+                                detail = beta.nuzGlyphSlice(detail, 1, 69) .. "..."
+                            end
                             Chrome.printWrapped(detail, 2, 4, 16, 6)
                             if failure and failure.code then
                                 Chrome.printWrapped(tostring(failure.code), 2, 11, 16, 3)
@@ -5289,12 +5295,21 @@ return function(mod, deps)
 
     mod.exports.__beta26.compat21.surfaceRows = function(game)
         local rows = {}
-        local function add(label, owner, detail, controlCapability, nativeOwner, gameplayImpact)
+        local function add(label, owner, detail, controlCapability, nativeOwner, gameplayImpact, diagnostic)
+            diagnostic = type(diagnostic) == "table" and diagnostic or {}
             rows[#rows + 1] = {
                 label = label, owner = owner or "Nuzlocke", detail = detail,
                 controlCapability = controlCapability,
                 nativeOwner = nativeOwner,
                 gameplayImpact = gameplayImpact == true,
+                compatState = diagnostic.state,
+                detected = diagnostic.detected == true,
+                advertised = diagnostic.advertised == true,
+                degraded = diagnostic.degraded == true,
+                selectedOwner = diagnostic.selected_owner
+                    or (type(diagnostic.selected) == "table" and diagnostic.selected.id) or nil,
+                diagnosticSource = diagnostic.selected_kind
+                    or (type(diagnostic.selected) == "table" and diagnostic.selected.source) or nil,
             }
         end
         local function delegated(key)
@@ -5321,24 +5336,68 @@ return function(mod, deps)
             end
         end
         local function compatOwner(capability)
+            local mods = mod.exports.__beta26.compat and mod.exports.__beta26.compat.Mods
+            local status = nil
+            if mods and type(mods.capabilityStatus) == "function" then
+                local okStatus, value = pcall(mods.capabilityStatus, capability, game, nil)
+                if okStatus and type(value) == "table" then status = value end
+            end
             local ok, provider = pcall(activeCompatProvider, capability, game, nil)
-            if not ok or type(provider) ~= "table" then return nil end
+            if not ok or type(provider) ~= "table" then return nil, status end
             local display = providerDisplay(provider)
-            return display and (display.name or display.id) or provider.id
+            return display and (display.name or display.id) or provider.id, status
         end
         local function interopOwner(capability)
             local interop = mod.exports.nuzlocke and mod.exports.nuzlocke.interop
-            if not (interop and type(interop.resolveCapability) == "function") then
-                return nil
+            if not interop then return nil, nil end
+            local status = nil
+            if type(interop.capabilityStatus) == "function" then
+                local okStatus, value = pcall(interop.capabilityStatus, capability)
+                if okStatus and type(value) == "table" then status = value end
             end
+            if type(interop.resolveCapability) ~= "function" then return nil, status end
             local ok, resolved = pcall(interop.resolveCapability, capability)
             if not ok or type(resolved) ~= "table"
                 or resolved.supplied ~= true
                 or type(resolved.preferred) ~= "table" then
-                return nil
+                return nil, status
             end
             local provider = resolved.preferred
-            return tostring(provider.name or provider.id or "External Mod")
+            return tostring(provider.name or provider.id or "External Mod"), status
+        end
+
+        -- 2.8.39: make provider health visible before individual ownership rows.
+        -- Detection/advertisement is not the same as selection; a provider can
+        -- be installed but inactive while Nuzlocke correctly uses its fallback.
+        do
+            local interop = mod.exports.nuzlocke and mod.exports.nuzlocke.interop
+            local snapshot = nil
+            if interop and type(interop.compatibilitySnapshot) == "function" then
+                local ok, value = pcall(interop.compatibilitySnapshot)
+                if ok and type(value) == "table" then snapshot = value end
+            end
+            if snapshot then
+                local owner = string.format("%d DET / %d SEL",
+                    tonumber(snapshot.provider_count) or 0,
+                    tonumber(snapshot.external_selected) or 0)
+                add("PROVIDERS", owner,
+                    (tonumber(snapshot.degraded) or 0) > 0
+                        and "COMPAT DEGRADED" or "COMPAT HEALTH",
+                    nil, "Nuzlocke", false, {
+                        state=(tonumber(snapshot.degraded) or 0) > 0
+                            and "degraded" or "healthy",
+                        detected=(tonumber(snapshot.provider_count) or 0) > 0,
+                        degraded=(tonumber(snapshot.degraded) or 0) > 0,
+                    })
+            end
+            local mods = mod.exports.__beta26.compat and mod.exports.__beta26.compat.Mods
+            if mods and type(mods.fallbackInventory) == "function" then
+                local ok, fallbacks = pcall(mods.fallbackInventory)
+                if ok and type(fallbacks) == "table" and #fallbacks > 0 then
+                    add("FALLBACKS", tostring(#fallbacks) .. " RETAINED",
+                        "COMPAT FALLBACKS")
+                end
+            end
         end
         add("STARTER RNG", starter and (starter.name or starter.id) or "Nuzlocke",
             starter and "EXTERNAL OWNER" or "NATIVE")
@@ -5353,27 +5412,27 @@ return function(mod, deps)
         add("LEVEL CAPS", caps and (caps.name or caps.id) or "Nuzlocke",
             caps and "EXTERNAL OWNER" or "NATIVE")
 
-        local bagUiOwner = interopOwner("item_presentation")
+        local bagUiOwner, bagUiStatus = interopOwner("item_presentation")
         add("BAG UI", bagUiOwner or "Engine",
-            bagUiOwner and "ITEM PRESENTATION" or "NATIVE")
+            bagUiOwner and "ITEM PRESENTATION" or "NATIVE", nil, nil, false, bagUiStatus)
 
-        local itemUseOwner = interopOwner("item_use_entrypoint")
+        local itemUseOwner, itemUseStatus = interopOwner("item_use_entrypoint")
         add("ITEM USE", itemUseOwner or "Engine",
-            itemUseOwner and "ITEM ENTRYPOINT" or "NATIVE")
+            itemUseOwner and "ITEM ENTRYPOINT" or "NATIVE", nil, nil, false, itemUseStatus)
 
-        local machineOwner = interopOwner("machine_mechanics")
+        local machineOwner, machineStatus = interopOwner("machine_mechanics")
         add("MACHINES", machineOwner or "Engine",
-            machineOwner and "MACHINE MECHANICS" or "NATIVE")
+            machineOwner and "MACHINE MECHANICS" or "NATIVE", nil, nil, false, machineStatus)
 
         add("ITEM RULES", "Nuzlocke", "NUZLOCKE POLICY")
 
-        local selectorOwner = interopOwner("encounter_selector")
+        local selectorOwner, selectorStatus = interopOwner("encounter_selector")
         add("ENC SELECT", selectorOwner or "Engine",
-            selectorOwner and "ENCOUNTER SELECTOR" or "NATIVE")
+            selectorOwner and "ENCOUNTER SELECTOR" or "NATIVE", nil, nil, false, selectorStatus)
 
-        local captureOwner = interopOwner("capture_mechanics")
+        local captureOwner, captureStatus = interopOwner("capture_mechanics")
         add("CATCH ODDS", captureOwner or "Engine",
-            captureOwner and "CAPTURE MECHANICS" or "NATIVE")
+            captureOwner and "CAPTURE MECHANICS" or "NATIVE", nil, nil, false, captureStatus)
         add("CATCH RULES", "Nuzlocke", "NUZLOCKE POLICY")
 
         local questFrameworkOwner = interopOwner("quest_framework")
@@ -5391,14 +5450,14 @@ return function(mod, deps)
 
         add("DIFFICULTY", difficultyName,
             difficultyName == "VANILLA" and "VANILLA" or "ACTIVE PROFILE")
-        local speciesOwner = compatOwner("species_metadata")
+        local speciesOwner, speciesStatus = compatOwner("species_metadata")
         add("SPECIES DATA", speciesOwner or "Merged Registry",
             speciesOwner and "EXTERNAL METADATA" or "NATIVE/MERGED",
-            "species_metadata", "Engine", true)
-        local identityOwner = compatOwner("pokemon_identity")
+            "species_metadata", "Engine", true, speciesStatus)
+        local identityOwner, identityStatus = compatOwner("pokemon_identity")
         add("POKEMON ID", identityOwner or "Nuzlocke",
             identityOwner and "EXTERNAL IDENTITY" or "NATIVE",
-            "pokemon_identity", "Nuzlocke", true)
+            "pokemon_identity", "Nuzlocke", true, identityStatus)
         local shinyOwner = mod.exports.__beta26.shinySystemOwner(game)
         local shinyExternal = mod.exports.__beta26.shinyExternalProvider(game)
         add("SHINY SYS", shinyOwner,
@@ -5407,14 +5466,14 @@ return function(mod, deps)
                     and "ENGINE SHINY.ROLL + NUZ RATE"
                     or "NUZ FALLBACK + DV ID"),
             nil, "Nuzlocke", false)
-        local encounterOwner = compatOwner("encounters")
+        local encounterOwner, encounterStatus = compatOwner("encounters")
         add("ENCOUNTERS", encounterOwner or "Nuzlocke",
             encounterOwner and "SHARED PROVIDER" or "NATIVE",
-            "encounters", "Nuzlocke", true)
-        local escapeOwner = compatOwner("escape")
+            "encounters", "Nuzlocke", true, encounterStatus)
+        local escapeOwner, escapeStatus = compatOwner("escape")
         add("ESCAPE/WARPS", escapeOwner or "Nuzlocke",
             escapeOwner and "SHARED PROVIDER" or "NATIVE",
-            "escape", "Nuzlocke", true)
+            "escape", "Nuzlocke", true, escapeStatus)
         local movementOwner = compatOwner("movement_speed")
         add("MOVEMENT", running and ("Nuzlocke + " .. tostring(
                 running.name or running.id or "QoL Toggles"))
@@ -5718,7 +5777,13 @@ return function(mod, deps)
                     local detail = tostring(row.detail or ""):upper()
                     local ownerUpper = owner:upper()
 
-                    if detail == "EXTERNAL OWNER" then
+                    if detail == "COMPAT HEALTH" then
+                        return "Provider diagnostics distinguish detected mods, advertised capabilities, selected owners, and Nuzlocke fallback state. No degraded provider selections are currently reported."
+                    elseif detail == "COMPAT DEGRADED" then
+                        return "One or more advertised provider capabilities are unavailable or inactive. Nuzlocke is falling back conservatively instead of assuming ownership transferred."
+                    elseif detail == "COMPAT FALLBACKS" then
+                        return "Historical compatibility fallbacks are retained only for supported older engine/provider contracts. Current public seams remain preferred and authoritative."
+                    elseif detail == "EXTERNAL OWNER" then
                         return owner .. " controls " .. label
                             .. ". Nuzlocke follows its result instead of applying the same rule twice."
                     elseif detail == "ITEM PRESENTATION" then
@@ -6363,10 +6428,11 @@ return function(mod, deps)
             return value ~= false and value ~= 0
         end
 
-        -- Gen1Recomp 0.2.27 source revalidation + Crystal runtime safety:
+        -- Gen1Recomp 0.2.29 source revalidation + Crystal runtime safety:
         -- the engine still carries the native queued `shiny-flash` send-out
         -- event, and the 0.2.26 Crystal runtime failure remains relevant until
-        -- an exact-edition 0.2.27 test proves the native event safe. It can
+        -- an exact-edition runtime test proves the native event safe. 0.2.28/0.2.29
+        -- did not change the Gen-II battle/shiny source boundary. It can
         -- leave both battler pictures hidden
         -- after the animation. When Nuzlocke owns Gen-II shiny presentation,
         -- consume only that unsafe presentation event, restore the picture
@@ -6407,22 +6473,24 @@ return function(mod, deps)
                 Gen2BattleState.__nuzlockeShinyFlashSafety2836 = true
                 mod.exports.__beta26.gen2ShinyFlashSafetyStatus = {
                     installed = true,
-                    audited_engine = "0.2.27",
+                    audited_engine = "0.2.29",
                     mode = "advance_queue_only",
                     restores_picture_latches = true,
                     owns_draw = false,
                     owns_update = false,
                     runtime_certified_0_2_27 = false,
+                    source_revalidated_0_2_29 = true,
                 }
             elseif mod.exports.__beta26.gen2ShinyFlashSafetyStatus == nil then
                 mod.exports.__beta26.gen2ShinyFlashSafetyStatus = {
                     installed = false,
-                    audited_engine = "0.2.27",
+                    audited_engine = "0.2.29",
                     mode = "unavailable_or_already_owned",
                     restores_picture_latches = false,
                     owns_draw = false,
                     owns_update = false,
                     runtime_certified_0_2_27 = false,
+                    source_revalidated_0_2_29 = true,
                 }
             end
         end

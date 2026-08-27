@@ -1925,6 +1925,10 @@ return function(mod, deps)
       -- Phase C #5-6: bounded evolution/progression profile used by EVO
       -- and BALANCED. This is deliberately read-only and cycle-safe.
       local function encounterEvolutionProfile(game)
+          local Dev = mod.exports.__beta26.Dev
+          if Dev and type(Dev.perfCount) == "function" then
+              Dev.perfCount("randomizer.encounter_evolution_profile")
+          end
           local pokemon = game and game.data and game.data.pokemon or {}
           local children, parents = {}, {}
           -- Phase G #10: Encounter classification must remain anchored to the
@@ -3129,6 +3133,10 @@ return function(mod, deps)
       -- unrelated provider changes (stats/types/metadata) masquerade as
       -- learnset drift and can poison the restoration baseline.
       local function projectLearnsets(pokemon)
+          local Dev = mod.exports.__beta26.Dev
+          if Dev and type(Dev.perfCount) == "function" then
+              Dev.perfCount("randomizer.learnset_projection")
+          end
           local projected = {}
           for species, def in pairs(type(pokemon) == "table" and pokemon or {}) do
               if type(def) == "table" then
@@ -6468,6 +6476,10 @@ return function(mod, deps)
   end
 
   local function composeRandomTrainerParty(next, classId, partyIndex, party)
+      local Dev = mod.exports.__beta26.Dev
+      if Dev and type(Dev.perfCount) == "function" then
+          Dev.perfCount("randomizer.trainer_primary")
+      end
       mod.exports.__beta26.gen1TrainerPrimaryEntered =
           (tonumber(mod.exports.__beta26.gen1TrainerPrimaryEntered) or 0) + 1
       local resolved = next(classId, partyIndex, party) or party
@@ -6730,6 +6742,10 @@ return function(mod, deps)
   -- outermost; after next() returns, its result is exactly what BattleState
   -- will materialize.
   local function finalizeRandomTrainerParty(next, classId, partyIndex, party)
+      local Dev = mod.exports.__beta26.Dev
+      if Dev and type(Dev.perfCount) == "function" then
+          Dev.perfCount("randomizer.trainer_finalizer")
+      end
       mod.exports.__beta26.gen1TrainerFinalizerEntered =
           (tonumber(mod.exports.__beta26.gen1TrainerFinalizerEntered) or 0) + 1
       -- Preserve the engine-authored Gen I roster before any inner trainer.party

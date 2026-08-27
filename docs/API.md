@@ -1,6 +1,199 @@
+## Difficulty documentation/edition contract — 2.8.72
+
+No public API version changes.
+
+Built-in Difficulty selection is now exact-edition aware for Red, Blue, Yellow, Gold, Silver, and Crystal. Generic `gen2` remains a fail-soft Gold-family fallback only after exact edition checks.
+
+The in-game profile summary is a concise presentation surface. The authoritative player-facing mechanical specification for every built-in profile lives in `docs/USER_GUIDE.md` under **Difficulty Profiles — Full Mechanical Reference** and must be updated whenever a profile's enforcement fields change.
+
+# Nuzlocke API — 2.8.72
+
+## Current API versions
+
+- **Mod API:** 2
+- **Compatibility API:** 35
+- **Diagnostics API:** 1
+- **Save Schema:** 5
+- **Randomizer algorithm:** 1
+- **Engine manifest range:** `>=0.2.24 <2.0.0`
+- **Engine source/documentation audit marker:** 0.2.29
+- **Manifest editions:** `red`, `blue`, `yellow`, `gold`, `silver`, `crystal`
+
+## Compatibility API 35 — semantic provider status
+
+Compatibility API **35** formally versions the additive public introspection already shipped in the 2.8.39+ line: `providerStatus(id)`, `capabilityStatus(capability)`, and `compatibilitySnapshot()`, including the legacy/public `nuzlocke_compat` mirrors. API 35 preserves `compatible_from = 10` and does not remove or change API-34 rule-availability contracts. Consumers may use the new version to feature-detect semantic provider/ownership state rather than treating mod presence as authority.
+
+## Run History API 2 / achievement evidence
+
+`mod.exports.nuzlocke_run_history` is now version **2**. Existing `list`, `report`, `record`, and `nuzlocke.run_history` event behavior remains available. New read-only `statistics(game)` / `achievement_evidence(game)` expose the durable aggregate ledger.
+
+The detailed event list is intentionally bounded. Achievement evidence is updated before pruning and therefore stores lifetime counters/dimensions separately. `coverage.partial` and `coverage.detail_complete` must be respected by future achievement consumers; incomplete historical evidence must never be treated as proof of a requirement that needs missing detail.
+
+`rule_integrity` records coverage-start values, last observed values, and live configuration changes made through Nuzlocke's central rule editor. This is evidence only; it does not lock rules or award achievements.
+
+Run History storage version 2 is a subsystem migration inside global Save Schema 5.
+
+## Run History v2 correctness — 2.8.70
+
+Run History remains public API/storage version **2**.
+
+The durable summary mapping now includes `run.abandoned -> abandons`. Coverage semantics are corrected so `detail_complete=false` / `partial=true` whenever any summarized durable total exceeds retained detail, when pre-ledger catch/death baselines exist without matching detail, or when the bounded journal has truncated rows.
+
+Existing v2 roots repair their missing abandon summary from persisted v2 statistics when available. This is a data-repair within the existing Run History v2 representation and does not change global Save Schema 5.
+
+## Translation registry consolidation — 2.8.69
+
+The public Translation API remains **2**. Known-companion diagnostics add normalized `targetClass` and `certificationEligible` metadata. These fields describe review/certification policy only and do not alter translation ownership or gameplay behavior.
+
+Reviewed repositories that are not runtime companions are stored only under internal `__beta26.translationReviewExclusions`; they are not returned by Translation API detection and are not optional dependencies.
+
+## Finnish companion metadata — 2.8.67
+
+The public Translation API remains **2**.
+
+`finnish` 0.1.0 is now a current known companion with Red scope, fixed-cell extended-Latin metadata, presentation-wrapper ownership, confirmed-loaded replacement scripts, mutation review, and companion-specific certification focus notes.
+
+## Dutch companion metadata — 2.8.66
+
+The public Translation API remains **2**.
+
+`translation-nl` is recorded as a known Red/Blue companion with confirmed generated-runtime loading of replacement map scripts. Existing `replacementMapScripts`, `replacementMapScriptsPresent`, `mutationReviewRequired`, and `certificationFocus` diagnostics are sufficient; no API shape change is required.
+
+## Translation presentation-wrapper contract — 2.8.65
+
+The public Translation API remains **2**.
+
+Semantic enforcement coverage now includes `translation_presentation_wrapper`, documenting that translation-owned `Strings`, `Font`, and UI wrappers are presentation-only compatibility overlays. They must remain narrow/compositional and must not become a prerequisite for Nuzlocke-owned UI rendering or gameplay decisions.
+
+Known-companion diagnostics may expose `fixedCellCJK`, `engineInternalsPresentationWrappers`, and `certificationFocus` metadata. These are diagnostics/compatibility metadata, not new gameplay capabilities.
+
+## Polish companion metadata — 2.8.64
+
+The public Translation API remains **2**.
+
+Known-companion diagnostics can now distinguish `replacementMapScriptsPresent` from confirmed `replacementMapScripts` so source-audit evidence does not falsely imply a replacement script is active at runtime.
+
+## Dev localization certification — 2.8.62
+
+The public Translation API remains **2**.
+
+Dev-only internal diagnostics add:
+
+- `Dev.localizationCertification(game)`
+- `Dev.localizationCertificationMark(game, index[, state])`
+- `Dev.localizationCertificationReset(game)`
+
+These are session-only developer/tester helpers under the internal `__beta26` diagnostics namespace. They are not save data and do not extend the public Compatibility or Translation API contract.
+
+## Translation API 2 — 2.8.61 internal glyph reuse
+
+Translation API remains **2**. No public row shape changes.
+
+The existing generalized glyph helpers are now exposed only on the internal `__beta26` namespace for split Nuzlocke-owned UI/adapters. This is not a new public compatibility contract.
+
+Source discovery additionally includes Pokegear Cards authored labels and compact Gen-II NUZ STATUS templates.
+
+## Translation API 2 — 2.8.59 catalog consolidation
+
+Translation API remains **2**. The `{source, kind, key}` row shape is unchanged.
+
+2.8.59 expands source discovery with `forgiveness_ui`, `forgiveness_message`, `battle_clause_message`, additional `ui_status` / `compat_ui`, and selected `runtime_message` entries. This is catalog coverage expansion only.
+
+## Translation API 2 — French targets
+
+2.8.58 adds `translation-fr` and `trad-fr-extended` to the known companion registry without changing Translation API 2's public shape. The base translation is recorded as an all-six-edition generated target; the overlay remains a distinct companion that requires the base.
+
+## Translation API 2 — Spanish target note
+
+2.8.57 adds `traduccion_es` 0.1.0 to the known companion registry without changing Translation API 2's public shape. The companion exposes no public lifecycle API of its own, so Nuzlocke reports it through the generic installed/active companion path and does not attempt to infer private cartridge-dump state.
+
+## Translation API 2 — World Building / Randomizer expansion
+
+2.8.56 keeps Translation API **2** and expands source discovery without changing the `{source, kind, key}` row shape.
+
+`nuzlocke_translation.sources()` now also walks the live `worldRuleCatalog` and exposes each T1/T2/Kanto/Johto authored variant with its canonical rule key. Randomizer status templates and option values used by Nuzlocke-owned status/setup surfaces are also included.
+
+The expansion is presentation/catalog-only and does not alter World Building or Randomizer policy.
+
+## Translation API 2 — expanded source discovery
+
+2.8.55 keeps Translation API **2** and expands the rows returned by `nuzlocke_translation.sources()` with high-value Nuzlocke-owned UI/status/tracker/world-summary source strings. The row shape remains `{source, kind, key}`; this is catalog coverage expansion, not an API-shape change.
+
+`catalog()` continues to map each discoverable source to its current `Strings.lookup(...)` result.
+
+Dev localization diagnostics are intentionally private under `mod.exports.__beta26.Dev.localizationDiagnostics()` rather than a new public translation API method. They compare discoverable sources against the current catalog read-only and report lifecycle/fallback coverage without changing language or translation ownership.
+
+## Translation API 2 — active language lifecycle
+
+`mod.exports.nuzlocke_translation.api` is now **2**.
+
+`detect()` remains read-only and keeps its prior companion/presentation fields. API 2 additively exposes, when a companion provides them:
+
+- `installed`
+- `translationActive`
+- `activity`
+- `bootLanguage`
+- `pendingLanguage`
+- `restartRequired`
+- `edition`
+
+`activity` is `active`, `installed_inactive`, or `restart_required`. Presence/activity is descriptive only and does not delegate Nuzlocke gameplay policy.
+
+Current explicit German target: `translation-german-universal`, reviewed stable release 0.2.0. Its English boot mode is treated as installed but translation-inactive.
+
+## Translation companion diagnostics
+
+`mod.exports.nuzlocke_translation.detect()` remains a read-only compatibility surface. In 2.8.50, presentation detection is capability-shaped rather than tied to `gen1_pt-br`: known companions may report exported `trainer_card`, `precos_linha`, `idioma_golpes`, and `mostrar_inimigo` values. These are descriptive presentation signals only.
+
+Known Brazilian identities are distinct: legacy `gen1_pt-br` and current `versaovermelha` (reviewed stable release 0.2.5). Detection of either does not delegate Nuzlocke gameplay policy.
+
+## 2.8.53 ownership-resolution clarification
+
+Compatibility API 35 does not select providers that advertise a capability while statically disabled/inactive. Such providers remain visible to `providerStatus()` / `capabilityStatus()` diagnostics, but `resolveCapability().preferred` is chosen only from active/available candidates.
+
+`compatibilitySnapshot()` canonicalizes capability aliases before building its capability set, so alias + canonical advertisements produce one semantic row.
+
+## Current ownership rules
+
+Compatibility is capability-based. Provider detection/advertisement alone never grants gameplay authority; the selected owner is reported separately. Nuzlocke retains challenge-policy ownership unless an explicit compatibility contract delegates the overlapping mechanic.
+
+Shiny ownership follows a single-owner model: Nuzlocke owns built-in shiny generation/presentation only when no compatible external shiny provider owns the active edition. Shiny Clause remains Nuzlocke policy either way.
+
+The Randomizer ownership registry currently contains nine subsystems: `STARTER`, `ENCOUNTERS`, `FIELD_ITEMS`, `LEARNSETS`, `TRAINERS`, `EVOLUTIONS`, `SHOPS`, `TMS`, and `GIFT_ITEMS`.
+
+For field items, visible item-ball sources are Nuzlocke-owned when routed through the supported field-item seam. Native Gen II hidden/BG-event item sources are also eligible when the adapter explicitly supplies `nuzlockeOwnedHidden=true`; arbitrary provider-defined hidden sources are not claimed automatically.
+
+## Current diagnostics API
+
+`mod.exports.nuzlocke_dev` remains Diagnostics API 1 and includes the read-only semantic surfaces added through 2.8.46: system health, provider ownership, encounter provenance, decision trace, bug-report snapshot, transaction health, hook/wrapper drift, shiny diagnostics, Randomizer reproducibility, performance counters, rule-configuration consistency, save/run identity health, and bounded ownership history.
+
+These are diagnostics, not mutation or repair APIs.
+
+## Historical API notes
+
+The versioned material below is retained for compatibility/history. API numbers and support claims inside a historical section describe that release unless explicitly promoted above.
+
+2.8.46 Dev diagnostics add read-only `rule_configuration_consistency(game)`, `save_run_identity_health(game)`, and bounded session-only `ownership_history(limit)`. These surfaces validate/compare/observe only; they never repair configuration, initialize run state, or select providers.
+
+2.8.45 Dev diagnostics add severity/count/last-sequence metadata to bounded breadcrumbs and semantic decisions plus read-only `performance_counters()`. Performance counters are in-memory, Dev-only, and never persist or affect gameplay.
+
+2.8.44 Dev diagnostics add read-only `shiny_diagnostics(game)` and `randomizer_reproducibility(game)`. Shiny diagnostics never roll/present; Randomizer diagnostics use the existing persisted zero-RNG reproducibility report and never resolve AUTO or materialize mappings.
+
+2.8.43 Dev diagnostics: `mod.exports.nuzlocke_dev` adds read-only `transaction_health()` and `hook_wrapper_drift()`. Transaction Health inspects the durable GameplayTransactions journal/receipts without recovery or mutation. Hook Drift inspects registered hook metadata and live probes without reinstallation or ownership reclamation.
+
+2.8.42 Dev diagnostics: `mod.exports.nuzlocke_dev` adds read-only `bug_report_snapshot(game)`. It returns a structured current-state snapshot plus `text`, aggregating build/edition/save identity, System Health, provider ownership, encounter provenance, recent decisions, warnings/errors, and bounded breadcrumbs. It is observational only and does not run self-tests, rules, RNG, or repair paths.
+
+2.8.41 Dev diagnostics: `mod.exports.nuzlocke_dev` adds read-only `system_health(game)`, `provider_ownership(game)`, `encounter_provenance(game, battle)`, and `decision_trace(limit)` surfaces. Diagnostics API remains version 1; these additions do not grant mutation authority.
+
+2.8.41 Release Safety hardening: no public gameplay/save-schema API change. Promotion diagnostics add static regression checks for ownership, transaction journaling, battle event shape compatibility, and Randomizer performance contracts.
+
+2.8.39 compatibility/API cleanup: no gameplay/save-schema change. The provider registry gains read-only diagnostics: `providerStatus(id)`, `capabilityStatus(capability)`, and `compatibilitySnapshot()`. The legacy `nuzlocke_compat` surface mirrors these helpers, and `getCapabilityStatus()`/fallback inventory data are available from the compatibility report.
+
+2.8.38 localization hardening: no public API/save-schema change; additional Nuzlocke-authored player text now consumes Gen1Recomp 0.2.27 `Strings` overrides.
+
 2.8.37 full release: behavior-preserving promotion of the final corrected 2.8.36 candidate after Red standalone shiny runtime PASS; compatibility API/ownership contracts are unchanged.
 2.8.36 standalone shiny regression fix: external shiny ownership now requires a live separate provider handle before registry/API claims are trusted, preventing Nuzlocke-only runs from falsely standing down their built-in shiny system.
-# Nuzlocke API — 2.8.37
+# Nuzlocke API — 2.8.41
 
 ## Shiny ownership / presentation
 
@@ -192,12 +385,12 @@ The internal compatibility namespace exposes read-only Field Item foundation hel
 
 - `randomFieldItemClassification(itemId, def)` — returns the authoritative protection category/reason.
 - `randomFieldItemSourceIdentity(game, semanticSlot, context)` — returns permanent edition/source identity; authored item contents are not part of the canonical persistence key.
-- `randomFieldItemOwnership(context)` — reports whether the source belongs to visible Field Item randomization. Explicit hidden/BG-event kinds are not owned.
+- `randomFieldItemOwnership(context)` — reports whether the source belongs to Nuzlocke Field Item randomization. Visible sources are eligible, and native Gen II hidden/BG-event sources are eligible only when explicitly marked `nuzlockeOwnedHidden=true`; other hidden/provider sources are not claimed.
 - `randomFieldItemEditionProfile(game)` — reports exact edition/generation, `GEN1_FLAT` vs `GEN2_POCKETS`, merged `data.items` ownership, native visible pickup seam, and hidden-item ownership state.
 - `randomFieldItemEditionTableClass(game, itemId, def)` — normalizes the live item definition to an edition-specific item-table class.
 - `randomizerFieldItemInfo(game, reveal)` — internal read-only diagnostic payload used by Compatibility API 32.
 
-These internal helpers did not themselves bump the public API. The current public Compatibility API is **32**; public Field Item information is exposed through the Registry methods above.
+These internal helpers did not themselves bump the public API. At that historical release, the public Compatibility API was **32**; public Field Item information is exposed through the Registry methods above.
 
 ### Randomizer information registry additions
 

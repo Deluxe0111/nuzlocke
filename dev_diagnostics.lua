@@ -158,7 +158,11 @@ return function(mod, deps)
       if history ~= nil then
           check("history_root", type(history) == "table", true)
           if type(history) == "table" then
-              check("history_version", tonumber(history.version) == 1, true, tostring(history.version))
+              local expectedHistoryVersion = mod.exports.__beta26.RunHistory
+                  and mod.exports.__beta26.RunHistory.storage_version
+              check("history_version",
+                  tonumber(history.version) == tonumber(expectedHistoryVersion),
+                  true, tostring(history.version))
               check("history_events", type(history.events) == "table", true)
               check("history_summary", type(history.summary) == "table", true)
               check("history_dedupe", type(history.dedupe) == "table", true)

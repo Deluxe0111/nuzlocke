@@ -7,6 +7,1121 @@ return function(mod, deps)
   local SAVE_SCHEMA_KEY = assert(deps.SAVE_SCHEMA_KEY, "dev_report requires SAVE_SCHEMA_KEY")
   local CURRENT_SAVE_SCHEMA = assert(deps.CURRENT_SAVE_SCHEMA, "dev_report requires CURRENT_SAVE_SCHEMA")
   local function liveGame() return getCurrentGame() end
+
+  ---------------------------------------------------------------------
+  -- 2.8.41 DEV SYSTEM HEALTH / OWNERSHIP / PROVENANCE
+  -- Read-only semantic summaries for the Dev dashboard and public diagnostics.
+  ---------------------------------------------------------------------
+  -- 2.8.46: bounded compatibility ownership-transition history. This is
+  -- session-only diagnostic evidence. It observes the semantic provider
+  -- snapshot when Dev diagnostics already inspect it; it never selects,
+  -- unregisters, reprioritizes, or reclaims a provider.
+  mod.exports.__beta26.Dev.maxOwnershipHistory = 32
+  mod.exports.__beta26.Dev.ownershipHistoryRows =
+      mod.exports.__beta26.Dev.ownershipHistoryRows or {}
+  mod.exports.__beta26.Dev._ownershipState =
+      mod.exports.__beta26.Dev._ownershipState or {}
+  mod.exports.__beta26.Dev.observeOwnership = function(game, snapshot)
+      if not mod.exports.__beta26.Dev.enabled() or type(snapshot) ~= "table" then
+          return false
+      end
+      local dev = mod.exports.__beta26.Dev
+      local gameId = type(dev.gameId) == "function"
+          and dev.gameId(game or liveGame() or mod.game) or "unknown"
+      local now = {}
+      for _, row in ipairs(snapshot.capabilities or {}) do
+          local capability = tostring(row.capability or "")
+          if capability ~= "" then
+              now[capability] = {
+                  owner=tostring(row.selected_owner or "NUZLOCKE"),
+                  state=tostring(row.state or row.selected_state or "fallback"),
+                  degraded=row.degraded == true,
+              }
+          end
+      end
+      local previous = dev._ownershipState[gameId]
+      if type(previous) == "table" then
+          local keys = {}
+          for key in pairs(previous) do keys[key] = true end
+          for key in pairs(now) do keys[key] = true end
+          local ordered = {}
+          for key in pairs(keys) do ordered[#ordered + 1] = key end
+          table.sort(ordered)
+          for _, capability in ipairs(ordered) do
+              local before = previous[capability]
+              local after = now[capability]
+              local beforeOwner = before and before.owner or "UNAVAILABLE"
+              local afterOwner = after and after.owner or "UNAVAILABLE"
+              local beforeState = before and before.state or "unavailable"
+              local afterState = after and after.state or "unavailable"
+              local beforeDegraded = before and before.degraded == true or false
+              local afterDegraded = after and after.degraded == true or false
+              if beforeOwner ~= afterOwner or beforeState ~= afterState
+                  or beforeDegraded ~= afterDegraded then
+                  dev.ownershipSequence = (tonumber(dev.ownershipSequence) or 0) + 1
+                  local row = {
+                      seq=dev.ownershipSequence,
+                      game=gameId,
+                      capability=capability,
+                      from_owner=beforeOwner, to_owner=afterOwner,
+                      from_state=beforeState, to_state=afterState,
+                      degraded=afterDegraded,
+                      build=mod.exports.__beta26.build,
+                  }
+                  dev.ownershipHistoryRows[#dev.ownershipHistoryRows + 1] = row
+                  while #dev.ownershipHistoryRows >
+                      (tonumber(dev.maxOwnershipHistory) or 32) do
+                      table.remove(dev.ownershipHistoryRows, 1)
+                  end
+              end
+          end
+      end
+      dev._ownershipState[gameId] = now
+      return true
+  end
+  mod.exports.__beta26.Dev.ownershipHistory = function(limit)
+      local rows = mod.exports.__beta26.Dev.ownershipHistoryRows or {}
+      limit = math.max(1, math.floor(tonumber(limit) or #rows))
+      local first = math.max(1, #rows - limit + 1)
+      local out = {}
+      for i = first, #rows do
+          local row = rows[i]
+          out[#out + 1] = {
+              seq=row.seq, game=row.game, capability=row.capability,
+              from_owner=row.from_owner, to_owner=row.to_owner,
+              from_state=row.from_state, to_state=row.to_state,
+              degraded=row.degraded, build=row.build,
+          }
+      end
+      return out
+  end
+
+  mod.exports.__beta26.Dev.providerOwnership = function(game)
+      game = game or liveGame() or mod.game
+      local interop = mod.exports.nuzlocke and mod.exports.nuzlocke.interop
+      if type(interop) ~= "table"
+          or type(interop.compatibilitySnapshot) ~= "function" then
+          return { status="N/A", provider_count=0, capability_count=0,
+              degraded=0, selected=0, providers={}, capabilities={},
+              reason="provider_registry_unavailable" }
+      end
+      local ok, snapshot = pcall(interop.compatibilitySnapshot)
+      if not ok or type(snapshot) ~= "table" then
+          return { status="FAIL", provider_count=0, capability_count=0,
+              degraded=0, selected=0, providers={}, capabilities={},
+              reason="provider_snapshot_error" }
+      end
+      local providers, capabilities = {}, {}
+      for _, row in ipairs(snapshot.providers or {}) do
+          providers[#providers + 1] = {
+              id=row.id, name=row.name, version=row.version,
+              detected=row.detected == true, advertised=row.advertised == true,
+              automatic=row.automatic == true, state=row.state,
+              capabilities=row.capabilities or {}, source=row.source,
+          }
+      end
+      for _, row in ipairs(snapshot.capabilities or {}) do
+          capabilities[#capabilities + 1] = {
+              capability=row.capability, detected=row.detected == true,
+              advertised=row.advertised == true, selected_owner=row.selected_owner,
+              selected_kind=row.selected_kind, selected_state=row.selected_state,
+              state=row.state, degraded=row.degraded == true,
+          }
+      end
+      local degraded = tonumber(snapshot.degraded) or 0
+      local result = {
+          status=degraded > 0 and "DEGRADED" or "OK",
+          provider_count=tonumber(snapshot.provider_count) or #providers,
+          capability_count=tonumber(snapshot.capability_count) or #capabilities,
+          selected=tonumber(snapshot.external_selected) or 0, degraded=degraded,
+          providers=providers, capabilities=capabilities,
+      }
+      pcall(mod.exports.__beta26.Dev.observeOwnership, game, result)
+      return result
+  end
+
+  mod.exports.__beta26.Dev.encounterProvenance = function(game, battle)
+      game = game or liveGame() or mod.game
+      local fn = mod.exports.__beta26.activeEncounterProvenance
+      if type(fn) ~= "function" then
+          return { active=false, state="unavailable", reason="encounter_probe_unavailable" }
+      end
+      local ok, value = pcall(fn, battle)
+      if not ok or type(value) ~= "table" then
+          return { active=false, state="error", reason="encounter_probe_error" }
+      end
+      return value
+  end
+
+  local function healthRow(status, reason, detail)
+      return { status=tostring(status or "N/A"), reason=tostring(reason or ""),
+          detail=detail }
+  end
+
+  ---------------------------------------------------------------------
+  -- 2.8.46 RULE CONFIGURATION / SAVE-RUN IDENTITY HEALTH
+  ---------------------------------------------------------------------
+  mod.exports.__beta26.Dev.ruleConfigurationConsistency = function(game)
+      game = game or liveGame() or mod.game
+      local registry = mod.exports.__beta26.ruleRegistry
+      local stored = type(registry) == "table"
+          and type(registry.validateStored) == "function"
+          and registry.validateStored() or
+          { ok=false, invalid_count=0, stale_count=0, issues={},
+            errors={"registry_validate_unavailable"} }
+      local registryAudit = type(registry) == "table"
+          and type(registry.audit) == "function" and registry.audit()
+          or { ok=false, errors={"registry_audit_unavailable"} }
+      local availability = type(mod.exports.__beta26.ruleAvailabilityAudit) == "function"
+          and mod.exports.__beta26.ruleAvailabilityAudit()
+          or { ok=false, failures={"availability_audit_unavailable"} }
+
+      local described = type(registry) == "table"
+          and type(registry.describe) == "function" and registry.describe()
+          or { rows={}, count=0 }
+      local defs = mod.exports.__beta26.ruleDefinitionByKey or {}
+      local definitionCount = 0
+      for _ in pairs(defs) do definitionCount = definitionCount + 1 end
+      local descriptorKeys = {}
+      for _, row in ipairs(described.rows or {}) do descriptorKeys[row.key] = true end
+      local catalogMismatches = {}
+      for key in pairs(defs) do
+          if not descriptorKeys[key] then
+              catalogMismatches[#catalogMismatches + 1] =
+                  tostring(key) .. ":missing_descriptor"
+          end
+      end
+      table.sort(catalogMismatches)
+
+      local dormant = {}
+      if type(mod.exports.__beta26.ruleOperationalState) == "function" then
+          for key, spec in pairs(defs) do
+              local raw = mod.save:get(key, nil)
+              if raw ~= nil then
+                  local default = type(spec) == "table" and spec.default or nil
+                  local configured = raw ~= default
+                  if configured then
+                      local okState, operational, reason = pcall(
+                          mod.exports.__beta26.ruleOperationalState,
+                          key, false, game)
+                      if okState and operational ~= true
+                          and (reason == "dependency" or reason == "superseded") then
+                          dormant[#dormant + 1] = {
+                              key=tostring(key), reason=tostring(reason),
+                              value=raw, default=default,
+                          }
+                      end
+                  end
+              end
+          end
+      end
+      table.sort(dormant, function(a, b) return a.key < b.key end)
+
+      local invalid = tonumber(stored.invalid_count) or 0
+      local stale = tonumber(stored.stale_count) or 0
+      local hard = invalid + #catalogMismatches
+          + (registryAudit.ok == true and 0 or #(registryAudit.errors or {}))
+          + (availability.ok == true and 0 or #(availability.failures or {}))
+      local status = hard > 0 and "FAIL"
+          or (stale > 0 or #dormant > 0) and "WARN" or "OK"
+      return {
+          status=status,
+          reason=hard > 0 and "configuration_contract_error"
+              or (#dormant > 0 and "dormant_configured_children"
+                  or stale > 0 and "legacy_stored_values" or "consistent"),
+          stored=stored,
+          registry=registryAudit,
+          availability=availability,
+          definition_count=definitionCount,
+          descriptor_count=tonumber(described.count) or #(described.rows or {}),
+          catalog_mismatches=catalogMismatches,
+          dormant=dormant,
+          dormant_count=#dormant,
+          invalid_count=invalid,
+          stale_count=stale,
+      }
+  end
+
+  mod.exports.__beta26.Dev.saveRunIdentityHealth = function(game)
+      game = game or liveGame() or mod.game
+      local identity = type(mod.exports.__beta26.Dev.editionContext) == "function"
+          and mod.exports.__beta26.Dev.editionContext(game) or {}
+      local storage, storageCode = nil, nil
+      if type(mod.exports.__beta26.Dev.storageContext) == "function" then
+          storage, storageCode = mod.exports.__beta26.Dev.storageContext(game)
+      end
+      local runHistory = mod.save:get("run_history_v1", nil)
+      if type(runHistory) ~= "table" then runHistory = nil end
+      local randomRun = type(mod.exports.__beta26.randomizerRunConfig) == "function"
+          and mod.exports.__beta26.randomizerRunConfig() or nil
+      local schema = tonumber(mod.save:get(SAVE_SCHEMA_KEY, CURRENT_SAVE_SCHEMA))
+      local issues = {}
+
+      local function norm(value)
+          local text = tostring(value or ""):lower():gsub("[^a-z0-9]", "")
+          local aliases = {
+              pokemonred="red", pokemonblue="blue", pokemonyellow="yellow",
+              pokemongold="gold", pokemonsilver="silver", pokemoncrystal="crystal",
+          }
+          return aliases[text] or text
+      end
+      local edition = norm(identity.edition)
+      if schema ~= tonumber(CURRENT_SAVE_SCHEMA) then
+          issues[#issues + 1] = {
+              code="save_schema", expected=CURRENT_SAVE_SCHEMA, actual=schema,
+          }
+      end
+      if type(storage) == "table" and storage.gameVersion ~= nil
+          and norm(storage.gameVersion) ~= "" and norm(storage.gameVersion) ~= edition then
+          issues[#issues + 1] = {
+              code="storage_edition", expected=edition,
+              actual=tostring(storage.gameVersion),
+          }
+      end
+      if runHistory then
+          if runHistory.edition ~= nil and norm(runHistory.edition) ~= edition then
+              issues[#issues + 1] = {
+                  code="history_edition", expected=edition,
+                  actual=tostring(runHistory.edition),
+              }
+          end
+          if tonumber(runHistory.generation) ~= nil
+              and tonumber(runHistory.generation) ~= tonumber(identity.generation) then
+              issues[#issues + 1] = {
+                  code="history_generation", expected=identity.generation,
+                  actual=runHistory.generation,
+              }
+          end
+      end
+      if type(randomRun) == "table" and randomRun.game ~= nil
+          and norm(randomRun.game) ~= "" and norm(randomRun.game) ~= edition then
+          issues[#issues + 1] = {
+              code="randomizer_run_edition", expected=edition,
+              actual=tostring(randomRun.game),
+          }
+      end
+      local status = #issues > 0 and "WARN" or "OK"
+      if schema ~= tonumber(CURRENT_SAVE_SCHEMA) then status = "FAIL" end
+      return {
+          status=status,
+          reason=#issues > 0 and "identity_mismatch" or "identity_consistent",
+          edition=identity.edition,
+          generation=identity.generation,
+          engine_family=identity.engine_family,
+          profile_scope=identity.profile_scope,
+          save_schema=schema,
+          expected_schema=CURRENT_SAVE_SCHEMA,
+          storage_available=type(storage) == "table",
+          storage_code=storageCode,
+          storage_game=type(storage) == "table" and storage.gameVersion or nil,
+          storage_playthrough=type(storage) == "table"
+              and storage.playthroughId or nil,
+          history_run_id=runHistory and runHistory.run_id or nil,
+          history_edition=runHistory and runHistory.edition or nil,
+          history_generation=runHistory and runHistory.generation or nil,
+          history_version=runHistory and runHistory.version or nil,
+          randomizer_run_game=type(randomRun) == "table" and randomRun.game or nil,
+          randomizer_run_schema=type(randomRun) == "table" and randomRun.schema or nil,
+          randomizer_algorithm=type(randomRun) == "table" and randomRun.algorithm or nil,
+          issues=issues,
+          issue_count=#issues,
+      }
+  end
+
+  ---------------------------------------------------------------------
+  -- 2.8.43 TRANSACTION HEALTH / HOOK-WRAPPER DRIFT
+  -- Diagnostics only. These surfaces inspect already-materialized journals
+  -- and registered hook ownership; they never recover, repair, re-register,
+  -- reclaim, or otherwise mutate the game/mod state.
+  ---------------------------------------------------------------------
+  mod.exports.__beta26.Dev.transactionHealth = function()
+      local TX = mod.exports.__beta26.GameplayTransactions
+      if type(TX) ~= "table" or type(TX.status) ~= "function" then
+          return { status="N/A", reason="transaction_api_unavailable",
+              api=nil, pending=nil, receipt_count=0, handler_count=0,
+              fail_closed=true }
+      end
+      local ok, base = pcall(TX.status)
+      if not ok or type(base) ~= "table" then
+          return { status="FAIL", reason="transaction_status_error",
+              error=ok and "invalid_status" or tostring(base),
+              pending=nil, receipt_count=0, handler_count=0,
+              fail_closed=true }
+      end
+
+      local receiptRoot = type(mod.save) == "table"
+          and type(mod.save.get) == "function"
+          and mod.save:get(TX.receipts_key, {}) or {}
+      if type(receiptRoot) ~= "table" then receiptRoot = {} end
+      local order = type(receiptRoot.order) == "table" and receiptRoot.order or {}
+      local byId = type(receiptRoot.by_id) == "table" and receiptRoot.by_id or {}
+      local lastId = order[#order]
+      local last = lastId and byId[lastId] or nil
+
+      local pending = type(base.pending) == "table" and base.pending or nil
+      local state = pending and tostring(pending.state or "intent") or "clear"
+      local status = pending and "WARN" or "OK"
+      local reason = pending and ("pending_" .. state) or "journal_clear"
+      local registeredKinds = {}
+      for kind in pairs(type(TX.handlers) == "table" and TX.handlers or {}) do
+          registeredKinds[#registeredKinds + 1] = tostring(kind)
+      end
+      table.sort(registeredKinds)
+
+      local sequences = type(receiptRoot.sequences) == "table"
+          and receiptRoot.sequences or {}
+      local sequenceCount = 0
+      for _ in pairs(sequences) do sequenceCount = sequenceCount + 1 end
+
+      return {
+          status=status, reason=reason, api=base.api,
+          fail_closed=true, recovery_policy="probe_or_refuse",
+          pending=pending,
+          pending_id=pending and tostring(pending.id or "?") or nil,
+          pending_kind=pending and tostring(pending.kind or "?") or nil,
+          pending_state=pending and tostring(pending.state or "?") or nil,
+          pending_detail=pending and tostring(pending.detail or "") or nil,
+          pending_build=pending and tostring(pending.build or "?") or nil,
+          receipt_count=tonumber(base.receipt_count) or #order,
+          receipt_limit=tonumber(TX.receipt_limit) or 0,
+          handler_count=tonumber(base.handler_count) or #registeredKinds,
+          handlers=registeredKinds,
+          sequence_namespace_count=sequenceCount,
+          last_receipt=type(last) == "table" and {
+              id=tostring(last.id or lastId or "?"),
+              kind=tostring(last.kind or "?"),
+              build=tostring(last.build or "?"),
+              state=tostring(last.state or "committed"),
+          } or nil,
+      }
+  end
+
+  -- 2.8.44: read-only Randomizer reproducibility view. It deliberately
+  -- consumes the Randomizer's existing reproducibility report, which reads
+  -- only persisted seed/run-contract/source-map metadata and never asks for
+  -- a new AUTO seed or materializes an unseen mapping.
+  mod.exports.__beta26.Dev.randomizerReproducibility = function(game)
+      game = game or liveGame() or mod.game
+      local fn = mod.exports.__beta26.randomizerReproducibilityReport
+      if type(fn) ~= "function" then
+          return { status="N/A", reason="reproducibility_api_unavailable",
+              active=false, source_maps={}, ownership={} }
+      end
+      local ok, report = pcall(fn, game)
+      if not ok or type(report) ~= "table" then
+          return { status="FAIL", reason="reproducibility_report_error",
+              active=false, error=ok and "invalid_report" or tostring(report),
+              source_maps={}, ownership={} }
+      end
+      local seed = type(report.seed) == "table" and report.seed or {}
+      local run = type(report.runConfig) == "table" and report.runConfig or nil
+      local active = run ~= nil or tonumber(seed.configuredSeed or 0) > 0
+          or tonumber(seed.resolvedSeed or 0) > 0
+      local maps = {}
+      for name, row in pairs(type(report.sourceMaps) == "table"
+          and report.sourceMaps or {}) do
+          maps[#maps + 1] = {
+              stream=tostring(name),
+              save_key=type(row) == "table" and tostring(row.saveKey or "?") or "?",
+              count=type(row) == "table" and tonumber(row.count or 0) or 0,
+              shared=type(row) == "table" and row.shared == true or false,
+          }
+      end
+      table.sort(maps, function(a, b) return a.stream < b.stream end)
+      return {
+          status=not active and "N/A"
+              or (report.reproducible == true and "OK" or "WARN"),
+          reason=not active and "randomizer_inactive"
+              or tostring(report.note or "run_contract"),
+          active=active,
+          reproducible=report.reproducible == true,
+          game=report.game,
+          mode=seed.mode,
+          configured_seed=tonumber(seed.configuredSeed or 0),
+          resolved_seed=tonumber(seed.resolvedSeed or 0),
+          share_code=seed.shareCode,
+          algorithm=run and run.algorithm
+              or (type(report.versions) == "table" and report.versions.algorithm),
+          run_schema=run and run.schema or nil,
+          run_game=run and run.game or nil,
+          settings_drift=type(report.settingsDrift) == "table"
+              and report.settingsDrift or {},
+          mid_run_policy=report.midRunPolicy,
+          ownership=type(report.ownership) == "table" and report.ownership or {},
+          source_maps=maps,
+          versions=report.versions,
+      }
+  end
+
+  -- 2.8.44: shiny diagnostics report ownership, configured presentation
+  -- policy, and the already-materialized identity of the current/last enemy.
+  -- It never rolls shiny odds or requests a sprite/palette.
+  mod.exports.__beta26.Dev.shinyDiagnostics = function(game)
+      game = game or liveGame() or mod.game
+      local owner = type(mod.exports.__beta26.shinySystemOwner) == "function"
+          and tostring(mod.exports.__beta26.shinySystemOwner(game)) or "N/A"
+      local external = type(mod.exports.__beta26.shinyExternalProvider) == "function"
+          and mod.exports.__beta26.shinyExternalProvider(game) or nil
+      local rateMode = type(mod.exports.__beta26.shinyRateMode) == "function"
+          and tonumber(mod.exports.__beta26.shinyRateMode()) or 0
+      local rateLabel = type(mod.exports.__beta26.shinyRateLabel) == "function"
+          and tostring(mod.exports.__beta26.shinyRateLabel(rateMode)) or tostring(rateMode)
+      -- Keep diagnostic fallbacks aligned with the authoritative Rule Catalog.
+      -- Both visual controls default ON; an unset save key must report the same
+      -- effective value the runtime uses.
+      local colors = mod.save:get("shiny_colors", true) == true
+      local intro = mod.save:get("shiny_intro", true) == true
+      local encounter = mod.exports.__beta26.Dev.encounterProvenance(game)
+      local life = mod.exports.__beta26.Dev.lifecycle or {}
+      local battle = life.lastBattle
+      local mon = type(battle) == "table" and battle.enemy
+          and (battle.enemy.mon or battle.enemy) or nil
+      local shiny = nil
+      local source = nil
+      if type(mon) == "table" then
+          if type(mon.shiny) == "boolean" then shiny = mon.shiny
+          elseif type(mon.isShiny) == "boolean" then shiny = mon.isShiny
+          elseif type(mon.is_shiny) == "boolean" then shiny = mon.is_shiny end
+          source = mon.nuzlockeShinySource or mon.shinySource
+      end
+      if shiny == nil and type(encounter) == "table"
+          and encounter.shiny ~= nil then shiny = encounter.shiny == true end
+      local providerId = nil
+      if type(external) == "table" then
+          providerId = tostring(external.id or external.name or "SHINY_POKEMON")
+      end
+      return {
+          status=owner == "N/A" and "N/A" or "OK",
+          owner=owner,
+          external=external ~= nil,
+          provider=providerId,
+          provider_version=type(external) == "table"
+              and tostring(external.version or external.api_version or "?") or nil,
+          rate_mode=rateMode,
+          rate_label=rateLabel,
+          colors_enabled=colors,
+          intro_enabled=intro,
+          generation_owner=owner,
+          presentation_owner=external and providerId or "Nuzlocke",
+          current_identity=shiny,
+          identity_source=source
+              or (shiny ~= nil and "materialized_mon" or "unavailable"),
+      }
+  end
+
+  mod.exports.__beta26.Dev.hookWrapperDrift = function()
+      local registry = mod.exports.__beta26.hookRegistry
+      if type(registry) ~= "table" or type(registry.describe) ~= "function" then
+          return { status="N/A", reason="hook_registry_unavailable",
+              checked=0, ok=0, drift=0, unavailable=0, rows={} }
+      end
+      local ok, described = pcall(registry.describe)
+      if not ok or type(described) ~= "table" then
+          return { status="FAIL", reason="hook_registry_error",
+              checked=0, ok=0, drift=0, unavailable=0, rows={},
+              error=ok and "invalid_registry" or tostring(described) }
+      end
+
+      local ids = {}
+      for id in pairs(described) do ids[#ids + 1] = tostring(id) end
+      table.sort(ids)
+      local rows, countOk, drift, unavailable = {}, 0, 0, 0
+      for _, id in ipairs(ids) do
+          local row = described[id] or {}
+          local state, reason
+          if row.live == true then
+              state, reason = "OK", "wrapper_still_direct"
+              countOk = countOk + 1
+          elseif row.live == false then
+              state, reason = "DRIFT", "interposed_or_replaced"
+              drift = drift + 1
+          else
+              state, reason = "N/A", "no_live_probe"
+              unavailable = unavailable + 1
+          end
+          rows[#rows + 1] = {
+              id=id, state=state, reason=reason,
+              owner=row.owner, mode=row.mode, feature=row.feature,
+              source=row.source, registrations=row.registrations,
+              previous_type=row.previous_type, wrapper_type=row.wrapper_type,
+          }
+      end
+      return {
+          status=drift > 0 and "DRIFT" or "OK",
+          reason=drift > 0 and "hook_interposition_observed" or "registered_hooks_stable",
+          checked=#rows, ok=countOk, drift=drift, unavailable=unavailable,
+          rows=rows,
+      }
+  end
+
+  -- 2.8.55: read-only localization health. This observes only the
+  -- translation companion lifecycle plus already-registered Nuzlocke source
+  -- strings. It never installs translations, switches language, rebuilds
+  -- catalogs, or mutates companion state.
+  mod.exports.__beta26.Dev.localizationDiagnostics = function(game)
+      game = game or liveGame() or mod.game
+      local translation = mod.exports.nuzlocke_translation
+      local companions = {}
+      if type(translation) == "table" and type(translation.detect) == "function" then
+          local ok, value = pcall(translation.detect)
+          if ok and type(value) == "table" then companions = value end
+      end
+
+      local sources = {}
+      if type(translation) == "table" and type(translation.sources) == "function" then
+          local ok, value = pcall(translation.sources)
+          if ok and type(value) == "table" then sources = value end
+      end
+
+      local catalog = {}
+      if type(translation) == "table" and type(translation.catalog) == "function" then
+          local ok, value = pcall(translation.catalog)
+          if ok and type(value) == "table" then catalog = value end
+      end
+
+      local installed, active, restart = 0, 0, 0
+      local companionRows = {}
+      for _, row in ipairs(companions) do
+          installed = installed + 1
+          if row.translationActive == true then active = active + 1 end
+          if row.restartRequired == true then restart = restart + 1 end
+          companionRows[#companionRows + 1] = {
+              id=row.id, name=row.name, version=row.version,
+              reviewed=row.reviewed, status=row.status,
+              activity=row.activity,
+              translationActive=row.translationActive == true,
+              bootLanguage=row.bootLanguage,
+              pendingLanguage=row.pendingLanguage,
+              restartRequired=row.restartRequired == true,
+              edition=row.edition,
+              replacementMapScripts=row.replacementMapScripts == true,
+              replacementMapScriptsPresent=
+                  row.replacementMapScriptsPresent == true,
+              mutationReviewRequired=row.mutationReviewRequired == true,
+              fixedCellCJK=row.fixedCellCJK == true,
+              engineInternalsPresentationWrappers=
+                  row.engineInternalsPresentationWrappers == true,
+              dynamicScriptPresentationWrapper=
+                  row.dynamicScriptPresentationWrapper == true,
+              stringsGetWrapper=row.stringsGetWrapper == true,
+              fontDrawWrapper=row.fontDrawWrapper == true,
+              optionRowsWrapper=row.optionRowsWrapper == true,
+              namingGridWrapper=row.namingGridWrapper == true,
+              certificationFocus=type(row.certificationFocus) == "table"
+                  and row.certificationFocus or {},
+          }
+      end
+
+      local fallback, resolved = 0, 0
+      local byKind = {}
+      for _, row in ipairs(sources) do
+          local source = tostring(row.source or "")
+          local translated = catalog[source]
+          local isFallback = translated == nil or tostring(translated) == source
+          if isFallback then fallback = fallback + 1 else resolved = resolved + 1 end
+          local kind = tostring(row.kind or "unknown")
+          local bucket = byKind[kind] or { total=0, fallback=0, resolved=0 }
+          bucket.total = bucket.total + 1
+          if isFallback then bucket.fallback = bucket.fallback + 1
+          else bucket.resolved = bucket.resolved + 1 end
+          byKind[kind] = bucket
+      end
+
+      local status, reason = "N/A", "no_translation_companion"
+      if restart > 0 then
+          status, reason = "WARN", "restart_required"
+      elseif active > 0 then
+          status = "OK"
+          reason = string.format("active=%d fallback=%d/%d",
+              active, fallback, #sources)
+      elseif installed > 0 then
+          status, reason = "N/A", "installed_inactive"
+      end
+
+      return {
+          status=status, reason=reason,
+          installed=installed, active=active, restart_required=restart,
+          source_count=#sources, fallback_count=fallback,
+          resolved_count=resolved, companions=companionRows, by_kind=byKind,
+      }
+  end
+
+  -- 2.8.62: session-only localization runtime certification ledger.
+  -- Manual states live only in Dev memory and are keyed to the exact detected
+  -- game/translation combination. This never writes save data and never
+  -- infers a PASS from static/source diagnostics.
+  local LOCALIZATION_CERT_CHECKS = {
+      { id="setup_rules", label="SETUP / NUZ RULES" },
+      { id="status_tracker", label="NUZ STATUS / ENC TRACKER" },
+      { id="battle_denial", label="BATTLE DENIAL" },
+      { id="mart_denial", label="MART BUY / SELL" },
+      { id="party_info", label="PARTY / NUZ INFO" },
+      { id="move_learn", label="MOVE LEARN / RARE CANDY" },
+      { id="forgiveness", label="F. TOKEN / FORGIVENESS" },
+      { id="randomizer", label="RANDOMIZER LABELS" },
+      { id="world_building", label="WORLD BUILDING TEXT" },
+      { id="dev_report", label="DEV REPORT / LOCALIZATION" },
+  }
+
+  local function localizationCertIdentity(game)
+      game = game or liveGame() or mod.game
+      local edition = "unknown"
+      if type(mod.exports.__beta26.Dev.gameId) == "function" then
+          local ok, value = pcall(mod.exports.__beta26.Dev.gameId, game)
+          if ok and value ~= nil then edition = tostring(value) end
+      end
+      local loc = mod.exports.__beta26.Dev.localizationDiagnostics(game)
+      local companions = {}
+      for _, row in ipairs(loc.companions or {}) do
+          companions[#companions + 1] = {
+              id=tostring(row.id or "?"),
+              version=tostring(row.version or "?"),
+              activity=tostring(row.activity or "?"),
+              bootLanguage=row.bootLanguage and tostring(row.bootLanguage) or nil,
+              pendingLanguage=row.pendingLanguage and tostring(row.pendingLanguage) or nil,
+              restartRequired=row.restartRequired == true,
+              edition=row.edition and tostring(row.edition) or nil,
+          }
+      end
+      table.sort(companions, function(a,b)
+          if a.id ~= b.id then return a.id < b.id end
+          return a.version < b.version
+      end)
+      local bits = { edition:lower() }
+      for _, row in ipairs(companions) do
+          bits[#bits + 1] = table.concat({
+              row.id, row.version, row.activity,
+              row.bootLanguage or "-", row.pendingLanguage or "-",
+              row.restartRequired and "restart" or "steady",
+              row.edition or "-"
+          }, "@")
+      end
+      return edition, companions, table.concat(bits, "|")
+  end
+
+  local function localizationCertStore()
+      local dev = mod.exports.__beta26.Dev
+      dev.localizationCertificationSessions =
+          type(dev.localizationCertificationSessions) == "table"
+          and dev.localizationCertificationSessions or {}
+      return dev.localizationCertificationSessions
+  end
+
+  mod.exports.__beta26.Dev.localizationCertification = function(game)
+      game = game or liveGame() or mod.game
+      local edition, companions, signature = localizationCertIdentity(game)
+      local store = localizationCertStore()
+      local session = store[signature]
+      if type(session) ~= "table" then
+          session = { states={}, createdBuild=tostring(mod.exports.__beta26.build or "?") }
+          store[signature] = session
+      end
+      session.states = type(session.states) == "table" and session.states or {}
+
+      local rows = {}
+      local pass, fail, untested = 0, 0, 0
+      for index, def in ipairs(LOCALIZATION_CERT_CHECKS) do
+          local state = tostring(session.states[def.id] or "UNTESTED"):upper()
+          if state ~= "PASS" and state ~= "FAIL" then state = "UNTESTED" end
+          if state == "PASS" then pass = pass + 1
+          elseif state == "FAIL" then fail = fail + 1
+          else untested = untested + 1 end
+          rows[#rows + 1] = {
+              index=index, id=def.id, label=def.label, state=state,
+          }
+      end
+
+      local companionBits = {}
+      for _, row in ipairs(companions) do
+          companionBits[#companionBits + 1] =
+              tostring(row.id) .. " " .. tostring(row.version)
+      end
+      local companionText = #companionBits > 0
+          and table.concat(companionBits, " + ") or "NO TRANSLATION"
+      local summary = string.format(
+          "%s / %s / %d checks / %d PASS / %d FAIL / %d UNTESTED",
+          tostring(edition):upper(), companionText, #rows, pass, fail, untested)
+
+      return {
+          signature=signature, edition=edition, companions=companions,
+          checks=rows, total=#rows, pass=pass, fail=fail, untested=untested,
+          complete=untested == 0,
+          certified=#companions > 0 and untested == 0 and fail == 0 and #rows > 0,
+          summary=summary,
+          session_only=true,
+      }
+  end
+
+  mod.exports.__beta26.Dev.localizationCertificationMark =
+      function(game, index, requested)
+          local cert = mod.exports.__beta26.Dev.localizationCertification(game)
+          index = math.max(1, math.min(#cert.checks,
+              math.floor(tonumber(index) or 1)))
+          local row = cert.checks[index]
+          if not row then return false, "invalid_check" end
+          local nextState = requested and tostring(requested):upper() or nil
+          if nextState ~= "PASS" and nextState ~= "FAIL"
+              and nextState ~= "UNTESTED" then
+              if row.state == "UNTESTED" then nextState = "PASS"
+              elseif row.state == "PASS" then nextState = "FAIL"
+              else nextState = "UNTESTED" end
+          end
+          local store = localizationCertStore()
+          local session = store[cert.signature]
+          session.states[row.id] = nextState
+          return true, mod.exports.__beta26.Dev.localizationCertification(game)
+      end
+
+  mod.exports.__beta26.Dev.localizationCertificationReset = function(game)
+      local _, _, signature = localizationCertIdentity(game)
+      localizationCertStore()[signature] = nil
+      return true, mod.exports.__beta26.Dev.localizationCertification(game)
+  end
+
+  mod.exports.__beta26.Dev.systemHealth = function(game)
+      game = game or liveGame() or mod.game
+      local hook = type(mod.exports.__beta26.Dev.hookHealth) == "function"
+          and mod.exports.__beta26.Dev.hookHealth(game) or {}
+      local hc = hook.counts or {}
+      local life = type(mod.exports.__beta26.Dev.lifecycleReport) == "function"
+          and mod.exports.__beta26.Dev.lifecycleReport() or {}
+      local writes = type(mod.exports.__beta26.safeStopWriteReport) == "function"
+          and mod.exports.__beta26.safeStopWriteReport() or {}
+      local rules = type(mod.exports.__beta26.Dev.ruleEffectiveness) == "function"
+          and mod.exports.__beta26.Dev.ruleEffectiveness(game) or {}
+      local rc = rules.counts or {}
+      local random = type(mod.exports.__beta26.Dev.randomizerIntegrity) == "function"
+          and mod.exports.__beta26.Dev.randomizerIntegrity(game) or {}
+      local randomRepro = mod.exports.__beta26.Dev.randomizerReproducibility(game)
+      local shinyDiag = mod.exports.__beta26.Dev.shinyDiagnostics(game)
+      local providers = mod.exports.__beta26.Dev.providerOwnership(game)
+      local encounter = mod.exports.__beta26.Dev.encounterProvenance(game)
+      local tx = mod.exports.__beta26.Dev.transactionHealth()
+      local drift = mod.exports.__beta26.Dev.hookWrapperDrift()
+      local feature = type(mod.exports.__beta26.featureHealth) == "table"
+          and type(mod.exports.__beta26.featureHealth.status) == "function"
+          and mod.exports.__beta26.featureHealth.status() or {}
+      local perf = type(mod.exports.__beta26.Dev.performanceCounters) == "function"
+          and mod.exports.__beta26.Dev.performanceCounters() or
+          { status="N/A", enabled=false, count=0, rows={} }
+      local ruleConsistency = mod.exports.__beta26.Dev.ruleConfigurationConsistency(game)
+      local identityHealth = mod.exports.__beta26.Dev.saveRunIdentityHealth(game)
+      local ownershipHistory = mod.exports.__beta26.Dev.ownershipHistory(32)
+      local localization = mod.exports.__beta26.Dev.localizationDiagnostics(game)
+
+      local engineStatus = (tonumber(hc.missing) or 0) > 0 and "WARN" or "OK"
+      local saveStatus = (writes.active == true or (tonumber(writes.total) or 0) > 0)
+          and "FAIL" or tostring(identityHealth.status or "OK")
+      local rulesStatus = (tonumber(rc.errors) or 0) > 0 and "FAIL"
+          or tostring(ruleConsistency.status or "OK")
+      local encounterStatus = encounter.state == "error" and "FAIL"
+          or encounter.state == "unavailable" and "WARN" or "OK"
+      local battleStatus = (tonumber(life.duplicate_callbacks) or 0) > 0 and "WARN"
+          or math.abs(tonumber(life.battle_delta) or 0) > 1 and "WARN" or "OK"
+      local randomStatus = tostring(random.status or "INACTIVE"):upper()
+      if randomStatus == "ERROR" then randomStatus = "FAIL"
+      elseif randomStatus == "WARN" then randomStatus = "WARN"
+      elseif randomStatus == "INACTIVE" then randomStatus = "N/A"
+      else randomStatus = "OK" end
+      local providerStatus = tostring(providers.status or "N/A")
+      local shinyStatus = "OK"
+      local shinyOwner = "NUZLOCKE"
+      local shinyCap = nil
+      for _, row in ipairs(providers.capabilities or {}) do
+          local cap = tostring(row.capability or ""):upper()
+          if cap == "SHINY_IDENTITY" or cap == "SHINY_PRESENTATION" then
+              shinyCap = row
+              if row.state == "external_selected" and row.selected_owner then
+                  shinyOwner = tostring(row.selected_owner)
+              elseif row.degraded == true then shinyStatus = "DEGRADED" end
+          end
+      end
+      local uiWarn = 0
+      for key, row in pairs(feature or {}) do
+          local k = tostring(key):lower()
+          if (k:find("ui",1,true) or k:find("screen",1,true) or k:find("menu",1,true))
+              and type(row) == "table" and tostring(row.state or ""):upper() == "FAILED" then
+              uiWarn = uiWarn + 1
+          end
+      end
+      local uiStatus = uiWarn > 0 and "WARN" or "OK"
+
+      local rows = {
+          ENGINE=healthRow(engineStatus, "hook_health", hc),
+          SAVE=healthRow(saveStatus, writes.active and "safe_stop"
+              or identityHealth.reason or "writes_clean",
+              { writes=writes, identity=identityHealth }),
+          IDENTITY=healthRow(identityHealth.status or "N/A",
+              identityHealth.reason or "identity", identityHealth),
+          RULES=healthRow(rulesStatus, ruleConsistency.reason or "rule_effectiveness",
+              { effectiveness=rc, consistency=ruleConsistency }),
+          ENCOUNTER=healthRow(encounterStatus, encounter.state or "none", encounter),
+          BATTLE=healthRow(battleStatus, "lifecycle", life),
+          RANDOMIZER=healthRow(randomStatus, tostring(random.status or "INACTIVE"), random),
+          LOCALIZATION=healthRow(localization.status or "N/A",
+              localization.reason or "localization", localization),
+          PROVIDERS=healthRow(providerStatus, tostring(providers.reason or "registry"), providers),
+          OWNERSHIP=healthRow("OK", "transitions=" .. tostring(#ownershipHistory),
+              ownershipHistory),
+          SHINY=healthRow(shinyStatus, "owner=" .. shinyOwner, shinyDiag),
+          UI=healthRow(uiStatus, uiWarn > 0 and ("failed_surfaces=" .. uiWarn) or "healthy", feature),
+          HOOKS=healthRow(drift.status == "DRIFT" and "WARN" or drift.status,
+              drift.reason or "hook_registry", drift),
+          PERFORMANCE=healthRow(perf.status or "N/A",
+              perf.enabled and ("counters=" .. tostring(perf.count or 0))
+                  or "dev_disabled", perf),
+          TRANSACTIONS=healthRow(tx.status or "N/A", tx.reason or "transactions", tx),
+      }
+      local worst = "OK"
+      local rank = { ["N/A"]=0, OK=1, WARN=2, DEGRADED=3, FAIL=4 }
+      for _, row in pairs(rows) do
+          if (rank[row.status] or 0) > (rank[worst] or 0) then worst = row.status end
+      end
+      return { status=worst, rows=rows, provider_ownership=providers,
+          encounter=encounter, transaction_health=tx, hook_drift=drift,
+          randomizer_reproducibility=randomRepro, shiny_diagnostics=shinyDiag,
+          performance=perf, rule_consistency=ruleConsistency,
+          localization=localization,
+          save_run_identity=identityHealth, ownership_history=ownershipHistory,
+          decision_count=#(mod.exports.__beta26.Dev.decisions or {}) }
+  end
+
+  -- 2.8.42: compact, read-only bug-report snapshot. This intentionally
+  -- consumes only already-materialized diagnostics and passive descriptors.
+  -- It must not run self-tests, resolve AUTO seeds, invoke gameplay rules,
+  -- advance RNG, repair save state, or mutate encounter/transaction state.
+  mod.exports.__beta26.Dev.bugReportSnapshot = function(game)
+      game = game or liveGame() or mod.game
+      local identity = type(mod.exports.__beta26.Dev.editionContext) == "function"
+          and mod.exports.__beta26.Dev.editionContext(game) or {}
+      local health = mod.exports.__beta26.Dev.systemHealth(game)
+      local providers = health.provider_ownership
+          or mod.exports.__beta26.Dev.providerOwnership(game)
+      local encounter = health.encounter
+          or mod.exports.__beta26.Dev.encounterProvenance(game)
+      local decisions = type(mod.exports.__beta26.Dev.decisionTrace) == "function"
+          and mod.exports.__beta26.Dev.decisionTrace(12) or {}
+      local assertions = type(mod.exports.__beta26.Dev.assertions) == "function"
+          and mod.exports.__beta26.Dev.assertions(game) or {}
+      local crumbs = mod.exports.__beta26.Dev.breadcrumbs or {}
+      local recent = {}
+      local first = math.max(1, #crumbs - 11)
+      for i = first, #crumbs do
+          local row = crumbs[i]
+          recent[#recent + 1] = {
+              seq=row.seq, lastSeq=row.lastSeq, count=row.count,
+              severity=row.severity,
+              game=row.game, kind=row.kind, detail=row.detail,
+          }
+      end
+
+      local storage = type(mod.exports.__beta26.Dev.storageContext) == "function"
+          and mod.exports.__beta26.Dev.storageContext(game) or nil
+      local provenance = type(mod.exports.__beta26.buildProvenance) == "function"
+          and mod.exports.__beta26.buildProvenance() or {}
+      local tx = health.transaction_health
+          or mod.exports.__beta26.Dev.transactionHealth()
+      local drift = health.hook_drift
+          or mod.exports.__beta26.Dev.hookWrapperDrift()
+      local randomRepro = health.randomizer_reproducibility
+          or mod.exports.__beta26.Dev.randomizerReproducibility(game)
+      local shinyDiag = health.shiny_diagnostics
+          or mod.exports.__beta26.Dev.shinyDiagnostics(game)
+      local perf = health.performance
+          or (type(mod.exports.__beta26.Dev.performanceCounters) == "function"
+              and mod.exports.__beta26.Dev.performanceCounters()
+              or { status="N/A", count=0, rows={} })
+      local ruleConsistency = health.rule_consistency
+          or mod.exports.__beta26.Dev.ruleConfigurationConsistency(game)
+      local identityHealth = health.save_run_identity
+          or mod.exports.__beta26.Dev.saveRunIdentityHealth(game)
+      local ownershipHistory = health.ownership_history
+          or mod.exports.__beta26.Dev.ownershipHistory(12)
+
+      local warnings, errors = {}, {}
+      for _, row in ipairs(assertions or {}) do
+          warnings[#warnings + 1] = {
+              code=tostring(row.code or "assertion"),
+              detail=tostring(row.detail or ""),
+          }
+      end
+      for _, row in ipairs(recent) do
+          local kind = tostring(row.kind or ""):lower()
+          local severity = tostring(row.severity or ""):upper()
+          if severity == "ERROR" or kind:find("error", 1, true) then
+              errors[#errors + 1] = {
+                  seq=row.seq, lastSeq=row.lastSeq, count=row.count or 1,
+                  severity="ERROR", code=kind, detail=tostring(row.detail or ""),
+              }
+          elseif severity == "WARN" or kind:find("warn", 1, true)
+              or kind:find("assert", 1, true) then
+              warnings[#warnings + 1] = {
+                  seq=row.seq, lastSeq=row.lastSeq, count=row.count or 1,
+                  severity="WARN", code=kind, detail=tostring(row.detail or ""),
+              }
+          end
+      end
+
+      local out = {
+          build = tostring(mod.exports.__beta26.build or "?"),
+          parent_build = tostring(provenance.parent_version or "?"),
+          game = tostring(identity.edition or "unknown"),
+          generation = tonumber(identity.generation),
+          engine_family = tostring(identity.engine_family or "?"),
+          profile_scope = tostring(identity.profile_scope or "?"),
+          environment = type(mod.exports.__beta26.runtimeEnvironment) == "function"
+              and tostring(mod.exports.__beta26.runtimeEnvironment()) or "?",
+          save_schema = tonumber(mod.save:get(SAVE_SCHEMA_KEY, CURRENT_SAVE_SCHEMA)),
+          run_id = type(storage) == "table"
+              and tostring(storage.playthroughId or storage.runId or "?") or "?",
+          storage_game = type(storage) == "table"
+              and tostring(storage.gameVersion or "?") or "?",
+          health = health,
+          providers = providers,
+          encounter = encounter,
+          decisions = decisions,
+          warnings = warnings,
+          errors = errors,
+          breadcrumbs = recent,
+          transactions = tx,
+          hook_drift = drift,
+          randomizer_reproducibility = randomRepro,
+          shiny_diagnostics = shinyDiag,
+          performance = perf,
+          rule_consistency = ruleConsistency,
+          save_run_identity = identityHealth,
+          ownership_history = ownershipHistory,
+          localization = health.localization,
+          localization_certification =
+              mod.exports.__beta26.Dev.localizationCertification(game),
+      }
+
+      local lines = {
+          "NUZLOCKE BUG REPORT SNAPSHOT",
+          "build=" .. out.build .. " parent=" .. out.parent_build,
+          "game=" .. out.game .. " gen=" .. tostring(out.generation or "?")
+              .. " engine=" .. out.engine_family,
+          "profile=" .. out.profile_scope .. " env=" .. out.environment,
+          "save_schema=" .. tostring(out.save_schema or "?")
+              .. " run_id=" .. out.run_id,
+          "health=" .. tostring((health or {}).status or "N/A"),
+      }
+      local healthBits = {}
+      for _, key in ipairs({ "ENGINE", "SAVE", "RULES", "ENCOUNTER",
+          "BATTLE", "RANDOMIZER", "LOCALIZATION", "PROVIDERS", "OWNERSHIP", "SHINY", "UI",
+          "HOOKS", "PERFORMANCE", "IDENTITY", "TRANSACTIONS" }) do
+          local row = health.rows and health.rows[key] or {}
+          healthBits[#healthBits + 1] = key .. ":" .. tostring(row.status or "N/A")
+      end
+      lines[#lines + 1] = "systems=" .. table.concat(healthBits, ",")
+
+      local localization = health.localization or
+          mod.exports.__beta26.Dev.localizationDiagnostics(game)
+      lines[#lines + 1] = string.format(
+          "localization=%s installed=%d active=%d restart=%d fallback=%d/%d",
+          tostring(localization.status or "N/A"),
+          tonumber(localization.installed or 0), tonumber(localization.active or 0),
+          tonumber(localization.restart_required or 0),
+          tonumber(localization.fallback_count or 0),
+          tonumber(localization.source_count or 0))
+
+      local localizationCert =
+          mod.exports.__beta26.Dev.localizationCertification(game)
+      lines[#lines + 1] = "localization_cert=" .. tostring(localizationCert.summary)
+
+      lines[#lines + 1] = string.format("providers=%d selected=%d degraded=%d",
+          tonumber(providers.provider_count or 0), tonumber(providers.selected or 0),
+          tonumber(providers.degraded or 0))
+      local ownerBits = {}
+      for _, row in ipairs(providers.capabilities or {}) do
+          ownerBits[#ownerBits + 1] = tostring(row.capability or "?") .. ":"
+              .. tostring(row.selected_owner or "NUZLOCKE") .. "/"
+              .. tostring(row.state or "?")
+      end
+      if #ownerBits > 0 then lines[#lines + 1] = "owners=" .. table.concat(ownerBits, ",") end
+
+      if encounter.active == true then
+          lines[#lines + 1] = "encounter="
+              .. tostring(encounter.area or "?") .. "/"
+              .. tostring(encounter.species or "?") .. "/"
+              .. tostring(encounter.encounter_type or encounter.method or "?")
+              .. " source=" .. tostring(encounter.provider or encounter.source or "?")
+      else
+          lines[#lines + 1] = "encounter=inactive/"
+              .. tostring(encounter.state or encounter.reason or "none")
+      end
+
+      lines[#lines + 1] = string.format("transactions=%s receipts=%d pending=%s",
+          tostring(tx.status or "N/A"), tonumber(tx.receipt_count or 0),
+          tostring(tx.pending ~= nil))
+      lines[#lines + 1] = string.format("randomizer_repro=%s mode=%s seed=%s",
+          tostring(randomRepro.status or "N/A"), tostring(randomRepro.mode or "?"),
+          tostring(randomRepro.share_code or "none"))
+      lines[#lines + 1] = string.format("shiny_owner=%s rate=%s identity=%s",
+          tostring(shinyDiag.owner or "N/A"), tostring(shinyDiag.rate_label or "?"),
+          tostring(shinyDiag.current_identity))
+      lines[#lines + 1] = string.format(
+          "rule_consistency=%s invalid=%d stale=%d dormant=%d",
+          tostring(ruleConsistency.status or "N/A"),
+          tonumber(ruleConsistency.invalid_count or 0),
+          tonumber(ruleConsistency.stale_count or 0),
+          tonumber(ruleConsistency.dormant_count or 0))
+      lines[#lines + 1] = string.format(
+          "save_run_identity=%s issues=%d run=%s storage=%s",
+          tostring(identityHealth.status or "N/A"),
+          tonumber(identityHealth.issue_count or 0),
+          tostring(identityHealth.history_run_id or "none"),
+          tostring(identityHealth.storage_playthrough or "none"))
+      lines[#lines + 1] = "ownership_transitions=" .. tostring(#ownershipHistory)
+      local topPerf = type(perf.rows) == "table" and perf.rows[1] or nil
+      lines[#lines + 1] = string.format("performance=%s counters=%d top=%s:%s",
+          tostring(perf.status or "N/A"), tonumber(perf.count or 0),
+          tostring(topPerf and topPerf.name or "none"),
+          tostring(topPerf and topPerf.count or 0))
+      lines[#lines + 1] = string.format("hook_drift=%s checked=%d drift=%d",
+          tostring(drift.status or "N/A"), tonumber(drift.checked or 0),
+          tonumber(drift.drift or 0))
+      lines[#lines + 1] = "warnings=" .. tostring(#warnings)
+          .. " errors=" .. tostring(#errors)
+          .. " decisions=" .. tostring(#decisions)
+          .. " breadcrumbs=" .. tostring(#recent)
+      for _, row in ipairs(errors) do
+          lines[#lines + 1] = "ERROR " .. tostring(row.code or "?")
+              .. (tonumber(row.count or 1) > 1 and (" x" .. tostring(row.count)) or "")
+              .. " " .. tostring(row.detail or "")
+      end
+      for i = math.max(1, #warnings - 3), #warnings do
+          local row = warnings[i]
+          if row then
+              lines[#lines + 1] = "WARN " .. tostring(row.code or "?")
+                  .. (tonumber(row.count or 1) > 1 and (" x" .. tostring(row.count)) or "")
+                  .. " " .. tostring(row.detail or "")
+          end
+      end
+      for i = math.max(1, #decisions - 5), #decisions do
+          local row = decisions[i]
+          if row then
+              lines[#lines + 1] = "DECISION "
+                  .. tostring(row.domain or "rule") .. "/"
+                  .. tostring(row.rule or "?") .. " "
+                  .. tostring(row.result or "INFO")
+                  .. (tonumber(row.count or 1) > 1 and (" x" .. tostring(row.count)) or "")
+                  .. " " .. tostring(row.detail or "")
+          end
+      end
+      for i = math.max(1, #recent - 5), #recent do
+          local row = recent[i]
+          if row then
+              lines[#lines + 1] = "CRUMB #" .. tostring(row.seq or "?")
+                  .. " " .. tostring(row.severity or "INFO")
+                  .. "/" .. tostring(row.kind or "?")
+                  .. (tonumber(row.count or 1) > 1 and (" x" .. tostring(row.count)) or "")
+                  .. " " .. tostring(row.detail or "")
+          end
+      end
+      out.text = table.concat(lines, "\n")
+      return out
+  end
   ---------------------------------------------------------------------
   -- 2.5.67 / NZR6 DEV REPORT CODE
   --
@@ -672,6 +1787,118 @@ return function(mod, deps)
       end
 
       lines[#lines + 1] = ""
+      lines[#lines + 1] = "[SYSTEM HEALTH]"
+      local health = mod.exports.__beta26.Dev.systemHealth(game)
+      lines[#lines + 1] = "status=" .. tostring(health.status or "?")
+      for _, key in ipairs({ "ENGINE", "SAVE", "IDENTITY", "RULES", "ENCOUNTER",
+          "BATTLE", "RANDOMIZER", "LOCALIZATION", "PROVIDERS", "OWNERSHIP", "SHINY", "UI",
+          "HOOKS", "PERFORMANCE", "TRANSACTIONS" }) do
+          local row = health.rows and health.rows[key] or {}
+          lines[#lines + 1] = string.format("%-12s %-9s %s", key,
+              tostring(row.status or "N/A"), tostring(row.reason or ""))
+      end
+
+      lines[#lines + 1] = ""
+      lines[#lines + 1] = "[LOCALIZATION]"
+      local localization = health.localization or
+          mod.exports.__beta26.Dev.localizationDiagnostics(game)
+      lines[#lines + 1] = string.format(
+          "status=%s installed=%d active=%d restart=%d sources=%d fallback=%d resolved=%d",
+          tostring(localization.status or "N/A"),
+          tonumber(localization.installed or 0), tonumber(localization.active or 0),
+          tonumber(localization.restart_required or 0),
+          tonumber(localization.source_count or 0),
+          tonumber(localization.fallback_count or 0),
+          tonumber(localization.resolved_count or 0))
+      for _, row in ipairs(localization.companions or {}) do
+          lines[#lines + 1] = string.format(
+              "%s %s activity=%s boot=%s pending=%s edition=%s restart=%s",
+              tostring(row.id or "?"), tostring(row.version or "?"),
+              tostring(row.activity or "?"), tostring(row.bootLanguage or "?"),
+              tostring(row.pendingLanguage or "-"), tostring(row.edition or "?"),
+              tostring(row.restartRequired == true))
+          if row.mutationReviewRequired == true then
+              local scriptState = row.replacementMapScripts == true and "ACTIVE/KNOWN"
+                  or (row.replacementMapScriptsPresent == true and "PRESENT/LOAD UNCONFIRMED"
+                      or "REVIEW REQUIRED")
+              lines[#lines + 1] =
+                  "  REPLACEMENT SCRIPT MUTATION REVIEW REQUIRED: " .. scriptState
+          end
+          if row.engineInternalsPresentationWrappers == true then
+              lines[#lines + 1] =
+                  "  PRESENTATION WRAPPERS: ENGINE INTERNALS / COMPOSITION REVIEW"
+          end
+          if row.fixedCellCJK == true then
+              lines[#lines + 1] = "  TEXT MODEL: FIXED-CELL CJK"
+          end
+          if type(row.certificationFocus) == "table"
+              and #row.certificationFocus > 0 then
+              lines[#lines + 1] = "  LOCAL CERT FOCUS: "
+                  .. table.concat(row.certificationFocus, "; ")
+          end
+      end
+
+      lines[#lines + 1] = ""
+      lines[#lines + 1] = "[LOCALIZATION CERTIFICATION]"
+      local cert = mod.exports.__beta26.Dev.localizationCertification(game)
+      lines[#lines + 1] = tostring(cert.summary)
+      lines[#lines + 1] = "session_only=true certified="
+          .. tostring(cert.certified == true)
+      for _, row in ipairs(cert.checks or {}) do
+          lines[#lines + 1] = string.format("%02d %-8s %s",
+              tonumber(row.index or 0), tostring(row.state or "UNTESTED"),
+              tostring(row.label or row.id or "?"))
+      end
+
+      lines[#lines + 1] = ""
+      lines[#lines + 1] = "[PROVIDER OWNERSHIP]"
+      local ownership = health.provider_ownership or {}
+      lines[#lines + 1] = string.format("providers=%d capabilities=%d selected=%d degraded=%d",
+          tonumber(ownership.provider_count or 0),
+          tonumber(ownership.capability_count or 0),
+          tonumber(ownership.selected or 0), tonumber(ownership.degraded or 0))
+      for _, row in ipairs(ownership.capabilities or {}) do
+          lines[#lines + 1] = string.format("%s state=%s owner=%s kind=%s",
+              tostring(row.capability or "?"), tostring(row.state or "?"),
+              tostring(row.selected_owner or "nuzlocke"),
+              tostring(row.selected_kind or "fallback"))
+      end
+
+      lines[#lines + 1] = ""
+      lines[#lines + 1] = "[ENCOUNTER PROVENANCE]"
+      local enc = health.encounter or {}
+      if enc.active ~= true then
+          lines[#lines + 1] = "active=false state=" .. tostring(enc.state or "none")
+      else
+          for _, pair in ipairs({
+              {"state",enc.state},{"area",enc.area},{"physical",enc.physical_area},
+              {"species",enc.species},{"pokemon_id",enc.pokemon_id},
+              {"type",enc.encounter_type},{"method",enc.encounter_method},
+              {"time",enc.encounter_time},{"source",enc.source},
+              {"provider",enc.provider},{"provider_version",enc.provider_version},
+              {"eligible",enc.eligible},{"will_spend",enc.will_spend},
+              {"free_reason",enc.free_reason},{"clause",enc.clause_conflict},
+              {"area_status",enc.area_status},{"shiny",enc.shiny},
+          }) do
+              if pair[2] ~= nil then
+                  lines[#lines + 1] = tostring(pair[1]) .. "=" .. tostring(pair[2])
+              end
+          end
+      end
+
+      lines[#lines + 1] = ""
+      lines[#lines + 1] = "[RULE DECISIONS]"
+      local decisions = mod.exports.__beta26.Dev.decisionTrace
+          and mod.exports.__beta26.Dev.decisionTrace(12) or {}
+      if #decisions == 0 then lines[#lines + 1] = "(none)" end
+      for _, row in ipairs(decisions) do
+          lines[#lines + 1] = string.format("#%s %s/%s %s %s",
+              tostring(row.seq or "?"), tostring(row.domain or "rule"),
+              tostring(row.rule or "?"), tostring(row.result or "INFO"),
+              tostring(row.detail or ""))
+      end
+
+      lines[#lines + 1] = ""
       lines[#lines + 1] = "[RECENT BREADCRUMBS]"
       local crumbs = mod.exports.__beta26.Dev.breadcrumbs or {}
       local first = 1
@@ -931,7 +2158,9 @@ return function(mod, deps)
           local out = {}
           for i, row in ipairs(mod.exports.__beta26.Dev.breadcrumbs or {}) do
               out[i] = {
-                  seq = row.seq, kind = row.kind, detail = row.detail,
+                  seq = row.seq, lastSeq = row.lastSeq, count = row.count,
+                  severity = row.severity,
+                  kind = row.kind, detail = row.detail,
                   build = row.build, game = row.game,
               }
           end
@@ -943,10 +2172,30 @@ return function(mod, deps)
       hook_registry = mod.exports.__beta26.hookRegistry.describe,
       feature_health = mod.exports.__beta26.featureHealth.status,
       gameplay_transactions = mod.exports.__beta26.GameplayTransactions.status,
+      transaction_health = mod.exports.__beta26.Dev.transactionHealth,
+      hook_wrapper_drift = mod.exports.__beta26.Dev.hookWrapperDrift,
+      randomizer_reproducibility = mod.exports.__beta26.Dev.randomizerReproducibility,
+      shiny_diagnostics = mod.exports.__beta26.Dev.shinyDiagnostics,
+      performance_counters = mod.exports.__beta26.Dev.performanceCounters,
+      rule_configuration_consistency =
+          mod.exports.__beta26.Dev.ruleConfigurationConsistency,
+      save_run_identity_health = mod.exports.__beta26.Dev.saveRunIdentityHealth,
+      ownership_history = mod.exports.__beta26.Dev.ownershipHistory,
       gen2_edition_parity = mod.exports.__beta26.Dev.gen2EditionParityAudit,
       gen2_description_parity = mod.exports.__beta26.gen2DescriptionParityAudit,
       rule_effectiveness = mod.exports.__beta26.Dev.ruleEffectiveness,
       randomizer_integrity = mod.exports.__beta26.Dev.randomizerIntegrity,
+      system_health = mod.exports.__beta26.Dev.systemHealth,
+      provider_ownership = mod.exports.__beta26.Dev.providerOwnership,
+      encounter_provenance = mod.exports.__beta26.Dev.encounterProvenance,
+      decision_trace = mod.exports.__beta26.Dev.decisionTrace,
+      bug_report_snapshot = mod.exports.__beta26.Dev.bugReportSnapshot,
+      localization_certification =
+          mod.exports.__beta26.Dev.localizationCertification,
+      localization_certification_mark =
+          mod.exports.__beta26.Dev.localizationCertificationMark,
+      localization_certification_reset =
+          mod.exports.__beta26.Dev.localizationCertificationReset,
       lifecycle = mod.exports.__beta26.Dev.lifecycleReport,
       reset_lifecycle = mod.exports.__beta26.Dev.resetLifecycle,
       safe_stop_writes = mod.exports.__beta26.safeStopWriteReport,
@@ -970,12 +2219,25 @@ return function(mod, deps)
           hook_registry = 1,
           feature_health = 1,
           gameplay_transactions = 1,
+          transaction_health = 1,
+          hook_wrapper_drift = 1,
+          randomizer_reproducibility = 1,
+          shiny_diagnostics = 1,
+          performance_counters = 1,
+          rule_configuration_consistency = 1,
+          save_run_identity_health = 1,
+          ownership_history = 1,
           gen2_edition_parity = 1,
           gen2_description_parity = 1,
           rule_registry = 1,
           save_schema_descriptor = 1,
           build_provenance = 1,
           compatibility_contracts = 1,
+          system_health = 1,
+          provider_ownership = 1,
+          encounter_provenance = 1,
+          decision_trace = 1,
+          bug_report_snapshot = 1,
       },
       log_snapshot = mod.exports.__beta26.Dev.logSnapshot,
       record_error = mod.exports.__beta26.Dev.recordError,

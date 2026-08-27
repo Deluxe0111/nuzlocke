@@ -1,9 +1,147 @@
-> Standalone Gen-I shiny fallback now accepts both Gen1Recomp `battle.started` payload shapes (`payload.battle` and a direct BattleState), fixing Shiny Rate ALWAYS doing nothing in Red/Blue/Yellow when Nuzlocke is the only shiny owner.
+# Nuzlocke 2.8.72
 
-2.8.36 standalone shiny regression fix: external shiny ownership now requires a live separate provider handle before registry/API claims are trusted, preventing Nuzlocke-only runs from falsely standing down their built-in shiny system.
-# Nuzlocke 2.8.37
+## Current 2.8.48 release contract
 
-**Full release.** 2.8.37 is a behavior-preserving promotion of the latest corrected 2.8.36 candidate. Red runtime testing with Nuzlocke as the only mod confirmed Shiny Rate = ALWAYS, Gen I species recoloring, and the shiny intro presentation across multiple wild encounters. No shiny gameplay code was changed during promotion.
+This section is authoritative for the current package. Older version notes retained later in this file are historical and describe the build named in their heading.
+
+- **Supported manifest editions:** Red, Blue, Yellow, Gold, Silver, and Crystal.
+- **Support stage:** R/B/Y are the mature baseline; Gold/Silver are beta targets; Crystal is an explicit alpha target. Runtime evidence remains exact-edition rather than automatically carrying between games.
+- **Gen1Recomp requirement:** `>=0.2.24 <2.0.0`.
+- **Source/documentation compatibility audited through:** Gen1Recomp **0.2.29**.
+- **Mod API:** 2.
+- **Save Schema:** 5.
+- **Compatibility API:** 35.
+- **Diagnostics API:** 1.
+- **Randomizer algorithm version:** 1.
+- **Battle Menu UI:** Gen I only. Gold/Silver/Crystal always retain the native Gen II battle command presentation.
+- **Dev Mode:** diagnostics-only. Its health, bug-report, transaction, hook-drift, shiny, Randomizer reproducibility, performance, rule-consistency, save/run identity, and ownership-history pages do not repair or mutate a run.
+
+### Shiny ownership
+
+Nuzlocke has built-in shiny rate, colors, and intro support when no compatible external shiny provider owns the active edition. **Shiny Clause remains Nuzlocke challenge policy regardless of presentation owner.** When a compatible external shiny provider such as the current `SHINY_POKEMON` target owns shiny generation/presentation, Nuzlocke stands down its own roll/recolor/intro work and consumes the resulting shiny identity for legality, Shiny Clause, tracking, Catch Info, and Run History.
+
+### Randomizer scope
+
+The current Nuzlocke-owned Randomizer has nine independently-owned subsystems: **Starter, Encounters, Field Items, Learnsets, Trainers, Evolutions, Shops, TMs, and Gift Items**. Shared controls provide deterministic seed/reproducibility, presets, spoiler/info policy, species-generation policy, and subsystem-specific balance/diversity settings.
+
+Native Gen II hidden field-item/BG-event sources are supported when their adapter explicitly marks them as Nuzlocke-owned. Nuzlocke does not claim arbitrary third-party hidden-item sources merely because they are hidden.
+
+### Compatibility model
+
+Optional companions are never required to run Nuzlocke. Compatibility is capability/ownership based where possible: detecting a mod or advertised capability is not the same as selecting it as owner. MOD COMPAT and Dev diagnostics distinguish detected, advertised, selected, degraded, and Nuzlocke-fallback states.
+
+Current optional compatibility identities declared by the manifest include:
+`pokegear_cards`, `pokemon_randomizer`, `wide-menus`, `variable_width_kerning`, `gen1_modern_ui`, `gen_2_randomizer_plus`, `overworld_wild_spawns`, `modern_party_ui`, `kanto_ascendant`, `delta_type`, `dex_overflow`, `safari_all`, `wonder_trade`, `qol_toggles`, `quality_of_life`, `g9-battle-engine`, `gen1-better-menus`, `gen1_pt-br`, `steel_typing`, `potato_voxel`, and `SHINY_POKEMON`.
+
+## Achievement-ready Run History
+
+2.8.49 adds background **achievement evidence**, not achievements themselves. Run History v2 keeps lifetime counters, selected dimensions, first/last facts, run-result flags, and rule-integrity changes outside the bounded 512-event chronology. Existing v1 histories migrate in place and explicitly mark unprovable historical detail as partial. Global Save Schema remains 5.
+
+## Brazilian Portuguese compatibility
+
+2.8.50 adds explicit optional compatibility for current **VersaoVermelha 0.2.5** (`versaovermelha`) while keeping legacy `gen1_pt-br` separate. Translation diagnostics are now capability-shaped, and Forgiveness shop filtering no longer depends on English BUY/SELL display labels.
+
+This is compatibility hardening, not bundled Portuguese translation content. Nuzlocke gameplay policy remains language-neutral.
+
+## German translation compatibility
+
+2.8.54 explicitly recognizes **Translation German Universal 0.2.0** across R/B/Y/Gold/Silver/Crystal. Translation diagnostics now distinguish an installed companion from an actively materialized translation and can report pending language/restart state when the companion exposes it.
+
+Encounter ownership remains keyed to canonical map IDs; localized area names remain display-only.
+
+## Translation catalog and diagnostics
+
+2.8.55 makes a larger set of Nuzlocke-owned status/tracker/world-summary strings discoverable through Translation API 2 and adds a read-only LOCALIZATION page to Dev Report. Translation authors can now see companion lifecycle plus current source/fallback coverage without Nuzlocke taking over language selection.
+
+## Long-string localization hardening
+
+2.8.56 improves Nuzlocke-owned layouts for variable-width and longer translated text, and expands Translation API 2 discovery across World Building flavor plus Randomizer status/value labels. The implementation remains language-neutral.
+
+## Spanish translation compatibility
+
+2.8.57 explicitly recognizes **Traduccion Espanola 0.1.0** (`traduccion_es`). Its hand-translated engine strings can operate without an imported Spanish cartridge, while its official cartridge-derived Red/Blue dialogue/assets require the player's own matching Spanish EUR dump. Nuzlocke remains language-neutral and does not inspect that ROM.
+
+## French translation compatibility
+
+2.8.58 explicitly recognizes generated **Translation French 0.8.0** across Red/Blue/Yellow/Gold/Silver/Crystal, plus **Traduction FR etendue 0.2.0** as a separate optional overlay. Nuzlocke relies on its generalized VWF/glyph-safe UI and keeps gameplay semantics language-neutral.
+
+## Translation compatibility matrix
+
+2.8.59 consolidates the currently reviewed Brazilian, German, Spanish, French and Finnish targets into a formal matrix in `docs/COMPATIBILITY.md`. The matrix separates source/static compatibility from exact runtime certification and records edition-specific scope.
+
+Translation API 2 also exposes more Nuzlocke-owned Forgiveness, Battle Clause and runtime-status text for external language packs.
+
+## Translation compatibility consolidation
+
+2.8.69 completes the current source-discovery sweep, normalizes primary/alternate/overlay/legacy translation roles, reconciles optional dependency ordering, and records reviewed placeholders/tooling/engine forks outside runtime companion detection. Static compatibility still does not imply Runtime PASS.
+
+## Translation runtime certification
+
+2.8.62 adds a session-only manual **LOCAL CERT** checklist to Dev Report. It keys test evidence to the exact edition and detected translation companion versions/language state and never auto-promotes static compatibility into runtime PASS evidence.
+
+## Historical release notes
+
+The material below is retained as version-specific history. Statements about support/API status apply to the version named in that historical section, not automatically to 2.8.47.
+
+**Dev Mode completion candidate.** 2.8.46 is a strict child of exact 2.8.45 and completes the current planned Dev diagnostic backlog with RULE CONFIG, SAVE/RUN, and OWNER HISTORY pages. All three are read-only.
+
+## 2.8.46 Dev Diagnostics
+
+**RULE CONFIG** validates stored rule values and dependency/catalog consistency without changing settings. **SAVE/RUN** compares the active edition/profile/schema against already-existing storage, Run History, and Randomizer run identity without initializing or repairing them. **OWNER HISTORY** retains up to 32 compatibility ownership/state transitions for the current session and never reclaims a capability.
+
+
+**Dev signal-quality/performance diagnostics candidate.** 2.8.45 is a strict child of exact 2.8.44. Repeated warning/error diagnostics now coalesce instead of flooding bounded rings, and DEV REPORT gains a Dev-only PERFORMANCE counter page.
+
+## 2.8.45 Dev Diagnostics
+
+Breadcrumbs and semantic rule decisions now preserve severity plus repetition counts. Consecutive identical WARN/ERROR entries are represented once with a count and last sequence number. PERFORMANCE exposes cheap in-memory counters for selected expensive Randomizer builder/projection boundaries; counters exist only while Dev Mode is enabled and never affect gameplay or save data.
+
+
+**Dev shiny/reproducibility diagnostics candidate.** 2.8.44 is a strict child of exact 2.8.43. DEV REPORT adds SHINY and RANDOM REPRO read-only pages; neither page generates gameplay state.
+
+## 2.8.44 Dev Diagnostics
+
+**SHINY** exposes current shiny ownership, external provider/version, configured Rate/Colors/Intro ownership, and already-materialized current/last enemy identity/source without rolling. **RANDOM REPRO** exposes the persisted Randomizer run contract, algorithm/schema, already-resolved seed/share code, settings drift, ownership, and source-map counts through the existing zero-RNG reproducibility report.
+
+
+**Dev transaction/hook diagnostics candidate.** 2.8.43 is a strict child of exact 2.8.42. DEV REPORT now adds read-only TRANSACTIONS and HOOK DRIFT pages; no gameplay mutation or ownership reclamation is introduced.
+
+## 2.8.43 Dev Diagnostics
+
+**TRANSACTIONS** summarizes the durable GameplayTransactions journal, receipt usage, pending state, most recent committed receipt, and fail-closed recovery policy. **HOOK DRIFT** reports whether registered Nuzlocke wrappers still occupy their direct audited surface, have been interposed/replaced by another layer, or have no live probe. Drift is observational only and never causes Nuzlocke to reclaim ownership.
+
+**Dev Mode bug-report snapshot candidate.** 2.8.42 is a strict child of exact 2.8.41. Gameplay behavior is intentionally unchanged. DEV REPORT now includes a compact BUG REPORT page, and the public read-only diagnostics API exposes the same structured snapshot.
+
+## 2.8.42 Bug Report Snapshot
+
+DEV REPORT > BUG REPORT summarizes build/engine/edition, save/run identity, System Health, provider ownership, current encounter provenance, recent semantic rule decisions, warnings/errors, and recent breadcrumbs. It is diagnostics-only and never invokes rules, RNG, self-tests, rerolls, repairs, or save mutation.
+
+
+**Dev Mode semantic-diagnostics candidate.** 2.8.41 is a strict child of exact 2.8.40. Gameplay behavior is intentionally unchanged. This pass upgrades diagnostics-only Dev Mode with System Health, provider ownership detail, live encounter provenance, and a bounded rule-decision trace.
+
+## 2.8.41 Dev Mode diagnostics
+
+- Adds SYSTEM HEALTH across engine/hooks, save safety, rules, encounter state, battle lifecycle, Randomizer, providers, shiny ownership, UI, and transactions.
+- Adds provider ownership detail that separates detection/advertising from selected ownership and Nuzlocke fallback.
+- Adds read-only active encounter provenance inspection.
+- Adds a bounded semantic decision trace for core catch/item/economy denials.
+- DEV REPORT gains HEALTH, PROVIDERS, ENCOUNTER, and DECISIONS sections.
+- All new surfaces are observational only and cannot mutate a run.
+
+## 2.8.39 compatibility diagnostics
+
+- MOD COMPAT now distinguishes provider detection/advertisement from actual external selection and Nuzlocke fallback state.
+- The public Interop API exposes `providerStatus`, `capabilityStatus`, and `compatibilitySnapshot` diagnostics.
+- The legacy compatibility layer exposes per-capability status plus an explicit fallback inventory.
+- Historical fallbacks are retained, not deleted, when they are still required by the supported Gen1Recomp 0.2.24-0.2.26 range or older compatible provider contracts.
+- Release Safety protects the new diagnostic contract.
+
+**Localization hardening candidate.** 2.8.38 is a strict child of the full-release 2.8.37 baseline. It does not change shiny gameplay, battle rules, encounter policy, or Randomizer behavior. The first low-risk localization batch routes Battle Clause denials, Forgiveness action labels, Run History/status labels, recovery fallbacks, and related Classic UI templates through Gen1Recomp 0.2.27's `Strings` registry. A targeted Release Safety audit protects these migrated surfaces from regressing back to raw player-facing English.
+
+## 2.8.38 localization status
+
+Localization infrastructure is now treated as **implemented with incomplete coverage**, not as an unstarted feature. Rule Catalog, Setup/NUZ RULES, Classic UI, and Forgiveness already had substantial `Strings` coverage; 2.8.38 closes the first identified gaps. World Building and Randomizer runtime/UI remain dedicated future localization phases because they contain larger amounts of dynamic authored text and require their own layout/runtime certification.
+
 
 2.8.36 expands Nuzlocke's built-in shiny support from gameplay identity/rate semantics into a complete in-mod presentation stack while preserving strict single-owner compatibility. If a compatible external shiny provider is active, that provider immediately owns shiny generation **and** presentation; Nuzlocke performs no second roll, recolor, sparkle, or shiny SFX and remains only a Shiny Clause/tracker/legality consumer.
 
@@ -427,4 +565,3 @@ When Nuzlocke is the active shiny owner, its **Shiny Rate**, **Shiny Colors**, a
 ## Gen1Recomp 0.2.27 compatibility
 
 The 0.2.27 compatibility pass is active in this 2.8.36 candidate. Red/Blue/Yellow Nickname Rule prefers the engine's public `catch.nickname` decision hook while preserving the older fallback path. Gold/Silver/Crystal NUZ STATUS and Recover Catches use palette-aware Gen II Chrome drawing so engine custom GB/COLOR palettes carry through those Nuzlocke utility screens. The Gen II `shiny-flash` safety boundary was source-revalidated against 0.2.27 and remains narrow: event suppression + picture-latch restore only, with no Gen II `draw`/`update` ownership. The global source/documentation-audited engine marker is now 0.2.27; exact-edition runtime certification remains separate.
-

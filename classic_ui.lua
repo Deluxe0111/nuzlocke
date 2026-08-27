@@ -72,6 +72,21 @@ return function(mod, deps)
       return last and last.to and text:sub(1, last.to) or ""
   end
 
+  local function clipGlyphText(text, maxGlyphs, suffix)
+      text = tostring(text or "")
+      maxGlyphs = math.max(0, math.floor(tonumber(maxGlyphs) or 0))
+      suffix = tostring(suffix or "")
+      local beta = mod.exports and mod.exports.__beta26 or {}
+      if type(beta.nuzGlyphLen) == "function"
+          and type(beta.nuzGlyphSlice) == "function" then
+          if beta.nuzGlyphLen(text) <= maxGlyphs then return text end
+          local keep = math.max(0, maxGlyphs - (type(beta.nuzGlyphLen) == "function"
+              and beta.nuzGlyphLen(suffix) or #suffix))
+          return beta.nuzGlyphSlice(text, 1, keep) .. suffix
+      end
+      return text
+  end
+
   local isTownArea
   local getDisplayRoutes
   local refreshGymGuideVisibility
@@ -684,13 +699,13 @@ return function(mod, deps)
   local function nuzStatusEncounterSnapshot(game)
       local key = areaKey(game, nil)
       local label = key and routeName(key) or Strings("UNKNOWN")
-      local status = "OPEN"
+      local status = Strings("OPEN")
       if key and caughtAreas()[key] ~= nil then
-          status = "CAUGHT"
+          status = Strings("CAUGHT")
       else
           local state = key and getEncounterState(key) or nil
           if type(state) == "table" and state.status == "FAILED" then
-              status = "FAILED"
+              status = Strings("FAILED")
           end
       end
       return tostring(label or key or "UNKNOWN"), status
@@ -699,18 +714,18 @@ return function(mod, deps)
   local function nuzStatusLastHistoryEvent(game)
       local history = mod.exports.__beta26.RunHistory
       local storageKey = history and history.storage_key
-      if type(storageKey) ~= "string" then return "NONE" end
+      if type(storageKey) ~= "string" then return Strings("NONE") end
       local root = mod.save:get(storageKey, nil)
       local rows = type(root) == "table" and root.events or nil
-      if type(rows) ~= "table" or #rows == 0 then return "NONE" end
+      if type(rows) ~= "table" or #rows == 0 then return Strings("NONE") end
       local row = rows[#rows]
       local kind = tostring(row.kind or "EVENT")
       local name = tostring(row.name or row.species or row.target or row.area or "")
       local labels = {
-          ["pokemon.caught"] = "CAUGHT", ["pokemon.died"] = "DIED",
-          ["forgiveness.awarded"] = "TOKEN+", ["forgiveness.used"] = "TOKEN-",
-          ["badge.earned"] = "BADGE", ["run.blackout"] = "BLACKOUT",
-          ["run.completed"] = "COMPLETE",
+          ["pokemon.caught"] = Strings("CAUGHT"), ["pokemon.died"] = Strings("DIED"),
+          ["forgiveness.awarded"] = Strings("TOKEN+"), ["forgiveness.used"] = Strings("TOKEN-"),
+          ["badge.earned"] = Strings("BADGE"), ["run.blackout"] = Strings("BLACKOUT"),
+          ["run.completed"] = Strings("COMPLETE"),
       }
       local label = labels[kind] or kind:upper():gsub("^.-%.", "")
       return name ~= "" and (label .. " " .. name) or label
@@ -840,13 +855,13 @@ return function(mod, deps)
           right = "",
       }
       local labels = {
-          ["pokemon.caught"] = "CATCH",
-          ["pokemon.died"] = "DEATH",
-          ["badge.earned"] = "BADGE",
-          ["forgiveness.awarded"] = "TOKEN+",
-          ["forgiveness.used"] = "TOKEN-",
-          ["run.blackout"] = "BLACKOUT",
-          ["run.completed"] = "COMPLETE",
+          ["pokemon.caught"] = Strings("CATCH"),
+          ["pokemon.died"] = Strings("DEATH"),
+          ["badge.earned"] = Strings("BADGE"),
+          ["forgiveness.awarded"] = Strings("TOKEN+"),
+          ["forgiveness.used"] = Strings("TOKEN-"),
+          ["run.blackout"] = Strings("BLACKOUT"),
+          ["run.completed"] = Strings("COMPLETE"),
       }
       if type(rows) == "table" and #rows > 0 then
           local first = math.max(1, #rows - 99)
@@ -857,9 +872,9 @@ return function(mod, deps)
                   local label = labels[kind] or kind:upper():gsub("^.-%.", "")
                   local detail = tostring(row.name or row.badge or row.species
                       or row.target or row.area or "")
-                  if #detail > 12 then detail = detail:sub(1, 12) end
+                  detail = clipGlyphText(detail, 12, "")
                   items[#items + 1] = {
-                      label = Strings(detail ~= "" and (label .. " " .. detail) or label),
+                      label = detail ~= "" and (label .. " " .. detail) or label,
                       right = tostring(row.seq or ""),
                   }
               end
@@ -1158,7 +1173,8 @@ return function(mod, deps)
                       local limit = tonumber(value) or 0
                       return limit > 0 and Strings("Max BST %d", limit) or nil
                   elseif rule.key == "randomizer_preset" then
-                      return Strings("RNG Preset %s", ({ [0]="CUSTOM", [1]="CHAOS", [2]="BALANCED" })[tonumber(value) or 0] or "CUSTOM")
+                      return Strings("RNG Preset %s", Strings(
+                          ({ [0]="CUSTOM", [1]="CHAOS", [2]="BALANCED" })[tonumber(value) or 0] or "CUSTOM"))
                   elseif rule.key == "randomizer_seed" then
                       local starterOwned = mod.save:get("random_starter", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_starter", self.game))
@@ -1182,7 +1198,8 @@ return function(mod, deps)
                   elseif rule.key == "random_starter_style" then
                       if mod.save:get("random_starter", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_starter", self.game)) then return nil end
-                      return Strings("Starter %s", ({ [0]="ANY", [1]="3-STAGE", [2]="BASE", [3]="SIM BST" })[tonumber(value) or 0] or "ANY")
+                      return Strings("Starter %s", Strings(
+                          ({ [0]="ANY", [1]="3-STAGE", [2]="BASE", [3]="SIM BST" })[tonumber(value) or 0] or "ANY"))
                   elseif rule.key == "random_starter_balance" then
                       if mod.save:get("random_starter", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_starter", self.game)) then return nil end
@@ -1194,45 +1211,56 @@ return function(mod, deps)
                   elseif rule.key == "random_field_item_balance" then
                       if mod.save:get("random_field_items", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game)) then return nil end
-                      return Strings("Items %s", ({ [0]="CHAOS", [1]="CATEGORY", [2]="BALANCED" })[tonumber(value) or 0] or "CHAOS")
+                      return Strings("Items %s", Strings(
+                          ({ [0]="CHAOS", [1]="CATEGORY", [2]="BALANCED" })[tonumber(value) or 0] or "CHAOS"))
                   elseif rule.key == "random_field_item_repetition" then
                       if mod.save:get("random_field_items", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_field_items", self.game)) then return nil end
-                      return Strings("ItemRep %s", ({ [0]="ALLOW", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "ALLOW")
+                      return Strings("ItemRep %s", Strings(
+                          ({ [0]="ALLOW", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "ALLOW"))
                   elseif rule.key == "random_encounter_balance" then
                       if mod.save:get("random_encounter_tables", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", self.game)) then return nil end
-                      return Strings("Enc %s", ({ [0]="CHAOS", [1]="SIM BST", [2]="EVO", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS")
+                      return Strings("Enc %s", Strings(
+                          ({ [0]="CHAOS", [1]="SIM BST", [2]="EVO", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS"))
                   elseif rule.key == "random_encounter_repetition" then
                       if mod.save:get("random_encounter_tables", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", self.game)) then return nil end
-                      return Strings("Repeats %s", ({ [0]="ALLOW", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "ALLOW")
+                      return Strings("Repeats %s", Strings(
+                          ({ [0]="ALLOW", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "ALLOW"))
                   elseif rule.key == "random_encounter_diversity_strength" then
                       if mod.save:get("random_encounter_tables", false) ~= true
                           or tonumber(mod.save:get("random_encounter_repetition", 0)) ~= 1
                           or (externalRuleDelegation and externalRuleDelegation("random_encounter_tables", self.game)) then return nil end
-                      return Strings("Diversity %s", ({ [0]="LIGHT", [1]="STANDARD", [2]="STRONG" })[tonumber(value) or 1] or "STANDARD")
+                      return Strings("Diversity %s", Strings(
+                          ({ [0]="LIGHT", [1]="STANDARD", [2]="STRONG" })[tonumber(value) or 1] or "STANDARD"))
                   elseif rule.key == "random_evolution_balance" then
                       if mod.save:get("random_evolutions", false) ~= true then return nil end
-                      return Strings("Evos %s", ({ [0]="CHAOS", [1]="DEPTH", [2]="SIM BST", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS")
+                      return Strings("Evos %s", Strings(
+                          ({ [0]="CHAOS", [1]="DEPTH", [2]="SIM BST", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS"))
                   elseif rule.key == "random_shop_balance" then
                       if mod.save:get("random_shops", false) ~= true then return nil end
-                      return Strings("Shops %s", ({ [0]="CHAOS", [1]="PRICE", [2]="BALANCED" })[tonumber(value) or 2] or "BALANCED")
+                      return Strings("Shops %s", Strings(
+                          ({ [0]="CHAOS", [1]="PRICE", [2]="BALANCED" })[tonumber(value) or 2] or "BALANCED"))
                   elseif rule.key == "random_tm_compatibility" then
                       if mod.save:get("random_tms", false) ~= true then return nil end
-                      return Strings("TM Compat %s", ({ [0]="MOVE", [1]="SLOT", [2]="FULL" })[tonumber(value) or 0] or "MOVE")
+                      return Strings("TM Compat %s", Strings(
+                          ({ [0]="MOVE", [1]="SLOT", [2]="FULL" })[tonumber(value) or 0] or "MOVE"))
                   elseif rule.key == "random_trainer_balance" then
                       if mod.save:get("random_trainers", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game)) then return nil end
-                      return Strings("Trainers %s", ({ [0]="CHAOS", [1]="EVO", [2]="SIM BST", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS")
+                      return Strings("Trainers %s", Strings(
+                          ({ [0]="CHAOS", [1]="EVO", [2]="SIM BST", [3]="BALANCED" })[tonumber(value) or 0] or "CHAOS"))
                   elseif rule.key == "random_trainer_diversity" then
                       if mod.save:get("random_trainers", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game)) then return nil end
-                      return Strings("Diversity %s", ({ [0]="OFF", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "OFF")
+                      return Strings("Diversity %s", Strings(
+                          ({ [0]="OFF", [1]="DIVERSE", [2]="UNIQUE" })[tonumber(value) or 0] or "OFF"))
                   elseif rule.key == "random_trainer_theme" then
                       if mod.save:get("random_trainers", false) ~= true
                           or (externalRuleDelegation and externalRuleDelegation("random_trainers", self.game)) then return nil end
-                      return Strings("Theme %s", ({ [0]="OFF", [1]="TYPE" })[tonumber(value) or 0] or "OFF")
+                      return Strings("Theme %s", Strings(
+                          ({ [0]="OFF", [1]="TYPE" })[tonumber(value) or 0] or "OFF"))
                   elseif rule.key == "randomizer_info_policy" then
                       local starterOwned = mod.save:get("random_starter", false) == true
                           and not (externalRuleDelegation and externalRuleDelegation("random_starter", self.game))
@@ -1395,7 +1423,7 @@ return function(mod, deps)
               do
                   local areaLabel, areaStatus = nuzStatusEncounterSnapshot(game)
                   local compactArea = tostring(areaLabel or "?")
-                  if #compactArea > 9 then compactArea = compactArea:sub(1, 8) .. "." end
+                  compactArea = clipGlyphText(compactArea, 9, ".")
                   items[#items + 1] = {
                       label = Strings("AREA"),
                       right = Strings(compactArea),
@@ -1407,7 +1435,7 @@ return function(mod, deps)
               end
               do
                   local lastEvent = tostring(nuzStatusLastHistoryEvent(game) or "NONE")
-                  if #lastEvent > 16 then lastEvent = lastEvent:sub(1, 15) .. "." end
+                  lastEvent = clipGlyphText(lastEvent, 16, ".")
                   items[#items + 1] = { label = Strings("LAST EVENT"), right = "" }
                   items[#items + 1] = { label = Strings(lastEvent), right = "" }
               end
@@ -1701,12 +1729,22 @@ return function(mod, deps)
                       "NUZ STATUS", mod.exports.__beta26.Dev.gameLabel(self.game),
                       { row = 1, subtitleRow = 2 })
 
-                  Chrome.print(Strings("CATCH %d LOST %d", caught, lostEncounters), 2, 3)
-                  Chrome.print(Strings("DEATH %d TOKEN %d", deaths, tokens), 2, 4)
-                  Chrome.print(Strings("AREAS %d/%d", caughtAreasCount, totalAreas), 2, 5)
-                  Chrome.print(Strings("VIS %d/%d", visitedAreasCount, totalAreas), 12, 5)
-                  Chrome.print(cap >= 100 and Strings("NEXT CAP MAX")
-                      or Strings("NEXT CAP LV%d", cap), 2, 6)
+                  Chrome.print(marqueeText(
+                      Strings("CATCH %d LOST %d", caught, lostEncounters),
+                      16, self.ruleMarqueeTime), 2, 3)
+                  Chrome.print(marqueeText(
+                      Strings("DEATH %d TOKEN %d", deaths, tokens),
+                      16, self.ruleMarqueeTime), 2, 4)
+                  Chrome.print(marqueeText(
+                      Strings("AREAS %d/%d", caughtAreasCount, totalAreas),
+                      9, self.ruleMarqueeTime), 2, 5)
+                  Chrome.print(marqueeText(
+                      Strings("VIS %d/%d", visitedAreasCount, totalAreas),
+                      7, self.ruleMarqueeTime), 12, 5)
+                  Chrome.print(marqueeText(
+                      cap >= 100 and Strings("NEXT CAP MAX")
+                          or Strings("NEXT CAP LV%d", cap),
+                      16, self.ruleMarqueeTime), 2, 6)
                   Chrome.printWrapped(Strings("AREA %s", tostring(areaLabel)), 2, 7, 16, 1)
                   Chrome.printWrapped(Strings("STATUS %s", tostring(areaStatus)), 2, 8, 16, 1)
                   Chrome.printWrapped(Strings("LAST %s", tostring(lastEvent)), 2, 9, 16, 1)
@@ -1750,20 +1788,20 @@ return function(mod, deps)
               -- facts while reserving bounded rows for TOKEN, AREA, and LAST.
               -- Pixel-fit every free-text row before drawing so no status text
               -- can cross the 152px inner frame or collide with RULES/footer.
-              Font.draw(fitPixelText(("CATCH %d  LOST %d"):format(
+              Font.draw(fitPixelText(Strings("CATCH %d  LOST %d",
                   caught, lostEncounters), 136), 16, 20)
-              Font.draw(fitPixelText(("DEATH %d  TOKEN %d"):format(
+              Font.draw(fitPixelText(Strings("DEATH %d  TOKEN %d",
                   deaths, tokens), 136), 16, 30)
-              Font.draw(fitPixelText(("AREAS %d/%d VIS %d/%d"):format(
+              Font.draw(fitPixelText(Strings("AREAS %d/%d VIS %d/%d",
                   caughtAreasCount, totalAreas, visitedAreasCount, totalAreas), 136), 16, 40)
               Font.draw(cap >= 100 and Strings("NEXT CAP MAX")
                   or Strings("NEXT CAP LV%d", cap), 16, 50)
-              Font.draw(fitPixelText("AREA " .. tostring(areaLabel), 92), 16, 60)
+              Font.draw(fitPixelText(Strings("AREA %s", tostring(areaLabel)), 92), 16, 60)
               local statusText = fitPixelText(tostring(areaStatus), 36)
               local statusWidth = type(Font.width) == "function" and Font.width(statusText)
                   or (#statusText * 8)
               Font.draw(statusText, math.max(108, 144 - statusWidth), 60)
-              Font.draw(fitPixelText("LAST " .. tostring(lastEvent), 136), 16, 70)
+              Font.draw(fitPixelText(Strings("LAST %s", tostring(lastEvent)), 136), 16, 70)
 
               local names = activeRuleNames()
               local visible = 2
@@ -1841,7 +1879,7 @@ return function(mod, deps)
                       if type(g.stack.pop) == "function" then g.stack:pop() end
                   end)
                   local short = tostring(failure.message):gsub("^.-:%s*", "")
-                  if #short > 180 then short = short:sub(1, 180) .. "..." end
+                  short = clipGlyphText(short, 180, "...")
                   local body = mod.exports.__beta26.manualPagedErrorText(
                       "NUZ STATUS " .. tostring(failure.phase):upper() .. " ERROR",
                       short)
@@ -2387,8 +2425,8 @@ return function(mod, deps)
               -- screen. Pushing a TextBox from this maintenance editor could
               -- leave input apparently frozen while the state stack unwound.
               self.notice = {
-                  title = tostring(title or "RECOVERY"),
-                  detail = tostring(detail or "Unknown recovery error."),
+                  title = tostring(title or Strings("RECOVERY")),
+                  detail = tostring(detail or Strings("Unknown recovery error.")),
                   code = code and tostring(code) or nil,
               }
               return true
@@ -3046,7 +3084,8 @@ return function(mod, deps)
                           local sp = tostring(entry.species or "???")
                           local prefix = entry.assigned and "* "
                               or (entry.provenance == "EDITED" and "E " or "L ")
-                          Chrome.print(Strings(prefix .. sp:sub(1, 11)), 3, row)
+                          Chrome.print(marqueeText(Strings(prefix .. sp),
+                              11, self.ruleMarqueeTime or 0), 3, row)
                           if entry.assigned then
                               Chrome.print(Strings("EDIT"), 15, row)
                           else
@@ -3059,7 +3098,7 @@ return function(mod, deps)
                   elseif self.mode == "actions" then
                       local entry = list[self.cursor]
                       mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
-                          "EDIT RECOVERY", tostring(entry.species or "???"):sub(1, 12),
+                          "EDIT RECOVERY", tostring(entry.species or "???"),
                           { row = 1, subtitleRow = 3 })
                       local actions = { "CHANGE AREA", "CHANGE TYPE", "REMOVE ENTRY" }
                       for i, action in ipairs(actions) do
@@ -3071,7 +3110,7 @@ return function(mod, deps)
                   elseif self.mode == "types" then
                       local entry = list[self.cursor]
                       mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
-                          "ENCOUNTER TYPE", tostring(entry.species or "???"):sub(1, 12),
+                          "ENCOUNTER TYPE", tostring(entry.species or "???"),
                           { row = 1, subtitleRow = 3 })
                       local start = math.max(1, math.min(self.typeCursor - 3, #recoveryTypes - 5))
                       for i = start, math.min(#recoveryTypes, start + 5) do
@@ -3085,7 +3124,7 @@ return function(mod, deps)
                       local c = candidates(entry)
                       mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont,
                           entry.assigned and "CHANGE AREA?" or "WHERE CAUGHT?",
-                          tostring(entry.species or "???"):sub(1, 12),
+                          tostring(entry.species or "???"),
                           { row = 1, subtitleRow = 3 })
                       if #c == 0 then
                           Chrome.print(Strings("NO AVAILABLE AREAS"), 2, 7)
@@ -3113,7 +3152,7 @@ return function(mod, deps)
 
               if #list == 0 then
                   if mod.exports.__beta26.runtimeIsGen2(self.game) then
-                      mod.exports.__beta26.drawGen2NuzTitle(nil, Font, "RECOVER CATCHES")
+                      mod.exports.__beta26.drawGen2NuzTitle(nil, Font, Strings("RECOVER CATCHES"))
                   else
                       Font.draw(Strings("RECOVER CATCHES"), 12, 10)
                   end
@@ -3140,7 +3179,7 @@ return function(mod, deps)
                       local sp = tostring(entry.species or "???")
                       local prefix = entry.assigned and "* "
                           or (entry.provenance == "EDITED" and "E " or "L ")
-                      Font.draw(prefix .. sp:sub(1, 10), 30, y)
+                      Font.draw(fitPixelText(prefix .. sp, 88), 30, y)
                       if entry.assigned then
                           Font.draw(Strings("EDIT"), 122, y)
                       else
@@ -3156,11 +3195,11 @@ return function(mod, deps)
                   local entry = list[self.cursor]
                   if mod.exports.__beta26.runtimeIsGen2(self.game) then
                       mod.exports.__beta26.drawGen2NuzTitle(nil, Font,
-                          "EDIT RECOVERY", tostring(entry.species or "???"):sub(1, 12),
+                          "EDIT RECOVERY", tostring(entry.species or "???"),
                           { row = 1, subtitleRow = 3 })
                   else
                       Font.draw(Strings("EDIT RECOVERY"), 22, 10)
-                      Font.draw(tostring(entry.species or "???"):sub(1, 12), 48, 24)
+                      Font.draw(fitPixelText(tostring(entry.species or "???"), 96), 48, 24)
                   end
                   local actions = { "CHANGE AREA", "CHANGE TYPE", "REMOVE ENTRY" }
                   for i, action in ipairs(actions) do
@@ -3175,7 +3214,7 @@ return function(mod, deps)
               elseif self.mode == "types" then
                   local entry = list[self.cursor]
                   Font.draw(Strings("ENCOUNTER TYPE"), 16, 10)
-                  Font.draw(tostring(entry.species or "???"):sub(1, 12), 48, 24)
+                  Font.draw(fitPixelText(tostring(entry.species or "???"), 96), 48, 24)
                   local start = math.max(1,
                       math.min(self.typeCursor - 3, #recoveryTypes - 5))
                   for i = start, math.min(#recoveryTypes, start + 5) do
@@ -3192,7 +3231,7 @@ return function(mod, deps)
                   local c = candidates(entry)
                   Font.draw(Strings(entry.assigned and "CHANGE AREA?"
                       or "WHERE CAUGHT?"), 26, 10)
-                  Font.draw(tostring(entry.species or "???"):sub(1, 12), 48, 24)
+                  Font.draw(fitPixelText(tostring(entry.species or "???"), 96), 48, 24)
 
                   if #c == 0 then
                       Font.draw(Strings("NO AVAILABLE AREAS"), 16, 58)
@@ -3247,7 +3286,7 @@ return function(mod, deps)
                   self.areaCursor = 1
                   self.actionCursor = 1
                   local short = tostring(failure.detail):gsub("^.-:%s*", "")
-                  if #short > 150 then short = short:sub(1, 150) .. "..." end
+                  short = clipGlyphText(short, 150, "...")
                   showRecoveryMessage("RECOVERY "
                       .. tostring(failure.phase):upper() .. " ERROR",
                       short, failure.code)
@@ -3296,8 +3335,10 @@ return function(mod, deps)
               exportInfo = nil,
               reportScroll = math.max(0,
                   math.floor(tonumber(rememberedDev.reportScroll) or 0)),
-              reportSection = math.max(1, math.min(5,
+              reportSection = math.max(1, math.min(20,
                   math.floor(tonumber(rememberedDev.reportSection) or 1))),
+              localizationCertCursor = math.max(1, math.min(10,
+                  math.floor(tonumber(rememberedDev.localizationCertCursor) or 1))),
               viewingReport = false,
               viewingFileInfo = false,
               fileInfoScroll = 0,
@@ -3369,10 +3410,70 @@ return function(mod, deps)
           -- playthrough IDs, storage keys, and other diagnostic identifiers.
           -- Keep a Dev-only hard wrapper so every emitted row respects the
           -- viewport width without changing normal menu/description wrapping.
+          local function devUiGlyphCount(text)
+              text = tostring(text or "")
+              local Font = mod.ui and mod.ui.Font
+              if Font and type(Font.split) == "function" then
+                  local ok, spans = pcall(Font.split, text)
+                  if ok and type(spans) == "table" then return #spans end
+              end
+              local beta = mod.exports and mod.exports.__beta26 or {}
+              if type(beta.nuzGlyphLen) == "function" then
+                  local ok, value = pcall(beta.nuzGlyphLen, text)
+                  if ok and tonumber(value) then return tonumber(value) end
+              end
+              if type(utf8) == "table" and type(utf8.len) == "function" then
+                  local ok, value = pcall(utf8.len, text)
+                  if ok and tonumber(value) then return tonumber(value) end
+              end
+              return #text
+          end
+
           local function devUiWrapText(text, width)
               width = math.max(8, math.floor(tonumber(width) or 16))
               local out = {}
               local line = ""
+              local Font = mod.ui and mod.ui.Font
+
+              local function glyphSpans(value)
+                  if Font and type(Font.split) == "function" then
+                      local ok, spans = pcall(Font.split, tostring(value or ""))
+                      if ok and type(spans) == "table" then return spans end
+                  end
+                  return nil
+              end
+
+              local function glyphCount(value)
+                  local spans = glyphSpans(value)
+                  if spans then return #spans end
+                  local count = 0
+                  if type(utf8) == "table" and type(utf8.codes) == "function" then
+                      local ok = pcall(function()
+                          for _ in utf8.codes(tostring(value or "")) do count = count + 1 end
+                      end)
+                      if ok then return count end
+                  end
+                  return #tostring(value or "")
+              end
+
+              local function splitGlyphs(value, count)
+                  value = tostring(value or "")
+                  local spans = glyphSpans(value)
+                  if spans and #spans > 0 then
+                      local n = math.min(#spans, math.max(0, count))
+                      if n <= 0 then return "", value end
+                      local last = spans[n]
+                      return value:sub(1, last.to), value:sub(last.to + 1)
+                  end
+                  if type(utf8) == "table" and type(utf8.offset) == "function" then
+                      local ok, pos = pcall(utf8.offset, value, count + 1)
+                      if ok then
+                          if pos == nil then return value, "" end
+                          return value:sub(1, pos - 1), value:sub(pos)
+                      end
+                  end
+                  return value:sub(1, count), value:sub(count + 1)
+              end
 
               local function flush()
                   if line ~= "" then
@@ -3383,15 +3484,16 @@ return function(mod, deps)
 
               local function appendToken(token)
                   token = tostring(token or "")
-                  while #token > width do
+                  while glyphCount(token) > width do
                       if line ~= "" then flush() end
-                      out[#out + 1] = token:sub(1, width)
-                      token = token:sub(width + 1)
+                      local head
+                      head, token = splitGlyphs(token, width)
+                      out[#out + 1] = head
                   end
                   if token == "" then return end
                   if line == "" then
                       line = token
-                  elseif #line + 1 + #token <= width then
+                  elseif glyphCount(line) + 1 + glyphCount(token) <= width then
                       line = line .. " " .. token
                   else
                       flush()
@@ -3635,7 +3737,7 @@ return function(mod, deps)
               local detail = tostring(info.message or info.error
                   or "The Dev self-test could not complete.")
               detail = detail:gsub("^.-:%s*", "")
-              if #detail > 180 then detail = detail:sub(1, 180) .. "..." end
+              detail = clipGlyphText(detail, 180, "...")
               -- 2.7.82: player-visible Dev failures are semantic text only.
               self.devError = { title = "DEV RUN ERROR", detail = detail }
               self.status = "ERROR"
@@ -3643,7 +3745,11 @@ return function(mod, deps)
 
           -- 2.7.82: DEV REPORT is a semantic runtime dashboard. The old RAW
           -- machine-dump page and opaque generated codes are internal-only.
-          local DEV_REPORT_SECTIONS = { "SUMMARY", "PROBLEMS", "HOOKS", "RULES", "RANDOM" }
+          local DEV_REPORT_SECTIONS = { "SUMMARY", "HEALTH", "LOCALIZATION", "LOCAL CERT",
+              "BUG REPORT", "TRANSACTIONS", "HOOK DRIFT", "SHINY", "RANDOM REPRO",
+              "PERFORMANCE", "RULE CONFIG",
+              "SAVE/RUN", "OWNER HISTORY", "PROVIDERS", "ENCOUNTER", "DECISIONS",
+              "PROBLEMS", "HOOKS", "RULES", "RANDOM" }
           local function devReportSectionLines(report, rawText, width, rawFormatter)
               report = type(report) == "table" and report or {}
               local section = math.max(1, math.min(#DEV_REPORT_SECTIONS,
@@ -3663,7 +3769,7 @@ return function(mod, deps)
                       local l = tostring(leftLines[i] or "")
                       local r = tostring(rightLines[i] or "")
                       out[#out + 1] = l .. string.rep(" ",
-                          math.max(1, leftWidth - #l + 1)) .. r
+                          math.max(1, leftWidth - devUiGlyphCount(l) + 1)) .. r
                   end
               end
               local problems = {}
@@ -3694,6 +3800,308 @@ return function(mod, deps)
                   put(string.format("INSTALL F%d N%d P%d", ic, ina, ip))
                   put("A:PROBLEMS")
                   put("LEFT/RIGHT:SECTION")
+              elseif name == "HEALTH" then
+                  local health = mod.exports.__beta26.Dev.systemHealth(self.game)
+                  put("OVERALL " .. tostring(health.status or "?"))
+                  putPair("SYSTEM", "STATE")
+                  for _, key in ipairs({ "ENGINE", "SAVE", "RULES", "ENCOUNTER",
+                      "BATTLE", "RANDOMIZER", "LOCALIZATION", "PROVIDERS", "SHINY", "UI",
+                      "TRANSACTIONS" }) do
+                      local row = health.rows and health.rows[key] or {}
+                      putPair(key, row.status or "N/A")
+                      if row.reason and row.reason ~= "" then
+                          put(" " .. tostring(row.reason))
+                      end
+                  end
+              elseif name == "LOCALIZATION" then
+                  local d = mod.exports.__beta26.Dev.localizationDiagnostics
+                      and mod.exports.__beta26.Dev.localizationDiagnostics(self.game) or {}
+                  putPair("STATE", d.status or "N/A")
+                  putPair("INSTALLED", tostring(d.installed or 0))
+                  putPair("ACTIVE", tostring(d.active or 0))
+                  putPair("RESTART", tostring(d.restart_required or 0))
+                  putPair("SOURCES", tostring(d.source_count or 0))
+                  putPair("FALLBACK", string.format("%d/%d",
+                      tonumber(d.fallback_count or 0), tonumber(d.source_count or 0)))
+                  for _, row in ipairs(d.companions or {}) do
+                      put("")
+                      put(tostring(row.id or "?"))
+                      putPair("ACTIVITY", tostring(row.activity or "?"))
+                      if row.bootLanguage then
+                          putPair("BOOT LANG", tostring(row.bootLanguage))
+                      end
+                      if row.pendingLanguage then
+                          putPair("PENDING", tostring(row.pendingLanguage))
+                      end
+                      if row.edition then
+                          putPair("EDITION", tostring(row.edition))
+                      end
+                  end
+              elseif name == "LOCAL CERT" then
+                  local cert = mod.exports.__beta26.Dev.localizationCertification
+                      and mod.exports.__beta26.Dev.localizationCertification(self.game) or {}
+                  put(tostring(cert.summary or "NO CERTIFICATION DATA"))
+                  put(Strings("SESSION ONLY / MANUAL"))
+                  local cursor = math.max(1, math.min(#(cert.checks or {}),
+                      math.floor(tonumber(self.localizationCertCursor) or 1)))
+                  for _, row in ipairs(cert.checks or {}) do
+                      local state = tostring(row.state or "UNTESTED")
+                      local mark = state == "PASS" and "[P]"
+                          or state == "FAIL" and "[F]" or "[-]"
+                      local prefix = tonumber(row.index) == cursor and ">" or " "
+                      put(prefix .. mark .. " " .. tostring(
+                          Strings(row.label or row.id or "?")))
+                  end
+                  put(Strings("A:MARK  U/D:CHECK"))
+                  put(Strings("L/R:SECTION  B:BACK"))
+              elseif name == "BUG REPORT" then
+                  local snap = mod.exports.__beta26.Dev.bugReportSnapshot
+                      and mod.exports.__beta26.Dev.bugReportSnapshot(self.game) or {}
+                  put("BUILD " .. tostring(snap.build or "?")
+                      .. " " .. tostring(snap.game or "?"):upper())
+                  put("HEALTH " .. tostring(
+                      type(snap.health) == "table" and snap.health.status or "N/A"))
+                  putPair("ENGINE", snap.engine_family or "?")
+                  putPair("SAVE SCHEMA", snap.save_schema or "?")
+                  putPair("RUN", snap.run_id or "?")
+                  local prov = type(snap.providers) == "table" and snap.providers or {}
+                  put(string.format("PROVIDERS %d SELECTED %d",
+                      tonumber(prov.provider_count or 0), tonumber(prov.selected or 0)))
+                  local enc = type(snap.encounter) == "table" and snap.encounter or {}
+                  if enc.active == true then
+                      putPair("ENCOUNTER", enc.area or "?")
+                      putPair("SPECIES", enc.species or "?")
+                  else
+                      put("ENCOUNTER NONE")
+                  end
+                  put(string.format("WARN %d ERROR %d",
+                      #(snap.warnings or {}), #(snap.errors or {})))
+                  put(string.format("DECISIONS %d CRUMBS %d",
+                      #(snap.decisions or {}), #(snap.breadcrumbs or {})))
+                  if #(snap.errors or {}) > 0 then
+                      local row = snap.errors[#snap.errors]
+                      put("LAST ERROR " .. tostring(row.code or "?"))
+                      put(" " .. tostring(row.detail or ""))
+                  elseif #(snap.warnings or {}) > 0 then
+                      local row = snap.warnings[#snap.warnings]
+                      put("LAST WARN " .. tostring(row.code or "?"))
+                      put(" " .. tostring(row.detail or ""))
+                  else
+                      put("NO RECENT WARN/ERROR")
+                  end
+                  put("PUBLIC API: bug_report_snapshot()")
+              elseif name == "TRANSACTIONS" then
+                  local tx = mod.exports.__beta26.Dev.transactionHealth
+                      and mod.exports.__beta26.Dev.transactionHealth() or {}
+                  putPair("STATUS", tx.status or "N/A")
+                  putPair("POLICY", tx.recovery_policy or "?")
+                  put(string.format("HANDLERS %d RECEIPTS %d/%d",
+                      tonumber(tx.handler_count or 0),
+                      tonumber(tx.receipt_count or 0),
+                      tonumber(tx.receipt_limit or 0)))
+                  putPair("SEQUENCES", tx.sequence_namespace_count or 0)
+                  if tx.pending then
+                      putPair("PENDING ID", tx.pending_id or "?")
+                      putPair("KIND", tx.pending_kind or "?")
+                      putPair("STATE", tx.pending_state or "?")
+                      if tx.pending_detail and tx.pending_detail ~= "" then
+                          putPair("DETAIL", tx.pending_detail)
+                      end
+                      putPair("BUILD", tx.pending_build or "?")
+                  else
+                      put("PENDING NONE")
+                  end
+                  local last = tx.last_receipt
+                  if type(last) == "table" then
+                      putPair("LAST TX", last.kind or "?")
+                      putPair("LAST STATE", last.state or "?")
+                      putPair("LAST BUILD", last.build or "?")
+                  else
+                      put("LAST TX NONE")
+                  end
+                  put("READ ONLY / FAIL CLOSED")
+              elseif name == "HOOK DRIFT" then
+                  local drift = mod.exports.__beta26.Dev.hookWrapperDrift
+                      and mod.exports.__beta26.Dev.hookWrapperDrift() or {}
+                  put(string.format("STATUS %s CHECKED %d",
+                      tostring(drift.status or "N/A"),
+                      tonumber(drift.checked or 0)))
+                  put(string.format("OK %d DRIFT %d N/A %d",
+                      tonumber(drift.ok or 0), tonumber(drift.drift or 0),
+                      tonumber(drift.unavailable or 0)))
+                  local shown = 0
+                  for _, row in ipairs(drift.rows or {}) do
+                      if row.state == "DRIFT" or shown < 6 then
+                          putPair(tostring(row.state or "?"),
+                              tostring(row.id or "?"))
+                          put(" " .. tostring(row.reason or ""))
+                          shown = shown + 1
+                      end
+                      if shown >= 12 then break end
+                  end
+                  if #(drift.rows or {}) == 0 then put("NO REGISTERED HOOKS") end
+                  put("REPORT ONLY / NO RECLAIM")
+              elseif name == "SHINY" then
+                  local d = mod.exports.__beta26.Dev.shinyDiagnostics
+                      and mod.exports.__beta26.Dev.shinyDiagnostics(self.game) or {}
+                  putPair("STATUS", d.status or "N/A")
+                  putPair("OWNER", d.owner or "?")
+                  putPair("PROVIDER", d.provider or "NONE")
+                  if d.provider_version then putPair("VERSION", d.provider_version) end
+                  putPair("RATE", d.rate_label or "?")
+                  putPair("COLORS", d.external and "EXTERNAL"
+                      or (d.colors_enabled and "ON" or "OFF"))
+                  putPair("INTRO", d.external and "EXTERNAL"
+                      or (d.intro_enabled and "ON" or "OFF"))
+                  if d.current_identity == nil then
+                      put("IDENTITY N/A")
+                  else
+                      putPair("IDENTITY", d.current_identity and "SHINY" or "NORMAL")
+                  end
+                  putPair("SOURCE", d.identity_source or "?")
+                  put("READ ONLY / NO ROLL")
+              elseif name == "RANDOM REPRO" then
+                  local r = mod.exports.__beta26.Dev.randomizerReproducibility
+                      and mod.exports.__beta26.Dev.randomizerReproducibility(self.game) or {}
+                  putPair("STATUS", r.status or "N/A")
+                  putPair("MODE", r.mode or "?")
+                  putPair("ALGORITHM", r.algorithm or "?")
+                  putPair("RUN SCHEMA", r.run_schema or "?")
+                  putPair("SEED", r.share_code or "UNRESOLVED")
+                  putPair("REPRODUCIBLE", r.reproducible and "YES" or "NO")
+                  putPair("POLICY", r.mid_run_policy or "?")
+                  putPair("DRIFT KEYS", #(r.settings_drift or {}))
+                  local shown = 0
+                  for _, row in ipairs(r.source_maps or {}) do
+                      if tonumber(row.count or 0) > 0 then
+                          put(string.format("%s %d%s",
+                              tostring(row.stream or "?"),
+                              tonumber(row.count or 0),
+                              row.shared and " SHARED" or ""))
+                          shown = shown + 1
+                      end
+                      if shown >= 6 then break end
+                  end
+                  if shown == 0 then put("NO MATERIALIZED MAPS") end
+                  put("READ ONLY / ZERO RNG")
+              elseif name == "PERFORMANCE" then
+                  local perf = mod.exports.__beta26.Dev.performanceCounters
+                      and mod.exports.__beta26.Dev.performanceCounters() or {}
+                  putPair("STATUS", perf.status or "N/A")
+                  putPair("DEV ENABLED", perf.enabled and "YES" or "NO")
+                  putPair("COUNTERS", perf.count or 0)
+                  local shown = 0
+                  for _, row in ipairs(perf.rows or {}) do
+                      putPair(tostring(row.name or "?"), row.count or 0)
+                      shown = shown + 1
+                      if shown >= 10 then break end
+                  end
+                  if shown == 0 then put("NO COUNTERS YET") end
+                  put("IN MEMORY / DEV ONLY")
+              elseif name == "RULE CONFIG" then
+                  local r = mod.exports.__beta26.Dev.ruleConfigurationConsistency
+                      and mod.exports.__beta26.Dev.ruleConfigurationConsistency(self.game)
+                      or {}
+                  putPair("STATUS", r.status or "N/A")
+                  putPair("DESCRIPTORS", r.descriptor_count or 0)
+                  putPair("DEFINITIONS", r.definition_count or 0)
+                  putPair("INVALID", r.invalid_count or 0)
+                  putPair("STALE", r.stale_count or 0)
+                  putPair("DORMANT", r.dormant_count or 0)
+                  for i, row in ipairs(r.dormant or {}) do
+                      putPair("DORMANT " .. tostring(row.key or "?"),
+                          tostring(row.reason or "?"))
+                      if i >= 6 then break end
+                  end
+                  for i, row in ipairs(r.catalog_mismatches or {}) do
+                      put("MISMATCH " .. tostring(row))
+                      if i >= 4 then break end
+                  end
+                  put("READ ONLY / NO FIX")
+              elseif name == "SAVE/RUN" then
+                  local h = mod.exports.__beta26.Dev.saveRunIdentityHealth
+                      and mod.exports.__beta26.Dev.saveRunIdentityHealth(self.game) or {}
+                  putPair("STATUS", h.status or "N/A")
+                  putPair("EDITION", h.edition or "?")
+                  putPair("GENERATION", h.generation or "?")
+                  putPair("PROFILE", h.profile_scope or "?")
+                  putPair("SCHEMA", tostring(h.save_schema or "?")
+                      .. "/" .. tostring(h.expected_schema or "?"))
+                  putPair("STORAGE GAME", h.storage_game or "N/A")
+                  putPair("PLAYTHROUGH", h.storage_playthrough or "N/A")
+                  putPair("RUN ID", h.history_run_id or "N/A")
+                  putPair("HISTORY GAME", h.history_edition or "N/A")
+                  putPair("RANDOM RUN", h.randomizer_run_game or "N/A")
+                  for i, row in ipairs(h.issues or {}) do
+                      put("WARN " .. tostring(row.code or "?")
+                          .. " " .. tostring(row.actual or "?"))
+                      if i >= 5 then break end
+                  end
+                  put("READ ONLY / NO REPAIR")
+              elseif name == "OWNER HISTORY" then
+                  local rows = mod.exports.__beta26.Dev.ownershipHistory
+                      and mod.exports.__beta26.Dev.ownershipHistory(12) or {}
+                  putPair("TRANSITIONS", #rows)
+                  if #rows == 0 then put("NO OWNER TRANSITIONS") end
+                  for _, row in ipairs(rows) do
+                      put("#" .. tostring(row.seq or "?") .. " "
+                          .. tostring(row.capability or "?"))
+                      put(" " .. tostring(row.from_owner or "?") .. " > "
+                          .. tostring(row.to_owner or "?"))
+                      if row.from_state ~= row.to_state then
+                          put(" " .. tostring(row.from_state or "?") .. " > "
+                              .. tostring(row.to_state or "?"))
+                      end
+                  end
+                  put("SESSION ONLY / NO RECLAIM")
+              elseif name == "PROVIDERS" then
+                  local ownership = mod.exports.__beta26.Dev.providerOwnership(self.game)
+                  put(string.format("STATUS %s P%d C%d",
+                      tostring(ownership.status or "?"),
+                      tonumber(ownership.provider_count or 0),
+                      tonumber(ownership.capability_count or 0)))
+                  put(string.format("SELECTED %d DEGRADED %d",
+                      tonumber(ownership.selected or 0),
+                      tonumber(ownership.degraded or 0)))
+                  putPair("CAPABILITY", "OWNER")
+                  for _, row in ipairs(ownership.capabilities or {}) do
+                      local owner = row.selected_owner or "NUZLOCKE"
+                      putPair(tostring(row.capability or "?"):upper(), owner)
+                      put(" " .. tostring(row.state or "?"))
+                  end
+                  if #(ownership.capabilities or {}) == 0 then put("NO EXTERNAL CAPABILITIES") end
+              elseif name == "ENCOUNTER" then
+                  local enc = mod.exports.__beta26.Dev.encounterProvenance(self.game)
+                  if enc.active ~= true then
+                      put("NO ACTIVE ENCOUNTER")
+                      put("STATE " .. tostring(enc.state or "none"))
+                  else
+                      putPair("STATE", enc.state or "observed")
+                      putPair("AREA", enc.area or "?")
+                      putPair("PHYSICAL", enc.physical_area or "?")
+                      putPair("SPECIES", enc.species or "?")
+                      putPair("TYPE", enc.encounter_type or "?")
+                      putPair("METHOD", enc.encounter_method or "?")
+                      putPair("SOURCE", enc.source or "?")
+                      putPair("PROVIDER", enc.provider or "VANILLA")
+                      if enc.eligible ~= nil then putPair("ELIGIBLE", enc.eligible and "YES" or "NO") end
+                      if enc.will_spend ~= nil then putPair("SPENDS", enc.will_spend and "YES" or "NO") end
+                      if enc.free_reason then putPair("FREE", enc.free_reason) end
+                      if enc.clause_conflict then putPair("CLAUSE", enc.clause_conflict) end
+                      if enc.area_status then putPair("AREA STATUS", enc.area_status) end
+                      putPair("SHINY", enc.shiny and "YES" or "NO")
+                  end
+              elseif name == "DECISIONS" then
+                  local rows = mod.exports.__beta26.Dev.decisionTrace
+                      and mod.exports.__beta26.Dev.decisionTrace(16) or {}
+                  if #rows == 0 then put("NO RECENT BLOCK DECISIONS") end
+                  for _, row in ipairs(rows) do
+                      put(string.format("#%s %s %s", tostring(row.seq or "?"),
+                          tostring(row.domain or "rule"):upper(),
+                          tostring(row.result or "INFO")))
+                      putPair(tostring(row.rule or "?"):gsub("_", " "):upper(),
+                          tostring(row.detail or ""))
+                  end
               elseif name == "PROBLEMS" then
                   local function shortLabel(value)
                       local text = tostring(value or "?")
@@ -3938,7 +4346,36 @@ return function(mod, deps)
                       or mod.exports.__beta26.Dev.lastExportReport
                   local lines = devReportSectionLines(report, rawText, width, devReportDisplayLines)
                   local maxScroll = math.max(0, #lines - visible)
-                  if input:wasPressed("down") then
+                  local sectionName = DEV_REPORT_SECTIONS[self.reportSection]
+                  if sectionName == "LOCAL CERT" then
+                      local cert = mod.exports.__beta26.Dev.localizationCertification(self.game)
+                      local total = math.max(1, tonumber(cert.total) or #(cert.checks or {}))
+                      self.localizationCertCursor = math.max(1, math.min(total,
+                          math.floor(tonumber(self.localizationCertCursor) or 1)))
+                      if input:wasPressed("down") then
+                          self.localizationCertCursor =
+                              self.localizationCertCursor < total
+                              and self.localizationCertCursor + 1 or 1
+                          self.reportScroll = math.max(0,
+                              math.min(maxScroll, self.localizationCertCursor - 3))
+                      elseif input:wasPressed("up") then
+                          self.localizationCertCursor =
+                              self.localizationCertCursor > 1
+                              and self.localizationCertCursor - 1 or total
+                          self.reportScroll = math.max(0,
+                              math.min(maxScroll, self.localizationCertCursor - 3))
+                      elseif input:wasPressed("a") then
+                          mod.exports.__beta26.Dev.localizationCertificationMark(
+                              self.game, self.localizationCertCursor)
+                          self.reportScroll = math.max(0,
+                              math.min(maxScroll, self.localizationCertCursor - 3))
+                      elseif input:wasPressed("left") or input:wasPressed("right") then
+                          local dir = input:wasPressed("left") and -1 or 1
+                          self.reportSection =
+                              ((self.reportSection - 1 + dir) % #DEV_REPORT_SECTIONS) + 1
+                          self.reportScroll = 0
+                      end
+                  elseif input:wasPressed("down") then
                       self.reportScroll = math.min(maxScroll,
                           (self.reportScroll or 0) + 1)
                   elseif input:wasPressed("up") then
@@ -3954,6 +4391,7 @@ return function(mod, deps)
                   end
                   rememberedDev.reportScroll = self.reportScroll or 0
                   rememberedDev.reportSection = self.reportSection or 1
+                  rememberedDev.localizationCertCursor = self.localizationCertCursor or 1
                   return
               end
 
@@ -4219,8 +4657,13 @@ return function(mod, deps)
                       if self.reportScroll + 11 < #lines then
                           GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
                       end
-                      Chrome.print(Strings("L/R:PAGE"), 2, 16)
-                      Chrome.print(Strings("B:BACK"), 12, 16)
+                      if DEV_REPORT_SECTIONS[self.reportSection] == "LOCAL CERT" then
+                          Chrome.print(Strings("A:MARK"), 2, 16)
+                          Chrome.print(Strings("B:BACK"), 12, 16)
+                      else
+                          Chrome.print(Strings("L/R:PAGE"), 2, 16)
+                          Chrome.print(Strings("B:BACK"), 12, 16)
+                      end
                       return
                   end
 
@@ -4334,7 +4777,9 @@ return function(mod, deps)
                   end
                   devClassicScrollIndicators(Font, Theme,
                       self.reportScroll > 0, self.reportScroll + 7 < #lines)
-                  local reportFooter = Strings("A:REFRESH B:BACK")
+                  local reportFooter = DEV_REPORT_SECTIONS[self.reportSection] == "LOCAL CERT"
+                      and Strings("A:MARK U/D:CHECK B:BACK")
+                      or Strings("A:REFRESH B:BACK")
                   local reportFooterWidth = type(Font.width) == "function"
                       and Font.width(reportFooter) or (#reportFooter * 8)
                   Font.draw(reportFooter, math.max(10, math.floor((160 - reportFooterWidth) / 2)), 126)
@@ -4994,7 +5439,7 @@ return function(mod, deps)
               mod.exports.__beta26.UiSystem.gen1Header(Font, uiView, trackerWidth)
 
               local summary = nuzTrackerSummary(self:trackerRows(2))
-              Font.draw(trackerFitPixelText(("OPEN %d CAUGHT %d FAILED %d"):format(
+              Font.draw(trackerFitPixelText(Strings("OPEN %d CAUGHT %d FAILED %d",
                   summary.open, summary.caught, summary.failed), trackerWidth - 24), 16, 34)
               local y = 48
               local listCount
@@ -5145,7 +5590,7 @@ return function(mod, deps)
                   if not (game and game.stack) then return true end
                   pcall(function() game.stack:pop() end)
                   local short = tostring(fault.message or "tracker error"):gsub("^.-:%s*", "")
-                  if #short > 150 then short = short:sub(1, 150) .. "..." end
+                  short = clipGlyphText(short, 150, "...")
                   local okText, TextBox = pcall(require, "src.render.TextBox")
                   if okText and TextBox then
                       pcall(function()
@@ -5461,9 +5906,7 @@ return function(mod, deps)
                           and self.game.data.moves
                           and self.game.data.moves[id] or nil
                       local name = (def and def.name) or tostring(id or "?")
-                      if #tostring(name) > 15 then
-                          name = tostring(name):sub(1, 15)
-                      end
+                      name = fitPixelText(tostring(name), 120)
                       local currentPp = type(move) == "table"
                           and tonumber(move.pp) or nil
                       local maxPp = type(move) == "table"
@@ -5492,17 +5935,17 @@ return function(mod, deps)
           function self:nuzlockeModernUiModel()
               local page, pages = currentPage()
               local rows = {}
-              local title = "CATCH INFO"
+              local title = Strings("CATCH INFO")
 
               if page == "stat" then
-                  title = "STAT INFO"
+                  title = Strings("STAT INFO")
                   local lines = statLines(self.mon)
                   table.remove(lines, 1)
                   for _, line in ipairs(lines) do
                       rows[#rows + 1] = { label = tostring(Strings(tostring(line))) }
                   end
               elseif page == "move" then
-                  title = "MOVE INFO"
+                  title = Strings("MOVE INFO")
                   local lines = moveLines(self.mon)
                   table.remove(lines, 1)
                   for _, line in ipairs(lines) do
@@ -5590,12 +6033,16 @@ return function(mod, deps)
           -- visual hierarchy.
           local function drawGoldCenteredBold(Chrome, value, row)
               local label = tostring(Strings(tostring(value or "")))
-              if #label > 18 then label = label:sub(1, 18) end
-              local col = math.max(1, math.floor((20 - #label) / 2))
-              Chrome.print(label, col, row)
               local ok, GoldFont = pcall(require, "src.render.Font")
               if ok and GoldFont and type(GoldFont.draw) == "function" then
-                  GoldFont.draw(label, col * 8 + 1, row * 8)
+                  local T = mod.exports.__beta26.UiSystem.typography(GoldFont)
+                  label = T.fit(label, 18 * 8)
+                  local x = T.centerX(label, 8, 152)
+                  local col = math.max(1, math.floor(x / 8))
+                  Chrome.print(label, col, row)
+                  GoldFont.draw(label, x + 1, row * 8)
+              else
+                  Chrome.print(label, 2, row)
               end
           end
 

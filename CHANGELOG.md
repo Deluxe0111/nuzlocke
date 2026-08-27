@@ -1,3 +1,531 @@
+# 2.8.72 — Difficulty UX, Silver/Crystal Profiles, and Full Documentation
+
+- Strict child of exact 2.8.71.
+- Replaces the Gen1 APPLY/CANCEL textual `>` marker with the native Gen1 cursor glyph so the safe CANCEL default and current confirmation selection are visibly obvious.
+- Difficulty Review now keeps profile browsing on directional input and adds paged detail scrolling with SELECT; both Gen1 and Gen2 surfaces show a detail position/hint when more text exists.
+- Rewrites the in-game built-in profile summary as concise player-facing information rather than raw internal tuning fields.
+- In-game level effects are shown with concrete examples at trainer levels 25 and 50.
+- Team upgrade frequency is written as `N OF 100`, avoiding the unavailable native percent glyph.
+- Move, AI, DV, held-item, and Badge Boost behavior use plain labels instead of unexplained internal tier-number dumps.
+- Difficulty confirmation impact rows no longer render percent signs; trainer-level transitions use concrete level-25 gains and team upgrade transitions use `N/100`.
+- Adds exact edition routing for Silver and Crystal. They no longer fall through to Red difficulty catalogs.
+- Adds `SILVER POLISHED*`, `SILVER LEGACY*`, `CRYSTAL POLISHED*`, and `CRYSTAL LEGACY*` built-in profiles. These are explicitly conservative Nuzlocke-built edition-focused profiles, not claims of byte-identical historical trainer tables.
+- Keeps generic `gen2` identity only as a fail-soft Gold-family fallback after exact Gold/Silver/Crystal checks.
+- Adds a full mechanical reference for every built-in difficulty profile to the User Guide: level formula, deterministic team-upgrade selection, BST candidate rules, move tiers, AI tiers/Gen-II bit behavior, Stat EXP tiers, DVs, held items, Badge Boost ownership, and complete profile tables for Red/Blue/Yellow/Gold/Silver/Crystal plus NUZ MEDIUM/VANILLA.
+- Adds the project/release rule that in-game Difficulty copy is concise decision support, while full mechanics for every built-in profile must remain documented whenever profile behavior changes.
+- Adds Release Safety gates for exact Silver/Crystal routing, native cursor use, scrollable review details, percent-glyph-free player copy, and complete difficulty documentation.
+- No Save Schema, Compatibility API, Diagnostics API, Translation API, or Run History version bump.
+
+# 2.8.71 — Gen1 Setup/Profile Runtime Repair + Numeric Rule Audit
+
+- Strict child of exact 2.8.70.
+- Fixes the Discord-reported Red/Blue/Yellow Difficulty Review crash.
+- Root cause: `NuzlockeDifficultyReview`'s Gen1 draw path called `wrapPixelText`, but that helper is a later local inside the Setup/Rules renderer and is not in lexical scope on the standalone review screen.
+- The review screen now renders from its already-computed safe `wrapText` lines; Gold's separate Gen2 path is unchanged.
+- Adds explicit R/B/Y rendering for Profile Slot, Save Profile, and Load Profile.
+- Profile Slot now visibly shows OFF/1/2/3 and `*` for populated slots.
+- Save Profile now visibly shows OFF/SAVE/SAVED/ERROR.
+- Load Profile now visibly shows OFF/LOAD/EMPTY/LOADED.
+- Gold Load Profile also gains the same visible LOADED success state.
+- Audited all 67 catalog numeric rules plus the locke_type numeric descriptor against shared registry coercion.
+- Adds Release Safety checks that numeric rules carry valid default/min/max metadata and clamp correctly at both bounds.
+- Confirms modern `getConfigValue`/`setConfigValue` use shared `coerceRuleValue`; the older `randomizer_info_policy` missing-branch bug class is not present.
+- No gameplay rule semantics, save schema, Randomizer behavior, or compatibility API changed.
+
+# 2.8.70 — Run History v2 Correctness Repair
+
+- Strict child of exact 2.8.69.
+- Adds `run.abandoned -> abandons` to the authoritative Run History durable-summary map.
+- Existing v2 saves from 2.8.49–2.8.69 backfill `summary.abandons` from the already-persisted `statistics.counters.abandons` when available, preserving abandon totals even if detailed rows were already pruned.
+- Rebuilds now restore `stats.counters.abandons` and `stats.flags.abandoned` from durable evidence.
+- Replaces catch/death-only partial-detail detection with one `summary_kinds`-driven completeness loop covering catches, deaths, failed encounters, badges, forgiveness awards/uses, blackouts, completions, and abandons.
+- Existing materialized v2 statistics are reconciled in place so old saves receive corrected coverage without discarding dimensions or rule-integrity history.
+- Live bounded-journal pruning immediately marks statistics coverage `journal_truncated=true`, `detail_complete=false`, and `partial=true`.
+- Fixes `storedStateAudit()`'s stale `history.version == 1` assertion. It now compares against `RunHistory.storage_version`, so valid Run History v2 saves no longer spuriously fail Dev diagnostics / Release Safety.
+- Adds Release Safety tripwires for durable abandon summaries, summary-driven completeness checks, and dynamic history-version validation.
+- Focused regression harness passes complete-detail, each summarized-kind partial case, catch/death baselines, existing-v2 abandon backfill, new abandon append, and live-pruning coverage behavior.
+- No gameplay policy, achievement awarding, translation behavior, Randomizer behavior, or save-schema representation changes.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Translation API remains 2; Run History API/storage remains v2.
+
+# 2.8.69 — Translation Compatibility Consolidation
+
+- Strict child of exact 2.8.68.
+- Reconciles the full known translation companion registry after the final discovery sweep.
+- Normalizes companion roles as current primary, current alternate, current overlay, legacy, or legacy alternate.
+- Adds diagnostic `certificationEligible` metadata without changing Translation API 2 shape or gameplay.
+- Fixes the missing `finnish` optional dependency ordering introduced when Finnish was promoted to a current target in 2.8.67.
+- Reconciles German edition metadata with the compatibility matrix (R/B/Y/G/S/C).
+- Records reviewed non-runtime repositories internally: alternate-Japanese placeholder, Literary Chinese engine fork, Chinese generator tooling, and `VersaoEncarnada` Brazilian fork variant.
+- Documents that the final targeted discovery sweep found no concrete current runtime targets for Korean, Traditional Chinese, European Portuguese, Russian, Czech, Swedish, Turkish, or Greek.
+- Preserves existing presentation-wrapper and replacement-script mutation policies and all companion-specific LOCAL CERT focus notes.
+- No translation is promoted to Runtime PASS by this build.
+- Save Schema 5, Compatibility API 35, Diagnostics API 1, Translation API 2 and Run History v2 remain unchanged.
+
+# 2.8.68 — Alternate Spanish Compatibility
+
+- Strict child of exact 2.8.67.
+- Adds `spanish_translation` 0.1.0 as a separate alternate Spanish Red target.
+- Preserves `traduccion_es` 0.1.0 as the existing primary Spanish target.
+- Records fork lineage from `versaovermelha` and source text from `einstein95/pokered-es`.
+- Records direct Battle UI presentation overrides and confirmed-loaded replacement map scripts.
+- Reuses `translation_presentation_wrapper` and `translation_replacement_script_mutation`.
+- Adds focused LOCAL CERT guidance for battle UI, Museum payment, and Bike Voucher/Bicycle exchange.
+- No Spanish display literal becomes gameplay semantics.
+- No API/schema bump.
+
+# 2.8.67 — Finnish Translation Compatibility
+
+- Strict child of exact 2.8.66.
+- Promotes `finnish` 0.1.0 from `upstream_unverified` to the current reviewed Finnish target.
+- Uses a conservative Red-only edition scope from upstream documentation.
+- Records fixed-cell extended-Latin glyph support for ä/ö/å and uppercase variants, naming-grid customization, and intentional mixed Finnish/English fallback.
+- Records invasive but presentation-only layout overrides across choice boxes, battle UI, stat box, bindings, Bill's PC overlay, ListMenu, Move Learn, and Trainer Card.
+- Records replacement map scripts as both present and explicitly loaded.
+- Marks `mutationReviewRequired=true` and reuses the existing `translation_presentation_wrapper` and `translation_replacement_script_mutation` contracts.
+- Adds focused LOCAL CERT guidance for the major Finnish UI overrides plus Museum and Bike Shop mutation seams.
+- No Finnish display literal becomes gameplay semantics.
+- Save Schema 5, Compatibility API 35, Diagnostics API 1, Translation API 2 and Run History v2 remain unchanged.
+
+# 2.8.66 — Dutch Translation Compatibility
+
+- Strict child of exact 2.8.65.
+- Adds `translation-nl` 0.0.2 as the current Dutch translation target for Red and Blue.
+- Records its generated-content architecture, `>=0.0.0-dev` emitted engine range, ASCII-folded accent model, lack of localized donor font, and intentional English fallback.
+- Records reviewed coverage metadata: ROM 3106/3106, RBY engine strings 285/383, all engine strings 290/533.
+- Marks Dutch replacement map scripts as both present and **known loaded** by the generated runtime.
+- Marks `mutationReviewRequired=true` and reuses the generalized `translation_replacement_script_mutation` contract from 2.8.63.
+- Adds Dutch LOCAL CERT focus for museum payment, Bike Voucher/Bicycle exchange, and mixed Dutch/English fallback.
+- No Dutch display literals become gameplay semantics.
+- Save Schema 5, Compatibility API 35, Diagnostics API 1, Translation API 2 and Run History v2 remain unchanged.
+
+# 2.8.65 — Simplified Chinese Compatibility + Presentation Wrapper Contract
+
+- Strict child of exact 2.8.64.
+- Adds `zh_cn` 0.3.1 as the primary Simplified Chinese translation target for Red, Blue, and Yellow.
+- Records the reviewed upstream engine range `>=0.1.56 <1.0.0`.
+- Records its fixed-cell CJK model: eight custom glyph pages / 1,995 reviewed glyphs.
+- Records its narrow engine-gap presentation wrappers around dynamic `script.command` substitutions, naming/options rows, `Strings.get`, `Font.draw`, and `OptionRows.draw`.
+- Adds a generalized `translation_presentation_wrapper` semantic compatibility contract: translation presentation wrappers must be narrow, compositional, identity-safe, gameplay-neutral, and must not become a dependency of Nuzlocke-owned UI.
+- Nuzlocke-owned screens remain responsible for their own `Strings(...)`, semantic state, and generalized glyph-safe fitting rather than depending on caller-path or fixed-coordinate translation heuristics.
+- Dev localization diagnostics now identify fixed-cell CJK companions, engine-internals presentation wrappers, and companion-specific LOCAL CERT focus notes.
+- Adds Chinese-focused runtime emphasis for stat/status labels, starter/gift names, badge substitutions, Options footer, Party/Summary status labels, and mixed CJK/numeric alignment.
+- Documents Literary Chinese `gen1recomp-lzh` as an engine-fork/alternate-distribution audit target rather than a normal companion.
+- Does not add the Chinese generator/tooling repository as a runtime companion.
+- No Chinese display literal becomes gameplay policy.
+- Save Schema 5, Compatibility API 35, Diagnostics API 1, Translation API 2 and Run History v2 remain unchanged.
+
+# 2.8.64 — Polish Translation Compatibility
+
+- Strict child of exact 2.8.63.
+- Adds `recomp-polish` 1.0.0 as the current Polish translation target.
+- Uses a conservative Red-only compatibility scope because upstream documentation identifies Pokémon Red but does not provide enough evidence to transfer support to Blue/Yellow/Gen II.
+- Records its fixed-cell extended-Latin glyph architecture and intentional partial English fallback behavior.
+- Records that generated replacement map scripts are present in the repository and can perform gameplay mutations, while keeping runtime loading explicitly **unconfirmed**.
+- Marks the Polish target `mutationReviewRequired=true`, reusing the generalized replacement-script mutation policy from 2.8.63.
+- Dev localization diagnostics distinguish known-active replacement scripts from scripts that are merely present in source but not confirmed loaded.
+- Adds optional dependency ordering and compatibility-matrix coverage.
+- No Polish display literals become gameplay policy.
+- Save Schema 5, Compatibility API 35, Diagnostics API 1, Translation API 2 and Run History v2 remain unchanged.
+
+# 2.8.63 — Italian Translation Compatibility + Replacement Script Policy
+
+- Adds `translation-it` 0.6.0 as the primary Italian Red/Blue/Yellow target.
+- Adds `recomp-italian` 0.1.0 as a distinct alternate/legacy beta target.
+- Records `translation-it`'s proportional font, presentation wrappers, and generated replacement map scripts.
+- Adds a generalized semantic-enforcement contract for translation/content replacement scripts that perform gameplay mutation.
+- Replacement scripts must preserve native Nuzlocke-gated entrypoints or call semantic policy before mutation.
+- Dev localization diagnostics now flag companions that require replacement-script mutation review.
+- No Italian gameplay literals or language-specific rule branches added.
+- Save Schema 5, Compatibility API 35, Diagnostics API 1, Translation API 2, Run History v2 unchanged.
+
+# 2.8.62 — Localization Runtime Certification Tooling
+
+- Strict child of exact 2.8.61.
+- Adds a **LOCAL CERT** page to DEV REPORT for exact-combination translation runtime testing.
+- Certification identity is keyed to the active game edition plus detected translation companion IDs, versions, activity state, boot language, pending language, restart state, and companion-reported edition when available.
+- Adds a fixed 10-surface runtime checklist:
+  - Setup / NUZ RULES
+  - NUZ STATUS / ENC TRACKER
+  - Battle denial
+  - Mart BUY / SELL
+  - Party / NUZ INFO
+  - Move Learn / Rare Candy
+  - F. TOKEN / Forgiveness
+  - Randomizer labels
+  - World Building text
+  - Dev Report / Localization
+- Tester controls on LOCAL CERT:
+  - Up/Down selects a check.
+  - A cycles `UNTESTED → PASS → FAIL → UNTESTED`.
+  - Left/Right changes Dev Report section.
+- Certification state is **session-only Dev memory**. It never writes to the Nuzlocke/game save.
+- Static diagnostics never auto-mark a check PASS.
+- `certified=true` is only possible when a translation companion is present, all 10 checks are manually completed, and none are FAIL.
+- Generates a compact exact-combination summary such as `RED / translation-ja-hrkt 0.4.2 / 10 checks / 8 PASS / 0 FAIL / 2 UNTESTED`.
+- Adds the manual certification state to the structured Bug Report Snapshot and full text Dev report.
+- Adds internal Dev export functions for reading, marking and resetting the current session certification ledger.
+- Adds Translation API 2 source discovery for the certification UI/check labels; public API shape remains unchanged.
+- No gameplay, save representation, translation ownership, Randomizer, encounter, or rule changes.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Translation API remains 2; Run History remains v2.
+
+# 2.8.61 — Japanese-Driven Byte/FIxed-Column UI Audit
+
+- Strict child of exact 2.8.60.
+- Exposes the existing `nuzGlyphSpans`, `nuzGlyphLen`, and `nuzGlyphSlice` helpers internally under `mod.exports.__beta26` so split Nuzlocke UI/adapters use one glyph-boundary implementation.
+- Fixes the optional Gen-II Pokegear Cards integration's remaining `#text` / `text:sub(...)` truncation. It now uses shared glyph length/slicing with UTF-8 fallback.
+- Routes Pokegear-authored labels through its injected translation callback instead of concatenating untranslated English fragments.
+- Replaces remaining player-facing classic UI byte slicing for recovery species names, NUZ STATUS compact area/event strings, Run History details, Move Info names, and contained error messages with glyph/pixel-safe fitting.
+- Replaces Gen-II centered-bold `#label` centering with actual rendered-width fitting/centering.
+- Fixes Gen-II contained NUZ STATUS error clipping to preserve multibyte character boundaries.
+- Routes compact Gen-II status templates through `Strings(...)`.
+- Expands Translation API 2 source discovery with Pokegear Cards labels and compact Gen-II status templates.
+- Retains byte slicing only where data is explicitly ASCII/internal (for example hash fragments/version normalization), not localized player text.
+- No gameplay policy, Randomizer semantics, encounter state, save representation, or translation ownership changes.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Translation API remains 2; Run History remains v2.
+
+# 2.8.60 — Japanese / CJK Compatibility
+
+- Strict child of exact 2.8.59.
+- Adds `translation-ja-hrkt` 0.4.2 as the current explicit Japanese compatibility target for Red and Blue.
+- Records its engine Plain Pixel TTF ownership model, ROM-import requirement, partial engine-string fallback behavior, and fixed-cell kana behavior.
+- Adds the Japanese target to optional companion ordering and the formal translation compatibility matrix.
+- Retains and Release-Safety-protects Nuzlocke's generalized glyph-span helpers: engine `Font.split` first, UTF-8 code-point fallback second.
+- Adds Japanese-specific static guards against gameplay matching on localized battle/menu literals.
+- Documents the Japanese runtime matrix with special attention to mixed CJK/Latin fallback, numeric tile alignment, wrapping/truncation, party/move names and Nuzlocke-owned UI.
+- No Japanese translation assets or catalogs are bundled.
+- No Save Schema, Compatibility API, Diagnostics API, Translation API or Run History bump.
+
+# 2.8.59 — Translation Matrix + Source Catalog Consolidation
+
+- Strict child of exact 2.8.58.
+- Adds a formal translation compatibility matrix to `docs/COMPATIBILITY.md`, reconciling every currently tracked translation identity, reviewed version, role, edition scope, status, and runtime-certification state.
+- Matrix explicitly distinguishes source/static compatibility from exact-combination Runtime PASS evidence.
+- Adds Release Safety tying the matrix back to the live known-companion registry so tracked translation identities cannot silently disappear from documentation.
+- Expands Translation API 2 source discovery for the complete high-value Forgiveness/F. TOKEN flow, including revive/reroll screens, confirmation/error messages and transaction outcomes.
+- Adds Battle Clause authored denial messages to source discovery. Rule enforcement remains semantic; only the player-facing explanation is translatable.
+- Adds additional common Nuzlocke status/compatibility/runtime labels such as NUZ INFO, MOD COMPAT, PROVIDER, LEGALITY, RECOVERY, buying/selling/item-use denials and Rare Candy safety messages.
+- No translation content is bundled. No per-language gameplay branches are added.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Translation API remains 2; Run History remains v2.
+
+# 2.8.58 — French Translation Compatibility
+
+- Strict child of exact 2.8.57.
+- Adds generated **Translation French** (`translation-fr`) as an explicit optional compatibility target, reviewed against translation-generator release **0.8.0**.
+- Records the current French generator target as supporting Red, Blue, Yellow, Gold, Silver, and Crystal.
+- Adds **Traduction FR etendue** (`trad-fr-extended`) as a separate optional compatibility target, reviewed against current version **0.2.0**.
+- The extended overlay remains distinct from the base translation and declares `translation-fr` as its required companion.
+- Adds explicit optional dependency ordering for both French targets.
+- The base generated translation remains a content/localization companion; Nuzlocke does not treat it as a gameplay provider.
+- Current generator v0.8.0 uses the normal Gen1Recomp translation/content model and now includes Crystal support plus Gold/Silver translation coverage improvements.
+- Current generated Latin-language builds use a proportional Fusion Pixel TTF by default, making the 2.8.56 glyph/VWF hardening directly relevant to French.
+- The FR Extended overlay does not register a competing font. It fills engine-string and Pokédex-kind gaps after the base translation and relies on last-writer-wins content ordering.
+- No French `ACHETER`, `VENDRE`, `FUITE`, `ATTAQUE`, or other display literals are introduced into Nuzlocke gameplay policy.
+- Translation API remains 2; no Save Schema, Compatibility API, Diagnostics API, or Run History API bump.
+- Runtime combination certification remains required.
+
+# 2.8.57 — Spanish Translation Compatibility
+
+- Strict child of exact 2.8.56.
+- Adds **Traduccion Espanola** (`traduccion_es`) as an explicit optional compatibility target, reviewed against current version **0.1.0**.
+- Adds `traduccion_es` to optional dependency ordering so composition with Nuzlocke is explicit rather than relying on equal-priority discovery order.
+- Records the current translation as a content/LANGUAGE companion rather than a gameplay owner.
+- The reviewed Spanish mod has no `mod.exports` compatibility API, no `BattleState` wrapper, and no general hook ownership. It composes primarily through Gen1Recomp content registries.
+- Its hand-authored engine `strings` catalog remains active without a Spanish EUR cartridge dump.
+- Its cartridge-derived dialogue, names, types, Dex metric data, accent glyphs, HUD sheets and version ribbon require a matching Spanish Red/Blue EUR cartridge in `imports/`.
+- The cartridge layer is explicitly Red/Blue-only. Yellow currently has no Spanish cartridge spec; Nuzlocke does not claim Yellow Spanish runtime certification from this target.
+- Nuzlocke's Translation API 2 treats an installed `traduccion_es` companion as an active translation companion, while its own fallback diagnostics continue to reveal Nuzlocke-specific strings that remain English.
+- Nuzlocke does not probe the companion's private `missingDump` local or inspect the user's ROM files. Full/partial Spanish coverage remains the translation mod's own responsibility.
+- No Spanish `COMPRAR`, `VENDER`, `HUIR`, `LUCHAR`, or other display literals are introduced into Nuzlocke gameplay policy.
+- No Save Schema, Compatibility API, Diagnostics API, Translation API, or Run History API bump.
+- Runtime combination certification remains required.
+
+# 2.8.56 — Long-String/VWF Localization Hardening
+
+- Strict child of exact 2.8.55.
+- Hardens the shared Nuzlocke UI typography fitter to prefer engine glyph spans (`Font.split` / `Font.spansFitting`) rather than byte-by-byte truncation.
+- Adds UTF-8-boundary-safe fallback truncation when glyph spans are unavailable.
+- Hardens shared Gen-I and Gen-II two-column Nuzlocke rows so a long translated value is fitted before right-alignment; translated values can no longer push their draw origin off-screen before clipping.
+- Hardens the player-visible Dev Report wrapper so long diagnostic IDs/translation names are split by glyph boundaries rather than arbitrary bytes.
+- Bounds compact Gen-II NUZ STATUS summary rows with the existing glyph-aware marquee helper instead of allowing translated summary text to overrun the 20-column frame.
+- Expands Translation API 2 source discovery to the complete live World Building authored catalog (`t1`, `t2`, `kanto`, `johto`) while preserving canonical rule keys.
+- Adds World Building dynamic templates (`Allowed`, BST/Limit, generic catch rejection) to source discovery.
+- Type Lock rejection detail now resolves each displayed type label through `Strings` before composing the translated template.
+- Adds Randomizer active-status templates and option/value labels to Translation API 2 source discovery.
+- Randomizer status templates now resolve inserted option labels through `Strings`, so translating the outer template no longer leaves values such as CHAOS/BALANCED/ANY untranslated.
+- No Randomizer seed, mapping, RNG stream, legality, World Building policy, encounter state, or UI ownership behavior changes.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Translation API remains 2; Run History remains v2.
+
+# 2.8.55 — Generalized Localization Catalog + Diagnostics
+
+- Strict child of exact 2.8.54.
+- Expands the existing **Nuzlocke Translation API 2** source catalog with a first high-value batch of Nuzlocke-authored UI strings that were already routed through `Strings(...)` at runtime but were not discoverable through `nuzlocke_translation.sources()`.
+- New discoverable groups include:
+  - NUZ STATUS labels (`RUN STATUS`, `CAUGHT`, `LOST ENC.`, `DEATHS`, area/token/cap labels);
+  - common tracker/history states (`OPEN`, `CAUGHT`, `FAILED`, `DIED`, `NONE`, `UNKNOWN`);
+  - Encounter Log / Area Guide titles and footer controls;
+  - tracker summary templates (`NEXT CAP`, OPEN/CAUGHT/FAILED summary, entry count, RNG/type detail);
+  - high-tier Nuzlocke-over/death summary templates.
+- Runtime behavior of these strings is unchanged: they continue to resolve through the engine `Strings` system. The change makes the stable source keys discoverable to translation tooling instead of requiring translation authors to grep UI code.
+- Adds read-only `Dev.localizationDiagnostics()`:
+  - installed translation companion count;
+  - active translation count;
+  - restart-required count;
+  - total discoverable Nuzlocke source count;
+  - current source-resolves-to-itself fallback count;
+  - resolved count and per-kind coverage;
+  - companion lifecycle rows with boot/pending language and edition where available.
+- A source resolving to exactly the same text is counted as a fallback-like source for diagnostics. This is a translation-author aid, not proof that a same-text translation is missing.
+- Adds **LOCALIZATION** to Dev System Health, the compact Bug Report Snapshot systems list, full text Dev reports, and the player-visible DEV REPORT dashboard.
+- Localization incompleteness does **not** automatically fail System Health. Active translation with fallback sources remains informational/OK; a pending restart is surfaced as WARN.
+- No language is switched, no translation catalog is installed, and no companion state is mutated by the diagnostics.
+- Existing Brazilian and German Universal compatibility remains unchanged.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Nuzlocke Translation API remains 2; Run History remains v2.
+
+# 2.8.54 — German Universal Translation Compatibility
+
+- Strict child of exact 2.8.53.
+- Adds **Translation German Universal** (`translation-german-universal`) as an explicit optional compatibility target, reviewed against stable release **0.2.0**.
+- Advances the dedicated `nuzlocke_translation` API from **1 → 2**. This is independent from Compatibility API 35.
+- Translation diagnostics now distinguish **installed** from **actively translating**.
+- Toggle-aware companions may expose:
+  - `bootLanguage`
+  - active `edition`
+  - `pendingLanguage(game)`
+  - `restartRequired(game)`
+- Detection now reports `translationActive`, `activity`, `bootLanguage`, `pendingLanguage`, `restartRequired`, and `edition` when available.
+- For Translation German Universal, English boot mode is treated as installed-but-inactive rather than as an active German localization.
+- Pending language changes can report `restart_required` without pretending the currently materialized language changed live.
+- Translation detection remains descriptive only; it does not grant gameplay-rule ownership or alter Nuzlocke rules.
+- Adds explicit optional dependency ordering for `translation-german-universal`.
+- Adds Release Safety coverage protecting canonical encounter-area identity from localized display names: internal/persisted area keys remain canonical IDs, while localized names stay presentation-only.
+- Existing Brazilian targets remain unchanged.
+- No Gen-I/Gen-II battle, party, Trainer Card, ChoiceBox, Chrome, Pokédex, asset, or translation code from the external mod is copied or owned by Nuzlocke.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Run History remains v2.
+
+# 2.8.53 — Compatibility Ownership + Transaction/Run-History Hardening
+
+- Strict child of exact 2.8.52.
+- Fixes `public_interop.resolveCapability()` so providers advertising a capability but explicitly marked `enabled=false`, `active=false`, or `disabled=true` remain detected/advertised but cannot become the selected/preferred owner.
+- Active explicit providers still outrank active automatic providers; deterministic provider-ID ordering is preserved inside each tier.
+- If only inactive providers advertise a capability, `capabilityStatus()` now reports `external_advertised_inactive` / degraded with no selected owner, allowing Nuzlocke fallback gameplay ownership to resume.
+- Fixes Compatibility API 35 snapshots so aliases are canonicalized before insertion into the capability set. A provider advertising both an alias and its canonical form now produces one canonical snapshot row/count.
+- Hardens the Gameplay Transaction Coordinator so journal creation and recovery use the single authoritative `TX.api` version constant instead of duplicated literal `1`s.
+- Fixes `RunHistory.recordDeath()` so an explicit `critical=false` is preserved rather than falling through to `mon.deathCritical`.
+- Adds Release Safety guards for all four contracts.
+- No provider capability is added/removed, no public Compatibility API shape is extended, and no save representation changes.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Run History remains v2.
+
+# 2.8.52 — Dev SHINY Default Readout Fix
+
+- Strict child of exact 2.8.51.
+- Fixes `DEV REPORT > SHINY` default readout for `shiny_colors` and `shiny_intro`.
+- Both rules default to ON in the authoritative Rule Catalog and runtime; the diagnostic had incorrectly used `false` as the fallback for unset save keys.
+- Fresh/default saves now correctly report `COLORS: ON` and `INTRO: ON` when Nuzlocke owns shiny presentation.
+- External-provider ownership reporting remains unchanged (`EXTERNAL` still takes precedence in the SHINY panel).
+- Adds a Release Safety guard requiring Dev diagnostic fallbacks to match the Rule Catalog defaults.
+- No shiny generation, identity, recoloring, intro/sparkle behavior, provider ownership, rules, RNG, save data, or UI ownership changes.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Run History remains v2.
+
+# 2.8.51 — False-Value Transaction Preservation
+
+- Strict child of exact 2.8.50.
+- Fixes one shared Lua `and/or` false-value preservation defect across schema migration and durable gameplay transaction primitives.
+- `save_migration.lua` shadow-store snapshots now preserve a present literal `false` instead of collapsing it to `nil`.
+- `save.set_exact` durable transaction snapshots now preserve a pre-transaction `false`.
+- `save.set_exact.perform()` now preserves an intended post-transaction `false` instead of writing `nil`.
+- Schema migration apply, rollback, failing-row rollback, and prior-applied-row rollback now select presence/value explicitly and preserve `false`.
+- Adds Release Safety tripwires against reintroducing the vulnerable presence/value `and/or` idiom.
+- Adds focused regression validation for `false -> true`, `true -> false`, `absent -> false`, `false -> absent`, interrupted exact-value recovery, and schema migration rollback.
+- No rule behavior, defaults, deterministic namespaces, compatibility ownership, Randomizer algorithm, or UI behavior intentionally changes.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1; Run History remains v2.
+
+# 2.8.50 — Brazilian Translation Compatibility Hardening
+
+- Strict child of exact 2.8.49.
+- Adds current Brazilian Portuguese translation **VersaoVermelha** (`versaovermelha`) as a separate explicit compatibility target, reviewed against stable release **0.2.5**.
+- Retains legacy `gen1_pt-br` as its own historical compatibility identity; it is not silently aliased to or replaced by VersaoVermelha.
+- Adds `versaovermelha` to optional dependency ordering so load composition is explicit when both mods are installed.
+- Generalizes translation diagnostics away from `id == "gen1_pt-br"` checks. Any known translation companion exporting compatible presentation signals can now report:
+  - native Trainer Card override (`trainer_card`)
+  - inventory price/quantity line layout (`precos_linha`)
+  - move-language mode (`idioma_golpes`)
+  - enemy-label option (`mostrar_inimigo`)
+- Fixes the R/B/Y Forgiveness Token shop-list filter so it no longer uppercases the displayed menu title and compares it to English `BUY` / `SELL`.
+- Shop classification now prefers semantic ListMenu metadata (`kind`, `shopKind`, `action`, `semanticKind`) and falls back only to the canonical localized `Strings("BUY")` / `Strings("SELL")` source values.
+- No Portuguese-specific `COMPRAR` / `VENDER` literals are added.
+- Nuzlocke gameplay policy remains language-neutral; translation detection does not grant gameplay ownership.
+- Current VersaoVermelha presentation ownership remains external: native Trainer Card layout, native Gen-I battle text-area layout, Move Learn layout, ListMenu price/quantity positioning, party submenu label presentation, and title rendering remain the translation mod's responsibility.
+- Nuzlocke retains its own NUZ STATUS/rules/tracker state and uses compositional engine hooks rather than copying or replacing translation code.
+- Save Schema remains 5; Compatibility API remains 35; Diagnostics API remains 1.
+- Runtime combination certification is still required.
+
+# 2.8.49 — Run History v2 / Achievement Evidence
+
+- Strict child of exact 2.8.48.
+- **No achievement system is enabled yet.** This build records durable background evidence so future achievements can evaluate runs retroactively where the evidence is complete.
+- Run History advances from public/storage API **1 → 2** inside the existing Nuzlocke Save Schema 5.
+- The detailed Run History journal remains bounded to 512 rows, but a separate durable `statistics` ledger is updated before pruning.
+- Durable lifetime counters cover catches, deaths, failed encounters, badges, forgiveness awards/uses, blackouts, completions, shiny catches/deaths, and arbitrary event-kind totals going forward.
+- Durable dimensions retain achievement-useful facts such as catch/death/failed-encounter species, catch encounter type/source, death cause/opponent species, badge identity, forgiveness mode, and completion target.
+- First/last core event facts and boolean flags (`caught_shiny`, `had_death`, `had_failed_encounter`, `used_forgiveness`, `blacked_out`, `completed`, etc.) are retained independently from detailed journal pruning.
+- Run rule-integrity evidence stores the rule values present when achievement coverage starts, last observed values, and every live Nuzlocke configuration key changed through the central `setConfigValue` path.
+- Failed encounters now append a deduped `encounter.failed` Run History event at the already-authoritative `markEncounterFailed` transaction boundary.
+- Existing Run History v1 data migrates in place to v2 without discarding its journal/summary. Legacy summary/baseline counts are preserved exactly; details that cannot be proven from retained rows are explicitly marked **partial** rather than guessed.
+- `nuzlocke_run_history` advances to API 2 and exposes read-only `statistics()` / `achievement_evidence()` plus the existing list/report/record surface.
+- Release Safety now runs Run History integrity and protects v2 evidence, failed-encounter capture, rule-change evidence, and the unchanged global Save Schema 5.
+- Compatibility API remains 35; Diagnostics API remains 1; Randomizer algorithm remains 1.
+
+# 2.8.48 — Compatibility API 35 + Gen1Recomp 0.2.29 Audit
+
+- Strict child of exact 2.8.47.
+- Advances **Compatibility API 34 → 35**. `compatible_from` remains 10.
+- API 35 formally versions the additive semantic compatibility introspection already shipped in the current implementation:
+  - `providerStatus(id)`
+  - `capabilityStatus(capability)`
+  - `compatibilitySnapshot()`
+- API-34 rule availability/dependency contracts remain unchanged and available.
+- **Save Schema remains 5**; this build makes no persisted-format change and needs no migration.
+- Advances the source/documentation-audited Gen1Recomp marker from **0.2.27 → 0.2.29** while keeping the manifest engine range `>=0.2.24 <2.0.0`.
+- Adds explicit engine profiles for **0.2.28** and **0.2.29**.
+- 0.2.28 audit: only `HostShell.lua` plus iOS release metadata changed from 0.2.27. The HostShell change normalizes subprocess commands through `HostShell.shellCommand(...)`; no Nuzlocke gameplay/mod-hook seam changed.
+- 0.2.29 audit: changes are confined to `GamepadMap.lua`, `RomImporter.lua`, `Kit.lua`, `VirtualKeyboard.lua`, plus iOS metadata. Relevant changes restore raw L2/R2 trigger mapping/scrolling and scope the on-screen VirtualKeyboard to Linux handhelds.
+- No battle, Pokémon construction, hook registry, Strings, Chrome, Gen-II gameplay, save, shiny, or Randomizer-consumed data seam changed in 0.2.28/0.2.29.
+- Existing 0.2.27 `catch.nickname`, Chrome/palette, shiny, Gen-II native battle ownership, and compatibility fallbacks remain the applicable gameplay contract.
+- Release Safety now promotes the 0.2.29 audited marker/profile set, retained 0.2.27 gameplay seams, source-revalidated Gen-II shiny-flash boundary, and Compatibility API 35 semantic-status surface.
+- No new exact-edition runtime certification is claimed.
+
+# 2.8.47 — Documentation / Release Reconciliation
+
+- Strict child of exact 2.8.46.
+- Documentation-only/release-metadata pass; no challenge-rule, encounter, battle, Randomizer generation, shiny generation/presentation, save-schema, transaction, or provider-ownership behavior is intentionally changed.
+- Adds an authoritative current-release contract to README, USER_GUIDE, and API docs so historical notes no longer masquerade as current support/API requirements.
+- Reconciles current values to the executable/manifest:
+  - Gen1Recomp manifest range `>=0.2.24 <2.0.0`
+  - source/documentation audit marker 0.2.27
+  - Mod API 2
+  - Save Schema 5
+  - Compatibility API 34
+  - Diagnostics API 1
+  - Randomizer algorithm 1
+  - manifest games Red/Blue/Yellow/Gold/Silver/Crystal
+  - R/B/Y mature baseline, Gold/Silver beta, Crystal alpha
+- Documents the current nine-subsystem Randomizer ownership registry: Starter, Encounters, Field Items, Learnsets, Trainers, Evolutions, Shops, TMs, and Gift Items.
+- Corrects stale Random Field Items prose: native Gen II hidden/BG-event items are supported when explicitly marked Nuzlocke-owned; arbitrary third-party hidden sources are not claimed.
+- Corrects stale shiny-control wording so external ownership applies to the active edition rather than Gen I only.
+- Reconciles selected shared Gen-II rule descriptions from Gold/Silver wording to Gold/Silver/Crystal where the rule metadata/implementation is shared across all six manifest editions.
+- Clarifies that optional compatibility identities are optional and that detection/advertising is distinct from selected ownership.
+- Retains historical release/API notes but labels them historical so their older support/API numbers are not read as the 2.8.47 contract.
+
+# 2.8.46 — Dev Rule Consistency + Save/Run Identity + Ownership History
+
+- Strict child of exact 2.8.45.
+- Adds **DEV REPORT > RULE CONFIG**.
+- Uses the authoritative Rule Registry's read-only stored-value validation plus registry/availability audits.
+- Reports invalid/stale persisted values, rule-definition/descriptor mismatches, and non-default child settings currently dormant because a prerequisite/superseding parent makes them operationally inactive.
+- RULE CONFIG never coerces, rewrites, enables, disables, or repairs a rule.
+- Adds **DEV REPORT > SAVE/RUN**.
+- Compares active edition/generation/profile scope and current Save Schema against playthrough storage context, raw Run History identity, and an existing Randomizer run snapshot when present.
+- Reports mismatches only; it never initializes/repairs Run History, storage, profile, Randomizer, or save state.
+- Adds **DEV REPORT > OWNER HISTORY**.
+- Keeps a bounded 32-row, session-only history of observed capability-owner/state transitions while Dev diagnostics inspect compatibility state.
+- Provider history never selects, unregisters, reprioritizes, or reclaims a provider.
+- System Health and Bug Report Snapshot aggregate all three new diagnostics.
+- Public `nuzlocke_dev` adds `rule_configuration_consistency(game)`, `save_run_identity_health(game)`, and `ownership_history(limit)`.
+- Release Safety promotion-gates all three passive contracts and pages.
+- No gameplay, rule enforcement, save schema, encounter, Randomizer, shiny, transaction, or compatibility-ownership behavior is intentionally changed.
+
+# 2.8.45 — Dev Severity Coalescing + Performance Counters
+
+- Strict child of exact 2.8.44.
+- Dev breadcrumbs now carry explicit `INFO / WARN / ERROR` severity.
+- Consecutive identical WARN/ERROR breadcrumbs coalesce into one bounded row with `count` and `lastSeq` instead of flooding the 48-entry ring.
+- Semantic rule decisions now carry severity; consecutive identical warning/error-class decisions also coalesce in the bounded 32-entry decision ring.
+- The Bug Report Snapshot and public breadcrumb/decision diagnostics retain coalesced count/severity metadata.
+- Adds cheap in-memory Dev-only performance counters and **DEV REPORT > PERFORMANCE**.
+- Initial counters cover Randomizer encounter-evolution profile builds, learnset projections, trainer primary composition, and final trainer composition.
+- Counters increment only while Nuzlocke Dev Mode is enabled and never persist to the save.
+- System Health and Bug Report Snapshot include a performance summary.
+- Release Safety guards severity coalescing, Dev-only counter ownership, and the PERFORMANCE page.
+- No gameplay, rule, RNG, Randomizer mapping, shiny, encounter, save-schema, transaction, or compatibility behavior is intentionally changed.
+
+# 2.8.44 — Dev Shiny + Randomizer Reproducibility Diagnostics
+
+- Strict child of exact 2.8.43.
+- Adds **DEV REPORT > SHINY**: owner/provider/version, configured rate, Colors/Intro ownership, and already-materialized current/last enemy shiny identity/source.
+- SHINY diagnostics never roll odds, request sprites/palettes, or change provider ownership.
+- Adds **DEV REPORT > RANDOM REPRO** using the existing read-only Randomizer reproducibility report.
+- Reports fixed/AUTO mode, already-resolved/shareable seed when present, algorithm/run schema, reproducibility state, mid-run settings drift, ownership metadata, and materialized source-map cardinalities.
+- RANDOM REPRO never resolves an unset AUTO seed, advances RNG, or materializes unseen mappings.
+- System Health and BUG REPORT aggregate both new diagnostics.
+- Public `nuzlocke_dev` adds `shiny_diagnostics(game)` and `randomizer_reproducibility(game)`.
+- Release Safety guards both diagnostics and their DEV REPORT pages.
+- No gameplay, shiny generation/presentation, Randomizer generation/mapping, save-schema, or compatibility-ownership behavior is intentionally changed.
+
+# 2.8.43 — Dev Transaction Health + Hook Drift
+
+- Strict child of exact 2.8.42.
+- Adds **DEV REPORT > TRANSACTIONS**, a read-only gameplay-transaction health view.
+- Reports transaction API/handler counts, bounded receipt usage, pending journal id/kind/state/detail/build, durable sequence namespace count, last committed receipt, and the fail-closed `probe_or_refuse` recovery policy.
+- Adds **DEV REPORT > HOOK DRIFT**, a read-only view of Nuzlocke's registered wrapper/hook surfaces.
+- Distinguishes `OK`, `DRIFT`, and `N/A`; drift means another layer interposed/replaced the direct wrapper after registration and is reported rather than reclaimed.
+- System Health now includes a HOOKS row and richer TRANSACTIONS detail.
+- BUG REPORT snapshot now includes transaction-health and hook-drift summaries.
+- Public `nuzlocke_dev` adds `transaction_health()` and `hook_wrapper_drift()`.
+- Release Safety promotion-gates both diagnostic surfaces and their player-facing pages.
+- No gameplay, rule, Randomizer, shiny, encounter, save-schema, transaction-execution, or compatibility-ownership behavior is intentionally changed.
+
+# 2.8.42 — Dev Mode bug-report snapshot
+
+- Strict child of exact 2.8.41.
+- Adds a read-only **BUG REPORT** page to DEV REPORT.
+- Aggregates build/parent, edition/generation/engine family, profile/save/run identity, overall System Health, provider ownership counts, current encounter provenance, recent rule decisions, current warnings/errors, and the latest bounded breadcrumbs.
+- Exposes the same structured snapshot through `mod.exports.nuzlocke_dev.bug_report_snapshot(game)`, including a compact `text` representation suitable for logging/sharing.
+- The snapshot is observational only: it does not run the Dev self-test, invoke rule decisions, resolve AUTO seeds, consume RNG, repair save state, mutate encounters, or alter transactions.
+- Release Safety now promotion-gates the snapshot API and player-facing BUG REPORT page.
+- No gameplay, rule, Randomizer, shiny, encounter, save-schema, or compatibility-ownership behavior is intentionally changed.
+
+# 2.8.41 — Dev Mode semantic diagnostics
+
+- Strict child of 2.8.40.
+- Adds a read-only **SYSTEM HEALTH** summary across engine/hooks, save safety, rules, encounter state, battle lifecycle, Randomizer, providers, shiny ownership, UI health, and gameplay transactions.
+- Adds detailed provider/capability ownership diagnostics that distinguish detected/advertised providers from the selected owner and Nuzlocke fallback.
+- Adds read-only live encounter provenance inspection: projected area, physical source, species, source/provider, eligibility, spend/free reason, clause state, area state, and shiny identity.
+- Adds a bounded semantic rule-decision trace for core catch, item-use, buying, and selling denials. The trace records decisions after they occur and never invokes rules, RNG, or state repair.
+- DEV REPORT gains HEALTH / PROVIDERS / ENCOUNTER / DECISIONS sections.
+- Adds Release Safety guards for all four new diagnostic surfaces.
+- No intentional gameplay, rule, encounter, Randomizer, shiny, save-schema, or provider-ownership behavior change.
+
+# 2.8.40 — Release Safety/static regression expansion
+
+- Strict child of exact 2.8.39 (`66716c8b580329072527684c07c3c426f3254adcb82bfac23a4345e4cd793e68`).
+- No gameplay/rule, shiny, Randomizer, save-schema, encounter, or compatibility ownership behavior change intended.
+- Adds a promotion-facing recurring-regression bundle protecting native Gen II battle/party ownership and retired PartyMenu wrappers.
+- Adds explicit static protection for shiny single-owner failover and the rule that Nuzlocke never invalidates engine Renderer/Assets/PaletteFX resources.
+- Adds a Rare Candy transaction-journal structural tripwire covering fresh attempt ids, durable native-effect checkpoints, and fail-closed external mutation recovery.
+- Adds battle.started dual-payload-shape protection and Randomizer performance-tripwire retention checks.
+- Runs the existing read-only Randomizer structural performance audit as part of the release-safety promotion gate.
+
+# 2.8.39 — Compatibility/API cleanup
+
+- Strict child of exact 2.8.38 (`546ad502c88bbf7aed8a19399dab01613a0c20852333e879021570a7caea359b`).
+- Adds explicit provider-state diagnostics that separate detected, advertised, selected, inactive/degraded, and Nuzlocke-fallback states without changing provider resolution semantics.
+- Adds public `providerStatus`, `capabilityStatus`, and `compatibilitySnapshot` read-only diagnostics to the Interop surface and mirrors them through `nuzlocke_compat`.
+- Adds an explicit compatibility fallback inventory. The current `catch.nickname` legacy path, historical Shiny direct exports, pre-registry provider metadata, and automatic legacy adapters remain retained because the supported engine/provider floor still reaches them.
+- MOD COMPAT now surfaces provider-health and retained-fallback summary rows before ownership rows.
+- Release Safety protects the fallback inventory and diagnostic API surfaces.
+- No gameplay/rule, shiny, Randomizer, save-schema, or encounter behavior change intended.
+
+# 2.8.38 — Localization hardening batch 1
+
+- Strict child of canonical 2.8.37; no shiny-generation/presentation, encounter, battle-rule, save-schema, or Randomizer behavior changes.
+- Routes remaining Battle Clause denial text through Gen1Recomp `Strings`, covering Sleep/OHKO/Evasion/Flinch/Trap, status bans, setup boosts, accuracy drops, and other stat-drop messages across the supported battle paths.
+- Localizes Forgiveness action labels (`REROLL ENCOUNTER`, `REVIVE POKEMON`) in both Gen I and Gen II Nuzlocke-owned layouts.
+- Localizes Classic NUZ STATUS dynamic templates (catch/lost, death/token, areas/visited, area, last event) and Run History event labels without using dynamically-generated source keys.
+- Localizes Legacy Recovery fallback title/error text.
+- Adds targeted Release Safety coverage for the migrated localization surfaces.
+- Reclassifies the cumulative localization backlog from "unimplemented" to "infrastructure implemented / coverage incomplete"; World Building and Randomizer remain separate future localization phases.
+- Corrects independent Release Safety lineage inputs to the exact 2.8.37 parent for this child.
+
 # 2.8.37 — Full release promotion
 
 - Promotes the corrected 2.8.36 candidate to a full release without changing the runtime-passed shiny implementation.

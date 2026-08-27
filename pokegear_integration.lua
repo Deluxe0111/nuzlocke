@@ -38,8 +38,30 @@ return function(mod, opts)
     local function fit(text, width)
         text = tostring(text or "")
         width = math.max(1, math.floor(tonumber(width) or 18))
-        if #text <= width then return text end
-        return text:sub(1, math.max(1, width - 1)) .. "."
+        local beta = mod.exports and mod.exports.__beta26 or {}
+        local len = type(beta.nuzGlyphLen) == "function"
+            and beta.nuzGlyphLen(text) or nil
+        if len == nil then
+            local okUtf8, utf8lib = pcall(require, "utf8")
+            if okUtf8 and utf8lib and type(utf8lib.len) == "function" then
+                local okLen, value = pcall(utf8lib.len, text)
+                if okLen then len = value end
+            end
+        end
+        len = tonumber(len) or #text
+        if len <= width then return text end
+        local keep = math.max(1, width - 1)
+        if type(beta.nuzGlyphSlice) == "function" then
+            return beta.nuzGlyphSlice(text, 1, keep) .. "."
+        end
+        local okUtf8, utf8lib = pcall(require, "utf8")
+        if okUtf8 and utf8lib and type(utf8lib.offset) == "function" then
+            local okPos, pos = pcall(utf8lib.offset, text, keep + 1)
+            if okPos and type(pos) == "number" then
+                return text:sub(1, pos - 1) .. "."
+            end
+        end
+        return text:sub(1, keep) .. "."
     end
 
     local function isGen2(game)
@@ -318,20 +340,20 @@ return function(mod, opts)
 
         H.drawStrip(gear)
         H.textbox(gear, 0, 3, 18, 11)
-        H.text(gear, fit(("NUZ %d/4"):format(state.page), 18), 2, 4)
+        H.text(gear, fit(S("NUZ %d/4", state.page), 18), 2, 4)
 
         if state.page == 1 then
-            H.text(gear, fit(snap.enabled and "RUN ACTIVE" or "RUN OFF", 16), 2, 6)
-            H.text(gear, fit("CAUGHT " .. snap.catches, 16), 2, 8)
-            H.text(gear, fit("DEATHS " .. snap.deaths, 16), 2, 10)
-            H.text(gear, fit("TOKENS " .. snap.tokens, 16), 2, 12)
-            H.text(gear, fit("LOAD " .. snap.locke, 16), 2, 14)
+            H.text(gear, fit(S(snap.enabled and "RUN ACTIVE" or "RUN OFF"), 16), 2, 6)
+            H.text(gear, fit(S("CAUGHT %d", snap.catches), 16), 2, 8)
+            H.text(gear, fit(S("DEATHS %d", snap.deaths), 16), 2, 10)
+            H.text(gear, fit(S("TOKENS %d", snap.tokens), 16), 2, 12)
+            H.text(gear, fit(S("LOAD %s", tostring(snap.locke)), 16), 2, 14)
         elseif state.page == 2 then
-            H.text(gear, "ENCOUNTERS", 2, 6)
-            H.text(gear, fit("CAUGHT A " .. snap.caughtAreas, 16), 2, 8)
-            H.text(gear, fit("VISITED " .. snap.visitedAreas, 16), 2, 10)
-            H.text(gear, fit("LOST " .. snap.failed, 16), 2, 12)
-            H.text(gear, fit("TOTAL C " .. snap.catches, 16), 2, 14)
+            H.text(gear, fit(S("ENCOUNTERS"), 16), 2, 6)
+            H.text(gear, fit(S("CAUGHT A %d", snap.caughtAreas), 16), 2, 8)
+            H.text(gear, fit(S("VISITED %d", snap.visitedAreas), 16), 2, 10)
+            H.text(gear, fit(S("LOST %d", snap.failed), 16), 2, 12)
+            H.text(gear, fit(S("TOTAL C %d", snap.catches), 16), 2, 14)
         elseif state.page == 3 then
             local visible = 4
             local total = #snap.rules
@@ -341,9 +363,9 @@ return function(mod, opts)
             state.ruleOffset = math.floor(state.ruleOffset / visible) * visible
             if state.ruleOffset > lastOffset then state.ruleOffset = lastOffset end
             local rulePage = math.floor(state.ruleOffset / visible) + 1
-            H.text(gear, fit(("RULES %d/%d"):format(rulePage, pageCount), 16), 2, 6)
+            H.text(gear, fit(S("RULES %d/%d", rulePage, pageCount), 16), 2, 6)
             if total == 0 then
-                H.text(gear, "NONE", 2, 8)
+                H.text(gear, fit(S("NONE"), 16), 2, 8)
             else
                 for row = 1, visible do
                     local name = snap.rules[state.ruleOffset + row]
@@ -351,18 +373,18 @@ return function(mod, opts)
                 end
             end
         else
-            local capText = snap.maximum and "NEXT CAP MAX"
-                or ("NEXT CAP " .. math.floor(snap.cap))
-            H.text(gear, "CAPS & DIFF", 2, 6)
+            local capText = snap.maximum and S("NEXT CAP MAX")
+                or S("NEXT CAP %d", math.floor(snap.cap))
+            H.text(gear, fit(S("CAPS & DIFF"), 16), 2, 6)
             H.text(gear, fit(capText, 16), 2, 8)
-            H.text(gear, fit("BOSS " .. snap.boss, 16), 2, 10)
-            H.text(gear, fit("DIFF " .. snap.difficulty, 16), 2, 12)
+            H.text(gear, fit(S("BOSS %s", tostring(snap.boss)), 16), 2, 10)
+            H.text(gear, fit(S("DIFF %s", tostring(snap.difficulty)), 16), 2, 12)
             H.text(gear, fit("LOAD " .. snap.locke, 16), 2, 14)
         end
         if state.page == 3 and #snap.rules > 4 then
-            H.text(gear, fit("A:MORE U/D:PG B:X", 18), 1, 16)
+            H.text(gear, fit(S("A:MORE U/D:PG B:X"), 18), 1, 16)
         else
-            H.text(gear, fit("UP/DN PAGE B:BACK", 18), 1, 16)
+            H.text(gear, fit(S("UP/DN PAGE B:BACK"), 18), 1, 16)
         end
     end
 

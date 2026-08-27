@@ -881,7 +881,7 @@ return function(mod, deps)
     local late = safeRead("late_runtime.lua")
     local manifest = safeRead("manifest.json")
     if main then
-      check("audited_current_engine", main:find('recompCompatAudited = "0.2.27"', 1, true) ~= nil)
+      check("audited_current_engine", main:find('recompCompatAudited = "0.2.29"', 1, true) ~= nil)
       check("engine_developer_signal", main:find("Dev.engineDeveloper = mod.developer == true", 1, true) ~= nil)
       local markerCount = 0
       for _ in main:gmatch("isModOptions%s*=%s*true") do markerCount = markerCount + 1 end
@@ -930,11 +930,11 @@ return function(mod, deps)
     return report
   end
 
-  -- 2.8.36 / Gen1Recomp 0.2.27 compatibility gate. Protect the public
+  -- 2.8.48 / Gen1Recomp 0.2.29 compatibility gate. Protect the public
   -- R/B/Y catch nickname seam, palette-aware Gen II Nuzlocke utility surfaces,
   -- current audited profile, and the source-revalidated Crystal shiny-flash
   -- safety boundary without claiming exact-edition runtime certification.
-  mod.exports.__beta26.gen1Recomp027FocusedAudit = function()
+  mod.exports.__beta26.gen1Recomp029FocusedAudit = function()
     local report = { ok = true, checked = 0, failures = {}, skipped = {} }
     local function check(id, condition)
       report.checked = report.checked + 1
@@ -947,10 +947,14 @@ return function(mod, deps)
     local classic = safeRead("classic_ui.lua")
     local compat = safeRead("docs/COMPATIBILITY.md")
     if main then
-      check("audited_0_2_27",
-        main:find('recompCompatAudited = "0.2.27"', 1, true) ~= nil)
+      check("audited_0_2_29",
+        main:find('recompCompatAudited = "0.2.29"', 1, true) ~= nil)
       check("profile_0_2_27",
         main:find('["0.2.27"] = {', 1, true) ~= nil)
+      check("profile_0_2_28",
+        main:find('["0.2.28"] = {', 1, true) ~= nil)
+      check("profile_0_2_29",
+        main:find('["0.2.29"] = {', 1, true) ~= nil)
       check("catch_nickname_public_hook",
         main:find('mod.hooks:wrap("catch.nickname"', 1, true) ~= nil)
       check("catch_nickname_old_engine_fallback",
@@ -979,8 +983,8 @@ return function(mod, deps)
     if late then
       check("gen2_shiny_flash_event_guard",
         late:find('nextEvent.kind == "shiny-flash"', 1, true) ~= nil)
-      check("gen2_shiny_flash_027_marker",
-        late:find('audited_engine = "0.2.27"', 1, true) ~= nil)
+      check("gen2_shiny_flash_029_marker",
+        late:find('audited_engine = "0.2.29"', 1, true) ~= nil)
       check("gen2_shiny_restore_enemy",
         late:find('self.picHidden.enemy = false', 1, true) ~= nil)
       check("gen2_shiny_restore_player",
@@ -1000,8 +1004,8 @@ return function(mod, deps)
       report.skipped[#report.skipped + 1] = "late_runtime.lua"
     end
     if compat then
-      check("compat_docs_0_2_27",
-        compat:find('Gen1Recomp 0.2.27', 1, true) ~= nil)
+      check("compat_docs_0_2_29",
+        compat:find('Gen1Recomp 0.2.29', 1, true) ~= nil)
       check("compat_docs_runtime_caveat",
         compat:find('runtime certification', 1, true) ~= nil)
     else
@@ -1009,6 +1013,9 @@ return function(mod, deps)
     end
     return report
   end
+  -- Historical internal name kept as a read-only alias for older tooling.
+  mod.exports.__beta26.gen1Recomp027FocusedAudit =
+    mod.exports.__beta26.gen1Recomp029FocusedAudit
 
   mod.exports.__beta26.releaseSafetyAudit = function()
     local report = {
@@ -1263,7 +1270,7 @@ return function(mod, deps)
     run("compat_contract", mod.exports.__beta26.compatContractAudit)
     run("gen2_semantic_seams", mod.exports.__beta26.gen2SemanticSeamAudit)
     run("gen1recomp_0_2_24", mod.exports.__beta26.gen1Recomp024Audit)
-    run("gen1recomp_0_2_27", mod.exports.__beta26.gen1Recomp027FocusedAudit)
+    run("gen1recomp_0_2_29", mod.exports.__beta26.gen1Recomp029FocusedAudit)
     run("gen2_tracker_map_order", mod.exports.__beta26.gen2TrackerPresentationAudit)
     run("difficulty_impact_warning", mod.exports.__beta26.difficultyImpactWarningAudit)
     run("compat_owner_controls", mod.exports.__beta26.compatOwnerControlAudit)
@@ -1330,6 +1337,9 @@ return function(mod, deps)
     run("run_history_baseline_normalization",
       mod.exports.__beta26.RunHistory
         and mod.exports.__beta26.RunHistory.baselineNormalizationAudit)
+    run("run_history_integrity",
+      mod.exports.__beta26.RunHistory
+        and mod.exports.__beta26.RunHistory.audit)
     run("gameplay_transaction_exactly_once",
       mod.exports.__beta26.GameplayTransactions and mod.exports.__beta26.GameplayTransactions.selfTest)
     run("rare_candy_transaction_identity",
@@ -1416,6 +1426,620 @@ return function(mod, deps)
       if worldSource then deadFallbackSource = deadFallbackSource .. "\n" .. worldSource end
       run("dead_fallback_lint", mod.exports.__beta26.deadFallbackAudit, deadFallbackSource)
 
+      -- 2.8.72: difficulty UX/documentation consolidation. Exact-edition
+    -- Silver/Crystal catalogs, native confirmation cursors, scrollable chooser
+    -- details, and fully documented profile mechanics are promotion gates.
+    local mainSource2872 = safeRead("main.lua") or ""
+    local guideSource2872 = safeRead("docs/USER_GUIDE.md") or ""
+    add("difficulty_exact_gen2_edition_routing",
+      mainSource2872:find('id:find("crystal",1,true) then return "crystal"', 1, true) ~= nil
+      and mainSource2872:find('id:find("silver",1,true) then return "silver"', 1, true) ~= nil
+      and mainSource2872:find('silver = {', 1, true) ~= nil
+      and mainSource2872:find('crystal = {', 1, true) ~= nil
+      and mainSource2872:find('id="silver_polished"', 1, true) ~= nil
+      and mainSource2872:find('id="crystal_polished"', 1, true) ~= nil)
+    add("difficulty_native_confirmation_cursor",
+      mainSource2872:find('Font.drawCode(Theme.cursor,10,116)', 1, true) ~= nil
+      and mainSource2872:find('Font.drawCode(Theme.cursor,72,116)', 1, true) ~= nil
+      and mainSource2872:find('and "> " or "  "', 1, true) == nil)
+    add("difficulty_review_scrollable_details",
+      mainSource2872:find('summaryScroll=0', 1, true) ~= nil
+      and mainSource2872:find('game.input:wasPressed("select")', 1, true) ~= nil
+      and mainSource2872:find('"SEL:MORE"', 1, true) ~= nil
+      and mainSource2872:find('"LR:PROFILE A:OK B:BACK"', 1, true) ~= nil)
+    add("difficulty_player_copy_no_percent_glyph",
+      mainSource2872:find('"TEAM UPGRADES: %d OF 100 / %d OF 100"', 1, true) ~= nil
+      and mainSource2872:find('"LEVELS AT 25: +%d REG / +%d BOSS"', 1, true) ~= nil
+      and mainSource2872:find('"LV %d%%/%d%%', 1, true) == nil
+      and mainSource2872:find('pairText(from, "levelPct", "%")', 1, true) == nil)
+    add("difficulty_full_documentation",
+      guideSource2872:find("Difficulty Profiles — Full Mechanical Reference (2.8.72)", 1, true) ~= nil
+      and guideSource2872:find("Trainer level scale.", 1, true) ~= nil
+      and guideSource2872:find("Team upgrade chance.", 1, true) ~= nil
+      and guideSource2872:find("Species BST tuning.", 1, true) ~= nil
+      and guideSource2872:find("Silver profiles", 1, true) ~= nil
+      and guideSource2872:find("Crystal profiles", 1, true) ~= nil
+      and guideSource2872:find("In-game chooser versus documentation", 1, true) ~= nil)
+
+    -- 2.8.71: Discord runtime follow-up. Gen1 Difficulty Review must not
+    -- call a helper outside its lexical scope, Gen1 profile controls must render
+    -- their actual state/actions, and all numeric rules must remain registry-
+    -- bounded through the shared coercion path.
+    local mainSource2871 = safeRead("main.lua") or ""
+    add("gen1_difficulty_review_safe_wrap",
+      mainSource2871:find("local sum=lines", 1, true) ~= nil
+      and mainSource2871:find("local sum=wrapPixelText(text,136)", 1, true) == nil)
+    add("gen1_profile_control_rendering",
+      mainSource2871:find("elseif item.isSetupPresetSlot then", 1, true) ~= nil
+      and mainSource2871:find('label = "SAVED"', 1, true) ~= nil
+      and mainSource2871:find('label = "LOADED"', 1, true) ~= nil
+      and mainSource2871:find('and "LOAD" or "EMPTY"', 1, true) ~= nil)
+    add("numeric_rule_registry_coercion",
+      mainSource2871:find('coerceRuleValue(key, stored, "read")', 1, true) ~= nil
+      and mainSource2871:find('coerceRuleValue(key, value, "write")', 1, true) ~= nil
+      and type(mod.exports.__beta26.coerceRuleValue) == "function")
+    local numericRulesOk, numericRulesChecked = true, 0
+    for key, rule in pairs(mod.exports.__beta26.ruleDefinitionByKey or {}) do
+      if type(rule) == "table"
+          and (rule.numeric == true or rule.value_type == "number") then
+        numericRulesChecked = numericRulesChecked + 1
+        local minValue, maxValue = tonumber(rule.min), tonumber(rule.max)
+        local defaultValue = tonumber(rule.default)
+        if minValue == nil or maxValue == nil or defaultValue == nil
+            or minValue > maxValue
+            or defaultValue < minValue or defaultValue > maxValue then
+          numericRulesOk = false
+          break
+        end
+        local low = mod.exports.__beta26.coerceRuleValue(key, minValue - 999999, "read")
+        local high = mod.exports.__beta26.coerceRuleValue(key, maxValue + 999999, "read")
+        if tonumber(low) ~= minValue or tonumber(high) ~= maxValue then
+          numericRulesOk = false
+          break
+        end
+      end
+    end
+    add("numeric_rule_registry_bounds",
+      numericRulesOk and numericRulesChecked >= 67,
+      "checked=" .. tostring(numericRulesChecked))
+
+    -- 2.8.70: Run History v2 correctness repair. Abandons are durable,
+    -- coverage completeness checks every summarized event kind, and stored
+    -- state validation follows the current Run History storage version.
+    local runHistorySource2870 = safeRead("run_history.lua") or ""
+    local devDiagnosticsSource2870 = safeRead("dev_diagnostics.lua") or ""
+    add("run_history_abandon_durable_summary",
+      runHistorySource2870:find('["run.abandoned"] = "abandons"', 1, true) ~= nil
+      and runHistorySource2870:find("stats.flags.abandoned = true", 1, true) ~= nil
+      and runHistorySource2870:find("root.summary.abandons == nil", 1, true) ~= nil
+      and runHistorySource2870:find("root.statistics.counters.abandons", 1, true) ~= nil)
+    add("run_history_summary_driven_partial_coverage",
+      runHistorySource2870:find("if total > retained then", 1, true) ~= nil
+      and runHistorySource2870:find('retainedKinds["pokemon.caught"]', 1, true) == nil
+      and runHistorySource2870:find('retainedKinds["pokemon.died"]', 1, true) == nil)
+    add("stored_state_history_version_dynamic",
+      devDiagnosticsSource2870:find("expectedHistoryVersion", 1, true) ~= nil
+      and devDiagnosticsSource2870:find("RunHistory.storage_version", 1, true) ~= nil
+      and devDiagnosticsSource2870:find("tonumber(history.version) == 1", 1, true) == nil)
+
+      -- 2.8.69: translation compatibility consolidation. Keep normalized
+    -- target roles, dependency ordering, and reviewed exclusions coherent.
+    local mainSource2869 = safeRead("main.lua") or ""
+    local manifestSource2869 = safeRead("manifest.json") or ""
+    local compatDocs2869 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_registry_target_classes",
+      mainSource2869:find('targetClass = "current_primary"', 1, true) ~= nil
+      and mainSource2869:find('targetClass = "current_alternate"', 1, true) ~= nil
+      and mainSource2869:find('targetClass = "current_overlay"', 1, true) ~= nil
+      and mainSource2869:find('targetClass = "legacy"', 1, true) ~= nil
+      and mainSource2869:find('targetClass = "legacy_alternate"', 1, true) ~= nil)
+    add("translation_finnish_optional_dependency",
+      manifestSource2869:find('"translation-nl"', 1, true) ~= nil
+      and manifestSource2869:find('"finnish"', 1, true) ~= nil)
+    add("translation_review_exclusions",
+      mainSource2869:find('translationReviewExclusions = {', 1, true) ~= nil
+      and mainSource2869:find('yyoossk/Gen1Recomp-translation-jp-mod', 1, true) ~= nil
+      and mainSource2869:find('ShiraTheMogul/gen1recomp-lzh', 1, true) ~= nil
+      and mainSource2869:find('zhangjiyz/gen1recomp-translation-mod-generator-cn', 1, true) ~= nil
+      and mainSource2869:find('nevespt/VersaoEncarnada', 1, true) ~= nil)
+    add("translation_consolidated_matrix",
+      compatDocs2869:find("Translation registry consolidation — 2.8.69", 1, true) ~= nil
+      and compatDocs2869:find("Reviewed but not runtime companions", 1, true) ~= nil)
+
+    -- 2.8.68: alternate Spanish Red target. Keep it distinct from the
+    -- existing primary Spanish target and reuse presentation/mutation contracts.
+    local mainSource2868 = safeRead("main.lua") or ""
+    local compatDocs2868 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_spanish_alternate_target",
+      mainSource2868:find('["spanish_translation"] = {', 1, true) ~= nil
+      and mainSource2868:find('reviewed = "0.1.0"', 1, true) ~= nil
+      and mainSource2868:find('status = "alternate_spanish_red_target"', 1, true) ~= nil
+      and mainSource2868:find('editions = { "red" }', 1, true) ~= nil
+      and mainSource2868:find('lineage = "fork_of_versaovermelha"', 1, true) ~= nil)
+    add("translation_spanish_alternate_wrappers_scripts",
+      mainSource2868:find('battleUiOverride = true', 1, true) ~= nil
+      and mainSource2868:find('replacementMapScripts = true', 1, true) ~= nil
+      and mainSource2868:find('replacementMapScriptsPresent = true', 1, true) ~= nil
+      and mainSource2868:find('mutationReviewRequired = true', 1, true) ~= nil)
+    add("translation_spanish_alternate_matrix",
+      compatDocs2868:find("`spanish_translation`", 1, true) ~= nil
+      and compatDocs2868:find("Alternate Spanish", 1, true) ~= nil)
+    -- 2.8.67: Finnish target promotion from upstream-unverified to
+    -- reviewed current Red target, reusing existing presentation-wrapper and
+    -- replacement-script mutation contracts.
+    local mainSource2867 = safeRead("main.lua") or ""
+    local devSource2867 = safeRead("dev_report.lua") or ""
+    local compatDocs2867 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_finnish_target",
+      mainSource2867:find('["finnish"] = {', 1, true) ~= nil
+      and mainSource2867:find('reviewed = "0.1.0"', 1, true) ~= nil
+      and mainSource2867:find('status = "current_finnish_target"', 1, true) ~= nil
+      and mainSource2867:find('editions = { "red" }', 1, true) ~= nil
+      and mainSource2867:find('fixedCellExtendedLatin = true', 1, true) ~= nil)
+    add("translation_finnish_wrappers_and_scripts",
+      mainSource2867:find('engineInternalsPresentationWrappers = true', 1, true) ~= nil
+      and mainSource2867:find('replacementMapScripts = true', 1, true) ~= nil
+      and mainSource2867:find('replacementMapScriptsPresent = true', 1, true) ~= nil
+      and mainSource2867:find('mutationReviewRequired = true', 1, true) ~= nil
+      and devSource2867:find('ACTIVE/KNOWN', 1, true) ~= nil)
+    add("translation_finnish_matrix",
+      compatDocs2867:find("`finnish`", 1, true) ~= nil
+      and compatDocs2867:find("Finnish", 1, true) ~= nil
+      and compatDocs2867:find("Red", 1, true) ~= nil)
+    add("translation_finnish_no_gameplay_literals",
+      mainSource2867:find('== "OSTA"', 1, true) == nil
+      and mainSource2867:find('== "MYY"', 1, true) == nil
+      and mainSource2867:find('== "PAKENE"', 1, true) == nil)
+
+    -- 2.8.66: Dutch R/B target. Generated runtime explicitly loads
+    -- mutation-capable literal handlers, so replacement-script review is known
+    -- active rather than merely source-present.
+    local mainSource2866 = safeRead("main.lua") or ""
+    local devSource2866 = safeRead("dev_report.lua") or ""
+    local compatDocs2866 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_dutch_target",
+      mainSource2866:find('["translation-nl"] = {', 1, true) ~= nil
+      and mainSource2866:find('reviewed = "0.0.2"', 1, true) ~= nil
+      and mainSource2866:find('editions = { "red", "blue" }', 1, true) ~= nil
+      and mainSource2866:find('asciiFoldedAccents = true', 1, true) ~= nil
+      and mainSource2866:find('noLocalizedFont = true', 1, true) ~= nil)
+    add("translation_dutch_replacement_scripts_active",
+      mainSource2866:find('replacementMapScripts = true', 1, true) ~= nil
+      and mainSource2866:find('replacementMapScriptsPresent = true', 1, true) ~= nil
+      and mainSource2866:find('mutationReviewRequired = true', 1, true) ~= nil
+      and devSource2866:find('ACTIVE/KNOWN', 1, true) ~= nil)
+    add("translation_dutch_matrix",
+      compatDocs2866:find("`translation-nl`", 1, true) ~= nil
+      and compatDocs2866:find("Dutch", 1, true) ~= nil
+      and compatDocs2866:find("Red / Blue", 1, true) ~= nil)
+    add("translation_dutch_no_gameplay_literals",
+      mainSource2866:find('== "KOPEN"', 1, true) == nil
+      and mainSource2866:find('== "VERKOPEN"', 1, true) == nil
+      and mainSource2866:find('== "VLUCHT"', 1, true) == nil)
+
+    -- 2.8.65: Simplified Chinese R/B/Y target + generalized narrow,
+    -- compositional translation-presentation wrapper contract.
+    local mainSource2865 = safeRead("main.lua") or ""
+    local interopSource2865 = safeRead("public_interop.lua") or ""
+    local devSource2865 = safeRead("dev_report.lua") or ""
+    local compatDocs2865 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_simplified_chinese_target",
+      mainSource2865:find('["zh_cn"] = {', 1, true) ~= nil
+      and mainSource2865:find('reviewed = "0.3.1"', 1, true) ~= nil
+      and mainSource2865:find('editions = { "red", "blue", "yellow" }', 1, true) ~= nil
+      and mainSource2865:find('fixedCellCJK = true', 1, true) ~= nil
+      and mainSource2865:find('engineInternalsPresentationWrappers = true', 1, true) ~= nil)
+    add("translation_presentation_wrapper_contract",
+      interopSource2865:find("translation_presentation_wrapper={", 1, true) ~= nil
+      and interopSource2865:find("must be narrow, compositional, delegate next/original behavior", 1, true) ~= nil
+      and interopSource2865:find("never make Nuzlocke-owned UI depend on caller path or fixed engine coordinates", 1, true) ~= nil
+      and interopSource2865:find('"translation_presentation_wrapper"', 1, true) ~= nil)
+    add("translation_simplified_chinese_diagnostics",
+      devSource2865:find("PRESENTATION WRAPPERS: ENGINE INTERNALS / COMPOSITION REVIEW", 1, true) ~= nil
+      and devSource2865:find("TEXT MODEL: FIXED-CELL CJK", 1, true) ~= nil)
+    add("translation_simplified_chinese_matrix",
+      compatDocs2865:find("`zh_cn`", 1, true) ~= nil
+      and compatDocs2865:find("Simplified Chinese", 1, true) ~= nil
+      and compatDocs2865:find("Red / Blue / Yellow", 1, true) ~= nil)
+    add("translation_chinese_no_gameplay_literals",
+      mainSource2865:find('== "战斗"', 1, true) == nil
+      and mainSource2865:find('== "逃跑"', 1, true) == nil
+      and mainSource2865:find('== "购买"', 1, true) == nil
+      and mainSource2865:find('== "出售"', 1, true) == nil)
+
+    -- 2.8.64: Polish translation target. Keep upstream scope conservative
+    -- and distinguish replacement-script presence from confirmed runtime load.
+    local mainSource2864 = safeRead("main.lua") or ""
+    local devSource2864 = safeRead("dev_report.lua") or ""
+    local compatDocs2864 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_polish_target",
+      mainSource2864:find('["recomp-polish"] = {', 1, true) ~= nil
+      and mainSource2864:find('reviewed = "1.0.0"', 1, true) ~= nil
+      and mainSource2864:find('editions = { "red" }', 1, true) ~= nil
+      and mainSource2864:find('fixedCellExtendedLatin = true', 1, true) ~= nil
+      and mainSource2864:find('partialEnglishFallback = true', 1, true) ~= nil)
+    add("translation_polish_replacement_script_review",
+      mainSource2864:find('replacementMapScriptsPresent = true', 1, true) ~= nil
+      and mainSource2864:find('mutationReviewRequired = true', 1, true) ~= nil
+      and devSource2864:find('PRESENT/LOAD UNCONFIRMED', 1, true) ~= nil)
+    add("translation_polish_matrix",
+      compatDocs2864:find("recomp-polish", 1, true) ~= nil
+      and compatDocs2864:find("Polish", 1, true) ~= nil
+      and compatDocs2864:find("Red", 1, true) ~= nil)
+    add("translation_polish_no_gameplay_literals",
+      mainSource2864:find('== "KUP"', 1, true) == nil
+      and mainSource2864:find('== "SPRZEDAJ"', 1, true) == nil
+      and mainSource2864:find('== "UCIEKAJ"', 1, true) == nil)
+
+    -- 2.8.63: Italian translation targets + generalized replacement-script
+    -- mutation contract. Translation-owned map scripts may translate vanilla
+    -- interactions but must not bypass Nuzlocke semantic policy.
+    local mainSource2863 = safeRead("main.lua") or ""
+    local interopSource2863 = safeRead("public_interop.lua") or ""
+    local compatDocs2863 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_italian_targets",
+      mainSource2863:find('["translation-it"] = {', 1, true) ~= nil
+      and mainSource2863:find('reviewed = "0.6.0"', 1, true) ~= nil
+      and mainSource2863:find('editions = { "red", "blue", "yellow" }', 1, true) ~= nil
+      and mainSource2863:find('["recomp-italian"] = {', 1, true) ~= nil
+      and mainSource2863:find('reviewed = "0.1.0"', 1, true) ~= nil)
+    add("translation_replacement_script_contract",
+      interopSource2863:find("translation_replacement_script_mutation={", 1, true) ~= nil
+      and interopSource2863:find("must preserve native Nuzlocke-gated entrypoints or call semantic policy", 1, true) ~= nil
+      and interopSource2863:find('"translation_replacement_script_mutation"', 1, true) ~= nil)
+    add("translation_italian_matrix",
+      compatDocs2863:find("translation-it", 1, true) ~= nil
+      and compatDocs2863:find("recomp-italian", 1, true) ~= nil)
+
+    -- 2.8.62: session-only manual localization certification. Certification
+    -- must never be inferred from static diagnostics or written to save data.
+    local mainSource2862 = safeRead("main.lua") or ""
+    local devReportSource2862 = safeRead("dev_report.lua") or ""
+    local classicSource2862 = safeRead("classic_ui.lua") or ""
+    add("localization_certification_session_only",
+      devReportSource2862:find("local LOCALIZATION_CERT_CHECKS = {", 1, true) ~= nil
+      and devReportSource2862:find("localizationCertificationSessions", 1, true) ~= nil
+      and devReportSource2862:find("session_only=true", 1, true) ~= nil
+      and devReportSource2862:find("mod.save:set", devReportSource2862:find("LOCALIZATION_CERT_CHECKS", 1, true) or 1, true) == nil)
+    add("localization_certification_manual_states",
+      devReportSource2862:find('row.state == "UNTESTED"', 1, true) ~= nil
+      and devReportSource2862:find('nextState = "PASS"', 1, true) ~= nil
+      and devReportSource2862:find('nextState = "FAIL"', 1, true) ~= nil
+      and devReportSource2862:find('else nextState = "UNTESTED" end', 1, true) ~= nil
+      and devReportSource2862:find("#companions > 0 and untested == 0 and fail == 0", 1, true) ~= nil)
+    add("localization_certification_exact_identity",
+      devReportSource2862:find("localizationCertIdentity(game)", 1, true) ~= nil
+      and devReportSource2862:find("row.id, row.version, row.activity", 1, true) ~= nil
+      and devReportSource2862:find("row.bootLanguage or", 1, true) ~= nil
+      and devReportSource2862:find("row.pendingLanguage or", 1, true) ~= nil)
+    add("localization_certification_dev_surface",
+      classicSource2862:find('"LOCAL CERT"', 1, true) ~= nil
+      and classicSource2862:find('elseif name == "LOCAL CERT" then', 1, true) ~= nil
+      and classicSource2862:find("localizationCertificationMark(", 1, true) ~= nil
+      and classicSource2862:find('Strings("A:MARK  U/D:CHECK")', 1, true) ~= nil
+      and classicSource2862:find("local function devUiGlyphCount(text)", 1, true) ~= nil
+      and classicSource2862:find("leftWidth - devUiGlyphCount(l) + 1", 1, true) ~= nil)
+    add("translation_certification_sources",
+      mainSource2862:find('{ source="LOCAL CERT", kind="localization_cert_ui" }', 1, true) ~= nil
+      and mainSource2862:find('{ source="SETUP / NUZ RULES", kind="localization_cert_check" }', 1, true) ~= nil
+      and mainSource2862:find('{ source="DEV REPORT / LOCALIZATION", kind="localization_cert_check" }', 1, true) ~= nil)
+
+    -- 2.8.61: Japanese-driven audit of remaining owned UI byte-length /
+    -- fixed-column assumptions. All localized truncation must use shared
+    -- glyph boundaries or rendered-pixel fitting.
+    local mainSource2861 = safeRead("main.lua") or ""
+    local classicSource2861 = safeRead("classic_ui.lua") or ""
+    local pokegearSource2861 = safeRead("pokegear_integration.lua") or ""
+    local lateSource2861 = safeRead("late_runtime.lua") or ""
+    add("localization_internal_glyph_helpers_shared",
+      mainSource2861:find("mod.exports.__beta26.nuzGlyphSpans = nuzGlyphSpans", 1, true) ~= nil
+      and mainSource2861:find("mod.exports.__beta26.nuzGlyphLen = nuzGlyphLen", 1, true) ~= nil
+      and mainSource2861:find("mod.exports.__beta26.nuzGlyphSlice = nuzGlyphSlice", 1, true) ~= nil)
+    add("localization_pokegear_glyph_safe",
+      pokegearSource2861:find("beta.nuzGlyphLen", 1, true) ~= nil
+      and pokegearSource2861:find("beta.nuzGlyphSlice", 1, true) ~= nil
+      and pokegearSource2861:find("if #text <= width then return text end", 1, true) == nil
+      and pokegearSource2861:find("text:sub(1, math.max(1, width - 1))", 1, true) == nil
+      and pokegearSource2861:find('S("CAUGHT %d", snap.catches)', 1, true) ~= nil)
+    add("localization_classic_no_byte_truncation",
+      classicSource2861:find('species or "???"):sub(1, 12)', 1, true) == nil
+      and classicSource2861:find("sp:sub(1, 11)", 1, true) == nil
+      and classicSource2861:find("sp:sub(1, 10)", 1, true) == nil
+      and classicSource2861:find("name):sub(1, 15)", 1, true) == nil
+      and classicSource2861:find("if #label > 18 then label = label:sub(1, 18) end", 1, true) == nil
+      and classicSource2861:find("clipGlyphText(compactArea", 1, true) ~= nil
+      and classicSource2861:find("clipGlyphText(lastEvent", 1, true) ~= nil)
+    add("localization_gen2_error_glyph_safe",
+      lateSource2861:find("beta.nuzGlyphLen(detail) > 72", 1, true) ~= nil
+      and lateSource2861:find("beta.nuzGlyphSlice(detail, 1, 69)", 1, true) ~= nil
+      and lateSource2861:find('Strings("CAUGHT %d   LOST %d", caught, lost)', 1, true) ~= nil)
+    add("translation_pokegear_status_sources",
+      mainSource2861:find('{ source="NUZ %d/4", kind="pokegear_ui" }', 1, true) ~= nil
+      and mainSource2861:find('{ source="RULES %d/%d", kind="pokegear_ui" }', 1, true) ~= nil
+      and mainSource2861:find('{ source="CAUGHT %d   LOST %d", kind="gen2_status" }', 1, true) ~= nil)
+
+    -- 2.8.60: Japanese/CJK compatibility target. Japanese uses the
+    -- engine TTF path and UTF-8 multibyte text; Nuzlocke must preserve its
+    -- glyph-span helpers and never use byte length/slicing for owned UI.
+    local mainSource2860 = safeRead("main.lua") or ""
+    local manifestSource2860 = safeRead("manifest.json") or ""
+    local compatDocs2860 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_japanese_target",
+      mainSource2860:find('["translation-ja-hrkt"] = {', 1, true) ~= nil
+      and mainSource2860:find('reviewed = "0.4.2"', 1, true) ~= nil
+      and mainSource2860:find('editions = { "red", "blue" }', 1, true) ~= nil
+      and mainSource2860:find('fontModel = "engine_plain_pixel_ttf"', 1, true) ~= nil
+      and manifestSource2860:find('"translation-ja-hrkt"', 1, true) ~= nil)
+    add("translation_japanese_glyph_safe",
+      mainSource2860:find("local function nuzGlyphSpans", 1, true) ~= nil
+      and mainSource2860:find("Font.split(text)", 1, true) ~= nil
+      and mainSource2860:find("utf8lib.codes(text)", 1, true) ~= nil
+      and mainSource2860:find("local function nuzGlyphLen", 1, true) ~= nil
+      and mainSource2860:find("local function nuzGlyphSlice", 1, true) ~= nil)
+    add("translation_japanese_matrix",
+      compatDocs2860:find("translation-ja-hrkt", 1, true) ~= nil
+      and compatDocs2860:find("Japanese", 1, true) ~= nil
+      and compatDocs2860:find("Red / Blue", 1, true) ~= nil)
+    add("translation_japanese_no_gameplay_literals",
+      mainSource2860:find('== "たたかう"', 1, true) == nil
+      and mainSource2860:find('== "にげる"', 1, true) == nil
+      and mainSource2860:find('== "どうぐ"', 1, true) == nil
+      and mainSource2860:find('== "ポケモン"', 1, true) == nil)
+
+    -- 2.8.59: translation compatibility matrix + remaining high-value
+    -- authored source discovery. Matrix documentation must stay reconciled
+    -- with the known-companion registry, and Forgiveness/Battle Clause text
+    -- must remain discoverable without language-specific policy branches.
+    local mainSource2859 = safeRead("main.lua") or ""
+    local compatDocs2859 = safeRead("docs/COMPATIBILITY.md") or ""
+    add("translation_matrix_registry_reconciled",
+      compatDocs2859:find("Translation compatibility matrix", 1, true) ~= nil
+      and compatDocs2859:find("gen1_pt-br", 1, true) ~= nil
+      and compatDocs2859:find("versaovermelha", 1, true) ~= nil
+      and compatDocs2859:find("translation-german-universal", 1, true) ~= nil
+      and compatDocs2859:find("traduccion_es", 1, true) ~= nil
+      and compatDocs2859:find("translation-fr", 1, true) ~= nil
+      and compatDocs2859:find("trad-fr-extended", 1, true) ~= nil
+      and compatDocs2859:find("finnish", 1, true) ~= nil
+      and mainSource2859:find('["translation-fr"] = {', 1, true) ~= nil
+      and mainSource2859:find('["traduccion_es"] = {', 1, true) ~= nil)
+    add("translation_forgiveness_sources",
+      mainSource2859:find('{ source="REROLL ENCOUNTER", kind="forgiveness_ui" }', 1, true) ~= nil
+      and mainSource2859:find('{ source="REVIVE POKEMON", kind="forgiveness_ui" }', 1, true) ~= nil
+      and mainSource2859:find('{ source="You have no F. TOKEN.", kind="forgiveness_message" }',
+        1, true) ~= nil
+      and mainSource2859:find('source="F. TOKEN used.\\n%s was revived!"', 1, true) ~= nil)
+    add("translation_battle_clause_sources",
+      mainSource2859:find('{ source="OHKO Clause blocked the move.", kind="battle_clause_message" }',
+        1, true) ~= nil
+      and mainSource2859:find('{ source="Sleep Clause blocked the move.", kind="battle_clause_message" }',
+        1, true) ~= nil
+      and mainSource2859:find('{ source="Other Stat Drops blocked the drop.", kind="battle_clause_message" }',
+        1, true) ~= nil
+      and mainSource2859:find('{ source="Confusion ban blocked the effect.", kind="battle_clause_message" }',
+        1, true) ~= nil)
+    add("translation_runtime_status_sources",
+      mainSource2859:find('{ source="NUZ INFO", kind="ui_common" }', 1, true) ~= nil
+      and mainSource2859:find('{ source="MOD COMPAT", kind="compat_ui" }', 1, true) ~= nil
+      and mainSource2859:find('{ source="Buying is disabled.", kind="runtime_message" }', 1, true) ~= nil
+      and mainSource2859:find('source="Held items are banned by your Nuzlocke rules."', 1, true) ~= nil)
+
+    -- 2.8.58: explicit French translation compatibility. The generated
+    -- base translation and the optional gap-filling overlay remain distinct
+    -- content companions; neither may become gameplay-policy semantics.
+    local mainSource2858 = safeRead("main.lua") or ""
+    local manifestSource2858 = safeRead("manifest.json") or ""
+    add("translation_french_targets",
+      mainSource2858:find('["translation-fr"] = {', 1, true) ~= nil
+      and mainSource2858:find('reviewed = "0.8.0"', 1, true) ~= nil
+      and mainSource2858:find('["trad-fr-extended"] = {', 1, true) ~= nil
+      and mainSource2858:find('reviewed = "0.2.0"', 1, true) ~= nil
+      and mainSource2858:find('requiresCompanion = "translation-fr"', 1, true) ~= nil
+      and manifestSource2858:find('"translation-fr"', 1, true) ~= nil
+      and manifestSource2858:find('"trad-fr-extended"', 1, true) ~= nil)
+    add("translation_french_all_editions_scope",
+      mainSource2858:find('editions = { "red", "blue", "yellow", "gold", "silver", "crystal" }',
+        1, true) ~= nil
+      and mainSource2858:find('generatedBy = "gen1recomp-translation-mod-generator"',
+        1, true) ~= nil)
+    add("translation_french_no_gameplay_literals",
+      mainSource2858:find('shop == "ACHETER"', 1, true) == nil
+      and mainSource2858:find('shop == "VENDRE"', 1, true) == nil
+      and mainSource2858:find('shop == "FUITE"', 1, true) == nil
+      and mainSource2858:find('shop == "ATTAQUE"', 1, true) == nil)
+
+    -- 2.8.57: explicit Spanish translation compatibility. The target is
+    -- a content/LANGUAGE companion; Nuzlocke records it separately and must
+    -- never add Spanish display literals to gameplay policy.
+    local mainSource2857 = safeRead("main.lua") or ""
+    local manifestSource2857 = safeRead("manifest.json") or ""
+    add("translation_spanish_target",
+      mainSource2857:find('["traduccion_es"] = {', 1, true) ~= nil
+      and mainSource2857:find('reviewed = "0.1.0"', 1, true) ~= nil
+      and mainSource2857:find('behavior = "localization_plus_cartridge_content"', 1, true) ~= nil
+      and mainSource2857:find('editions = { "red", "blue" }', 1, true) ~= nil
+      and manifestSource2857:find('"traduccion_es"', 1, true) ~= nil)
+    add("translation_spanish_no_gameplay_literals",
+      mainSource2857:find('shop == "COMPRAR"', 1, true) == nil
+      and mainSource2857:find('shop == "VENDER"', 1, true) == nil
+      and mainSource2857:find('shop == "HUIR"', 1, true) == nil
+      and mainSource2857:find('shop == "LUCHAR"', 1, true) == nil)
+
+    -- 2.8.56: long-string / variable-width localization hardening and
+    -- World Building + Randomizer source-catalog expansion.
+    local uiSystemSource2856 = safeRead("nuzlocke_ui_system.lua") or ""
+    local classicUiSource2856 = safeRead("classic_ui.lua") or ""
+    local mainSource2856 = safeRead("main.lua") or ""
+    local worldSource2856 = safeRead("world_building.lua") or ""
+    add("localization_glyph_safe_typography_fit",
+      uiSystemSource2856:find('type(Font.split) == "function"', 1, true) ~= nil
+      and uiSystemSource2856:find('type(Font.spansFitting) == "function"', 1, true) ~= nil
+      and uiSystemSource2856:find("local function removeLastGlyph(value)", 1, true) ~= nil
+      and uiSystemSource2856:find("valueBudget = math.max(8", 1, true) ~= nil)
+    add("localization_dev_wrapper_glyph_safe",
+      classicUiSource2856:find("local function glyphSpans(value)", 1, true) ~= nil
+      and classicUiSource2856:find("local function glyphCount(value)", 1, true) ~= nil
+      and classicUiSource2856:find("local function splitGlyphs(value, count)", 1, true) ~= nil
+      and classicUiSource2856:find("token:sub(1, width)", 1, true) == nil)
+    add("localization_gen2_status_bounded",
+      classicUiSource2856:find('Strings("CATCH %d LOST %d", caught, lostEncounters)', 1, true) ~= nil
+      and classicUiSource2856:find("16, self.ruleMarqueeTime), 2, 3)", 1, true) ~= nil
+      and classicUiSource2856:find('Strings("NEXT CAP LV%d", cap)', 1, true) ~= nil)
+    add("translation_world_catalog_discovery",
+      mainSource2856:find("local worldCatalog = mod.exports.__beta26.worldRuleCatalog", 1, true) ~= nil
+      and mainSource2856:find('"world_building_" .. field', 1, true) ~= nil
+      and mainSource2856:find('{ source="%s\\nAllowed: %s", kind="world_building_dynamic" }', 1, true) ~= nil
+      and worldSource2856:find("labels[#labels + 1] = Strings(label)", 1, true) ~= nil)
+    add("translation_randomizer_ui_sources",
+      mainSource2856:find('{ source="RNG Preset %s", kind="randomizer_ui" }', 1, true) ~= nil
+      and mainSource2856:find('{ source="CUSTOM", kind="randomizer_value" }', 1, true) ~= nil
+      and classicUiSource2856:find('Strings("RNG Preset %s", Strings(', 1, true) ~= nil
+      and classicUiSource2856:find('Strings("Starter %s", Strings(', 1, true) ~= nil)
+
+    -- 2.8.55: generalized localization contract. High-value Nuzlocke UI
+    -- strings must be discoverable through the existing Translation API 2
+    -- source catalog, while Dev localization diagnostics remain read-only and
+    -- visible in System Health / DEV REPORT.
+    local mainSource2855 = safeRead("main.lua") or ""
+    local devReportSource2855 = safeRead("dev_report.lua") or ""
+    local classicUiSource2855 = safeRead("classic_ui.lua") or ""
+    add("translation_high_value_ui_sources",
+      mainSource2855:find("local TRANSLATION_UI_SOURCES = {", 1, true) ~= nil
+      and mainSource2855:find('{ source="RUN STATUS", kind="ui_status" }', 1, true) ~= nil
+      and mainSource2855:find('{ source="ENCOUNTER LOG", kind="tracker" }', 1, true) ~= nil
+      and mainSource2855:find('kind="world_summary"', 1, true) ~= nil
+      and mainSource2855:find("for _, row in ipairs(TRANSLATION_UI_SOURCES) do", 1, true) ~= nil)
+    add("translation_dev_localization_diagnostics",
+      devReportSource2855:find("Dev.localizationDiagnostics = function", 1, true) ~= nil
+      and devReportSource2855:find("translation.detect", 1, true) ~= nil
+      and devReportSource2855:find("translation.sources", 1, true) ~= nil
+      and devReportSource2855:find("translation.catalog", 1, true) ~= nil
+      and devReportSource2855:find("fallback_count=fallback", 1, true) ~= nil
+      and devReportSource2855:find("LOCALIZATION=healthRow", 1, true) ~= nil
+      and devReportSource2855:find("localization = health.localization", 1, true) ~= nil)
+    add("translation_dev_report_surface",
+      classicUiSource2855:find('"LOCALIZATION"', 1, true) ~= nil
+      and classicUiSource2855:find('elseif name == "LOCALIZATION" then', 1, true) ~= nil
+      and classicUiSource2855:find('putPair("FALLBACK"', 1, true) ~= nil)
+    add("translation_api_stays_v2",
+      mainSource2855:find("mod.exports.nuzlocke_translation = {\n      api = 2,", 1, true) ~= nil)
+
+    -- 2.8.54: translation compatibility distinguishes installation from
+    -- active localization state, and encounter ownership remains keyed by
+    -- canonical area identity rather than localized display names.
+    local mainSource2854 = safeRead("main.lua") or ""
+    local manifestSource2854 = safeRead("manifest.json") or ""
+    add("translation_german_universal_target",
+      mainSource2854:find('["translation-german-universal"] = {', 1, true) ~= nil
+      and mainSource2854:find('reviewed = "0.2.0"', 1, true) ~= nil
+      and mainSource2854:find('toggleAware = true', 1, true) ~= nil
+      and manifestSource2854:find('"translation-german-universal"', 1, true) ~= nil)
+    add("translation_activity_lifecycle",
+      mainSource2854:find("mod.exports.nuzlocke_translation = {", 1, true) ~= nil
+      and mainSource2854:find("mod.exports.nuzlocke_translation = {\n      api = 2,", 1, true) ~= nil
+      and mainSource2854:find("local bootLanguage = type(exports.bootLanguage)", 1, true) ~= nil
+      and mainSource2854:find("local pendingLanguage = nil", 1, true) ~= nil
+      and mainSource2854:find("local restartRequired = false", 1, true) ~= nil
+      and mainSource2854:find('activity = "restart_required"', 1, true) ~= nil
+      and mainSource2854:find("translationActive = translationActive", 1, true) ~= nil)
+    add("translation_area_identity_separation",
+      mainSource2854:find("id = routeKey(id)", 1, true) ~= nil
+      and mainSource2854:find("ROUTE_NAMES[id] = formatAreaDisplayName(name, id)", 1, true) ~= nil
+      and mainSource2854:find("local function routeName(id)", 1, true) ~= nil
+      and mainSource2854:find("return Strings(formatAreaDisplayName(ROUTE_NAMES[id], id))", 1, true) ~= nil
+      and mainSource2854:find('local log = mod.save:get("tracker_log")', 1, true) ~= nil)
+
+    -- 2.8.53: provider ownership selection must ignore inactive
+    -- advertisers, compatibility snapshots must canonicalize aliases before
+    -- counting, transaction journals must use TX.api as their single version
+    -- source, and Run History must preserve an explicit critical=false.
+    local interopSource2853 = safeRead("public_interop.lua") or ""
+    local migrationSource2853 = safeRead("save_migration.lua") or ""
+    local runHistorySource2853 = safeRead("run_history.lua") or ""
+    add("interop_inactive_provider_not_preferred",
+      interopSource2853:find("local eligibleExplicit, eligibleAutomatic = {}, {}", 1, true) ~= nil
+      and interopSource2853:find('providerStaticState(provider) == "available"', 1, true) ~= nil
+      and interopSource2853:find("preferred=eligibleExplicit[1] or eligibleAutomatic[1]", 1, true) ~= nil)
+    add("interop_snapshot_canonical_capability_dedupe",
+      interopSource2853:find("local resolved = Interop.resolveCapability(capability)", 1, true) ~= nil
+      and interopSource2853:find("capabilitySet[tostring(resolved.capability or capability)] = true", 1, true) ~= nil)
+    add("gameplay_tx_version_uses_api_constant",
+      migrationSource2853:find("version = TX.api, id = id, kind = kind, state = \"intent\"", 1, true) ~= nil
+      and migrationSource2853:find('if tonumber(txn.version) ~= TX.api then return false, "newer_transaction" end', 1, true) ~= nil
+      and migrationSource2853:find('version = 1, id = id, kind = kind, state = "intent"', 1, true) == nil
+      and migrationSource2853:find('if tonumber(txn.version) ~= 1 then return false, "newer_transaction" end', 1, true) == nil)
+    add("run_history_critical_false_preserved",
+      runHistorySource2853:find("local critical = fields.critical", 1, true) ~= nil
+      and runHistorySource2853:find("if critical == nil and mon then critical = mon.deathCritical end", 1, true) ~= nil
+      and runHistorySource2853:find("critical = critical,", 1, true) ~= nil
+      and runHistorySource2853:find("critical = fields.critical ~= nil and fields.critical", 1, true) == nil)
+
+    -- 2.8.52: SHINY Dev diagnostics must report the same defaults as
+    -- the Rule Catalog/runtime. Fresh/unset saves default Colors + Intro ON.
+    local devReportSource2852 = safeRead("dev_report.lua") or ""
+    local ruleCatalogSource2852 = safeRead("rule_catalog.lua") or ""
+    add("dev_shiny_visual_defaults_match_catalog",
+      devReportSource2852:find('mod.save:get("shiny_colors", true)', 1, true) ~= nil
+      and devReportSource2852:find('mod.save:get("shiny_intro", true)', 1, true) ~= nil
+      and devReportSource2852:find('mod.save:get("shiny_colors", false)', 1, true) == nil
+      and devReportSource2852:find('mod.save:get("shiny_intro", false)', 1, true) == nil
+      and ruleCatalogSource2852:find('{ key = "shiny_colors", default = true', 1, true) ~= nil
+      and ruleCatalogSource2852:find('{ key = "shiny_intro", default = true', 1, true) ~= nil)
+
+    -- 2.8.51: presence/value transaction snapshots must preserve literal
+    -- false. Never use Lua's `and/or` conditional idiom where presence and
+    -- stored value are separate facts.
+    local migrationSource2851 = safeRead("save_migration.lua") or ""
+    local mainSource2851 = safeRead("main.lua") or ""
+    add("false_value_shadow_tx_preservation",
+      migrationSource2851:find("copyPresentValue(before ~= sentinel, before)", 1, true) ~= nil
+      and migrationSource2851:find("copyPresentValue(payload.after_present ~= false, payload.after_value)", 1, true) ~= nil
+      and migrationSource2851:find("before ~= sentinel and deps.copy(before) or nil", 1, true) == nil
+      and migrationSource2851:find("payload.after_present == false and nil or deps.copy(payload.after_value)", 1, true) == nil)
+    add("false_value_schema_tx_preservation",
+      mainSource2851:find("local function schemaTxnValue(present, value)", 1, true) ~= nil
+      and mainSource2851:find("row.after_present and row.after_value or nil", 1, true) == nil
+      and mainSource2851:find("row.before_present and row.before_value or nil", 1, true) == nil
+      and mainSource2851:find("old.before_present and old.before_value or nil", 1, true) == nil)
+    local function schemaValueSelfTest(present, value)
+      if present ~= true then return nil end
+      return value
+    end
+    add("false_value_schema_selector_selftest",
+      schemaValueSelfTest(true, false) == false
+      and schemaValueSelfTest(true, true) == true
+      and schemaValueSelfTest(false, false) == nil
+      and schemaValueSelfTest(false, true) == nil)
+
+    -- 2.8.50 Brazilian translation compatibility contract.
+      -- Current/legacy translation identities remain distinct; presentation
+      -- diagnostics are capability-shaped rather than keyed to one mod ID; and
+      -- Forgiveness shop filtering must never identify BUY/SELL by uppercasing
+      -- English display text.
+      local manifestSource2850 = safeRead("manifest.json") or ""
+      add("translation_brazil_targets",
+        mainSource:find('["gen1_pt-br"] = {', 1, true) ~= nil
+        and mainSource:find('["versaovermelha"] = {', 1, true) ~= nil
+        and mainSource:find('reviewed = "0.2.5"', 1, true) ~= nil
+        and manifestSource2850:find('"versaovermelha"', 1, true) ~= nil)
+      add("translation_presentation_capability_detection",
+        mainSource:find("local trainerCard = exports.trainer_card", 1, true) ~= nil
+        and mainSource:find("local priceLine = exports.precos_linha", 1, true) ~= nil
+        and mainSource:find("local moveLanguage = exports.idioma_golpes", 1, true) ~= nil
+        and mainSource:find("local enemyLabel = exports.mostrar_inimigo", 1, true) ~= nil
+        and mainSource:find('nativeTrainerCardOwnedByTranslation = id == "gen1_pt-br"',
+          1, true) == nil)
+      add("translation_semantic_shop_filter",
+        mainSource:find("local function semanticShopKind(title, opts)", 1, true) ~= nil
+        and mainSource:find('shown == tostring(Strings("BUY"))', 1, true) ~= nil
+        and mainSource:find('shown == tostring(Strings("SELL"))', 1, true) ~= nil
+        and mainSource:find('local shop = tostring(title or ""):upper()', 1, true) == nil)
+      add("translation_no_portuguese_shop_literals",
+        mainSource:find('shop == "COMPRAR"', 1, true) == nil
+        and mainSource:find('shop == "VENDER"', 1, true) == nil
+        and mainSource:find('Strings("COMPRAR")', 1, true) == nil
+        and mainSource:find('Strings("VENDER")', 1, true) == nil)
+
       -- Consequential enforcement/state feedback must stay visible at World
       -- Building T0, while ordinary flavor remains opt-in. These source-level
       -- checks protect the exact three call sites that have regressed before.
@@ -1478,6 +2102,43 @@ return function(mod, deps)
     else
       add("randomizer_profile_pass_invariant", false,
         "source introspection unavailable: " .. tostring(randomizerErr), false)
+    end
+
+    -- 2.8.38: targeted localization coverage for the first migrated batch.
+    -- This is deliberately not a blanket string-literal ban: hook ids, species
+    -- ids, internal transaction reasons, and source constants are not
+    -- player-facing text. Protect only authored surfaces that have explicitly
+    -- entered the localization contract.
+    do
+      local battleSource, battleErr = safeRead("battle_clauses.lua")
+      local forgivenessSource, forgivenessErr = safeRead("forgiveness.lua")
+      local classicSource, classicErr = safeRead("classic_ui.lua")
+      if battleSource and forgivenessSource and classicSource then
+        local battleLocalized =
+          battleSource:find('text = Strings("Sleep Clause blocked the move.")', 1, true) ~= nil
+          and battleSource:find('message = Strings("Paralysis ban blocked the effect.")', 1, true) ~= nil
+          and battleSource:find('text = Strings("Trap Clause blocked the trapping effect.")', 1, true) ~= nil
+          and battleSource:find('text = Strings("OHKO Clause blocked the move.")', 1, true) ~= nil
+        local forgivenessLocalized =
+          forgivenessSource:find('label = Strings("REROLL ENCOUNTER")', 1, true) ~= nil
+          and forgivenessSource:find('label = Strings("REVIVE POKEMON")', 1, true) ~= nil
+        local classicLocalized =
+          classicSource:find('Strings("CATCH %d  LOST %d"', 1, true) ~= nil
+          and classicSource:find('Strings("DEATH %d  TOKEN %d"', 1, true) ~= nil
+          and classicSource:find('Strings("AREA %s", tostring(areaLabel))', 1, true) ~= nil
+          and classicSource:find('Strings("LAST %s", tostring(lastEvent))', 1, true) ~= nil
+          and classicSource:find('Strings("Unknown recovery error.")', 1, true) ~= nil
+        add("localization_migrated_surfaces",
+          battleLocalized and forgivenessLocalized and classicLocalized,
+          "battle=" .. tostring(battleLocalized)
+            .. " forgiveness=" .. tostring(forgivenessLocalized)
+            .. " classic=" .. tostring(classicLocalized))
+      else
+        add("localization_migrated_surfaces", false,
+          "source unavailable: battle=" .. tostring(battleErr)
+            .. " forgiveness=" .. tostring(forgivenessErr)
+            .. " classic=" .. tostring(classicErr), false)
+      end
     end
 
     -- 2.7.1: installer lint follows the authoritative shipped Lua inventory.
@@ -1605,6 +2266,255 @@ return function(mod, deps)
     add("compat_active_engine_profile", type(activeProfile) == "string"
       and activeProfile ~= "" and type(activeRow) == "table",
       "active=" .. tostring(activeProfile))
+
+    -- 2.8.39: compatibility cleanup/diagnostic contract.  New diagnostics
+    -- must distinguish discovery from selection and keep every historical
+    -- fallback explicitly inventoried instead of silently deleting it.
+    local compatMods = mod.exports.__beta26.compat and mod.exports.__beta26.compat.Mods
+    add("compat_fallback_inventory", type(compatMods) == "table"
+      and type(compatMods.fallbackInventory) == "function")
+    add("compat_capability_status", type(compatMods) == "table"
+      and type(compatMods.capabilityStatus) == "function")
+    local publicCompat = mod.exports.nuzlocke_compat
+    add("compat_public_provider_status", type(publicCompat) == "table"
+      and type(publicCompat.providerStatus) == "function")
+    add("compat_public_capability_status", type(publicCompat) == "table"
+      and type(publicCompat.capabilityStatus) == "function")
+    add("compat_public_snapshot", type(publicCompat) == "table"
+      and type(publicCompat.compatibilitySnapshot) == "function")
+    if type(compatMods) == "table" and type(compatMods.fallbackInventory) == "function" then
+      local okFallbacks, fallbacks = pcall(compatMods.fallbackInventory)
+      add("compat_fallback_rows", okFallbacks and type(fallbacks) == "table"
+        and #fallbacks >= 4, okFallbacks and ("rows=" .. tostring(#fallbacks)) or tostring(fallbacks))
+    end
+
+    -- 2.8.40: recurring-regression static bundle. These checks intentionally
+    -- overlap selected runtime/self-tests: they catch forbidden ownership or
+    -- architectural drift before the affected code path is exercised.
+    do
+      local main40, main40Err = safeRead("main.lua")
+      local late40, late40Err = safeRead("late_runtime.lua")
+      local rand40, rand40Err = safeRead("randomizer_runtime.lua")
+      if main40 and late40 and rand40 then
+        local battlePartyNative =
+          main40:find("Gen2 BattleState owns its battle-party lifecycle", 1, true) ~= nil
+          and late40:find("function G2.retirePartyMenuMethodWrappers", 1, true) ~= nil
+          and late40:find("function G2.installPartyConsumableExecution", 1, true) ~= nil
+          and not late40:find("PartyMenu.new = wrapper", 1, true)
+          and not late40:find("PartyMenu.openSubmenu = openWrapper", 1, true)
+          and not late40:find("Gen2BattleState.draw = function", 1, true)
+          and not late40:find("Gen2BattleState.update = function", 1, true)
+        add("regression_bundle:battle_party_native_ownership", battlePartyNative,
+          "native battle-party/item target path preserved; retired method wrappers stay retired")
+
+        local shinyOwnerSafe =
+          main40:find("if liveProvider == nil then return nil end", 1, true) ~= nil
+          and main40:find("exports.shiny_pokemon or exports.shiny_compat", 1, true) ~= nil
+          and late40:find("if externalOwns() then return", 1, true) ~= nil
+          and not late40:find("Assets.invalidate", 1, true)
+          and not late40:find("Renderer.invalidate", 1, true)
+          and not late40:find("PaletteFX.invalidate", 1, true)
+        add("regression_bundle:shiny_single_owner", shinyOwnerSafe,
+          "external ownership requires a live provider and Nuzlocke never invalidates engine renderer resources")
+
+        local txJournalSafe =
+          main40:find('RARE_CANDY_TXN_NAMESPACE = "rare_candy_to_cap_v2"', 1, true) ~= nil
+          and main40:find("TX.nextSequence(RARE_CANDY_TXN_NAMESPACE", 1, true) ~= nil
+          and main40:find('"native_effect_returned", true', 1, true) ~= nil
+          and main40:find('return "unknown", "partial_or_external_mutation"', 1, true) ~= nil
+          and main40:find("Revisiting the exact same Pokémon state must still create a fresh id.", 1, true) ~= nil
+        add("regression_bundle:transaction_journal", txJournalSafe,
+          "fresh attempt ids + durable native-effect checkpoint + fail-closed external mutation handling")
+
+        local perfTripwire =
+          rand40:find("perfStats.profileBuilds", 1, true) ~= nil
+          and rand40:find("encounterProfileForPass(game, balance, perfStats)", 1, true) ~= nil
+          and rand40:find("randomizerPerformanceAudit = function(game)", 1, true) ~= nil
+          and rand40:find("learnset_projection_scoped", 1, true) ~= nil
+        add("regression_bundle:performance_tripwires", perfTripwire,
+          "encounter-profile call counter and scoped learnset projection audits remain installed")
+
+        local eventShapeSafe =
+          main40:find("payload and (payload.battle or payload)", 1, true) ~= nil
+          and main40:find('mod.events:on("battle.started"', 1, true) ~= nil
+        add("regression_bundle:battle_started_event_shape", eventShapeSafe,
+          "battle.started consumers retain wrapped-or-direct payload compatibility")
+      else
+        add("regression_bundle:source_read", false,
+          "source unavailable main=" .. tostring(main40Err)
+            .. " late=" .. tostring(late40Err)
+            .. " randomizer=" .. tostring(rand40Err), false)
+      end
+    end
+
+    -- 2.8.41: Dev Mode semantic-diagnostics contract. These are observational
+    -- surfaces only; Release Safety verifies they remain present and that the
+    -- encounter/rule traces are bounded instead of becoming mutation tools.
+    do
+      local dev = mod.exports.__beta26.Dev or {}
+      add("dev_system_health", type(dev.systemHealth) == "function")
+      add("dev_provider_ownership", type(dev.providerOwnership) == "function")
+      add("dev_encounter_provenance", type(dev.encounterProvenance) == "function"
+        and type(mod.exports.__beta26.activeEncounterProvenance) == "function")
+      add("dev_rule_decision_trace", type(dev.recordDecision) == "function"
+        and type(dev.decisionTrace) == "function"
+        and tonumber(dev.maxDecisions) ~= nil and tonumber(dev.maxDecisions) <= 64,
+        "max=" .. tostring(dev.maxDecisions))
+      local publicDev = mod.exports.nuzlocke_dev
+      local publicCompat = mod.exports.nuzlocke_compat
+      add("compat_api_35_semantic_status",
+        tonumber(mod.exports.__beta26.compatibilityApi) == 35
+        and type(publicCompat) == "table"
+        and tonumber(publicCompat.version) == 35
+        and type(publicCompat.providerStatus) == "function"
+        and type(publicCompat.capabilityStatus) == "function"
+        and type(publicCompat.compatibilitySnapshot) == "function")
+
+      add("dev_public_semantic_surfaces", type(publicDev) == "table"
+        and type(publicDev.system_health) == "function"
+        and type(publicDev.provider_ownership) == "function"
+        and type(publicDev.encounter_provenance) == "function"
+        and type(publicDev.decision_trace) == "function"
+        and type(publicDev.bug_report_snapshot) == "function"
+        and type(publicDev.transaction_health) == "function"
+        and type(publicDev.hook_wrapper_drift) == "function"
+        and type(publicDev.randomizer_reproducibility) == "function"
+        and type(publicDev.shiny_diagnostics) == "function"
+        and type(publicDev.performance_counters) == "function"
+        and type(publicDev.rule_configuration_consistency) == "function"
+        and type(publicDev.save_run_identity_health) == "function"
+        and type(publicDev.ownership_history) == "function")
+
+      -- 2.8.42: the bug snapshot must stay observational. It may aggregate
+      -- passive diagnostics, but it must never invoke the self-test or any
+      -- mutation/repair path merely to render a report.
+      local devSource = safeRead("dev_report.lua")
+      local classicSource = safeRead("classic_ui.lua")
+      local bugSnapshotSafe = type(dev.bugReportSnapshot) == "function"
+        and type(devSource) == "string"
+        and devSource:find("bugReportSnapshot = function", 1, true) ~= nil
+        and devSource:find("NUZLOCKE BUG REPORT SNAPSHOT", 1, true) ~= nil
+        and devSource:find("out.text = table.concat", 1, true) ~= nil
+      add("dev_bug_report_snapshot", bugSnapshotSafe)
+      add("dev_bug_report_page", type(classicSource) == "string"
+        and classicSource:find('"BUG REPORT"', 1, true) ~= nil)
+
+      -- 2.8.43: transaction and hook-drift diagnostics remain passive. The
+      -- transaction page may inspect the durable journal/receipts but must not
+      -- call recover/execute; hook drift may observe interposition but must not
+      -- reassign or reclaim a wrapped engine/mod surface.
+      local transactionDiagnosticSafe =
+        type(dev.transactionHealth) == "function"
+        and type(devSource) == "string"
+        and devSource:find("transactionHealth = function", 1, true) ~= nil
+        and devSource:find('recovery_policy="probe_or_refuse"', 1, true) ~= nil
+      add("dev_transaction_health", transactionDiagnosticSafe)
+      local hookDriftSafe =
+        type(dev.hookWrapperDrift) == "function"
+        and type(devSource) == "string"
+        and devSource:find("hookWrapperDrift = function", 1, true) ~= nil
+        and devSource:find('"interposed_or_replaced"', 1, true) ~= nil
+      add("dev_hook_wrapper_drift", hookDriftSafe)
+      add("dev_transaction_drift_pages", type(classicSource) == "string"
+        and classicSource:find('"TRANSACTIONS"', 1, true) ~= nil
+        and classicSource:find('"HOOK DRIFT"', 1, true) ~= nil)
+
+      -- 2.8.44: Randomizer reproducibility and shiny diagnostics are passive.
+      -- The former must use the established read-only reproducibility report;
+      -- the latter must never call shiny RNG/presentation to inspect identity.
+      add("dev_randomizer_reproducibility", type(dev.randomizerReproducibility) == "function"
+        and type(devSource) == "string"
+        and devSource:find("randomizerReproducibility = function", 1, true) ~= nil
+        and devSource:find("randomizerReproducibilityReport", 1, true) ~= nil)
+      add("dev_shiny_diagnostics", type(dev.shinyDiagnostics) == "function"
+        and type(devSource) == "string"
+        and devSource:find("shinyDiagnostics = function", 1, true) ~= nil
+        and devSource:find('"READ ONLY / NO ROLL"', 1, true) == nil)
+      add("dev_randomizer_shiny_pages", type(classicSource) == "string"
+        and classicSource:find('"RANDOM REPRO"', 1, true) ~= nil
+        and classicSource:find('"SHINY"', 1, true) ~= nil
+        and classicSource:find("READ ONLY / ZERO RNG", 1, true) ~= nil
+        and classicSource:find("READ ONLY / NO ROLL", 1, true) ~= nil)
+
+      -- 2.8.45: bounded diagnostic rings must retain severity/count metadata,
+      -- and performance counters must remain Dev-only/in-memory rather than
+      -- becoming save-backed profiling or gameplay control state.
+      local mainSource = safeRead("main.lua")
+      add("dev_severity_coalescing", type(mainSource) == "string"
+        and mainSource:find("Dev.severityFor = function", 1, true) ~= nil
+        and mainSource:find("previous.count =", 1, true) ~= nil
+        and mainSource:find("previous.lastSeq =", 1, true) ~= nil
+        and mainSource:find("severity ~= \"INFO\"", 1, true) ~= nil)
+      add("dev_performance_counters", type(dev.performanceCounters) == "function"
+        and type(mainSource) == "string"
+        and mainSource:find("Dev.perfCount = function", 1, true) ~= nil
+        and mainSource:find("if not mod.exports.__beta26.Dev.enabled()", 1, true) ~= nil)
+      add("dev_performance_page", type(classicSource) == "string"
+        and classicSource:find('"PERFORMANCE"', 1, true) ~= nil
+        and classicSource:find("IN MEMORY / DEV ONLY", 1, true) ~= nil)
+
+      -- 2.8.46: final Dev Mode consistency/identity/ownership-history surfaces
+      -- are observational. Rule diagnostics may validate but never coerce/write;
+      -- save/run identity may compare but never repair; ownership history may
+      -- observe transitions but never select/reclaim providers.
+      add("dev_rule_configuration_consistency",
+        type(dev.ruleConfigurationConsistency) == "function"
+        and type(devSource) == "string"
+        and devSource:find("ruleConfigurationConsistency = function", 1, true) ~= nil
+        and devSource:find("validateStored", 1, true) ~= nil)
+      add("dev_save_run_identity_health",
+        type(dev.saveRunIdentityHealth) == "function"
+        and type(devSource) == "string"
+        and devSource:find("saveRunIdentityHealth = function", 1, true) ~= nil
+        and devSource:find("identity_mismatch", 1, true) ~= nil)
+      add("dev_ownership_history_bounded",
+        type(dev.ownershipHistory) == "function"
+        and tonumber(dev.maxOwnershipHistory) == 32
+        and type(devSource) == "string"
+        and devSource:find("observeOwnership = function", 1, true) ~= nil
+        and devSource:find("while #dev.ownershipHistoryRows", 1, true) ~= nil)
+      add("dev_remaining_pages", type(classicSource) == "string"
+        and classicSource:find('"RULE CONFIG"', 1, true) ~= nil
+        and classicSource:find('"SAVE/RUN"', 1, true) ~= nil
+        and classicSource:find('"OWNER HISTORY"', 1, true) ~= nil
+        and classicSource:find("READ ONLY / NO FIX", 1, true) ~= nil
+        and classicSource:find("READ ONLY / NO REPAIR", 1, true) ~= nil
+        and classicSource:find("SESSION ONLY / NO RECLAIM", 1, true) ~= nil)
+    end
+
+    -- 2.8.49: achievement evidence must remain durable across bounded
+    -- chronology pruning. The Run History schema is independently versioned;
+    -- this does not authorize a global Save Schema bump or synthetic backfill.
+    local runHistorySource = safeRead("run_history.lua")
+    local mainSourceAchievement = safeRead("main.lua")
+    add("run_history_v2_achievement_evidence",
+      type(mod.exports.__beta26.RunHistory) == "table"
+      and tonumber(mod.exports.__beta26.RunHistory.api) == 2
+      and tonumber(mod.exports.__beta26.RunHistory.storage_version) == 2
+      and type(mod.exports.__beta26.RunHistory.statistics) == "function"
+      and type(mod.exports.__beta26.RunHistory.achievementEvidence) == "function"
+      and type(runHistorySource) == "string"
+      and runHistorySource:find("durable achievement-evidence ledger", 1, true) ~= nil
+      and runHistorySource:find("applyEventToStatistics", 1, true) ~= nil
+      and runHistorySource:find('"encounter.failed"', 1, true) ~= nil)
+    add("run_history_rule_integrity_capture",
+      type(runHistorySource) == "string"
+      and runHistorySource:find("recordRuleConfigurationChange", 1, true) ~= nil
+      and type(mainSourceAchievement) == "string"
+      and mainSourceAchievement:find("recordRuleConfigurationChange", 1, true) ~= nil)
+    add("run_history_failed_encounter_capture",
+      type(runHistorySource) == "string"
+      and runHistorySource:find("recordEncounterFailed", 1, true) ~= nil
+      and type(mainSourceAchievement) == "string"
+      and mainSourceAchievement:find("recordEncounterFailed", 1, true) ~= nil)
+    add("run_history_no_save_schema_bump",
+      type(mainSourceAchievement) == "string"
+      and mainSourceAchievement:find("CURRENT_SAVE_SCHEMA = 5", 1, true) ~= nil)
+
+    -- Keep the read-only structural Randomizer performance audit in the
+    -- promotion gate. It does not benchmark host speed or materialize mappings.
+    run("randomizer_performance_structural",
+      mod.exports.__beta26.randomizerPerformanceAudit, deps.game or mod.game)
 
     -- Engine/runtime source introspection is diagnostic only. A supported
     -- launcher may legitimately deny mod:read() for package files; that must

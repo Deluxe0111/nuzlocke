@@ -1,4 +1,40 @@
-# Feature Confidence — 2.8.37
+# Feature Confidence — 2.8.48
+
+## Gen1Recomp 0.2.28 / 0.2.29 compatibility
+
+- **0.2.28 source diff:** PASS — HostShell/iOS metadata only; no Nuzlocke gameplay seam changed.
+- **0.2.29 source diff:** PASS — launcher/importer/input/UI only; no battle/Pokémon/hook/Strings/Chrome/save/shiny/Randomizer-consumed data seam changed.
+- **Compatibility API 35:** STATIC CONTRACT PASS target; additive semantic provider/capability status versioning only.
+- **Save Schema:** remains 5; no migration is required.
+- **Runtime certification:** no new exact-edition runtime PASS is claimed by this source audit.
+
+# Feature Confidence — 2.8.41
+
+## 2.8.41 Dev Mode semantic diagnostics
+
+- System Health / provider ownership / encounter provenance / decision trace: **STATIC/PARSE TARGET — runtime UI smoke recommended**.
+- Diagnostic-only contract: no intended gameplay/save-schema/provider-ownership change.
+
+
+## 2.8.40 Release Safety expansion
+
+- **Gameplay behavior:** unchanged from 2.8.39 by design.
+- **Static regression bundle:** SOURCE/STRUCTURAL PASS target for native Gen II battle-party ownership, shiny single-owner failover, transaction journaling, and battle.started dual event shape.
+- **Randomizer performance:** existing read-only structural audit promoted into the release gate; host/runtime performance certification remains separate.
+- **Runtime evidence:** no new runtime PASS is claimed by this static-hardening build.
+
+
+## 2.8.39 compatibility diagnostics update
+
+- **Gameplay behavior:** unchanged from 2.8.38 by design.
+- **Provider diagnostics:** STATIC PASS target; detected/advertised/selected/fallback states now have separate read-only descriptors.
+- **Fallback cleanup:** no fallback was removed because each inventoried path still serves the supported engine/provider floor.
+- **MOD COMPAT:** provider-health and retained-fallback summaries added; runtime visual verification remains pending.
+
+
+## 2.8.38 localization coverage update
+
+**STATIC PASS / RUNTIME TRANSLATION TEST REQUIRED.** The migrated Battle Clause, Forgiveness, Classic status/history, and recovery surfaces now route authored text through the engine `Strings` registry and are protected by a targeted Release Safety source audit. This establishes source-level readiness, not certification in any specific translated language or variable-width-font environment. World Building and Randomizer remain incomplete localization targets.
 
 ## 2.8.37 release certification update
 

@@ -1,6 +1,754 @@
+# Run History v2 diagnostic compatibility — 2.8.70
+
+Stored-state diagnostics now compare the persisted Run History root against the module's current `storage_version` instead of a stale literal v1 expectation. This prevents valid Run History v2 saves from incorrectly failing the hard `stored_nonrule_state` Release Safety gate.
+
+No external compatibility contract or translation target changed in this build.
+
+---
+
+# Translation registry consolidation — 2.8.69
+
+The translation source-discovery phase is now considered complete for the currently known public Gen1Recomp ecosystem. 2.8.69 reconciles the runtime companion registry, dependency ordering, compatibility matrix, and reviewed non-runtime classifications before exact LOCAL CERT testing begins.
+
+## Normalized runtime target classes
+
+Known companions now use explicit role metadata:
+
+- `current_primary` — preferred current target for its language/scope.
+- `current_alternate` — distinct current alternate with its own runtime identity.
+- `current_overlay` — current companion overlay requiring a base translation.
+- `legacy` — historical identity retained for compatibility/history but not eligible for new certification.
+- `legacy_alternate` — installable alternate/beta retained for history and source compatibility, but not a current certification target.
+
+`certificationEligible` is diagnostic compatibility metadata. It does not enable/disable a mod and does not alter gameplay.
+
+## Consolidated current runtime targets
+
+| Language / role | Runtime ID | Reviewed version | Reviewed editions | Role | Focus |
+| --- | --- | --- | --- | --- | --- |
+| Brazilian Portuguese | `versaovermelha` | 0.2.5 | existing reviewed scope | primary | presentation / exact runtime pending |
+| German | `translation-german-universal` | 0.2.0 | R/B/Y/G/S/C | primary | toggle-aware presentation |
+| Spanish | `traduccion_es` | 0.1.0 | R/B | primary | cartridge-derived content |
+| Spanish alternate | `spanish_translation` | 0.1.0 | Red | alternate | battle UI + loaded replacement scripts |
+| French | `translation-fr` | 0.8.0 | R/B/Y/G/S/C | primary | generated content |
+| French overlay | `trad-fr-extended` | 0.2.0 | follows `translation-fr` | overlay | gap-filling companion |
+| Japanese | `translation-ja-hrkt` | 0.4.2 | R/B | primary | TTF / kana / engine gaps |
+| Italian | `translation-it` | 0.6.0 | R/B/Y | primary | proportional font + replacement scripts |
+| Polish | `recomp-polish` | 1.0.0 | Red | primary | extended Latin; handler load unconfirmed |
+| Simplified Chinese | `zh_cn` | 0.3.1 | R/B/Y | primary | fixed-cell CJK + presentation wrappers |
+| Dutch | `translation-nl` | 0.0.2 | R/B | primary | loaded replacement scripts |
+| Finnish | `finnish` | 0.1.0 | Red | primary | presentation overrides + loaded replacement scripts |
+
+Legacy entries retained but not current certification targets:
+
+- `gen1_pt-br` 0.1.5 — legacy Brazilian Portuguese identity.
+- `recomp-italian` 0.1.0 — alternate/legacy Italian beta with incompletely documented edition scope.
+
+## Dependency-order reconciliation
+
+The manifest optional-dependency ordering is reconciled with known runtime companions. In particular, `finnish` is now explicitly included after `translation-nl`; its omission after the 2.8.67 registry promotion was a metadata/load-order oversight, not a gameplay defect.
+
+## Reviewed but not runtime companions
+
+The following repositories were reviewed during discovery and are deliberately excluded from runtime companion detection and optional dependency ordering:
+
+- `yyoossk/Gen1Recomp-translation-jp-mod` — **placeholder/incomplete**; README-only repository with no manifest, entry point, stable mod ID, version, or installable implementation.
+- `ShiraTheMogul/gen1recomp-lzh` — **engine fork / alternate distribution**; translation ships with engine/gameplay changes and requires a separate engine-fork compatibility audit.
+- `zhangjiyz/gen1recomp-translation-mod-generator-cn` — **tooling/generator**; not itself a stable runtime translation companion.
+- `nevespt/VersaoEncarnada` — **fork/variant of existing Brazilian identity**; shares the `versaovermelha` runtime identity and is not a separate language target.
+
+Final targeted discovery also found no concrete current runtime repository for Korean, Traditional Chinese, European Portuguese, Russian, Czech, Swedish, Turkish, or Greek. This is a discovery result, not a claim that such projects can never appear later.
+
+## Certification boundary
+
+Source/static compatibility remains distinct from runtime evidence. None of the consolidation metadata upgrades a translation to Runtime PASS. Exact edition + exact companion/version combinations still require LOCAL CERT, plus any companion-specific mutation/presentation focus checks already recorded in this document.
+
+---
+
+# Alternate Spanish compatibility — 2.8.68
+
+## Target
+
+- Mod ID: `spanish_translation`
+- Name: **Edicion Roja (Traduccion Español)**
+- Reviewed version: **0.1.0**
+- Scope: **Red**
+- Lineage: fork of `bryanthaboi/versaovermelha`
+- Spanish source text: `einstein95/pokered-es`
+
+This remains distinct from the existing primary `traduccion_es` target because the mod ID, lineage, runtime architecture and edition scope differ.
+
+The reviewed runtime directly overrides BattleState text/menu/move-selection presentation and explicitly loads `lang/literal_handlers.lua`.
+
+Those handlers include Museum payment and Bike Voucher → Bicycle mutations, so the existing `translation_presentation_wrapper` and `translation_replacement_script_mutation` contracts apply.
+
+Runtime focus: standard LOCAL CERT plus battle UI, Museum payment, and Bike Voucher/Bicycle exchange.
+
+No Runtime PASS is claimed by this source audit.
+
+---
+
+# Finnish translation compatibility — 2.8.67
+
+## Current target
+
+- Mod ID: `finnish`
+- Name: **Suomi**
+- Reviewed version: **0.1.0**
+- Current reviewed scope: **Red only**
+- Engine range: `>=0.0.0-dev <1.0.0`
+- Permissions: `engine_internals`
+
+The current upstream project documents itself as a Finnish translation of Pokémon Red, so Nuzlocke keeps the edition scope conservative rather than inferring Blue/Yellow support.
+
+## Coverage / fallback model
+
+The reviewed upstream documentation reports:
+
+- dialogue: 2642 / 2645 translated;
+- engine strings: 639 / 703;
+- all 165 Gen-I moves;
+- 72 named items;
+- 32 trainer classes.
+
+Species names, status abbreviations, route/location names, badge names, named trainers and selected branding terms intentionally remain English. Mixed Finnish/English presentation is therefore expected upstream behavior.
+
+## Font / naming
+
+Finnish adds a fixed-cell 8x8 extended-Latin glyph page at `0x100` for ä/ö/å and uppercase variants, with UTF-8 charmap registration. The naming grid replaces little-used Q/X/W cells with Finnish accented letters.
+
+Nuzlocke's generalized glyph-safe localization boundary remains appropriate.
+
+## Presentation ownership
+
+The reviewed mod directly adapts several engine-owned UI surfaces for Finnish text length, including:
+
+- global YES/NO choice-box geometry;
+- BattleState text/menu/move-select rendering;
+- level-up stat box;
+- bindings capture box;
+- Bill's PC box overlay;
+- ListMenu layout;
+- Move Learn menu;
+- Trainer Card.
+
+These are treated under Nuzlocke's existing `translation_presentation_wrapper` contract: presentation ownership may alter layout, but cannot become gameplay-policy ownership or a dependency for Nuzlocke-owned UI.
+
+## Replacement scripts
+
+Finnish explicitly reads and executes `lang/literal_handlers.lua`.
+
+Those handlers include rule-sensitive mutations such as:
+
+- museum payment: subtract ¥50 and set the museum ticket flag;
+- Bike Shop voucher exchange: remove BIKE VOUCHER, add BICYCLE, set `EVENT_GOT_BICYCLE`.
+
+Therefore Finnish is recorded as:
+
+- replacement scripts present: yes;
+- replacement scripts active/loaded: yes;
+- mutation review required: yes.
+
+The existing generalized `translation_replacement_script_mutation` contract applies; no Finnish-specific gameplay workaround is added.
+
+## Runtime certification emphasis
+
+Use standard LOCAL CERT plus focused checks for:
+
+1. choice-box width;
+2. battle UI layout;
+3. level-up stat box;
+4. bindings capture box;
+5. Bill's PC box overlay;
+6. Move Learn layout;
+7. Trainer Card layout;
+8. museum payment replacement handler;
+9. Bike Voucher/Bicycle replacement handler.
+
+No Runtime PASS is claimed by this source audit.
+
+---
+
+# Dutch translation compatibility — 2.8.66
+
+## Current target
+
+- Mod ID: `translation-nl`
+- Name: **Dutch translation**
+- Reviewed version: **0.0.2**
+- Current reviewed scope: **Red / Blue**
+- Upstream generator/runtime: `BartInTheField/gen1recomp-dutch-generator`
+- Upstream engine range emitted by the generator: `>=0.0.0-dev`
+
+The repository publishes a ready-to-import `translation-nl-0.0.2.zip`, so this is a concrete runtime target rather than tooling-only infrastructure.
+
+## Coverage / fallback model
+
+The reviewed release reports:
+
+- ROM catalog: **3106/3106**
+- RBY-related engine strings: **285/383**
+- all engine strings: **290/533**
+
+No official Dutch donor ROM/font exists in this project. Localized-font extraction is skipped, accents are ASCII-folded, several proper-name/name catalogs intentionally remain English, and untranslated engine/UI text falls back to English.
+
+Mixed Dutch/English presentation is therefore expected and is not itself a Nuzlocke compatibility failure.
+
+## Replacement scripts
+
+The generated Dutch runtime explicitly reads and executes `lang/literal_handlers.lua` when present.
+
+The reviewed handler recipes include rule-sensitive gameplay mutations such as:
+
+- Museum payment: subtract $50 and set the museum ticket flag;
+- Bike Shop voucher exchange: remove BIKE VOUCHER, grant BICYCLE, and set the bicycle event flag.
+
+This makes Dutch stronger evidence for the generalized `translation_replacement_script_mutation` rule introduced in 2.8.63.
+
+Unlike Polish, runtime loading is **confirmed by the generated main.lua architecture**. Nuzlocke therefore records:
+
+- replacement scripts present: yes;
+- replacement scripts active/loaded by generated runtime: yes;
+- mutation review required: yes.
+
+## Runtime certification emphasis
+
+Use the standard LOCAL CERT checklist plus focused checks for:
+
+1. Museum payment replacement handler.
+2. Bike Voucher → Bicycle replacement handler.
+3. Mixed Dutch/English fallback presentation.
+
+A full Dutch compatibility claim requires confirming that loaded translated replacement handlers do not bypass enabled Nuzlocke restrictions.
+
+No Dutch-specific gameplay branches are added.
+
+---
+
+# Simplified Chinese compatibility — 2.8.65
+
+## Primary target
+
+- Mod ID: `zh_cn`
+- Name: **ZH-CN / Simplified Chinese (Mainland)**
+- Reviewed version: **0.3.1**
+- Reviewed edition scope: **Red / Blue / Yellow**
+- Upstream engine range: `>=0.1.56 <1.0.0`
+- Architecture: content catalogs + fixed-cell CJK glyph pages + narrowly-scoped engine-gap presentation wrappers.
+
+The current upstream release reports full local text-key coverage for all three supported editions, 607 interface-string checks, New Game smoke tests on Red/Blue/Yellow, and a reproducible 1,995-glyph / eight-page font build. Nuzlocke does not convert that upstream smoke evidence into Nuzlocke Runtime PASS; exact-combination certification is still required.
+
+## Text model
+
+`zh_cn` registers eight custom glyph pages beginning at codepoint `0x100`, each using 8x8 cells and 8px advance. UTF-8 byte count, glyph count, and rendered width must therefore remain distinct concepts even though visible CJK glyphs are fixed-cell.
+
+Nuzlocke's generalized glyph-span / UTF-8-safe fitting remains authoritative for Nuzlocke-owned UI.
+
+## Presentation wrappers
+
+The reviewed Chinese target uses several narrow compatibility overlays for engine strings that older Gen1Recomp paths do not route through normal registries:
+
+- `script.command` for verified dynamic starter/gift Pokémon and badge substitutions;
+- `ui.naming.grid`;
+- `ui.options.rows`;
+- `Strings.get` for exact stat-argument positions;
+- `Font.draw` for exact caller/source/coordinate-specific stat/status labels;
+- `OptionRows.draw` for the raw CANCEL footer.
+
+These are treated as translation/presentation ownership, not Nuzlocke gameplay ownership.
+
+## Generalized presentation-wrapper rule
+
+Translation-owned `Strings`, `Font`, or UI wrappers must be:
+
+1. **narrowly scoped** to known presentation gaps;
+2. **compositional**, delegating to `next()` or the wrapped original behavior;
+3. **identity-safe** for arbitrary player text such as nicknames;
+4. **non-authoritative for gameplay**; display translation may not change rule decisions;
+5. **non-required by Nuzlocke-owned UI**. Nuzlocke-owned screens must use their own `Strings(...)`, canonical semantic state, and generalized glyph-safe fitting rather than depending on a translation mod's caller-path or fixed-coordinate heuristics.
+
+This rule is represented by the semantic compatibility seam `translation_presentation_wrapper`.
+
+## Runtime certification emphasis
+
+Use the standard LOCAL CERT ten-surface checklist plus focused observation of:
+
+- stat/status labels;
+- starter and gift Pokémon dynamic names;
+- badge substitutions;
+- Options footer;
+- Party/Summary status labels;
+- mixed CJK + numeric alignment.
+
+Dev localization diagnostics expose these as companion-specific certification focus notes.
+
+## Other Chinese projects
+
+### Literary Chinese: `ShiraTheMogul/gen1recomp-lzh`
+
+This is an **engine fork / alternate distribution**, not a normal Mod API translation companion. It changes engine/game behavior in addition to translation, including trade-evolution availability, outsider nickname handling, a Cangjie IME, and alternate Pokédex measurement presentation.
+
+Do **not** add it to the normal known-companion registry. Supporting it requires a separate engine-fork compatibility audit against Nuzlocke's current Gen1Recomp engine assumptions.
+
+### `gen1recomp-translation-mod-generator-cn`
+
+The reviewed repository is tooling/generator work, not itself a runtime Chinese translation companion. Do not add it to the runtime compatibility matrix unless it produces a concrete installable Chinese mod artifact with a stable mod ID/version.
+
+---
+
+# Polish translation compatibility — 2.8.64
+
+## Current target
+
+- Mod ID: `recomp-polish`
+- Name: **POKéMON Edycja Czerwona PL**
+- Reviewed version: **1.0.0**
+- Current Nuzlocke scope: **Red only**, conservatively derived from the upstream identity/documentation.
+- Upstream manifest profile: content; category is labelled GAMEPLAY, but the reviewed implementation is primarily translation/content registration.
+
+## Architecture
+
+The reviewed implementation loads translation catalogs and applies them through normal Gen1Recomp content surfaces for dialogue, strings, species, moves, items, trainers, statuses, Pokédex category text, and an optional naming-grid wrapper.
+
+Polish diacritics use an added fixed-cell Latin glyph page at codepoints `0x100+` plus explicit UTF-8 charmap entries for Polish letters. Nuzlocke therefore continues to treat byte length, glyph count, and rendered width as separate concepts.
+
+Empty translation entries intentionally fall back to English. Mixed Polish/English presentation is valid upstream behavior and is not by itself a Nuzlocke compatibility failure.
+
+## Replacement-script review
+
+The repository contains generated `lang/literal_handlers.lua` handlers that reproduce gameplay mutations such as museum payment/flag changes and Bike Voucher → Bicycle inventory/flag changes.
+
+The current source audit confirms those handlers **exist**, but did not establish that the released 1.0.0 `main.lua` actually loads/registers them. Nuzlocke therefore records:
+
+- replacement scripts present: **yes**;
+- runtime loading: **unconfirmed**;
+- mutation review required: **yes**.
+
+The generalized `translation_replacement_script_mutation` policy introduced in 2.8.63 applies if those handlers are active. No Polish-specific gameplay branch is added.
+
+## Runtime focus
+
+When runtime certification begins, test:
+
+1. Red + `recomp-polish` 1.0.0 standard LOCAL CERT checklist.
+2. Polish glyphs/diacritics in NUZ STATUS, rules, tracker and Dev Report.
+3. Naming-grid behavior if enabled by the translation.
+4. Museum payment and Bike Shop voucher exchange specifically to determine whether replacement handlers are active.
+5. If active, verify Nuzlocke policy is not bypassed by translated replacement scripts.
+
+No Runtime PASS is claimed by this source audit.
+
+---
+
+# Italian translation compatibility — 2.8.63
+
+## Primary target: `translation-it` 0.6.0
+
+The current primary Italian target is `translation-it` 0.6.0, reviewed for Red, Blue and Yellow. It is generated from the community translation pipeline and uses a proportional Fusion Pixel TTF plus several presentation/runtime wrappers.
+
+Important compatibility seams include localized type-name wrapping through `Font.split`/`Font.draw`, temporary Options Menu font wrappers, a demo-battle name wrapper, and generated `literal_handlers.lua` map-script replacements.
+
+Those literal handlers can reproduce vanilla gameplay mutations directly, including money changes, event flags and inventory awards. Therefore translation-owned replacement scripts are not assumed to be presentation-only.
+
+## Alternate target: `recomp-italian` 0.1.0
+
+`recomp-italian` 0.1.0 is retained as a distinct alternate/legacy beta target. Its reviewed architecture is simpler content override + custom glyph/charmap registration, and its upstream edition scope is not documented precisely enough for Nuzlocke to certify beyond source compatibility.
+
+## Replacement-script mutation rule
+
+A translation/content mod may replace a vanilla map script to translate dialogue, but if that replacement also performs gameplay mutation it must preserve the same Nuzlocke semantic policy boundary as the native interaction.
+
+This includes purchases, sales, gifts, trades, inventory awards, healing/services, gambling, Day Care, held-item changes, and other rule-sensitive mutations.
+
+Acceptable integration paths are:
+
+1. preserve the native Nuzlocke-gated entrypoint; or
+2. call the relevant Nuzlocke semantic policy before committing the mutation.
+
+A translated script must not bypass a Nuzlocke restriction merely because it reimplemented the vanilla interaction.
+
+For `translation-it`, runtime certification should specifically exercise museum/payment, Bike Shop/inventory award, and any other generated literal-handler seams that overlap enabled Nuzlocke restrictions.
+
+---
+
+# Localization runtime certification tooling — 2.8.62
+
+The compatibility matrix distinguishes source/static review from exact runtime evidence. 2.8.62 adds a manual Dev Mode checklist to make that exact runtime evidence reproducible.
+
+Certification identity includes the active edition and detected translation companion IDs/versions plus available activity/language/restart state. Changing that combination creates a separate session ledger.
+
+No check is auto-passed. Static source compatibility, clean System Health, or translation detection alone cannot create runtime certification.
+
+The checklist covers the ten surfaces currently considered the minimum localization certification set: setup/rules, status/tracker, battle denial, mart denial, party/info, Move Learn/Rare Candy, Forgiveness, Randomizer, World Building, and Dev localization reporting.
+
+Session-only results may be copied into release/compatibility evidence after human runtime verification. They are not persisted into gameplay saves.
+
+---
+
+# Japanese/CJK UI audit follow-up — 2.8.61
+
+The 2.8.60 Japanese audit exposed a useful code-quality question: whether any Nuzlocke-owned UI still equated Lua byte length with visible glyph count.
+
+2.8.61 audits the owned UI surfaces and removes the remaining player-facing instances found in classic/recovery/status/Pokegear code. Shared glyph segmentation is now reused across split modules, with engine `Font.split` preferred and UTF-8-safe fallback.
+
+Fixed-width byte formatting remains permitted for internal ASCII-only diagnostics/identifiers and numeric columns where no localized text is involved.
+
+The optional Pokegear Cards surface also now translates its authored labels through the same injected translation function used by the rest of its integration.
+
+---
+
+# Translation compatibility matrix — 2.8.59
+
+This matrix reconciles the current known-companion registry with the latest reviewed translation work. **Reviewed** means source/architecture compatibility was audited at the listed version. **Runtime-certified** is stricter and is only granted after exact game + exact mod-version testing.
+
+| Identity | Reviewed version | Role | Reviewed edition scope | Current status | Runtime certification |
+| --- | --- | --- | --- | --- | --- |
+| `gen1_pt-br` | 0.1.5 | Legacy Brazilian Portuguese localization | Historical target; current upstream scope unverified | Legacy / upstream unverified | Not current-certified |
+| `versaovermelha` | 0.2.5 | Brazilian Portuguese localization + presentation | Explicit current Brazilian target; exact edition runtime matrix still pending | Current target | Static/source compatible; runtime matrix pending |
+| `translation-german-universal` | 0.2.0 | German localization + presentation | Red / Blue / Yellow / Gold / Silver / Crystal | Current target | Static/source compatible; runtime matrix pending |
+| `traduccion_es` | 0.1.0 | Spanish localization + optional cartridge-derived content | Red / Blue full reviewed cartridge layer; Yellow has no reviewed Spanish cartridge spec | Current target | Static/source compatible; exact runtime pending |
+| `spanish_translation` | 0.1.0 | Alternate Spanish Red fork with battle UI override + loaded literal handlers | Red | Alternate Spanish target | Static/source compatible; focused runtime pending |
+| `translation-fr` | generator 0.8.0 | Generated French localization/content | Red / Blue / Yellow / Gold / Silver / Crystal | Current base French target | Static/source compatible; runtime matrix pending |
+| `trad-fr-extended` | 0.2.0 | French gap-filling overlay | Requires `translation-fr`; applies where the base translation runs | Current overlay target | Static/source compatible; runtime matrix pending |
+| `translation-ja-hrkt` | 0.4.2 | Japanese generated localization + engine Plain Pixel TTF | Red / Blue | Current Japanese target | Static/source compatible; runtime matrix pending |
+| `translation-it` | 0.6.0 | Primary Italian generated localization + presentation/runtime wrappers | Red / Blue / Yellow | Current primary Italian target | Static/source compatible; runtime matrix pending |
+| `recomp-italian` | 0.1.0 | Alternate Italian beta content/glyph translation | Upstream edition scope not explicitly documented | Alternate / legacy beta target | Not current-certified |
+| `recomp-polish` | 1.0.0 | Polish content translation + custom fixed-cell glyph page | Red (conservative reviewed scope) | Current Polish target | Static/source compatible; runtime matrix pending |
+| `zh_cn` | 0.3.1 | Simplified Chinese content translation + fixed-cell CJK + engine-gap presentation wrappers | Red / Blue / Yellow | Current primary Simplified Chinese target | Upstream R/B/Y smoke exists; Nuzlocke exact-combination runtime pending |
+| `translation-nl` | 0.0.2 | Generated Dutch localization/content + loaded literal handlers | Red / Blue | Current Dutch target | Static/source compatible; mutation-focused runtime pending |
+| `finnish` | 0.1.0 | Finnish content translation + fixed-cell extended Latin + presentation overrides + loaded literal handlers | Red (conservative reviewed scope) | Current Finnish target | Static/source compatible; focused runtime pending |
+
+## Matrix rules
+
+- Translation identity, gameplay identity, and runtime certification are separate facts.
+- A translation companion never gains Nuzlocke gameplay-policy ownership merely by being detected.
+- Edition evidence is never transferred from one game to another.
+- A source/architecture audit is not a Runtime PASS.
+- Localized display text is presentation only; canonical rule, area, species, item, move, encounter, Randomizer and transaction identities remain language-neutral.
+- Companion-specific fonts, graphics, ROM-derived text, catalog overlays and native-layout modifications remain external ownership.
+- Translation API 2 exposes Nuzlocke-owned source strings and lifecycle diagnostics; it does not install or redistribute translation content.
+
+## Current recommended certification order
+
+1. German Universal: one R/B/Y edition + one Gen-II edition, then Crystal.
+2. Spanish: Red/Blue with matching Spanish EUR cartridge and one partial-without-dump check.
+3. French: base-only and base+extended on Red, then Gen-II/Crystal smoke.
+4. Brazilian current target: repeat exact current-version runtime matrix after generalized localization changes.
+5. Finnish: first re-verify the current upstream target/version before certification.
+
+---
+
+## Japanese / CJK compatibility — 2.8.60
+
+The current reviewed Japanese target is `translation-ja-hrkt` **0.4.2** (JP GREEN - Poketto Monsutā Midori), for **Red and Blue**. It is a generated/content translation and requires the player's own ROM import.
+
+Unlike the Western targets, Japanese renders ordinary text through Gen1Recomp's bundled **Plain Pixel TTF**. The companion registers the TTF at size 10 while retaining digits, `/`, and `:` on vanilla tiles. At that size kana advance by one 8px engine cell while Latin text remains narrower. Nuzlocke must therefore avoid assuming that byte length, Unicode code-point count, and rendered width are interchangeable.
+
+Nuzlocke's existing `nuzGlyphSpans` / `nuzGlyphLen` / `nuzGlyphSlice` boundary is retained and protected by Release Safety. It prefers engine `Font.split`, falls back to UTF-8 code-point boundaries, and never intentionally slices a multibyte character in Nuzlocke-owned wrapping/truncation.
+
+The reviewed Japanese mod is currently complete for its ROM-derived catalogs but only partially translated for engine strings; untranslated entries intentionally fall back to English. Mixed Japanese/English presentation is therefore expected and is not itself a Nuzlocke compatibility failure.
+
+The Japanese target also documents engine dependencies around TTF tile opt-outs, draw-color restoration, and boot-time TypeChart loading. Nuzlocke does not reproduce or own those engine fixes.
+
+### Japanese runtime matrix
+
+1. Red + Japanese 0.4.2: setup, NUZ RULES, ENC TRACKER and NUZ STATUS.
+2. Blue + Japanese 0.4.2: same core smoke.
+3. Long rule descriptions with kana/CJK next to untranslated English fallbacks.
+4. Party / NUZ INFO / Move Learn with Japanese species/move names.
+5. Mart and battle denial messages without matching Japanese display literals.
+6. F. TOKEN and Battle Clause messages, including mixed translated/untranslated source fallback.
+7. Randomizer labels and dynamic values.
+8. Wide Menus compatibility if enabled.
+9. Dev Report LOCALIZATION source/fallback counts.
+10. Numeric alignment around levels, HP, PP, prices and page counters.
+
+No exact-combination Runtime PASS is claimed by this source audit.
+
+---
+
+# French translation compatibility — 2.8.58
+
+## Base target: Translation French
+
+- Mod ID: `translation-fr`
+- Reviewed generator release: **0.8.0**
+- Generation model: reproducibly generated Gen1Recomp LANGUAGE/content mod
+- Current reviewed edition scope: **Red, Blue, Yellow, Gold, Silver, Crystal**
+- Optional companion only; never required by Nuzlocke.
+
+The current generator release adds Crystal support and carries Gold/Silver engine-string coverage work forward. Its generated translation remains a standard content mod using Gen1Recomp text/string/name/font registries.
+
+Current Latin builds default to proportional Fusion Pixel TTF support. Nuzlocke therefore composes through its generalized glyph-span/VWF-safe typography rather than through French-specific sizing branches.
+
+## Optional overlay: Traduction FR etendue
+
+- Mod ID: `trad-fr-extended`
+- Reviewed version: **0.2.0**
+- Hard dependency: `translation-fr`
+- Priority: 200
+- Role: fills remaining engine-string and Pokédex-kind gaps after the base translation.
+
+The overlay intentionally does not register a font; it relies on the base translation. Its current implementation writes remaining `strings` entries and `dexEntry.kind` fields and documents last-writer-wins ordering after the base translation.
+
+Nuzlocke treats these as two distinct compatibility identities rather than conflating the overlay with the base translation.
+
+## Ownership
+
+Neither French companion gains Nuzlocke gameplay authority. They own translated presentation/content only.
+
+Nuzlocke retains:
+
+- challenge-rule policy;
+- encounter legality;
+- canonical area identity;
+- tracker/save state;
+- Randomizer semantics;
+- NUZ STATUS/setup/rules state.
+
+French display words must never become gameplay matching literals.
+
+## Runtime matrix
+
+1. Red + `translation-fr`.
+2. Red + `translation-fr` + `trad-fr-extended`.
+3. Yellow + base French translation.
+4. Gold or Silver + base French translation, especially Gen-II NUZ STATUS.
+5. Crystal + base French translation smoke.
+6. Long French rule names/descriptions and Randomizer values under classic UI.
+7. Wide Menus + French.
+8. Dev Report LOCALIZATION counts with base-only and base+overlay.
+9. Mart BUY/SELL + Forgiveness.
+10. Party / NUZ INFO / Move Learn.
+
+No exact-combination runtime PASS is claimed by this source audit.
+
+---
+
+# Traduccion Espanola compatibility — 2.8.57
+
+## Explicit target
+
+- Mod ID: `traduccion_es`
+- Name: **Traduccion Espanola**
+- Reviewed current version: **0.1.0**
+- Category/profile: LANGUAGE/content
+- Current full cartridge-layer editions: **Red / Blue**
+- Nuzlocke optional companion only; never required.
+
+## Composition model
+
+The reviewed target does not own Nuzlocke gameplay hooks. It registers/patches translated content through Gen1Recomp's content surfaces:
+
+- engine `strings`;
+- ROM `text`;
+- Pokemon/move/item/trainer names;
+- status labels;
+- type-chart display names;
+- Dex kind/metric presentation;
+- font/charmap pages;
+- boot/title and battle HUD derived assets when a matching Spanish cartridge is available.
+
+Nuzlocke should therefore compose semantically rather than add Spanish-specific gameplay branches.
+
+## Spanish EUR cartridge boundary
+
+The companion's official cartridge layer requires a matching Spanish Red/Blue EUR dump in the engine `imports/` directory.
+
+Without that dump:
+
+- the companion's hand-translated engine strings still apply;
+- cartridge-derived dialogue/content remains English;
+- the companion itself may present its missing-dump notice.
+
+Nuzlocke does not inspect the user's ROM files or mirror the companion's private missing-dump state.
+
+Yellow currently has no Spanish cartridge spec in this target. Do not infer Red/Blue cartridge coverage onto Yellow, Gold, Silver or Crystal.
+
+## Nuzlocke-authored text
+
+The current Spanish companion cannot automatically know every Nuzlocke-authored source added after its own catalog. Nuzlocke Translation API 2 source/fallback diagnostics remain the supported way to identify untranslated Nuzlocke strings.
+
+## Runtime matrix
+
+1. Red + Traduccion Espanola + matching Spanish Red EUR dump.
+2. Blue + Traduccion Espanola + matching Spanish Blue EUR dump.
+3. Red without EUR dump: engine-text partial translation + missing-dump notice.
+4. NUZ STATUS / rules / tracker / World Building long text.
+5. Randomizer setup/status values.
+6. Mart BUY/SELL restrictions and Forgiveness filtering.
+7. Party menu / NUZ INFO.
+8. Move Learn / Rare Candy TO CAP.
+9. Dev Report LOCALIZATION fallback counts.
+10. Yellow smoke only as partial/unsupported-cartridge behavior; do not certify full Spanish Yellow.
+
+No runtime PASS is claimed by the static/source audit.
+
+---
+
+# Long-string / variable-width localization compatibility — 2.8.56
+
+Nuzlocke-owned shared UI fitting now prefers Gen1Recomp glyph-span measurement and preserves UTF-8 boundaries in fallback paths. Two-column values are fitted before right alignment, diagnostic hard-wrapping is glyph-aware, and compact Gen-II NUZ STATUS summaries remain bounded.
+
+This work is language-general. It does not detect specific languages or introduce Portuguese/German/Spanish/French/Japanese layout branches.
+
+Translation API 2 also exposes the complete live World Building flavor catalog and additional Randomizer status/value sources so compatible translation packs can cover Nuzlocke-authored text without taking gameplay ownership.
+
+---
+
+# General localization compatibility — 2.8.55
+
+## Discoverable Nuzlocke-owned strings
+
+The Translation API 2 source catalog now includes a first batch of high-value Nuzlocke UI strings in addition to rule/section names and descriptions. Translation companions do not need language-specific gameplay adapters for these strings; they can override the stable source text through Gen1Recomp's normal `Strings` mechanism.
+
+The current batch covers NUZ STATUS, Encounter Log / Area Guide labels and controls, tracker summaries, common encounter/history states, and high-tier Nuzlocke-over summaries.
+
+## Diagnostic coverage
+
+Dev Mode can report current translation lifecycle and source-resolution coverage. This is informational and read-only. It must never switch language, reload a translation, mutate another mod's options, or treat untranslated Nuzlocke UI as a gameplay failure.
+
+A source resolving to itself is reported as fallback-like. This is a practical translation-author signal, not definitive proof of missing translation because some legitimate translations may intentionally be identical.
+
+---
+
+# Translation German Universal compatibility — 2.8.54
+
+## Explicit target
+
+- ID: `translation-german-universal`
+- Reviewed stable release: **0.2.0**
+- Scope: Red, Blue, Yellow, Gold, Silver, Crystal
+- Shared supported engine window with Nuzlocke: `>=0.2.24 <1.0.0`
+- Optional companion only; never required for Nuzlocke.
+
+## Language lifecycle
+
+Translation German Universal exposes boot-time language state and intentionally requires restart before a pending language change becomes materialized.
+
+Nuzlocke Translation API 2 therefore separates:
+
+- companion installation;
+- current active localization;
+- pending localization;
+- restart-required state.
+
+When available, diagnostics consume `bootLanguage`, `edition`, `pendingLanguage(game)`, and `restartRequired(game)` without mutating them.
+
+English/no-op boot remains installed but inactive for German localization.
+
+## Ownership boundaries
+
+German Universal may own translated native presentation including its Gen-I battle command geometry, ChoiceBox sizing, Gen-II Chrome choice geometry, Pokédex metric/layout presentation, fonts, title graphics, Trainer Card graphics, map graphics, and translated content catalogs.
+
+Nuzlocke does not copy these implementations and does not take their presentation ownership merely because the companion is detected.
+
+Nuzlocke retains rule policy, encounter legality, tracker state, NUZ STATUS, setup/rules state, and Nuzlocke-authored screens.
+
+## Canonical encounter areas
+
+Localized map names are presentation only. One Per Area, Encounter Tracker persistence, encounter splits, catch provenance, and recovery remain keyed by canonical physical map/area IDs.
+
+Changing English ↔ German must never create an additional encounter allocation for the same physical area.
+
+## Runtime matrix still required
+
+1. Red + German Universal, native battle menu.
+2. Red + German Universal, Nuzlocke Gen-I Battle Menu UI ON.
+3. Red Mart / party / Move Learn / NUZ STATUS.
+4. Gold or Silver native battle/party + Nuzlocke custom screens.
+5. Crystal startup/title + tracker/status smoke.
+6. German → English pending-language state before restart and English boot after restart.
+
+No exact-combination Runtime PASS is claimed by this source/static compatibility build.
+
+---
+
+# Brazilian Portuguese translation compatibility — 2.8.50
+
+## Current explicit target: VersaoVermelha
+
+- Mod ID: `versaovermelha`
+- Reviewed stable release: **0.2.5**
+- Scope: Gen-I Brazilian Portuguese localization plus presentation/layout changes.
+- Repository manifest currently reports 0.2.5.1; Nuzlocke treats stable release 0.2.5 as the reviewed release target and records the mismatch rather than silently normalizing it.
+- `versaovermelha` is an optional compatibility identity, never a required dependency.
+
+The older `gen1_pt-br` identity remains a separate **legacy** known companion. Nuzlocke does not assume it is the same project as VersaoVermelha.
+
+### Ownership contract
+
+Translation content remains external. Nuzlocke composes with translated `Strings`, font/charmap pages, Pokémon/move/item/trainer/status display data, and public UI hooks.
+
+When exposed by a known translation companion, Nuzlocke diagnostics may report presentation signals such as:
+
+- `trainer_card`
+- `precos_linha`
+- `idioma_golpes`
+- `mostrar_inimigo`
+
+Those signals are diagnostic only and do not grant gameplay-policy authority.
+
+VersaoVermelha's native Trainer Card, Gen-I battle text-area, Move Learn, ListMenu, party-label, and title presentation are external presentation ownership. Nuzlocke retains challenge rules, encounter legality, NUZ STATUS, tracker, setup/rules state, and its own custom screens.
+
+### Language-neutral shop policy
+
+R/B/Y Forgiveness shop filtering must not identify a shop from English display literals. The filter prefers semantic menu metadata and only falls back to canonical localized engine `Strings("BUY")` / `Strings("SELL")`.
+
+Do not add Portuguese `COMPRAR` / `VENDER` checks. The same contract must work for future German, Spanish, French, Japanese, Dutch, Finnish, and other translations.
+
+### Runtime matrix still required
+
+Focused combination tests should cover:
+
+1. Red native battle menu + VersaoVermelha.
+2. Red Nuzlocke Gen-I Battle Menu UI ON + VersaoVermelha.
+3. Mart BUY/SELL restrictions and Forgiveness Token filtering.
+4. Field party submenu + NUZ INFO.
+5. Native Trainer Card plus NUZ STATUS.
+6. Move Learn / Rare Candy TO CAP.
+7. Yellow title/new-game setup smoke.
+
+No exact-edition combination Runtime PASS is claimed by this static/source audit.
+
+---
+
+# Nuzlocke Compatibility — 2.8.48
+
+## Gen1Recomp 0.2.28 / 0.2.29 audit
+
+The current source-audited engine marker is **Gen1Recomp 0.2.29**. The supported manifest range remains `>=0.2.24 <2.0.0`; neither 0.2.28 nor 0.2.29 introduces a new Nuzlocke-required gameplay or Mod API seam.
+
+- **0.2.28:** relative to 0.2.27, the engine changes only `src/core/HostShell.lua` plus iOS app-repository metadata. `HostShell.popen` now normalizes the command through `HostShell.shellCommand(...)` before `io.popen`, improving host-shell command handling. Nuzlocke does not own this launcher/subprocess path.
+- **0.2.29:** relative to 0.2.28, the code changes are `GamepadMap`, `RomImporter`, `Kit`, and `VirtualKeyboard` plus iOS metadata. The input changes restore raw L2/R2 trigger mapping/scrolling and scope the on-screen VirtualKeyboard to Linux handhelds. These are launcher/importer/UI changes; no Nuzlocke battle, Pokémon, hooks, Strings, Chrome, save, shiny, or Randomizer data seam changed.
+- Mod API remains 2 and the audited engine save format remains 4.
+- Existing 0.2.27 public `catch.nickname`, Chrome/palette, shiny, and battle integration remains the applicable gameplay contract because those source boundaries are unchanged in 0.2.28/0.2.29.
+- Exact-edition runtime certification remains separate from source compatibility.
+
+## Compatibility API 35
+
+2.8.48 advances the Nuzlocke Compatibility API from **34 to 35**. This is an additive contract-version reconciliation, not a gameplay ownership change. API 35 formally includes the public semantic status helpers already present in the current implementation: provider status, capability status, and compatibility snapshots, while preserving API-34 rule availability/dependency APIs and `compatible_from = 10`.
+
+2.8.41 Dev diagnostics can now report provider detection, advertised capabilities, selected external owner, degraded state, and Nuzlocke fallback without altering provider resolution.
+
+2.8.41 Release Safety hardening: compatibility ownership semantics are unchanged from 2.8.39; promotion checks now explicitly guard native Gen II battle/party ownership, shiny single-owner failover, and the prohibition on Nuzlocke invalidating engine renderer/assets.
+
+2.8.39 compatibility/API cleanup: compatibility diagnostics now distinguish **detected**, **advertised**, **selected external owner**, **inactive/degraded**, and **Nuzlocke fallback** states. MOD COMPAT shows provider-health and retained-fallback summary rows. No gameplay ownership policy changes.
+
+Historical fallback inventory retained in 2.8.39:
+- `catch.nickname` is preferred on Gen1Recomp 0.2.27+, while `battle.nickname` + naming-screen enforcement remains for the supported 0.2.24-0.2.26 range.
+- Shiny provider registry / `shiny_compat` API is preferred; direct `isShiny`/`rollShiny` exports remain for older supported Shiny builds.
+- Public Interop registration is preferred; legacy `nuzlocke_provider` relationship metadata and automatic adapters remain for supported mods that have not migrated.
+
+2.8.38 localization hardening: compatibility ownership and gameplay hooks are unchanged from 2.8.37; migrated Nuzlocke UI/messages now compose with Gen1Recomp `strings` registry translation providers.
 2.8.37 full release: behavior-preserving promotion of the final corrected 2.8.36 candidate after Red standalone shiny runtime PASS; compatibility API/ownership contracts are unchanged.
 2.8.36 standalone shiny regression fix: external shiny ownership now requires a live separate provider handle before registry/API claims are trusted, preventing Nuzlocke-only runs from falsely standing down their built-in shiny system.
-# Nuzlocke Compatibility — 2.8.37
+# Nuzlocke Compatibility — 2.8.41
+
+## Translation/string-provider compatibility
+
+2.8.38 expands use of Gen1Recomp's source-keyed `Strings` registry for Nuzlocke-authored Battle Clause denials, Forgiveness actions, Classic status/history templates, and recovery fallback text. Nuzlocke does not own font rendering or translation-provider lifecycle; it consumes the engine registry and falls back to English when a key is absent. Dynamic Run History details (species, area, badge names) are appended to translated authored labels rather than turned into unstable dynamic translation keys.
+
 
 ## Gen1Recomp 0.2.27 compatibility
 

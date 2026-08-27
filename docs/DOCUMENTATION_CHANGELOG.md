@@ -1,8 +1,44 @@
+- 2.8.72: Added full built-in Difficulty mechanical reference, Silver/Crystal profile catalogs, concise in-game chooser contract, percent-glyph-free explanation policy, native confirmation cursor, and scrollable profile-detail guidance.
+- 2.8.71: Fixed Gen1 Difficulty Review lexical-scope crash, added R/B/Y profile-control value/result rendering, and documented numeric-rule registry bounds audit.
+- 2.8.70: Documented Run History v2 abandon durability/backfill, generalized partial-detail coverage, live-pruning coverage, and dynamic stored-state history-version validation.
+- 2.8.69: Consolidated translation registry roles, fixed Finnish optional ordering, reconciled German scope, and documented reviewed non-runtime placeholder/fork/tooling/engine-fork classifications after the final discovery sweep.
+- 2.8.68: Added alternate Spanish spanish_translation 0.1.0 Red target, lineage, Battle UI override, loaded literal-handler mutation review, and focused certification notes.
+- 2.8.67: Promoted Finnish 0.1.0 to a reviewed current Red target with glyph, presentation override, loaded replacement-script, and focused LOCAL CERT metadata.
+- 2.8.66: Added translation-nl 0.0.2 Red/Blue compatibility, coverage/fallback metadata, and confirmed-loaded replacement-script mutation review.
+- 2.8.65: Added zh_cn 0.3.1 R/B/Y compatibility, fixed-cell CJK/presentation-wrapper metadata, generalized translation presentation-wrapper policy, Chinese LOCAL CERT focus, and Literary Chinese engine-fork classification.
+- 2.8.64: Added recomp-polish 1.0.0, conservative Red scope, fixed-cell Polish glyph/fallback behavior, and present-but-load-unconfirmed replacement-script review metadata.
+- 2.8.63: Added primary/alternate Italian targets and generalized replacement-map-script mutation policy.
+- 2.8.62: Added session-only manual localization runtime-certification workflow, exact translation-combination identity, ten-surface checklist, Dev Report controls, and report snapshot integration.
+- 2.8.61: Documented the Japanese-driven byte-length/fixed-column UI audit, shared internal glyph helpers, Pokegear localization hardening, and additional Gen-II status/Pokegear sources.
+- 2.8.60: Added Japanese Red/Blue translation target 0.4.2, CJK/TTF ownership documentation, UTF-8/glyph-span safeguards, matrix coverage and Japanese runtime checklist.
+- 2.8.59: Added the formal translation compatibility matrix and expanded Translation API 2 discovery for Forgiveness/F. TOKEN, Battle Clause denials, common status/compatibility labels and selected runtime messages.
+- 2.8.58: Added explicit translation-fr 0.8.0 all-six-edition compatibility and trad-fr-extended 0.2.0 overlay compatibility, including VWF/content-ownership and language-neutral gameplay documentation.
+- 2.8.57: Added explicit Traduccion Espanola 0.1.0 compatibility, Red/Blue cartridge-layer scope, partial-without-EUR-dump behavior, optional load ordering, and language-neutral gameplay safeguards.
+- 2.8.56: Documented glyph-safe long-string/VWF UI hardening and Translation API 2 World Building/Randomizer source expansion.
+- 2.8.55: Expanded Translation API 2 source discovery for NUZ STATUS/tracker/world-summary UI and documented read-only Dev localization lifecycle/fallback diagnostics.
+- 2.8.54: Added Translation German Universal 0.2.0 compatibility, Translation API 2 installed-vs-active lifecycle fields, restart/pending-language semantics, and canonical area-ID localization protection.
+- 2.8.53: Documented inactive-provider ownership exclusion, canonical Compatibility API 35 snapshot dedupe, TX.api journal-version hardening, and explicit Run History critical=false preservation.
+- 2.8.52: Corrected DEV REPORT SHINY Colors/Intro default readout to match the authoritative ON defaults; added Release Safety default-drift protection.
+- 2.8.51: Documented false-value preservation repair in schema migration and durable exact-value transactions; Save Schema 5 and Compatibility API 35 remain unchanged.
+- 2.8.50: Added explicit VersaoVermelha 0.2.5 Brazilian compatibility documentation, retained legacy gen1_pt-br separately, documented presentation ownership/export diagnostics, and formalized language-neutral semantic shop matching.
+- 2.8.49: Documented Run History API/storage v2, durable achievement-evidence statistics, explicit partial-history semantics, failed-encounter journaling, and rule-integrity evidence. Global Save Schema remains 5.
+- 2.8.48: Advanced Compatibility API 34→35 for semantic provider/capability status + compatibility snapshots; audited Gen1Recomp 0.2.28/0.2.29, added engine profiles, advanced the audited marker to 0.2.29, retained the >=0.2.24 <2.0.0 floor, and documented that Save Schema remains 5.
+- 2.8.48: Advanced Compatibility API to 35 for semantic provider/capability status introspection; audited Gen1Recomp 0.2.28/0.2.29, advanced the current engine audit marker to 0.2.29, retained the >=0.2.24 floor and Save Schema 5, and documented the upstream HostShell/input/importer-only diffs.
+- 2.8.47: Full documentation/release reconciliation. Added authoritative current-release contract sections to README/User Guide/API; synchronized engine range/audit marker, game support stages, API/schema versions, Randomizer subsystem scope, shiny ownership, compatibility semantics, Gen II hidden field-item ownership, and selected Crystal-inclusive rule descriptions. Historical notes are now explicitly version-scoped.
+- 2.8.46: Completed the current Dev Mode backlog with Rule Configuration Consistency, Save/Run Identity Health, and bounded Compatibility Ownership History diagnostics.
+- 2.8.45: Added Dev diagnostic severity/repetition coalescing and Dev-only performance counter documentation.
+- 2.8.44: Added read-only Shiny and Randomizer Reproducibility Dev Mode diagnostics and API contracts.
+- 2.8.43: Added Dev Mode Transaction Health and Hook/Wrapper Drift diagnostics, public read-only APIs, System Health integration, and Release Safety contracts.
+- 2.8.42: Added DEV REPORT BUG REPORT snapshot documentation and the read-only `nuzlocke_dev.bug_report_snapshot(game)` API contract.
+- 2.8.41 Dev Mode diagnostics: documented System Health, provider ownership detail, encounter provenance, bounded rule-decision traces, and the diagnostic-only contract.
+- 2.8.41 Release Safety expansion: documented the new recurring-regression bundle for Gen II battle/party ownership, shiny ownership, transaction journaling, battle.started payload compatibility, and Randomizer structural performance.
+- 2.8.39 compatibility/API cleanup: documented provider-state vocabulary, public read-only compatibility diagnostics, explicit fallback inventory, and the rule that supported historical fallbacks are removed only after their engine/provider floor is unreachable.
+- 2.8.38 localization hardening: reclassified localization as implemented infrastructure with incomplete coverage; documented the first low-risk migrated text batch, English fallback behavior, targeted Release Safety protection, and dedicated future World Building/Randomizer phases.
 - 2.8.37 full-release promotion: synchronized versioned documentation and recorded Red runtime PASS for Nuzlocke-only ALWAYS shiny generation, Gen I recoloring, and shiny intro presentation. No behavior change from the final corrected 2.8.36 candidate.
 2.8.36 standalone shiny regression fix: external shiny ownership now requires a live separate provider handle before registry/API claims are trusted, preventing Nuzlocke-only runs from falsely standing down their built-in shiny system.
 - 2.8.36 Shiny Pokémon 1.2.7 compatibility: documented generation-neutral provider/API detection, Gen I + Gen II external-owner failover, Gen1Recomp 0.2.27 engine-owned COLORS invalidation, and palette-signature-keyed private fallback shiny cache behavior.
 - 2.8.36 corrective compile-budget rebuild: provider alias data is resolver-scoped; failed first package quarantined.
-# Documentation Changelog — 2.8.37
+# Documentation Changelog — 2.8.40
 
 - Documents the complete provider-absent shiny stack and the new Shiny Colors / Shiny Intro controls.
 - Replaces the older Gen-I-only ownership assumption with edition-active capability-based shiny ownership.
