@@ -91,6 +91,42 @@ return function(mod, deps)
       return normalized, value ~= normalized
   end
 
+  mod.exports.__beta26.RunHistory.deathShinyBooleanSelfTest = function()
+      local originalAppend = mod.exports.__beta26.RunHistory.append
+      local captured = nil
+      mod.exports.__beta26.RunHistory.append = function(game, kind, payload, opts)
+          captured = { kind = kind, payload = payload, opts = opts }
+          return true
+      end
+
+      local fakeMon = {
+          species = "MAGIKARP",
+          nickname = "TEST",
+          nuzlockeDeathSequence = 1,
+      }
+      local okCall, result = pcall(
+          mod.exports.__beta26.RunHistory.recordDeath,
+          { id = "RED" },
+          fakeMon,
+          { shiny = false, pokemonId = "selftest:death", deathSequence = 1 })
+
+      mod.exports.__beta26.RunHistory.append = originalAppend
+
+      local ok = okCall == true and result == true
+          and type(captured) == "table"
+          and captured.kind == "pokemon.died"
+          and type(captured.payload) == "table"
+          and captured.payload.shiny == false
+
+      return {
+          ok = ok,
+          failures = ok and {} or { "explicit_false_not_preserved" },
+          captured = type(captured) == "table"
+              and type(captured.payload) == "table"
+              and tostring(captured.payload.shiny) or "nil",
+      }
+  end
+
   mod.exports.__beta26.RunHistory.baselineNormalizationAudit = function()
       local cases = {
           { value = 3, expected = 3, changed = false },
@@ -723,6 +759,7 @@ return function(mod, deps)
           rawSpecies = fields.rawSpecies,
           pokemonId = pokemonId,
           name = fields.name or (mon and (mon.nickname or mon.name or mon.species)),
+          level = fields.level or (mon and mon.level),
           area = fields.area or fields.catchLocation or (mon and mon.catchLocation),
           encounterType = fields.encounterType or (mon and mon.encounterType),
           encounterMethod = fields.encounterMethod or (mon and mon.nuzlockeEncounterMethod),
@@ -751,6 +788,9 @@ return function(mod, deps)
       local pokemonId = fields.pokemonId or (mon and deps.pokemonIdentity(mon))
       local critical = fields.critical
       if critical == nil and mon then critical = mon.deathCritical end
+      local shiny = fields.shiny
+      if shiny == nil and mon then shiny = deps.isShiny(mon) end
+      if shiny == nil then shiny = false end
       local payload = {
           species = fields.species or (mon and mon.species),
           rawSpecies = fields.rawSpecies,
@@ -764,8 +804,7 @@ return function(mod, deps)
           move = fields.move or (mon and mon.deathMove),
           critical = critical,
           statusCondition = fields.statusCondition or (mon and mon.deathStatusCondition),
-          shiny = fields.shiny ~= nil and fields.shiny
-              or (mon and deps.isShiny(mon)) or false,
+          shiny = shiny,
           source = fields.source,
       }
       local deathSequence = tonumber(fields.deathSequence
@@ -862,6 +901,22 @@ return function(mod, deps)
           phase = fields.phase,
       }, { dedupe = fields.dedupe or ("complete:" .. target:upper()) })
   end
+
+  -- 2.9.18: explicit player abandonment is a durable lifecycle event. It is
+  -- intentionally distinct from natural completion and is deduped per run so
+  -- repeated confirmation/input can never inflate abandon totals.
+  mod.exports.__beta26.RunHistory.recordAbandoned = function(game, fields)
+      fields = fields or {}
+      local root, err = mod.exports.__beta26.RunHistory.ensure(game)
+      if type(root) ~= "table" then return false, tostring(err or "unavailable") end
+      local dedupe = fields.dedupe or ("abandon:" .. tostring(root.run_id or "unknown"))
+      return mod.exports.__beta26.RunHistory.append(game, "run.abandoned", {
+          name = fields.name or "ABANDONED",
+          source = fields.source or "player",
+          reason = fields.reason or "player_abandoned",
+          phase = fields.phase,
+      }, { dedupe = dedupe })
+  end
   
   mod.exports.__beta26.RunHistory.list = function(game, opts)
       opts = opts or {}
@@ -871,15 +926,26 @@ return function(mod, deps)
       end
       local out = {}
       local kind = opts.kind and tostring(opts.kind) or nil
+      local hasAfter = opts.after_seq ~= nil
       local after = tonumber(opts.after_seq) or 0
       local limit = math.max(1, math.min(512, math.floor(tonumber(opts.limit) or 512)))
+      local matched = {}
       for _, row in ipairs(root.events or {}) do
           if (not kind or row.kind == kind) and (tonumber(row.seq) or 0) > after then
-              local copy = {}
-              for key, value in pairs(row) do copy[key] = value end
-              out[#out + 1] = copy
-              if #out >= limit then break end
+              matched[#matched + 1] = row
           end
+      end
+      -- 2.9.10: without an explicit cursor, list(limit=N) means the most
+      -- recent N matching events. Preserve chronological order inside that
+      -- tail so existing timeline consumers still render oldest -> newest.
+      -- With after_seq, retain forward-pagination semantics: first N rows
+      -- strictly after the supplied sequence.
+      local first = hasAfter and 1 or math.max(1, #matched - limit + 1)
+      local last = hasAfter and math.min(#matched, limit) or #matched
+      for i = first, last do
+          local copy = {}
+          for key, value in pairs(matched[i]) do copy[key] = value end
+          out[#out + 1] = copy
       end
       return out
   end

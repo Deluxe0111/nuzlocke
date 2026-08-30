@@ -629,17 +629,32 @@ return function(mod, deps)
             if type(evaluateItemUsePolicy) == "function" then
                 local ok, allowed, decision = pcall(evaluateItemUsePolicy,
                     game, data, save, itemId, target, context)
-                if ok then
-                    if allowed == false then
-                        return { allowed=false,
-                            rule=decision and (decision.rule or decision.code),
-                            reason=decision and (decision.reason or decision.code),
-                            code=decision and decision.code,
-                            kind=ItemAPI.classify(context), decision=decision }
-                    end
-                    return { allowed=true, kind=ItemAPI.classify(context),
-                        decision=decision }
+                if not ok then
+                    -- 2.8.73: external item-use seams are enforcement boundaries.
+                    -- An internal policy exception must never become permission
+                    -- to bypass a Nuzlocke item restriction.
+                    mod.exports.__beta26.lastItemPolicyError =
+                        "public_item_use:" .. tostring(allowed)
+                    return {
+                        allowed=false,
+                        rule="policy_error",
+                        reason="policy_error",
+                        code="policy_error",
+                        kind=ItemAPI.classify(context),
+                        decision={ code="policy_error",
+                            reason="policy_error",
+                            detail=tostring(allowed) },
+                    }
                 end
+                if allowed == false then
+                    return { allowed=false,
+                        rule=decision and (decision.rule or decision.code),
+                        reason=decision and (decision.reason or decision.code),
+                        code=decision and decision.code,
+                        kind=ItemAPI.classify(context), decision=decision }
+                end
+                return { allowed=true, kind=ItemAPI.classify(context),
+                    decision=decision }
             end
             return {allowed=true, kind=ItemAPI.classify(context)}
         end
@@ -1282,37 +1297,144 @@ return function(mod, deps)
         -- A convenience provider bundle for quest/content mods. This is the
         -- preferred integration point for FAFF0x-style quest packs: one call
         -- can register dynamic maps, dungeons, bosses, gifts and encounters.
-        function Content.registerBundle(bundle)
+        local function validateBundleDefinition(kind, def)
+            if type(def) ~= "table" then return false, kind .. " table required" end
+            local id
+            if kind == "area" then
+                id = contentId(def.id or def.mapId or def.areaId)
+                if id == "" then return false, "area id required" end
+            elseif kind == "dungeon" then
+                id = contentId(def.id or def.family or def.name)
+                if id == "" then return false, "dungeon id required" end
+            elseif kind == "boss" then
+                id = contentId(def.id or def.name or def.trainerId)
+                if id == "" then return false, "boss id required" end
+            elseif kind == "gift" then
+                id = contentId(def.id or def.sourceId
+                    or ((def.species or "GIFT") .. "_" .. (def.mapId or def.areaId or "")))
+                if id == "" then return false, "gift id required" end
+            elseif kind == "encounter" then
+                id = contentId(def.id or def.sourceId
+                    or ((def.species or "ENCOUNTER") .. "_" .. (def.mapId or def.areaId or "")))
+                if id == "" then return false, "encounter id required" end
+                if def.randomization ~= nil then
+                    local normalized, err = normalizeRandomizerPolicy(def.randomization)
+                    if not normalized then return false, err end
+                end
+            else
+                return false, "unknown bundle content kind"
+            end
+            return true
+        end
+
+        local function validateBundleList(kind, list)
+            if list == nil then return true end
+            if type(list) ~= "table" then
+                return false, kind .. " list must be table"
+            end
+            for _, def in pairs(list) do
+                local ok, err = validateBundleDefinition(kind, def)
+                if not ok then return false, err end
+            end
+            return true
+        end
+
+        local function validateContentBundle(bundle)
             if type(bundle) ~= "table" then return false, "bundle table required" end
+            for _, spec in ipairs({
+                { "area", bundle.areas },
+                { "dungeon", bundle.dungeons },
+                { "boss", bundle.bosses },
+                { "gift", bundle.gifts },
+                { "encounter", bundle.encounters },
+            }) do
+                local ok, err = validateBundleList(spec[1], spec[2])
+                if not ok then return false, err end
+            end
+            if bundle.randomizerEncounterPolicies ~= nil
+                and type(bundle.randomizerEncounterPolicies) ~= "table" then
+                return false, "randomizer encounter policies must be table"
+            end
+            for id, policy in pairs(bundle.randomizerEncounterPolicies or {}) do
+                if contentId(id) == "" then return false, "encounter policy id required" end
+                local normalized, err = normalizeRandomizerPolicy(policy)
+                if not normalized then return false, err end
+            end
+            if bundle.randomizerLearnsetPolicies ~= nil
+                and type(bundle.randomizerLearnsetPolicies) ~= "table" then
+                return false, "randomizer learnset policies must be table"
+            end
+            for species, policy in pairs(bundle.randomizerLearnsetPolicies or {}) do
+                if tostring(species or ""):upper() == "" then
+                    return false, "learnset policy species required"
+                end
+                local normalized, err = normalizeRandomizerPolicy(policy)
+                if not normalized then return false, err end
+            end
+            return true
+        end
+        Content.validateBundle = validateContentBundle
+
+        -- 2.8.77: validate the complete provider bundle before mutating any
+        -- content registry. A bad late child must not leave earlier areas,
+        -- dungeons, bosses, gifts, encounters or policies partially applied.
+        function Content.registerBundle(bundle)
+            local valid, validationError = validateContentBundle(bundle)
+            if not valid then return false, validationError end
             local provider = bundle.provider or bundle.id or bundle.name
             local function each(list, fn)
                 if type(list) == "table" then
                     for _, def in pairs(list) do
-                        if type(def) == "table" then
-                            local row = shallowCopy(def)
-                            row.provider = row.provider or provider
-                            fn(row)
-                        end
+                        local row = shallowCopy(def)
+                        row.provider = row.provider or provider
+                        local ok, err = fn(row)
+                        if ok ~= true then return false, err end
                     end
                 end
+                return true
             end
-            each(bundle.areas, Content.registerArea)
-            each(bundle.dungeons, Content.registerDungeon)
-            each(bundle.bosses, Content.registerBoss)
-            each(bundle.gifts, Content.registerGift)
-            each(bundle.encounters, Content.registerEncounter)
-            if type(bundle.randomizerEncounterPolicies) == "table" then
-                for id, policy in pairs(bundle.randomizerEncounterPolicies) do
-                    Content.setEncounterRandomizerPolicy(id, policy)
-                end
+            local ok, err = each(bundle.areas, Content.registerArea)
+            if not ok then return false, err end
+            ok, err = each(bundle.dungeons, Content.registerDungeon)
+            if not ok then return false, err end
+            ok, err = each(bundle.bosses, Content.registerBoss)
+            if not ok then return false, err end
+            ok, err = each(bundle.gifts, Content.registerGift)
+            if not ok then return false, err end
+            ok, err = each(bundle.encounters, Content.registerEncounter)
+            if not ok then return false, err end
+            for id, policy in pairs(bundle.randomizerEncounterPolicies or {}) do
+                ok, err = Content.setEncounterRandomizerPolicy(id, policy)
+                if not ok then return false, err end
             end
-            if type(bundle.randomizerLearnsetPolicies) == "table" then
-                for species, policy in pairs(bundle.randomizerLearnsetPolicies) do
-                    Content.setLearnsetRandomizerPolicy(species, policy)
-                end
+            for species, policy in pairs(bundle.randomizerLearnsetPolicies or {}) do
+                ok, err = Content.setLearnsetRandomizerPolicy(species, policy)
+                if not ok then return false, err end
             end
             Interop.emit("content_bundle_registered", {provider=provider})
             return true
+        end
+
+        function Content.bundleSelfTest()
+            local unique = "__NUZLOCKE_BUNDLE_SELFTEST_2877"
+            local beforeArea = Content.areas[unique]
+            local beforeBoss = Content.bosses[unique]
+            local ok, reason = Content.registerBundle({
+                provider = unique,
+                areas = {
+                    { id=unique, name="Self Test" },
+                    { name="invalid child without id" },
+                },
+                bosses = { { id=unique } },
+            })
+            local untouched = Content.areas[unique] == beforeArea
+                and Content.bosses[unique] == beforeBoss
+            return {
+                ok = ok == false and untouched,
+                rejected = ok == false,
+                untouched = untouched,
+                reason = tostring(reason or ""),
+            }
         end
 
         local AutoCompat = {
@@ -1439,7 +1561,7 @@ return function(mod, deps)
             if id == "KANTO_ASCENDANT"
                 or id == "KANTO-ASCENDANT"
                 or id == "KANTOASCENDANT" then
-                -- Kanto Ascendant 6.5.4 owns badge-phased trainer/wild
+                -- Kanto Ascendant 6.5.17 owns badge-phased trainer/wild
                 -- difficulty and additional Trainer Card presentation.
                 -- Classify those surfaces explicitly so Nuzlocke can compose
                 -- instead of stacking its own difficulty transforms.
@@ -1742,7 +1864,7 @@ return function(mod, deps)
             return true
         end
 
-        -- 2.4.12: Kanto Ascendant 6.5.4 explicitly owns its
+        -- 2.4.12: Kanto Ascendant 6.5.17 explicitly owns its
         -- badge-phased difficulty curve and expanded Trainer Card presentation.
         -- Registration is metadata/composition only: do not patch Ascendant's
         -- trainer.party, encounter.species, randomizer, follower, or storage code.
@@ -1774,8 +1896,8 @@ return function(mod, deps)
                         trainer_card_presentation = true,
                     },
                     automatic = true,
-                    source = "audited_adapter",
-                    version = "6.5.4",
+                    source = "unsupported_conflict_defensive_adapter",
+                    version = "6.5.17",
                 })
             end
             return true
@@ -1982,6 +2104,168 @@ return function(mod, deps)
         end
         mod.exports.__beta26.semanticEnforcementCoverage=copyCoverage
         mod.exports.__beta26.semanticBehaviorRegressionAudit=Acquisition.regressionAudit
+        -- 2.9.14: public semantic APIs. These are additive contracts layered
+        -- over existing rule/policy owners; they do not create a second source
+        -- of truth for challenge state.
+        local CapabilityAPI = { api=1 }
+        local EDITION_CAPS = {
+            red={support="mature",generation=1}, blue={support="mature",generation=1},
+            yellow={support="mature",generation=1}, gold={support="beta",generation=2},
+            silver={support="beta",generation=2}, crystal={support="alpha",generation=2},
+        }
+        local function editionId(game)
+            local raw = tostring((game and (game.id or game.edition or game.version)) or ""):lower()
+            for id in pairs(EDITION_CAPS) do if raw:find(id,1,true) then return id end end
+            return raw ~= "" and raw or "unknown"
+        end
+        function CapabilityAPI.describe(game)
+            local id=editionId(game or getCurrentGame() or mod.game)
+            local base=EDITION_CAPS[id] or {support="unknown",generation=nil}
+            local features={}
+            for key,value in pairs(mod.exports.nuzlocke.capabilities or {}) do
+                if value==true then features[key]=true end
+            end
+            return {api=1,edition=id,support=base.support,generation=base.generation,features=features}
+        end
+        function CapabilityAPI.supports(name, game)
+            local row=CapabilityAPI.describe(game)
+            return row.features[tostring(name or "")] == true, row
+        end
+
+        local ServicesAPI = { api=1 }
+        ServicesAPI.KINDS={CENTER=true,MOM=true,STORY_HEAL=true,EXTERNAL_HEAL=true,SHOP_BUY=true,SHOP_SELL=true,DAYCARE=true}
+        function ServicesAPI.evaluate(kind, context)
+            context=type(context)=="table" and context or {}
+            kind=norm(kind)
+            local game=context.game or getCurrentGame() or mod.game
+            local ruleByKind={CENTER="no_poke_center",MOM="no_mom_heal",SHOP_BUY="no_buying",SHOP_SELL="no_selling",DAYCARE="no_day_care"}
+            local rule=ruleByKind[kind]
+            if not ServicesAPI.KINDS[kind] then return {allowed=true,kind=kind,known=false,reason="unknown_service"} end
+            if rule and mod.exports.__beta26 and type(mod.exports.__beta26.ruleActive)=="function" then
+                local ok,activeRule=pcall(mod.exports.__beta26.ruleActive,game,rule)
+                if not ok then return {allowed=false,kind=kind,known=true,rule=rule,reason="policy_error"} end
+                if activeRule==true then return {allowed=false,kind=kind,known=true,rule=rule,reason=rule} end
+            end
+            return {allowed=true,kind=kind,known=true,rule=rule}
+        end
+        function ServicesAPI.canUse(kind, context) return ServicesAPI.evaluate(kind,context).allowed==true end
+
+        local ActionAPI = { api=1 }
+        ActionAPI.ACTIONS={USE_ITEM=true,CAPTURE=true,ACQUIRE=true,CENTER_HEAL=true,MOM_HEAL=true,STORY_HEAL=true,EXTERNAL_HEAL=true,BUY=true,SELL=true,DAYCARE=true,ESCAPE=true}
+        function ActionAPI.evaluate(action, context)
+            context=type(context)=="table" and context or {}
+            action=norm(action)
+            if action=="USE_ITEM" then return ItemAPI.evaluate(context) end
+            if action=="CAPTURE" or action=="ACQUIRE" then return Acquisition.evaluate(context) end
+            local serviceMap={CENTER_HEAL="CENTER",MOM_HEAL="MOM",STORY_HEAL="STORY_HEAL",EXTERNAL_HEAL="EXTERNAL_HEAL",BUY="SHOP_BUY",SELL="SHOP_SELL",DAYCARE="DAYCARE"}
+            if serviceMap[action] then return ServicesAPI.evaluate(serviceMap[action],context) end
+            if action=="ESCAPE" then
+                local game=context.game or getCurrentGame() or mod.game
+                if mod.exports.__beta26 and type(mod.exports.__beta26.ruleActive)=="function" then
+                    local ok,on=pcall(mod.exports.__beta26.ruleActive,game,"no_escape")
+                    if not ok then return {allowed=false,action=action,reason="policy_error"} end
+                    if on==true then return {allowed=false,action=action,rule="no_escape",reason="no_escape"} end
+                end
+                return {allowed=true,action=action}
+            end
+            return {allowed=true,action=action,known=ActionAPI.ACTIONS[action]==true,reason=ActionAPI.ACTIONS[action] and nil or "unknown_action"}
+        end
+        function ActionAPI.canPerform(action, context) return ActionAPI.evaluate(action,context).allowed==true end
+
+        local EventContract = { api=1 }
+        local eventSeq = 0
+        function EventContract.envelope(kind, payload)
+            eventSeq=eventSeq+1
+            payload=type(payload)=="table" and payload or {}
+            local game=payload.game or getCurrentGame() or mod.game
+            return {
+                api=1, seq=eventSeq, kind=norm(kind):lower(),
+                edition=editionId(game), source=tostring(payload.source or "nuzlocke"),
+                subject=payload.subject, context=payload.context, data=payload.data,
+            }
+        end
+        function EventContract.emit(kind, payload)
+            local row=EventContract.envelope(kind,payload)
+            Interop.emit("semantic_event",row)
+            return row
+        end
+
+        -- Acquisition/Provenance API 1 formalizes the already-existing
+        -- Acquisition begin/evaluate/commit lifecycle. Preflight capability is
+        -- explicit; post-mutation observers must not pretend they can veto.
+        local AcquisitionAPI = {
+            api=1, kinds=Acquisition.KINDS, kind_policy=Acquisition.KIND_POLICY,
+            classify=Acquisition.classify, evaluate=Acquisition.evaluate,
+            begin=Acquisition.begin, commit=Acquisition.commit,
+            commitDecision=Acquisition.commitDecision,
+        }
+        function AcquisitionAPI.capabilities()
+            return {pre_transaction_policy=true,post_mutation_observation=true,provenance_attachment=true,opaque_preflight_token=true}
+        end
+        function AcquisitionAPI.observe(context)
+            context=type(context)=="table" and context or {}
+            local copy={} for k,v in pairs(context) do copy[k]=v end
+            copy.postMutation=true
+            local result=Acquisition.evaluate(copy)
+            result.observation_only=true
+            EventContract.emit("acquisition_observed",{game=copy.game,source=copy.provider or copy.source,subject=copy.mon or copy.pokemon,data={kind=result.kind,species=result.species,allowed=result.allowed,reason=result.reason}})
+            return result
+        end
+
+        -- 2.9.27: semantic battle-roster and activity-state observation.
+        -- These surfaces deliberately do not seize gameplay ownership. External
+        -- mechanics may advertise battle_roster / activity_state capabilities
+        -- and provide live callbacks; vanilla fallback remains conservative.
+        local BattleAPI = { api=1 }
+        function BattleAPI.describe(battle, context)
+            context=type(context)=="table" and context or {}
+            local resolved=Interop.resolveCapability("battle_roster")
+            local provider=resolved and resolved.selected or nil
+            if type(provider)=="table" and type(provider.describeBattle)=="function" then
+                local ok,row=pcall(provider.describeBattle,battle,context)
+                if ok and type(row)=="table" then
+                    row.api=row.api or 1; row.provider=row.provider or provider.id
+                    row.external=true
+                    return row
+                end
+            end
+            local players, opponents = {}, {}
+            if type(battle)=="table" then
+                if type(battle.player)=="table" then players[1]=battle.player end
+                if type(battle.enemy)=="table" then opponents[1]=battle.enemy end
+            end
+            return {api=1,provider="native",external=false,players=players,opponents=opponents,
+                multi_active=(#players>1 or #opponents>1)}
+        end
+        function BattleAPI.activeCombatants(battle, side, context)
+            local row=BattleAPI.describe(battle,context)
+            if tostring(side or ""):lower()=="player" then return row.players or {} end
+            if tostring(side or ""):lower()=="opponent" or tostring(side or ""):lower()=="enemy" then return row.opponents or {} end
+            return {players=row.players or {},opponents=row.opponents or {}}
+        end
+
+        local ActivityAPI = { api=1 }
+        function ActivityAPI.current(game, context)
+            context=type(context)=="table" and context or {}
+            local resolved=Interop.resolveCapability("activity_state")
+            local provider=resolved and resolved.selected or nil
+            if type(provider)=="table" and type(provider.activityState)=="function" then
+                local ok,row=pcall(provider.activityState,game or getCurrentGame() or mod.game,context)
+                if ok and type(row)=="table" then
+                    row.api=row.api or 1; row.provider=row.provider or provider.id; row.external=true
+                    return row
+                end
+            end
+            return {api=1,provider="native",external=false,mode="unknown",known=false}
+        end
+
+        mod.exports.nuzlocke.battle = BattleAPI
+        mod.exports.nuzlocke.activity = ActivityAPI
+        mod.exports.nuzlocke.action = ActionAPI
+        mod.exports.nuzlocke.services = ServicesAPI
+        mod.exports.nuzlocke.capability = CapabilityAPI
+        mod.exports.nuzlocke.events = EventContract
+        mod.exports.nuzlocke.acquisition = AcquisitionAPI
         mod.exports.nuzlocke.acquisitionPolicy = Acquisition
         mod.exports.nuzlocke.itemPolicy = ItemAPI
         mod.exports.nuzlocke.registry = Registry
@@ -2027,6 +2311,14 @@ return function(mod, deps)
             mod.exports.nuzlocke_compat.providersWithCapability = Interop.providersWith
             mod.exports.nuzlocke_compat.listProviders = Interop.listProviders
             mod.exports.nuzlocke_compat.providerCount = Interop.providerCount
+            mod.exports.nuzlocke_compat.canPerformAction = ActionAPI.canPerform
+            mod.exports.nuzlocke_compat.evaluateAction = ActionAPI.evaluate
+            mod.exports.nuzlocke_compat.evaluateService = ServicesAPI.evaluate
+            mod.exports.nuzlocke_compat.describeCapabilities = CapabilityAPI.describe
+            mod.exports.nuzlocke_compat.battleApi = BattleAPI
+            mod.exports.nuzlocke_compat.activityApi = ActivityAPI
+            mod.exports.nuzlocke_compat.acquisitionApi = AcquisitionAPI
+            mod.exports.nuzlocke_compat.eventContract = EventContract
         end
     end
   return mod.exports.nuzlocke

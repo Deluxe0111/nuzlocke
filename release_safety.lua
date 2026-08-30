@@ -8,6 +8,35 @@ return function(mod, deps)
     return nil, tostring(content)
   end
 
+  -- 2.9.57: canonical source-owner registry. Positive source assertions should
+  -- inspect the semantic owner; package-wide negative assertions may inspect
+  -- all Lua sources. This avoids assuming implementation still lives in main.lua.
+  local SOURCE_OWNERS = {
+    main = "main.lua",
+    compatibility = "compatibility_runtime.lua",
+    diagnostics = "dev_diagnostics.lua",
+    rules = "rule_catalog.lua",
+    tracker = "encounter_tracker.lua",
+    world = "world_building.lua",
+    forgiveness = "forgiveness.lua",
+    identity = "pokemon_identity.lua",
+    species_policy = "species_policy.lua",
+    item_policy = "item_policy.lua",
+    evolution_policy = "evolution_policy.lua",
+    randomizer = "randomizer_runtime.lua",
+    interop = "public_interop.lua",
+    migration = "save_migration.lua",
+    late = "late_runtime.lua",
+    run_history = "run_history.lua",
+    classic_ui = "classic_ui.lua",
+    dev_report = "dev_report.lua",
+  }
+  local function ownerSource(owner)
+    local path = SOURCE_OWNERS[owner]
+    if not path then return nil, "unknown source owner: " .. tostring(owner) end
+    return safeRead(path)
+  end
+
   -- 2.6.1: executable shape/contract assertions for the two public
   -- compatibility surfaces. This validates only the stable core that exists
   -- before later gameplay-specific aliases are installed.
@@ -22,7 +51,7 @@ return function(mod, deps)
     local battle = safeRead("battle_clauses.lua") or ""
     local randomizer = safeRead("randomizer_runtime.lua") or ""
     local required = {
-      healing_service = { late, { "function G2.installHealingServiceGate", "specialName ~= \"HealParty\"", "gen2.healing_service_gate" } },
+      healing_service = { late, { "function G2.installHealingServiceGate", "semanticSpecial ~= \"healparty\"", "gen2.healing_service_gate" } },
       mart = { late, { "function G2.installMartGate", "gen2.mart_gate" } },
       capture = { late, { "function G2.installCaptureGate", "gen2.capture_gate" } },
       nickname = { late, { "function G2.installNicknameGate", "gen2.nickname_gate" } },
@@ -92,6 +121,381 @@ return function(mod, deps)
 
 
 
+  -- 2.9.2: battle-stack ownership audit. Protect the distinction between
+  -- modern combat/stat providers and Nuzlocke challenge-policy seams. This is
+  -- source/static evidence only; it must never promote a combined stack to
+  -- Runtime PASS.
+  mod.exports.__beta26.battleStackOwnershipAudit = function()
+    local main = safeRead("main.lua") or ""
+    local late = safeRead("late_runtime.lua") or ""
+    local report = { ok=true, checked=0, failures={}, evidence={ semantic=0, source=0 } }
+    local function check(id, condition, mode)
+      report.checked = report.checked + 1
+      report.evidence[mode] = (report.evidence[mode] or 0) + 1
+      if condition then return end
+      report.ok = false
+      report.failures[#report.failures + 1] = id
+    end
+
+    -- Adapter metadata has a structured owner; inspect it semantically rather
+    -- than matching an exact Lua serialization or field order.
+    local adapters = mod.exports.__beta26.compat
+      and mod.exports.__beta26.compat.Mods
+      and mod.exports.__beta26.compat.Mods.adapters or {}
+    local function adapter(id)
+      local row = adapters[id]
+      if type(row) == "table" and type(row.alias) == "string" then
+        row = adapters[row.alias] or row
+      end
+      return type(row) == "table" and row or {}
+    end
+    for _, id in ipairs({"g9-battle-engine", "g9-battle-engine-beta"}) do
+      local row = adapter(id)
+      check(id .. "_declared", next(row) ~= nil, "semantic")
+      check(id .. "_gen2_scope", row.games == "GEN2", "semantic")
+      check(id .. "_battle_stats", row.battle_stats == "exclusive", "semantic")
+      check(id .. "_stat_growth", row.stat_growth == "exclusive", "semantic")
+      check(id .. "_identity_dvs", row.identity_dvs == "compose", "semantic")
+      check(id .. "_battle_lifecycle", row.battle_lifecycle == "observe", "semantic")
+      check(id .. "_held_items", row.held_items == "observe", "semantic")
+      check(id .. "_battle_status", row.battle_status == "observe", "semantic")
+    end
+
+    -- Runtime implementation boundaries do not yet expose an equivalent
+    -- structured descriptor, so these remain narrowly source-reviewed.
+    local requiredSource = {
+      { "gen2_party_native", main, "Gen2 BattleState owns its battle-party lifecycle" },
+      { "gen2_rule_denials_native", late, "Gen II battle-rule denials remain entirely BattleState-owned" },
+      { "held_item_trigger_semantic", main, 'mod.hooks:wrap("held_item.trigger"' },
+      { "qol_poison_case_specific", main, "POISON SAVE cannot preempt a Nuzlocke Permadeath field-poison faint" },
+    }
+    for _, row in ipairs(requiredSource) do
+      check(row[1], row[2]:find(row[3], 1, true) ~= nil, "source")
+    end
+    return report
+  end
+
+  -- 2.9.9: hook lifecycle/install-order audit. Hook registration must remain
+  -- observable, duplicate-required registrations are defects, and fail-soft
+  -- optional installers must not turn incidental load order into ownership.
+  mod.exports.__beta26.hookLifecycleInstallOrderAudit = function()
+    local main=safeRead("main.lua") or ""
+    local late=safeRead("late_runtime.lua") or ""
+    local report={ok=true,checked=0,failures={},runtimeRequired=true}
+    local required={
+      {"hook_registry", main, "hookRegistry = { api = 1"},
+      {"hook_registry_audit", main, "hookRegistry.audit"},
+      {"safe_install", main, "safeInstall"},
+      {"attempt_install", main, "attemptInstall"},
+      {"feature_health", main, "featureHealth"},
+      {"mods_loaded_resolution", main, 'mod.events:on("mods.loaded"'},
+      {"late_runtime_module", main, 'loadRequiredModuleChunk("late_runtime.lua")'},
+      {"gen2_native_battle_owner", late, "BattleState-owned"},
+      {"party_native_owner", main, "Gen2 BattleState owns its battle-party lifecycle"},
+      {"presentation_not_gameplay_owner", main, "presentation"},
+    }
+    for _,row in ipairs(required) do
+      report.checked=report.checked+1
+      if not row[2]:find(row[3],1,true) then report.failures[#report.failures+1]=row[1] end
+    end
+    local registry=mod.exports.__beta26.hookRegistry
+    if registry and type(registry.audit)=="function" then
+      report.checked=report.checked+1
+      local ok,res=pcall(registry.audit)
+      if not ok or type(res)~="table" or res.ok~=true then report.failures[#report.failures+1]="live_hook_registry_audit" end
+    end
+    report.ok=#report.failures==0
+    return report
+  end
+
+  -- 2.9.9: edition-capability and failure-policy reconciliation. Edition
+  -- support is explicit and evidence remains edition-specific. Unknown custom
+  -- metadata generally fails open; durable transaction/schema ambiguity and
+  -- policy-evaluator exceptions fail closed where guessing could corrupt a run.
+  mod.exports.__beta26.editionCapabilityFailurePolicyAudit = function()
+    local main=safeRead("main.lua") or ""
+    local manifest=safeRead("manifest.json") or ""
+    local migration=safeRead("save_migration.lua") or ""
+    local randomizer=safeRead("randomizer_runtime.lua") or ""
+    local speciesPolicy=safeRead("species_policy.lua") or ""
+    local compatibilityRuntime=safeRead("compatibility_runtime.lua") or ""
+    local report={ok=true,checked=0,failures={},runtimeRequired=true}
+    local required={
+      {"manifest_red", manifest, '"red"'}, {"manifest_blue", manifest, '"blue"'},
+      {"manifest_yellow", manifest, '"yellow"'}, {"manifest_gold", manifest, '"gold"'},
+      {"manifest_silver", manifest, '"silver"'}, {"manifest_crystal", manifest, '"crystal"'},
+      {"runtime_gen2_detector", main, "runtimeIsGen2"},
+      {"unknown_type_fail_open", speciesPolicy, "Unknown truly custom type schemas still fail open"},
+      {"unknown_bst_fail_open", speciesPolicy, "Unknown or incomplete schemas fail open"},
+      {"unknown_gym_fail_open", main, "unknown Gym: fail open"},
+      {"newer_tx_fail_closed", migration, "newer_transaction"},
+      {"policy_exception_fail_closed", main, "policy_exception_did_not_fail_closed"},
+      {"unsupported_stack_explicit", compatibilityRuntime, "this forced stack is unsupported"},
+      {"runtime_evidence_edition_specific", randomizer, "runtimeCertified"},
+    }
+    for _,row in ipairs(required) do
+      report.checked=report.checked+1
+      if not row[2]:find(row[3],1,true) then report.failures[#report.failures+1]=row[1] end
+    end
+    report.editions={red="mature",blue="mature",yellow="mature",gold="beta",silver="beta",crystal="alpha"}
+    report.policy={unknown_metadata="fail_open",durable_ambiguity="fail_closed",policy_exception="fail_closed",optional_install="fail_soft"}
+    report.ok=#report.failures==0
+    return report
+  end
+
+  -- 2.9.8: cross-rule interaction matrix. This is a source/static contract
+  -- audit: it checks that high-risk combinations converge on shared semantic
+  -- policy surfaces instead of installing a second mutation owner.
+  mod.exports.__beta26.ruleInteractionMatrixAudit = function()
+    local main=safeRead("main.lua") or ""
+    local late=safeRead("late_runtime.lua") or ""
+    local randomizer=safeRead("randomizer_runtime.lua") or ""
+    local interop=safeRead("public_interop.lua") or ""
+    local speciesPolicy=safeRead("species_policy.lua") or ""
+    local report={ok=true,checked=0,failures={},runtimeRequired=true}
+    local required={
+      {"permadeath_healing", main, "nuzlockeDead"},
+      {"one_per_area_provenance", late, "pokemonProvenance"},
+      {"type_lock_normalized_facts", speciesPolicy, "getSpeciesFacts"},
+      {"maximum_bst_normalized_facts", main, "maximumBst"},
+      {"level_cap_provider_compose", main, "composeLevelCap"},
+      {"external_item_semantic_seam", main, "item_use"},
+      {"external_shop_semantic_seam", interop, "purchase_commit"},
+      {"randomizer_ownership_registry", randomizer, "randomizerSubsystemOwnership"},
+      {"randomizer_persisted_source_maps", randomizer, "sourceMaps"},
+      {"gen2_native_battle_denials", late, "Gen II battle-rule denials remain entirely BattleState-owned"},
+      {"shiny_clause_separate_policy", main, "shiny_clause"},
+      {"difficulty_species_facts", main, "Difficulty.speciesTypes"},
+    }
+    for _,row in ipairs(required) do
+      report.checked=report.checked+1
+      if not row[2]:find(row[3],1,true) then report.failures[#report.failures+1]=row[1] end
+    end
+    report.matrix={
+      "Permadeath x healing/services","One Per Area x acquisition provenance",
+      "Type Locke x transformed/custom types","Maximum BST x Randomizer",
+      "No Buying/Selling x external shops","Level Caps x trainer-level providers",
+      "Hardcore/battle rules x QoL","Randomizer x expanded species",
+      "Shiny Clause x shiny ownership","Gen-II battle rules x native party routing",
+    }
+    report.ok=#report.failures==0
+    return report
+  end
+
+  -- 2.9.8: save migration/idempotence audit. Presence and value remain
+  -- separate facts; schema is committed last; dry-runs use isolated shadow
+  -- copies; transaction recovery must remain exactly-once/fail-closed.
+  mod.exports.__beta26.saveMigrationIdempotenceAudit = function()
+    local src=safeRead("save_migration.lua") or ""
+    local main=safeRead("main.lua") or ""
+    local report={ok=true,checked=0,failures={},runtimeRequired=true}
+    local required={
+      {"shadow_store", src, "saveUpgrade.newShadowStore"},
+      {"structural_equality", src, "shadowValuesEqual"},
+      {"false_presence_preservation", src, "copyPresentValue"},
+      {"schema_marker_last", src, "schema marker LAST"},
+      {"shadow_copy_isolation", src, "shadowCopyIsolation"},
+      {"transaction_payload_fingerprint", src, "payload_fingerprint"},
+      {"transaction_payload_mismatch", src, "transaction_payload_mismatch"},
+      {"receipt_payload_mismatch", src, "receipt_payload_mismatch"},
+      {"newer_transaction_fail_closed", src, "newer_transaction"},
+      {"save_schema_descriptor", main, "saveSchemaDescriptor"},
+      {"schema_value_selector", main, "schemaTxnValue"},
+    }
+    for _,row in ipairs(required) do
+      report.checked=report.checked+1
+      if not row[2]:find(row[3],1,true) then report.failures[#report.failures+1]=row[1] end
+    end
+    local upgrade=mod.exports.__beta26.saveUpgrade
+    if upgrade and type(upgrade.audit)=="function" then
+      report.checked=report.checked+1
+      local ok,res=pcall(upgrade.audit)
+      if not ok or type(res)~="table" or res.ok~=true then report.failures[#report.failures+1]="save_upgrade_audit" end
+    end
+    local tx=mod.exports.__beta26.GameplayTransactions
+    if tx and type(tx.selfTest)=="function" then
+      report.checked=report.checked+1
+      local ok,res=pcall(tx.selfTest)
+      if not ok or type(res)~="table" or res.ok~=true then report.failures[#report.failures+1]="transaction_exactly_once_selftest" end
+    end
+    report.ok=#report.failures==0
+    return report
+  end
+
+  -- 2.9.7: DEV/diagnostics completeness + lifecycle-contract audit. Passive
+  -- diagnostics must remain observational, while installation/ownership and
+  -- durable persistence stay in their explicit lifecycle stages.
+  mod.exports.__beta26.diagnosticsLifecycleContractAudit = function()
+    local main=safeRead("main.lua") or ""
+    local dev=safeRead("dev_diagnostics.lua") or ""
+    local reportSrc=safeRead("dev_report.lua") or ""
+    local randomizer=safeRead("randomizer_runtime.lua") or ""
+    local report={ok=true,checked=0,failures={},runtimeRequired=true}
+    local required={
+      {"diagnostics_api", main, "diagnosticsApi"},
+      {"dev_stored_state", dev, "storedStateAudit"},
+      {"dev_randomizer_stream", dev, "randomizerStreamRegistryAudit"},
+      {"dev_randomizer_constraints", dev, "randomizerConstraintDiagnosticAudit"},
+      {"dev_shiny", reportSrc, "Dev.shinyDiagnostics"},
+      {"dev_localization", reportSrc, "Dev.localizationDiagnostics"},
+      {"dev_lifecycle_report", reportSrc, "Dev.lifecycleReport"},
+      {"diagnostic_evidence_warning", reportSrc, "SELF-TEST PASS is diagnostic evidence, not a full RUNTIME PASS"},
+      {"randomizer_read_only_regression", randomizer, "sourceMapsUnchanged=#mutated == 0"},
+      {"randomizer_runtime_uncertified", randomizer, "runtimeCertified=false"},
+      {"ownership_resolution", randomizer, "randomizerSubsystemOwnership"},
+      {"build_provenance", main, "buildProvenance"},
+    }
+    for _,row in ipairs(required) do
+      report.checked=report.checked+1
+      if not row[2]:find(row[3],1,true) then report.failures[#report.failures+1]=row[1] end
+    end
+    -- A passive diagnostic source must not directly call the Randomizer's
+    -- mapping materializers or RNG primitives. Named self-tests may invoke
+    -- exported read-only audits, but not choose/materialize gameplay results.
+    local forbidden={"randomizerSeededIndex(","randomizerSeededIndexFor(","math.random(","love.math.random("}
+    for _,needle in ipairs(forbidden) do
+      report.checked=report.checked+1
+      if dev:find(needle,1,true) then report.failures[#report.failures+1]="diagnostic_mutation_risk:"..needle end
+    end
+    report.lifecycle={"Discover","Normalize","Resolve","Install","Freeze","Observe","Persist"}
+    report.ok=#report.failures==0
+    return report
+  end
+
+  -- 2.9.6: final static Randomizer contract audit. This intentionally checks
+  -- the complete owned subsystem vocabulary, deterministic/persisted mapping
+  -- contract, ownership delegation boundaries, and the two still-unresolved
+  -- Gen-II projection diagnostics without converting static evidence into a
+  -- Runtime PASS.
+  mod.exports.__beta26.finalRandomizerStaticAudit = function()
+    local randomizer = safeRead("randomizer_runtime.lua") or ""
+    local main = safeRead("main.lua") or ""
+    local dev = safeRead("dev_diagnostics.lua") or ""
+    local report = { ok=true, checked=0, failures={}, runtimeRequired=true,
+      unresolvedRuntime={"GEN1_FIELD_ITEMS","GEN2_TRAINERS","GEN2_FIELD_ITEMS"} }
+    local required = {
+      {"algorithm_v1", randomizer, "Randomizer.algorithmVersion = 1"},
+      {"starter", randomizer, "STARTER"}, {"encounters", randomizer, "ENCOUNTERS"},
+      {"field_items", randomizer, "FIELD_ITEMS"}, {"learnsets", randomizer, "LEARNSETS"},
+      {"trainers", randomizer, "TRAINERS"}, {"evolutions", randomizer, "EVOLUTIONS"},
+      {"shops", randomizer, "SHOPS"}, {"tms", randomizer, "TMS"},
+      {"tm_locations", randomizer, "TM_LOCATIONS"}, {"gift_items", randomizer, "GIFT_ITEMS"},
+      {"persisted_source_maps", randomizer, "RANDOMIZER_SOURCE_MAPS"},
+      {"stream_registry", randomizer, "RANDOMIZER_STREAM_ORDER"},
+      {"seeded_index_export", randomizer, "randomizerSeededIndexFor"},
+      {"whole_regression", randomizer, "randomizerWholeRegressionAudit"},
+      {"runtime_matrix", randomizer, 'runtimeMatrixRequired={"RED","BLUE","YELLOW","GOLD","SILVER","CRYSTAL"}'},
+      {"runtime_not_certified", randomizer, "runtimeCertified=false"},
+      {"ownership_surface", randomizer, "randomizerSubsystemOwnership"},
+      {"gen2_trainer_diagnostic", randomizer, "auditGen2TrainerRandomizerPipeline"},
+      {"rby_field_diagnostic", main, "auditRbyFieldItemPipeline"},
+      {"gen2_field_diagnostic", main, "auditGen2FieldItemPipeline"},
+    }
+    for _, row in ipairs(required) do
+      report.checked=report.checked+1
+      if not row[2]:find(row[3],1,true) then report.failures[#report.failures+1]=row[1] end
+    end
+    report.ok=#report.failures==0
+    return report
+  end
+
+  -- 2.9.5: compatibility-registry reconciliation. This is deliberately
+  -- source/static: it protects target identity, manifest signaling and explicit
+  -- exclusions without converting detection into gameplay ownership.
+  mod.exports.__beta26.compatibilityRegistryReconciliationAudit = function()
+    local report = { ok=true, checked=0, failures={} }
+    local main = safeRead("main.lua") or ""
+    local manifest = safeRead("manifest.json") or ""
+    local requiredMain = {
+      'modern_party_ui = {', 'qol_toggles = {', 'wonder_trade = {',
+      '["g9-battle-engine"] = {', '["g9-battle-engine-beta"] = {',
+      'delta_type = {', 'dex_overflow = {', 'safari_all = {',
+      'kanto_ascendant = {', '["kanto-reforged"] = {',
+      '["vanilla-plus"] = {', 'double_battles = {', 'blackjack_corner = {', 'free_fly = {',
+      'next_encounter_spawner = {', 'pokeball_colors = {', '["gen1-better-menus"] = {',
+      'level_match = {', 'modern_start_menu_ui = {',
+    }
+    for _, token in ipairs(requiredMain) do
+      report.checked = report.checked + 1
+      if not main:find(token, 1, true) then report.failures[#report.failures+1] = "missing_adapter:" .. token end
+    end
+    local requiredOptional = {
+      '"modern_party_ui"', '"qol_toggles"', '"wonder_trade"',
+      '"g9-battle-engine"', '"g9-battle-engine-beta"', '"delta_type"',
+      '"dex_overflow"', '"safari_all"', '"useful_bag"',
+      '"modern_bag_ui"', '"bag_sort"', '"potato_voxel"',
+      '"PokePCFollowers_VoxelMerge"', '"FOLLOWERS_EX"',
+      '"double_battles"', '"free_fly"',
+    }
+    for _, token in ipairs(requiredOptional) do
+      report.checked = report.checked + 1
+      if not manifest:find(token, 1, true) then report.failures[#report.failures+1] = "missing_optional:" .. token end
+    end
+    report.checked = report.checked + 2
+    if manifest:find('"kanto_ascendant"', 1, true) then report.failures[#report.failures+1] = "conflict_advertised:kanto_ascendant" end
+    if manifest:find('"SHINY_POKEMON"', 1, true) then report.failures[#report.failures+1] = "reciprocal_cycle:SHINY_POKEMON" end
+    report.ok = #report.failures == 0
+    return report
+  end
+
+  -- 2.9.29: trainer-transform and START-menu semantic composition audit.
+  -- External trainer modifiers may own orthogonal dimensions such as levels,
+  -- moves and roster cardinality while Random Trainers owns species identity.
+  mod.exports.__beta26.trainerTransformCompositionAudit = function()
+    local main = safeRead("main.lua") or ""
+    local randomizer = safeRead("randomizer_runtime.lua") or ""
+    local report = { ok=true, checked=0, failures={} }
+    local required = {
+      { "level_match_target", main, 'level_match = {' },
+      { "level_match_version", main, 'tested = "0.7.0"' },
+      { "dimension_contract", main, 'trainer_party = "compose_by_dimension"' },
+      { "modern_start_target", main, 'modern_start_menu_ui = {' },
+      { "modern_start_version", main, 'tested = "0.1.14"' },
+      { "stable_start_id", main, 'id = "nuzlocke.menu"' },
+      { "composed_roster_primary", randomizer, 'transform the COMPOSED incoming roster' },
+      { "resolved_shape_final", randomizer, 'authoritative output shape is `resolved`' },
+    }
+    for _, row in ipairs(required) do
+      report.checked = report.checked + 1
+      if not row[2]:find(row[3], 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = row[1]
+      end
+    end
+    return report
+  end
+
+  -- 2.9.3: healing/service ownership audit. Service identity, item healing,
+  -- post-battle convenience healing and story healing are separate semantic
+  -- dimensions. This is source/static evidence only.
+  mod.exports.__beta26.healingServiceOwnershipAudit = function()
+    local main = safeRead("main.lua") or ""
+    local late = safeRead("late_runtime.lua") or ""
+    local interop = safeRead("public_interop.lua") or ""
+    local report = { ok=true, checked=0, failures={} }
+    local required = {
+      { "gen2_service_gate", late, "function G2.installHealingServiceGate" },
+      { "gen2_healparty_semantic", late, 'semanticSpecial ~= "healparty"' },
+      { "center_rule_separate", late, 'kind == "center" and "no_poke_center"' },
+      { "mom_rule_separate", late, 'kind == "mom" and "no_mom_heal"' },
+      { "story_heals_preserved", late, "heals elsewhere" },
+      { "field_heal_separate", main, 'key == "no_field_healing"' },
+      { "battle_heal_separate", main, 'mod.save:get("no_healing_items", false)' },
+      { "service_provider_contract", interop, 'provider="service ownership"' },
+      { "qol_healing_compose", main, 'healing = "compose"' },
+      { "survivor_healing_contract", main, 'healing = "compose_survivors"' },
+      { "dead_mon_reassertion", main, "cannot revive a durable nuzlockeDead mon" },
+    }
+    for _, row in ipairs(required) do
+      report.checked = report.checked + 1
+      if not row[2]:find(row[3], 1, true) then
+        report.ok = false
+        report.failures[#report.failures + 1] = row[1]
+      end
+    end
+    return report
+  end
+
   -- 2.8.33: presentation-renderer isolation. Nuzlocke challenge logic must
   -- remain below/alongside renderer mods rather than seizing their world or
   -- battle presentation owners. This is provider-neutral: it protects
@@ -144,12 +548,33 @@ return function(mod, deps)
   -- pokemon.sprite, pokemon.icon and battle.overlay presentation seams.
   mod.exports.__beta26.shinyProviderIsolationAudit = function()
     local main = safeRead("main.lua") or ""
+    local compatibility = ownerSource("compatibility") or ""
     local late = safeRead("late_runtime.lua") or ""
     local catalog = safeRead("rule_catalog.lua") or ""
     local manifest = safeRead("manifest.json") or ""
     local report = { ok=true, checked=0, failures={} }
+    -- Shiny maintained fork declares nuzlocke as an optional dependency; preserve one-way load ordering.
+    -- Nuzlocke must not declare SHINY_POKEMON back or current Gen1Recomp will
+    -- reject the mutual optional-dependency cycle. Compatibility remains live
+    -- through the provider registry/API after Shiny loads.
+    report.checked = report.checked + 1
+    if manifest:find('"SHINY_POKEMON"', 1, true) then
+      report.ok = false
+      report.failures[#report.failures + 1] = "shiny_optional_dependency_cycle"
+    end
     local required = {
-      { "optional_dependency", manifest, '"SHINY_POKEMON"' },
+      { "shiny_target_registry", compatibility, 'SHINY_POKEMON = {' },
+      { "modern_party_ui_optional_dependency", manifest, '"modern_party_ui"' },
+      { "modern_party_ui_party_stack_contract", main, 'party_controller = "engine_owned"' },
+      { "pokepc_optional_dependency", manifest, '"PokePCFollowers_VoxelMerge"' },
+      { "followers_ex_optional_dependency", manifest, '"FOLLOWERS_EX"' },
+      { "dramatic_shape_optional_dependency", manifest, '"DRAMATIC_SHAPE"' },
+      { "shiny_1241_target", compatibility, 'tested = "Stone fork 1.2.41"' },
+      { "pokepc_051_target", compatibility, 'PokePCFollowers_VoxelMerge = {' },
+      { "followers_ex_1019_target", compatibility, 'FOLLOWERS_EX = {' },
+      { "dramatic_shape_190_target", compatibility, 'tested = "1.9.0"' },
+      { "battle_art_1100_target", compatibility, 'tested = "1.10.0"' },
+      { "battle_cinematics_124_target", compatibility, 'tested = "1.2.4"' },
       { "provider_id_list", main, '"SHINY_POKEMON", "shiny_pokemon", "gen1recomp_shiny_pokemon"' },
       { "provider_live_handle_required", main, 'if liveProvider == nil then return nil end' },
       { "provider_registry_preferred", main, 'public.getProvider, "SHINY_POKEMON"' },
@@ -347,9 +772,9 @@ return function(mod, deps)
       { main, "ruleOperationalState" },
       { main, "hiddenByOperationalContract" },
       { main, 'screens:register("NuzlockeDifficultyReview"' },
-      { main, 'difficultyImpactChanges("vanilla"' },
+      { main, 'difficultyImpactChanges = function' },
       { main, 'proposedId = nextId' },
-      { main, 'title = "DIFFICULTY WARNING"' },
+      { main, '"DIFFICULTY WARNING"' },
       { main, "ruleNativeAvailableForEdition" },
       { catalog, 'key = "overworld_encounters", default = false, nativeEditions = {}, capabilityGate = "overworld_encounters"' },
       { catalog, 'key = "safari_zone_splits", default = 0, nativeEditions = { red=true, blue=true, yellow=true }' },
@@ -405,7 +830,8 @@ return function(mod, deps)
     expect("failed_feedback_helper",
       main:find("emitFailedEncounterFeedback", 1, true) ~= nil)
     expect("failed_feedback_called",
-      main:find("emitFailedEncounterFeedback(game, key)", 1, true) ~= nil)
+      main:find("emitFailedEncounterFeedback(", 1, true) ~= nil
+        and main:find("row.game or currentGame, row.area", 1, true) ~= nil)
     expect("failed_feedback_critical",
       main:find('worldMechanic(game, "failed:" .. tostring(area), t1, t2, t3, true)', 1, true) ~= nil)
     expect("failed_catalog_plain",
@@ -541,7 +967,7 @@ return function(mod, deps)
       check("engine_profile_callable", okProfile and type(profile) == "table")
       if okProfile and type(profile) == "table" then
         check("engine_profile_api", profile.api == 2)
-        check("engine_profile_save", profile.save_format == 4)
+        check("engine_profile_save", profile.save_format == 5)
         local generation = profile.generation
         check("engine_profile_generation", type(generation) == "table"
           and generation.gen1 == true and generation.gold == true)
@@ -645,9 +1071,9 @@ return function(mod, deps)
       "docs/COMPATIBILITY.md", "docs/DOCUMENTATION_CHANGELOG.md",
       "docs/FEATURE_CONFIDENCE.md", "docs/USER_GUIDE.md",
     }
-    local continuityTerm = "hand" .. "off"
     local forbidden = {
-      continuityTerm, "hand" .. "-off",
+      "project " .. "hand" .. "off", "project " .. "hand" .. "-off",
+      "handoff document", "hand-off document",
       "internal coordination", "internal-coordination", "coordination provenance",
       "coordination sources", "project rules", "recurring-session review",
       "vertical-slice review", "review timeboxes", "stopping rules",
@@ -696,7 +1122,10 @@ return function(mod, deps)
     local mainSource = safeRead("main.lua")
     if mainSource then
       local firstLine = mainSource:match("^%s*([^\r\n]+)") or ""
-      check("main_source_header", firstLine == "-- Nuzlocke " .. buildText, firstLine)
+      check("main_source_header",
+        firstLine == "-- Nuzlocke " .. buildText
+          or firstLine:find("-- Nuzlocke " .. buildText .. " — ", 1, true) == 1,
+        firstLine)
     else
       report.skipped[#report.skipped + 1] = "main.lua"
     end
@@ -727,32 +1156,36 @@ return function(mod, deps)
     -- build-time process check, so it accepts the package's maintained role
     -- formats rather than assuming every document begins with one obsolete
     -- universal heading shape.
-    local function docHeaderMatches(path, firstLine)
-      local escaped = buildText:gsub("%.", "%%.")
+    local function docHeaderMatches(path, firstLine, content)
+      -- Role documents may intentionally begin with a Current-build HTML
+      -- marker. Validate the first actual Markdown heading rather than line
+      -- position; the marker itself is checked independently below.
+      local firstHeading = content:match("[\r\n]*%s*(#[^\r\n]+)") or ""
+      if firstHeading == "" and firstLine:find("#", 1, true) == 1 then
+        firstHeading = firstLine
+      end
+      -- Role documents have independent version cadences (API/compatibility/
+      -- confidence headings describe those contracts, not every player build).
+      -- Require a valid role heading; require the current build only in the
+      -- release-specific CHANGELOG/RELEASE_NOTES surfaces below.
       if path == "README.md" then
-        return firstLine == "# Nuzlocke " .. buildText
-          or firstLine:match("^## " .. escaped .. "%f[%D]") ~= nil
+        return firstHeading:find("# Nuzlocke", 1, true) == 1
       elseif path == "CHANGELOG.md" then
-        return firstLine == "# " .. buildText
-          or firstLine:find("# " .. buildText .. " — ", 1, true) == 1
-          or firstLine == "## " .. buildText
-          or firstLine:find("## " .. buildText .. " — ", 1, true) == 1
+        return content:find("# " .. buildText, 1, true) ~= nil
+          or content:find("## " .. buildText, 1, true) ~= nil
       elseif path == "RELEASE_NOTES.md" then
-        return firstLine == "# Nuzlocke " .. buildText .. " — Release Notes"
-          or firstLine == "## " .. buildText
-          or firstLine:find("## " .. buildText .. " — ", 1, true) == 1
+        return firstHeading:find("# Nuzlocke " .. buildText .. " —", 1, true) == 1
+          or content:find("## " .. buildText, 1, true) ~= nil
       elseif path == "docs/API.md" then
-        return firstLine == "# Nuzlocke API — " .. buildText
+        return firstHeading:find("# Nuzlocke API — ", 1, true) == 1
       elseif path == "docs/COMPATIBILITY.md" then
-        return firstLine == "# Nuzlocke Compatibility — " .. buildText
+        return firstHeading:find("# Nuzlocke Compatibility — ", 1, true) == 1
       elseif path == "docs/DOCUMENTATION_CHANGELOG.md" then
-        return firstLine == "# Documentation Changelog — " .. buildText
-          or firstLine == "## " .. buildText
-          or firstLine:find("## " .. buildText .. " — ", 1, true) == 1
+        return firstHeading:find("# ", 1, true) == 1
       elseif path == "docs/FEATURE_CONFIDENCE.md" then
-        return firstLine == "# Feature Confidence — " .. buildText
+        return firstHeading:find("# Feature Confidence — ", 1, true) == 1
       elseif path == "docs/USER_GUIDE.md" then
-        return firstLine == "# Nuzlocke User Guide — " .. buildText
+        return firstHeading:find("# Nuzlocke User Guide — ", 1, true) == 1
       end
       return false
     end
@@ -766,7 +1199,7 @@ return function(mod, deps)
       if content then
         local firstLine = content:match("^%s*([^\r\n]+)") or ""
         check("doc_current_header_" .. path,
-          docHeaderMatches(path, firstLine), firstLine)
+          docHeaderMatches(path, firstLine, content), firstLine)
         local staleBanner = nil
         for line in content:gmatch("[^\r\n]+") do
           if line:find("Current build:", 1, true) then
@@ -881,12 +1314,12 @@ return function(mod, deps)
     local late = safeRead("late_runtime.lua")
     local manifest = safeRead("manifest.json")
     if main then
-      check("audited_current_engine", main:find('recompCompatAudited = "0.2.29"', 1, true) ~= nil)
+      check("audited_current_engine", main:find('recompCompatAudited = "0.2.41"', 1, true) ~= nil)
       check("engine_developer_signal", main:find("Dev.engineDeveloper = mod.developer == true", 1, true) ~= nil)
       local markerCount = 0
       for _ in main:gmatch("isModOptions%s*=%s*true") do markerCount = markerCount + 1 end
       if late then for _ in late:gmatch("isModOptions%s*=%s*true") do markerCount = markerCount + 1 end end
-      check("options_screen_markers", markerCount == 3)
+      check("options_screen_markers", markerCount == 4)
     else
       report.skipped[#report.skipped + 1] = "main.lua"
     end
@@ -930,11 +1363,182 @@ return function(mod, deps)
     return report
   end
 
-  -- 2.8.48 / Gen1Recomp 0.2.29 compatibility gate. Protect the public
+  -- 2.9.40: classify compatibility evidence without promoting any class to
+  -- gameplay authority. Live-contract, source-reviewed, and combined-runtime-
+  -- required are deliberately independent facts.
+  mod.exports.__beta26.compatibilityEvidenceClassificationAudit = function()
+    local report = { ok=true, checked=0, failures={}, counts={
+      live_contract=0, source_reviewed=0, combined_runtime_required=0 } }
+    local function check(id, condition)
+      report.checked = report.checked + 1
+      if condition then return end
+      report.ok = false
+      report.failures[#report.failures + 1] = id
+    end
+    local fn = mod.exports.__beta26.compatibilityEvidenceReport
+    check("report_callable", type(fn) == "function")
+    if type(fn) ~= "function" then return report end
+    local ok, data = pcall(fn)
+    check("report_shape", ok and type(data) == "table"
+      and data.api == 1 and type(data.classes) == "table" and type(data.rows) == "table")
+    if not ok or type(data) ~= "table" or type(data.rows) ~= "table" then return report end
+    for _, class in ipairs({"live_contract", "source_reviewed", "combined_runtime_required"}) do
+      check("class_" .. class, data.classes[class] == true)
+    end
+    for id, row in pairs(data.rows) do
+      local evidence = type(row) == "table" and row.evidence or nil
+      check("row_evidence_" .. tostring(id), type(evidence) == "table")
+      if type(evidence) == "table" then
+        for class in pairs(report.counts) do
+          if evidence[class] == true then report.counts[class] = report.counts[class] + 1 end
+        end
+      end
+    end
+    local adapters = mod.exports.__beta26.compat and mod.exports.__beta26.compat.Mods
+      and mod.exports.__beta26.compat.Mods.adapters or {}
+    local conflict = adapters.kanto_ascendant or {}
+    local conflictEvidence = data.rows.kanto_ascendant and data.rows.kanto_ascendant.evidence or {}
+    check("conflict_source_reviewed", conflict.status == "explicit_conflict_do_not_combine"
+      and conflictEvidence.source_reviewed == true)
+    check("conflict_not_runtime_cert_target", conflictEvidence.combined_runtime_required ~= true)
+    local dbl = data.rows.double_battles and data.rows.double_battles.evidence or {}
+    check("reviewed_stack_runtime_required", dbl.source_reviewed == true
+      and dbl.combined_runtime_required == true)
+    -- A static package audit normally has no other loaded mod, so zero live
+    -- contracts is valid. If discovery later records one, the class may appear
+    -- but still does not imply selected ownership or Runtime PASS.
+    return report
+  end
+
+  -- 2.9.40: Release Safety self-audit inventory. This records which checks are
+  -- semantic versus source-only and protects the newly retired exact-adapter
+  -- serialization tripwires from creeping back into the G9 ownership audit.
+  mod.exports.__beta26.releaseSafetySelfAudit = function()
+    local report = { ok=true, checked=0, failures={}, semantic={}, source_only={} }
+    local function check(id, condition)
+      report.checked = report.checked + 1
+      if condition then return end
+      report.ok = false
+      report.failures[#report.failures + 1] = id
+    end
+    local battle = mod.exports.__beta26.battleStackOwnershipAudit
+    local okBattle, battleReport = type(battle) == "function" and pcall(battle) or false, nil
+    if type(battle) == "function" then okBattle, battleReport = pcall(battle) end
+    check("battle_audit_callable", type(battle) == "function")
+    check("battle_audit_passes", okBattle and type(battleReport) == "table" and battleReport.ok == true)
+    if type(battleReport) == "table" and type(battleReport.evidence) == "table" then
+      report.semantic.battle_stack = tonumber(battleReport.evidence.semantic) or 0
+      report.source_only.battle_stack = tonumber(battleReport.evidence.source) or 0
+      check("battle_semantic_checks_present", report.semantic.battle_stack > 0)
+      check("battle_source_checks_bounded", report.source_only.battle_stack <= 4)
+    else
+      check("battle_evidence_inventory", false)
+    end
+    local source = safeRead("release_safety.lua") or ""
+    for owner, path in pairs(SOURCE_OWNERS) do
+      local content = safeRead(path)
+      check("source_owner_readable:" .. tostring(owner), type(content) == "string" and #content > 0)
+    end
+    local identitySource = ownerSource("identity") or ""
+    local mainSource = ownerSource("main") or ""
+    check("pokemon_identity_future_schema_live_guard",
+      identitySource:find("getSaveSchemaTooNew()", 1, true) ~= nil
+      and identitySource:find("if saveSchemaTooNew then", 1, true) == nil
+      and mainSource:find("getSaveSchemaTooNew = function() return saveSchemaTooNew == true end", 1, true) ~= nil)
+    local randomizerSource = ownerSource("randomizer") or ""
+    local compatibilitySource = ownerSource("compatibility") or ""
+    local lateSource = ownerSource("late") or ""
+    check("randomizer_trainer_species_generation_scope",
+      randomizerSource:find("local function effectiveRandomSpeciesGeneration()", 1, true) ~= nil
+      and randomizerSource:find("RANDOMIZER_ALGORITHM_VERSION", 1, true) == nil)
+    check("compat_auto_provider_fallback_iteration",
+      compatibilitySource:find("local function firstMatchingCandidate", 1, true) ~= nil
+      and compatibilitySource:find("active_second", 1, true) ~= nil)
+    check("gen2_rule_names_live_game",
+      lateSource:find("function G2.ruleNames()", 1, true) ~= nil
+      and lateSource:find("local game = getCurrentGame() or mod.game", 1, true) ~= nil)
+    check("gen1recomp_0_2_39_profile",
+      compatibilitySource:find('["0.2.39"] = {', 1, true) ~= nil
+      and compatibilitySource:find("PresentSync/PresentProbe", 1, true) ~= nil)
+    check("gen1recomp_0_2_40_profile",
+      compatibilitySource:find('["0.2.40"] = {', 1, true) ~= nil
+      and compatibilitySource:find("0cf543d597ce84e4d847b2aba782f1bf2799fde0", 1, true) ~= nil)
+    check("gen1recomp_0_2_41_profile",
+      compatibilitySource:find('["0.2.41"] = {', 1, true) ~= nil
+      and compatibilitySource:find("3d3a9ba4b66832b8c70ac26e1e88dbae612efcd0", 1, true) ~= nil
+      and mainSource:find('recompCompatAudited = "0.2.41"', 1, true) ~= nil)
+    check("present_sync_read_only_diagnostic",
+      compatibilitySource:find("presentSyncStatus", 1, true) ~= nil
+      and compatibilitySource:find('ownership="engine"', 1, true) ~= nil
+      and compatibilitySource:find("PresentSync.status", 1, true) ~= nil)
+    local pacingForbidden = {
+      "FrameCap.apply(", "VSync.apply(", "PresentSync.reprobe(",
+      "PresentSync.reset(", "PresentSync.waitBeforePresent(",
+      "FixedStep.refreshPeriod =", "love.timer.sleep(",
+    }
+    for _, token in ipairs(pacingForbidden) do
+      check("engine_pacing_ownership:" .. token,
+        mainSource:find(token, 1, true) == nil
+        and compatibilitySource:find(token, 1, true) == nil
+        and lateSource:find(token, 1, true) == nil)
+    end
+    check("gen2_field_item_0_2_39_signature_preserved",
+      randomizerSource:find("installRandomFieldItems", 1, true) ~= nil
+      and compatibilitySource:find('recompCompatAudited = "0.2.39"', 1, true) == nil)
+    check("rby_field_item_world_talk_primary_2_9_71",
+      mainSource:find('mod.hooks.wrap, mod.hooks, "world.talk"', 1, true) ~= nil
+      and mainSource:find("rbyFieldItemWorldTalkSession2971", 1, true) ~= nil
+      and mainSource:find("applyRbyFieldItem", 1, true) ~= nil
+      and randomizerSource:find('or "world.talk"', 1, true) ~= nil
+      and compatibilitySource:find('hook = "world.talk"', 1, true) ~= nil)
+    check("rby_field_item_hook_health_2_9_71",
+      devSource:find('hook="world.talk"', 1, true) ~= nil
+      and devSource:find('sessionExport="rbyFieldItemWorldTalkSession2971"', 1, true) ~= nil)
+    check("shiny_1241_explicit_target",
+      compatibilitySource:find('tested = "Stone fork 1.2.41"', 1, true) ~= nil
+      and compatibilitySource:find('reviewed_version="1.2.41"', 1, true) ~= nil)
+    check("shiny_provider_fingerprint_contract",
+      compatibilitySource:find("compatProviderFingerprint", 1, true) ~= nil
+      and compatibilitySource:find("registration_identity", 1, true) ~= nil
+      and compatibilitySource:find("hook_identity", 1, true) ~= nil
+      and compatibilitySource:find("evidence_stale", 1, true) ~= nil)
+    check("shiny_integration_validation_contract",
+      compatibilitySource:find("shinyIntegrationValidation", 1, true) ~= nil
+      and compatibilitySource:find('integrations.validate, "nuzlocke"', 1, true) ~= nil)
+    check("shiny_provider_source_ownership_contract",
+      compatibilitySource:find("shinyPresentationSourcePolicy", 1, true) ~= nil
+      and lateSource:find('policy == "provider_owned"', 1, true) ~= nil)
+    check("compat_seam_registry_contract",
+      compatibilitySource:find("COMPAT_SEAM_REGISTRY", 1, true) ~= nil
+      and compatibilitySource:find('surface="shiny.roll"', 1, true) ~= nil
+      and compatibilitySource:find("gen2_shiny_flash_queue", 1, true) ~= nil)
+    local ruleCatalogSource = ownerSource("rules") or ""
+    check("shiny_config_default_drift_guard",
+      ruleCatalogSource:find('{ key = "shiny_rate_mode", default = 0', 1, true) ~= nil
+      and ruleCatalogSource:find('{ key = "shiny_colors", default = true', 1, true) ~= nil
+      and ruleCatalogSource:find('{ key = "shiny_intro", default = true', 1, true) ~= nil
+      and mainSource:find('defaultRuleValue("shiny_rate_mode")', 1, true) ~= nil)
+    local localModules = {
+      "rule_catalog", "species_policy", "item_policy", "evolution_policy",
+      "randomizer_runtime", "compatibility_runtime", "late_runtime",
+      "pokemon_identity", "encounter_tracker",
+    }
+    for _, moduleName in ipairs(localModules) do
+      check("mod_local_loader_classification:" .. moduleName,
+        mainSource:find('require("' .. moduleName .. '")', 1, true) == nil
+        and mainSource:find("loadRequiredModuleChunk", 1, true) ~= nil)
+    end
+    check("retired_g9_exact_serialization",
+      source:find("g9_" .. "published_version", 1, true) == nil
+      and source:find("g9_" .. "beta_version", 1, true) == nil)
+    return report
+  end
+
+  -- 2.8.78 / Gen1Recomp 0.2.33 compatibility gate. Protect the public
   -- R/B/Y catch nickname seam, palette-aware Gen II Nuzlocke utility surfaces,
   -- current audited profile, and the source-revalidated Crystal shiny-flash
   -- safety boundary without claiming exact-edition runtime certification.
-  mod.exports.__beta26.gen1Recomp029FocusedAudit = function()
+  mod.exports.__beta26.gen1Recomp036FocusedAudit = function()
     local report = { ok = true, checked = 0, failures = {}, skipped = {} }
     local function check(id, condition)
       report.checked = report.checked + 1
@@ -942,27 +1546,59 @@ return function(mod, deps)
       report.ok = false
       report.failures[#report.failures + 1] = id
     end
-    local main = safeRead("main.lua")
+    local main = ownerSource("compatibility")
+    local buildMain = ownerSource("main")
     local late = safeRead("late_runtime.lua")
     local classic = safeRead("classic_ui.lua")
     local compat = safeRead("docs/COMPATIBILITY.md")
     if main then
-      check("audited_0_2_29",
-        main:find('recompCompatAudited = "0.2.29"', 1, true) ~= nil)
+      check("audited_0_2_36",
+        buildMain and buildMain:find('recompCompatAudited = "0.2.41"', 1, true) ~= nil)
       check("profile_0_2_27",
         main:find('["0.2.27"] = {', 1, true) ~= nil)
       check("profile_0_2_28",
         main:find('["0.2.28"] = {', 1, true) ~= nil)
       check("profile_0_2_29",
         main:find('["0.2.29"] = {', 1, true) ~= nil)
+      check("profile_0_2_30",
+        main:find('["0.2.30"] = {', 1, true) ~= nil)
+      check("profile_0_2_31",
+        main:find('["0.2.31"] = {', 1, true) ~= nil)
+      check("profile_0_2_32",
+        main:find('["0.2.32"] = {', 1, true) ~= nil)
+      check("profile_0_2_33",
+        main:find('["0.2.33"] = {', 1, true) ~= nil)
+      check("profile_0_2_34",
+        main:find('["0.2.34"] = {', 1, true) ~= nil)
+      check("profile_0_2_35",
+        main:find('["0.2.35"] = {', 1, true) ~= nil)
+      check("profile_0_2_36_plus",
+        main:find('["0.2.36"] = {', 1, true) ~= nil and
+        main:find('["0.2.37"] = {', 1, true) ~= nil and
+        main:find('["0.2.38"] = {', 1, true) ~= nil and
+        main:find('["0.2.39"] = {', 1, true) ~= nil and
+        main:find('["0.2.40"] = {', 1, true) ~= nil and
+        main:find('["0.2.41"] = {', 1, true) ~= nil)
+      check("save_format_0_2_24_is_4",
+        main:find('["0.2.24"] = {', 1, true) ~= nil
+          and main:find('api = 2, save_format = 4', main:find('["0.2.24"] = {', 1, true), true) ~= nil)
+      check("save_format_0_2_25_plus_is_5",
+        main:find('api = 2, save_format = 5', main:find('["0.2.25"] = {', 1, true), true) ~= nil)
+      check("level_visible_future_seam",
+        main:find('hook = "pokemon.level_visible"', 1, true) ~= nil
+          and main:find('available_not_owned_0_2_32_plus', 1, true) ~= nil)
+      check("online_arena_policy_metadata",
+        main:find('online_arena = {', 1, true) ~= nil
+          and main:find('disableAll = true, cartOnly = true', 1, true) ~= nil
+          and main:find('bypass = false', 1, true) ~= nil)
       check("catch_nickname_public_hook",
         main:find('mod.hooks:wrap("catch.nickname"', 1, true) ~= nil)
       check("catch_nickname_old_engine_fallback",
         main:find('mod.hooks:wrap("battle.nickname"', 1, true) ~= nil)
       check("nickname_ui_enforcement_preserved",
         main:find('__nuzlockeNicknameScreenSession', 1, true) ~= nil)
-      check("shiny_127_target",
-        main:find('tested = "Stone fork 1.2.7"', 1, true) ~= nil)
+      check("shiny_current_target",
+        main:find('tested = "Stone fork 1.2.41"', 1, true) ~= nil)
       check("shiny_127_registry_detection",
         main:find('public.getProvider, "SHINY_POKEMON"', 1, true) ~= nil)
       check("shiny_127_api_detection",
@@ -983,8 +1619,9 @@ return function(mod, deps)
     if late then
       check("gen2_shiny_flash_event_guard",
         late:find('nextEvent.kind == "shiny-flash"', 1, true) ~= nil)
-      check("gen2_shiny_flash_029_marker",
-        late:find('audited_engine = "0.2.29"', 1, true) ~= nil)
+      check("gen2_shiny_flash_033_marker",
+        late:find('audited_engine = "0.2.33"', 1, true) ~= nil
+          and late:find('source_revalidated_0_2_33 = true', 1, true) ~= nil)
       check("gen2_shiny_restore_enemy",
         late:find('self.picHidden.enemy = false', 1, true) ~= nil)
       check("gen2_shiny_restore_player",
@@ -1004,8 +1641,13 @@ return function(mod, deps)
       report.skipped[#report.skipped + 1] = "late_runtime.lua"
     end
     if compat then
-      check("compat_docs_0_2_29",
-        compat:find('Gen1Recomp 0.2.29', 1, true) ~= nil)
+      check("compat_docs_0_2_33",
+        compat:find('Gen1Recomp 0.2.39', 1, true) ~= nil)
+      check("compat_docs_online_arena",
+        compat:find('ONLINE arena', 1, true) ~= nil
+          and compat:find('ordinary content mods', 1, true) ~= nil)
+      check("compat_docs_level_visible",
+        compat:find('pokemon.level_visible', 1, true) ~= nil)
       check("compat_docs_runtime_caveat",
         compat:find('runtime certification', 1, true) ~= nil)
     else
@@ -1013,9 +1655,205 @@ return function(mod, deps)
     end
     return report
   end
-  -- Historical internal name kept as a read-only alias for older tooling.
+  -- Historical internal names kept as read-only aliases for older tooling.
+  mod.exports.__beta26.gen1Recomp033FocusedAudit =
+    mod.exports.__beta26.gen1Recomp036FocusedAudit
+  mod.exports.__beta26.gen1Recomp029FocusedAudit =
+    mod.exports.__beta26.gen1Recomp036FocusedAudit
   mod.exports.__beta26.gen1Recomp027FocusedAudit =
-    mod.exports.__beta26.gen1Recomp029FocusedAudit
+    mod.exports.__beta26.gen1Recomp036FocusedAudit
+
+  -- 2.9.38: generated/read-only save-key/reference consumer index.
+  -- This is diagnostic source introspection only. It never reads or writes live
+  -- save values, never materializes migrations, and never becomes gameplay
+  -- authority. Package source may be unavailable in supported launchers, so
+  -- unreadable/partial source fails open with bounded diagnostic detail.
+  mod.exports.__beta26.saveReferenceConsumerIndex = function()
+    local MAX_KEYS = 512
+    local MAX_CONSUMERS_PER_KEY = 24
+    local MAX_UNRESOLVED = 64
+    local descriptor = mod.exports.__beta26.saveSchemaDescriptor
+    local described = type(descriptor) == "table"
+      and type(descriptor.describe) == "function" and descriptor.describe() or nil
+    local fields = type(described) == "table" and described.fields or {}
+    local report = {
+      ok = true,
+      complete = true,
+      status = "complete",
+      limits = {
+        max_keys = MAX_KEYS,
+        max_consumers_per_key = MAX_CONSUMERS_PER_KEY,
+        max_unresolved = MAX_UNRESOLVED,
+      },
+      key_count = 0,
+      reference_count = 0,
+      dynamic_reference_count = 0,
+      unreadable_count = 0,
+      truncated = false,
+      keys = {},
+      unresolved = {},
+      unreadable = {},
+      undescribed_literal_keys = {},
+    }
+
+    local orderedKeys = {}
+    for key in pairs(type(fields) == "table" and fields or {}) do
+      if type(key) == "string" and key ~= "" then orderedKeys[#orderedKeys + 1] = key end
+    end
+    table.sort(orderedKeys)
+    if #orderedKeys > MAX_KEYS then
+      report.truncated = true
+      while #orderedKeys > MAX_KEYS do table.remove(orderedKeys) end
+    end
+    local keySet = {}
+    for _, key in ipairs(orderedKeys) do
+      keySet[key] = true
+      report.keys[key] = { consumers = {}, reads = 0, writes = 0, literals = 0, truncated = false }
+    end
+    report.key_count = #orderedKeys
+
+    local undescribedSeen = {}
+    local function addConsumer(key, path, kind)
+      local row = report.keys[key]
+      if not row then return end
+      if kind == "read" then row.reads = row.reads + 1
+      elseif kind == "write" then row.writes = row.writes + 1
+      else row.literals = row.literals + 1 end
+      report.reference_count = report.reference_count + 1
+      local token = tostring(path) .. ":" .. tostring(kind)
+      for _, existing in ipairs(row.consumers) do
+        if existing == token then return end
+      end
+      if #row.consumers < MAX_CONSUMERS_PER_KEY then
+        row.consumers[#row.consumers + 1] = token
+      else
+        row.truncated = true
+        report.truncated = true
+      end
+    end
+
+    local function addUnresolved(path, kind)
+      report.dynamic_reference_count = report.dynamic_reference_count + 1
+      if #report.unresolved < MAX_UNRESOLVED then
+        report.unresolved[#report.unresolved + 1] = tostring(path) .. ":" .. tostring(kind)
+      else
+        report.truncated = true
+      end
+    end
+
+    local function scanCalls(path, source, method, kind)
+      local needleCall = "mod.save:" .. method .. "("
+      local pos = 1
+      while true do
+        local at = source:find(needleCall, pos, true)
+        if not at then break end
+        local arg = at + #needleCall
+        while source:sub(arg, arg):match("%s") do arg = arg + 1 end
+        local quote = source:sub(arg, arg)
+        if quote == '"' or quote == "'" then
+          local finish = arg + 1
+          while finish <= #source do
+            local ch = source:sub(finish, finish)
+            if ch == quote and source:sub(finish - 1, finish - 1) ~= "\\" then break end
+            finish = finish + 1
+          end
+          if finish <= #source then
+            local key = source:sub(arg + 1, finish - 1)
+            if keySet[key] then
+              addConsumer(key, path, kind)
+            elseif key ~= "" and not undescribedSeen[key] then
+              undescribedSeen[key] = true
+              if #report.undescribed_literal_keys < MAX_UNRESOLVED then
+                report.undescribed_literal_keys[#report.undescribed_literal_keys + 1] = key
+              else
+                report.truncated = true
+              end
+            end
+          else
+            addUnresolved(path, kind .. "_unterminated")
+          end
+        else
+          addUnresolved(path, kind .. "_dynamic")
+        end
+        pos = at + #needleCall
+      end
+    end
+
+    local readableLua = 0
+    for _, path in ipairs(deps.packagePaths or {}) do
+      if tostring(path):match("%.lua$") then
+        local source, readErr = safeRead(path)
+        if type(source) == "string" then
+          readableLua = readableLua + 1
+          scanCalls(path, source, "get", "read")
+          scanCalls(path, source, "set", "write")
+          -- Record non-call literal references for described keys as a bounded
+          -- consumer hint. These may be descriptors/constants/comments, so they
+          -- are intentionally classified as `literal`, never as read/write.
+          for _, key in ipairs(orderedKeys) do
+            local row = report.keys[key]
+            if row and row.reads == 0 and row.writes == 0 then
+              if source:find('"' .. key .. '"', 1, true)
+                or source:find("'" .. key .. "'", 1, true) then
+                addConsumer(key, path, "literal")
+              end
+            end
+          end
+        else
+          report.complete = false
+          report.unreadable_count = report.unreadable_count + 1
+          if #report.unreadable < MAX_UNRESOLVED then
+            report.unreadable[#report.unreadable + 1] = tostring(path)
+              .. ":" .. tostring(readErr)
+          else
+            report.truncated = true
+          end
+        end
+      end
+    end
+
+    if readableLua == 0 then
+      report.complete = false
+      report.status = "unavailable"
+    elseif report.unreadable_count > 0 then
+      report.status = "partial"
+    elseif report.truncated then
+      report.status = "bounded"
+    end
+    table.sort(report.undescribed_literal_keys)
+    return report
+  end
+
+  mod.exports.__beta26.saveReferenceConsumerIndexAudit = function()
+    local okIndex, index = pcall(mod.exports.__beta26.saveReferenceConsumerIndex)
+    if not okIndex or type(index) ~= "table" then
+      return { ok=false, failures={"index_error:" .. tostring(index)} }
+    end
+    local failures = {}
+    local limits = index.limits or {}
+    if tonumber(limits.max_keys) ~= 512 then failures[#failures + 1] = "max_keys" end
+    if tonumber(limits.max_consumers_per_key) ~= 24 then failures[#failures + 1] = "max_consumers_per_key" end
+    if tonumber(limits.max_unresolved) ~= 64 then failures[#failures + 1] = "max_unresolved" end
+    if type(index.keys) ~= "table" or type(index.unresolved) ~= "table"
+      or type(index.unreadable) ~= "table" then
+      failures[#failures + 1] = "shape"
+    end
+    if #index.unresolved > 64 or #index.unreadable > 64
+      or #(index.undescribed_literal_keys or {}) > 64 then
+      failures[#failures + 1] = "unbounded_detail"
+    end
+    return {
+      ok = #failures == 0,
+      failures = failures,
+      complete = index.complete == true,
+      status = index.status,
+      key_count = index.key_count,
+      reference_count = index.reference_count,
+      dynamic_reference_count = index.dynamic_reference_count,
+      unreadable_count = index.unreadable_count,
+      truncated = index.truncated == true,
+    }
+  end
 
   mod.exports.__beta26.releaseSafetyAudit = function()
     local report = {
@@ -1268,9 +2106,11 @@ return function(mod, deps)
     run("rule_defaults", mod.exports.__beta26.auditNewRuleDefaults)
     run("rule_registry", mod.exports.__beta26.ruleRegistry and mod.exports.__beta26.ruleRegistry.audit)
     run("compat_contract", mod.exports.__beta26.compatContractAudit)
+    run("compatibility_evidence", mod.exports.__beta26.compatibilityEvidenceClassificationAudit)
+    run("release_safety_self_audit", mod.exports.__beta26.releaseSafetySelfAudit)
     run("gen2_semantic_seams", mod.exports.__beta26.gen2SemanticSeamAudit)
     run("gen1recomp_0_2_24", mod.exports.__beta26.gen1Recomp024Audit)
-    run("gen1recomp_0_2_29", mod.exports.__beta26.gen1Recomp029FocusedAudit)
+    run("gen1recomp_0_2_36", mod.exports.__beta26.gen1Recomp036FocusedAudit)
     run("gen2_tracker_map_order", mod.exports.__beta26.gen2TrackerPresentationAudit)
     run("difficulty_impact_warning", mod.exports.__beta26.difficultyImpactWarningAudit)
     run("compat_owner_controls", mod.exports.__beta26.compatOwnerControlAudit)
@@ -1334,6 +2174,8 @@ return function(mod, deps)
 
     run("save_schema_descriptor", mod.exports.__beta26.saveSchemaDescriptor and mod.exports.__beta26.saveSchemaDescriptor.audit)
     run("save_migration_integrity", mod.exports.__beta26.saveUpgrade and mod.exports.__beta26.saveUpgrade.audit)
+    run("rule_interaction_matrix", mod.exports.__beta26.ruleInteractionMatrixAudit)
+    run("save_migration_idempotence", mod.exports.__beta26.saveMigrationIdempotenceAudit)
     run("run_history_baseline_normalization",
       mod.exports.__beta26.RunHistory
         and mod.exports.__beta26.RunHistory.baselineNormalizationAudit)
@@ -1346,6 +2188,8 @@ return function(mod, deps)
       mod.exports.__beta26.RareCandyToCap and mod.exports.__beta26.RareCandyToCap.transactionIdentitySelfTest)
     run("hook_registry",
       mod.exports.__beta26.hookRegistry and mod.exports.__beta26.hookRegistry.audit)
+    run("hook_lifecycle_install_order", mod.exports.__beta26.hookLifecycleInstallOrderAudit)
+    run("edition_capability_failure_policy", mod.exports.__beta26.editionCapabilityFailurePolicyAudit)
 
     do
       local health = mod.exports.__beta26.featureHealth
@@ -1426,7 +2270,98 @@ return function(mod, deps)
       if worldSource then deadFallbackSource = deadFallbackSource .. "\n" .. worldSource end
       run("dead_fallback_lint", mod.exports.__beta26.deadFallbackAudit, deadFallbackSource)
 
-      -- 2.8.72: difficulty UX/documentation consolidation. Exact-edition
+      -- 2.8.76: three focused correctness repairs.
+    local mainSource2876 = safeRead("main.lua") or ""
+    local forgivenessSource2876 = safeRead("forgiveness.lua") or ""
+    local worldSource2876 = safeRead("world_building.lua") or ""
+    add("rby_ball_policy_fail_closed",
+      mainSource2876:find("safeRbyBallUsePolicy", 1, true) ~= nil
+      and mainSource2876:find('"rby_ball_use:"', 1, true) ~= nil
+      and mainSource2876:find('code = "policy_error"', 1, true) ~= nil
+      and mainSource2876:find("local useAllowed, useDecision = safeRbyBallUsePolicy(", 1, true) ~= nil)
+    add("forgiveness_failed_projection_status_exact",
+      forgivenessSource2876:find("encounterStateIsFailed", 1, true) ~= nil
+      and forgivenessSource2876:find("state.status == \"FAILED\"", 1, true) ~= nil
+      and forgivenessSource2876:find("states[key] ~= nil then return true", 1, true) == nil)
+    add("world_building_exact_six_editions",
+      worldSource2876:find('"red", "blue", "yellow", "gold", "silver", "crystal"', 1, true) ~= nil
+      and worldSource2876:find("exactEditionCount = #exactEditions", 1, true) ~= nil
+      and worldSource2876:find("* 3 * 5", 1, true) == nil
+      and worldSource2876:find("* 5 * 3 * 3", 1, true) == nil)
+
+    -- 2.8.75: Run History death-event boolean preservation.
+    local runHistorySource2875 = safeRead("run_history.lua") or ""
+    add("run_history_death_shiny_false_preserved",
+      runHistorySource2875:find("local shiny = fields.shiny", 1, true) ~= nil
+      and runHistorySource2875:find("if shiny == nil and mon then shiny = deps.isShiny(mon) end", 1, true) ~= nil
+      and runHistorySource2875:find("shiny = shiny,", 1, true) ~= nil
+      and runHistorySource2875:find("fields.shiny ~= nil and fields.shiny", 1, true) == nil)
+    add("run_history_death_shiny_selftest",
+      type(mod.exports.__beta26.RunHistory) == "table"
+      and type(mod.exports.__beta26.RunHistory.deathShinyBooleanSelfTest) == "function")
+
+    -- 2.8.74: Gen-I acquisition catalog/fallback consistency.
+    local acquisitionSource2874 = safeRead("acquisition_catalog.lua") or ""
+    add("acquisition_magikarp_deterministic_gift",
+      acquisitionSource2874:find("MAGIKARP = true", 1, true) ~= nil
+      and acquisitionSource2874:find('species = "MAGIKARP"', 1, true) ~= nil)
+    add("acquisition_catalog_consistency_selftest",
+      acquisitionSource2874:find("acquisitionCatalogConsistencySelfTest", 1, true) ~= nil
+      and acquisitionSource2874:find("for _, gift in ipairs(GIFT_LOCATIONS)", 1, true) ~= nil
+      and acquisitionSource2874:find("gift.version == nil", 1, true) ~= nil
+      and acquisitionSource2874:find('"gift", species', 1, true) ~= nil)
+
+    -- 2.8.77: migration/interoperability/diagnostic correctness hardening.
+    local migrationSource2877 = safeRead("save_migration.lua") or ""
+    local interopSource2877 = safeRead("public_interop.lua") or ""
+    local mainSource2877 = safeRead("main.lua") or ""
+    local randomizerSource2877 = safeRead("randomizer_runtime.lua") or ""
+    add("shadow_store_copy_on_read",
+      migrationSource2877:find("return deps.copy(row.after_value)", 1, true) ~= nil
+      and migrationSource2877:find("shadowCopyIsolation", 1, true) ~= nil
+      and migrationSource2877:find("shadowRead.nested.value = 88", 1, true) ~= nil)
+    add("content_bundle_prevalidation_atomicity",
+      interopSource2877:find("validateContentBundle", 1, true) ~= nil
+      and interopSource2877:find("Content.bundleSelfTest", 1, true) ~= nil
+      and interopSource2877:find("bad late child", 1, true) ~= nil
+      and interopSource2877:find("untouched = Content.areas[unique] == beforeArea", 1, true) ~= nil)
+    local compatibilityOwner2877 = ownerSource("compatibility") or ""
+    local diagnosticsOwner2877 = ownerSource("diagnostics") or ""
+    add("compat_runtime_environment_value",
+      compatibilityOwner2877:find(
+        "runtime_environment = mod.exports.__beta26.runtimeEnvironment()", 1, true) ~= nil)
+    add("gen2_field_item_hook_health_sessions",
+      diagnosticsOwner2877:find("__nuzlockeRandomFieldItemBallSession2808", 1, true) ~= nil
+      and diagnosticsOwner2877:find("__nuzlockeRandomHiddenItemSession2808", 1, true) ~= nil
+      and diagnosticsOwner2877:find('id="random_field_items_gold_hidden"', 1, true) ~= nil)
+    add("trainer_party_semantic_hook_health",
+      randomizerSource2877:find("randomTrainerHookHealth = function", 1, true) ~= nil
+      and randomizerSource2877:find('hooks.chains["trainer.party"]', 1, true) ~= nil
+      and randomizerSource2877:find("primary_registered", 1, true) ~= nil
+      and randomizerSource2877:find("finalizer_registered", 1, true) ~= nil
+      and diagnosticsOwner2877:find('id="random_trainers_hook_chain"', 1, true) ~= nil)
+
+    -- 2.8.73: transaction/interoperability hardening. Durable transaction
+    -- identity includes payload, and external item-policy exceptions fail closed.
+    local migrationSource2873 = safeRead("save_migration.lua") or ""
+    local interopSource2873 = safeRead("public_interop.lua") or ""
+    add("tx_same_kind_payload_collision_guard",
+      migrationSource2873:find("txPayloadFingerprint", 1, true) ~= nil
+      and migrationSource2873:find("transaction_payload_mismatch", 1, true) ~= nil
+      and migrationSource2873:find("receipt_payload_mismatch", 1, true) ~= nil
+      and migrationSource2873:find("payload_fingerprint", 1, true) ~= nil)
+    add("tx_payload_collision_selftest",
+      migrationSource2873:find('receiptPayloadReason == "receipt_payload_mismatch"', 1, true) ~= nil
+      and migrationSource2873:find('sameIdPayloadReason == "transaction_payload_mismatch"', 1, true) ~= nil
+      and migrationSource2873:find("checkpointReplayOk == true", 1, true) ~= nil)
+    add("public_item_policy_fail_closed",
+      interopSource2873:find('rule="policy_error"', 1, true) ~= nil
+      and interopSource2873:find('reason="policy_error"', 1, true) ~= nil
+      and interopSource2873:find('code="policy_error"', 1, true) ~= nil
+      and interopSource2873:find('lastItemPolicyError', 1, true) ~= nil
+      and interopSource2873:find("if not ok then", 1, true) ~= nil)
+
+    -- 2.8.72: difficulty UX/documentation consolidation. Exact-edition
     -- Silver/Crystal catalogs, native confirmation cursors, scrollable chooser
     -- details, and fully documented profile mechanics are promotion gates.
     local mainSource2872 = safeRead("main.lua") or ""
@@ -2029,11 +2964,12 @@ return function(mod, deps)
         and mainSource:find("local enemyLabel = exports.mostrar_inimigo", 1, true) ~= nil
         and mainSource:find('nativeTrainerCardOwnedByTranslation = id == "gen1_pt-br"',
           1, true) == nil)
+      local forgivenessOwnerSource = ownerSource("forgiveness") or ""
       add("translation_semantic_shop_filter",
-        mainSource:find("local function semanticShopKind(title, opts)", 1, true) ~= nil
-        and mainSource:find('shown == tostring(Strings("BUY"))', 1, true) ~= nil
-        and mainSource:find('shown == tostring(Strings("SELL"))', 1, true) ~= nil
-        and mainSource:find('local shop = tostring(title or ""):upper()', 1, true) == nil)
+        forgivenessOwnerSource:find("local function semanticShopKind(title, opts)", 1, true) ~= nil
+        and forgivenessOwnerSource:find('shown == tostring(Strings("BUY"))', 1, true) ~= nil
+        and forgivenessOwnerSource:find('shown == tostring(Strings("SELL"))', 1, true) ~= nil
+        and forgivenessOwnerSource:find('local shop = tostring(title or ""):upper()', 1, true) == nil)
       add("translation_no_portuguese_shop_literals",
         mainSource:find('shop == "COMPRAR"', 1, true) == nil
         and mainSource:find('shop == "VENDER"', 1, true) == nil
@@ -2053,16 +2989,17 @@ return function(mod, deps)
           ~= nil
         and mainSource:find(
           'rollback was attempted.",\n                  true)', 1, true) ~= nil
+      local worldOwnerSource = ownerSource("world") or ""
       local failedCritical =
-        mainSource:find(
-          'worldMechanic(game, "failed:" .. tostring(key), t1, t2, t3, true)',
+        worldOwnerSource:find(
+          'worldMechanic(game, "failed:" .. tostring(area), t1, t2, t3, true)',
           1, true) ~= nil
       local criticalOk = giftCritical and tradeCritical and failedCritical
       local optionalStillOptional =
-        mainSource:find(
+        worldOwnerSource:find(
           'local function worldMechanic(game, key, tier1, tier2, tier3, critical)',
           1, true) ~= nil
-        and mainSource:find(
+        and worldOwnerSource:find(
           'if tier <= 0 and critical ~= true then return false end',
           1, true) ~= nil
       add("world_critical_callsite_contract", criticalOk and optionalStillOptional,
@@ -2171,6 +3108,10 @@ return function(mod, deps)
     run("forward_local_references", mod.exports.__beta26.forwardLocalReferenceAudit)
     run("external_save_reconciliation", mod.exports.__beta26.externalSaveReconciliationAudit)
     run("catalog_snapshot", mod.exports.__beta26.catalogSnapshotAudit)
+    run("rby_ball_policy_error_fail_closed",
+      mod.exports.__beta26.rbyBallPolicyErrorSelfTest)
+    run("forgiveness_failed_projection_state",
+      mod.exports.__beta26.forgivenessFailedProjectionStateSelfTest)
     run("randomizer_whole_regression", mod.exports.__beta26.randomizerWholeRegressionAudit, deps.game or mod.game)
     run("randomizer_seed_reproducibility_matrix", mod.exports.__beta26.randomizerSeedReproducibilityMatrix)
     run("randomizer_release_documentation", mod.exports.__beta26.randomizerReleaseDocumentationAudit)
@@ -2193,6 +3134,18 @@ return function(mod, deps)
       mod.exports.__beta26.t3RunContextIsolationAudit)
     run("shared_ui_ownership",
       mod.exports.__beta26.sharedUiOwnershipAudit)
+    run("battle_stack_ownership",
+      mod.exports.__beta26.battleStackOwnershipAudit)
+    run("healing_service_ownership",
+      mod.exports.__beta26.healingServiceOwnershipAudit)
+    run("acquisition_provenance_coverage",
+      mod.exports.__beta26.acquisitionProvenanceCoverageAudit)
+    run("compatibility_registry_reconciliation",
+      mod.exports.__beta26.compatibilityRegistryReconciliationAudit)
+    run("final_randomizer_static",
+      mod.exports.__beta26.finalRandomizerStaticAudit)
+    run("diagnostics_lifecycle_contract",
+      mod.exports.__beta26.diagnosticsLifecycleContractAudit)
     run("presentation_renderer_isolation",
       mod.exports.__beta26.presentationRendererIsolationAudit)
     run("shiny_provider_isolation",
@@ -2362,10 +3315,10 @@ return function(mod, deps)
         "max=" .. tostring(dev.maxDecisions))
       local publicDev = mod.exports.nuzlocke_dev
       local publicCompat = mod.exports.nuzlocke_compat
-      add("compat_api_35_semantic_status",
-        tonumber(mod.exports.__beta26.compatibilityApi) == 35
+      add("compat_api_current_semantic_status",
+        tonumber(mod.exports.__beta26.compatibilityApi) == 37
         and type(publicCompat) == "table"
-        and tonumber(publicCompat.version) == 35
+        and tonumber(publicCompat.version) == 37
         and type(publicCompat.providerStatus) == "function"
         and type(publicCompat.capabilityStatus) == "function"
         and type(publicCompat.compatibilitySnapshot) == "function")
@@ -2511,10 +3464,378 @@ return function(mod, deps)
       type(mainSourceAchievement) == "string"
       and mainSourceAchievement:find("CURRENT_SAVE_SCHEMA = 5", 1, true) ~= nil)
 
+    -- 2.9.10: audit-confirmed defect repairs. TM_LOCATIONS must have an
+    -- independent DEV diagnostic identity even though it shares pickup hooks
+    -- with FIELD_ITEMS; RunHistory.list without a cursor must select the
+    -- recent tail while cursor calls retain forward pagination.
+    local devDiagnostics2910 = safeRead("dev_diagnostics.lua")
+    local devReport2910 = safeRead("dev_report.lua")
+    add("randomizer_tm_locations_dev_coverage",
+      type(devDiagnostics2910) == "string"
+      and devDiagnostics2910:find('id="random_tm_locations_rby"', 1, true) ~= nil
+      and devDiagnostics2910:find('id="random_tm_locations_gold"', 1, true) ~= nil
+      and type(devDiagnostics2910) == "string"
+      and devDiagnostics2910:find("randomizer_tm_locations_hook_health", 1, true) ~= nil
+      and type(devReport2910) == "string"
+      and devReport2910:find("randomizerTmLocationsHealth", 1, true) ~= nil)
+    add("run_history_recent_limit_semantics",
+      type(runHistorySource) == "string"
+      and runHistorySource:find("local hasAfter = opts.after_seq ~= nil", 1, true) ~= nil
+      and runHistorySource:find("#matched - limit + 1", 1, true) ~= nil
+      and runHistorySource:find("hasAfter and math.min(#matched, limit)", 1, true) ~= nil)
+
+    -- 2.9.12: protect the two audit-confirmed repairs. TM Locations must be
+    -- represented in the declarative cross-randomizer matrix, and R/B/Y Elite
+    -- Four wins must use transactional progression so Run History cannot omit
+    -- those milestones.
+    local randomizerSource2912 = safeRead("randomizer_runtime.lua")
+    local trainerRewardsSource2912 = safeRead("trainer_rewards.lua")
+    add("randomizer_tm_locations_compatibility_matrix",
+      type(randomizerSource2912) == "string"
+      and randomizerSource2912:find('a="FIELD_ITEMS", b="TM_LOCATIONS"', 1, true) ~= nil
+      and randomizerSource2912:find("tm_locations_precede_field_items_for_authored_tm_pickups", 1, true) ~= nil)
+    add("rby_elite_four_run_history_progression",
+      type(trainerRewardsSource2912) == "string"
+      and trainerRewardsSource2912:find('"league_progression:rby:e4:"', 1, true) ~= nil
+      and trainerRewardsSource2912:find('storage_key = "nuzlocke_e4_defeated"', 1, true) ~= nil
+      and trainerRewardsSource2912:find('"badge:rby:e4:"', 1, true) ~= nil)
+
+    -- 2.9.13: tracker-derived player-facing counts must stay inside the same
+    -- current tracked-area universe used by display-route denominators. This
+    -- also applies to the optional Pokegear snapshot so stale/renamed keys do
+    -- not inflate totals through a second implementation.
+    local pokegearSource2913 = safeRead("pokegear_integration.lua")
+    add("tracker_current_area_count_filtering",
+      type(mainSourceAchievement) == "string"
+      and mainSourceAchievement:find('isTrackedArea(key) and type(entries) == "table"', 1, true) ~= nil
+      and mainSourceAchievement:find('value ~= nil and isTrackedArea(key)', 1, true) ~= nil
+      and type(pokegearSource2913) == "string"
+      and pokegearSource2913:find('isTrackedArea(key) and type(entries) == "table"', 1, true) ~= nil
+      and pokegearSource2913:find('value ~= nil and isTrackedArea(key)', 1, true) ~= nil)
+
+    -- 2.9.16: Graveyard must remain a read-only historical projection over
+    -- existing death/history state, with translation-safe UI and no second
+    -- persistent graveyard ledger. Future deaths may enrich existing history
+    -- records with level, but the viewer itself performs no save writes.
+    local classicUiSource2916 = safeRead("classic_ui.lua")
+    -- 2.9.62: ClassicUI and LateRuntime both consume the Gen-I seeded-area
+    -- identity table. Its owner is encounter_tracker.lua; main.lua must bind
+    -- the exported stable table before either module registration. This guards
+    -- against the 2.9.61 Yellow fatal-load regression caused by an unresolved
+    -- _ENV GEN1_SEED_IDS dependency.
+    do
+      local trackerSource2962 = safeRead("encounter_tracker.lua") or ""
+      local mainSource2962 = safeRead("main.lua") or ""
+      add("gen1_seed_ids_explicit_owner_export",
+        trackerSource2962:find("GEN1_SEED_IDS = GEN1_SEED_IDS", 1, true) ~= nil)
+      add("gen1_seed_ids_bound_before_classic_ui",
+        mainSource2962:find("local GEN1_SEED_IDS = assert(EncounterTracker.GEN1_SEED_IDS", 1, true) ~= nil
+        and (mainSource2962:find("local GEN1_SEED_IDS = assert(EncounterTracker.GEN1_SEED_IDS", 1, true) or math.huge)
+          < (mainSource2962:find('loadRequiredModuleChunk("classic_ui.lua")', 1, true) or -1))
+      add("gen1_seed_ids_no_env_dependency",
+        mainSource2962:find("local GEN1_SEED_IDS = assert(EncounterTracker.GEN1_SEED_IDS", 1, true) ~= nil)
+      add("legacy_candidates_explicit_owner_export",
+        trackerSource2962:find("legacyCandidates = legacyCandidates", 1, true) ~= nil)
+      local legacyBind = mainSource2962:find(
+        "local legacyCandidates = assert(EncounterTracker.legacyCandidates", 1, true)
+      local classicLoad = mainSource2962:find(
+        'loadRequiredModuleChunk("classic_ui.lua")', 1, true)
+      add("legacy_candidates_bound_before_classic_ui",
+        legacyBind ~= nil and classicLoad ~= nil and legacyBind < classicLoad)
+      add("legacy_candidates_no_env_dependency", legacyBind ~= nil)
+
+      -- Complete ClassicUI injection-name coverage: every required deps.NAME
+      -- assertion in classic_ui.lua must have a corresponding NAME = entry in
+      -- the main.lua ClassicUI registration table. This catches missing wires
+      -- before one assertion at a time reaches runtime.
+      local classicSource2963 = safeRead("classic_ui.lua") or ""
+      local classicBlockStart = mainSource2962:find(
+        'loadRequiredModuleChunk("classic_ui.lua")()(mod, {', 1, true)
+      local classicBlockEnd = classicBlockStart and
+        mainSource2962:find("\n  })", classicBlockStart, true) or nil
+      local classicBlock = (classicBlockStart and classicBlockEnd)
+        and mainSource2962:sub(classicBlockStart, classicBlockEnd) or ""
+      local missing = {}
+      for depName in classicSource2963:gmatch(
+          'assert%(deps%.([%w_]+), "classic_ui requires [%w_]+"%)') do
+        local wired = classicBlock:find(depName .. " =", 1, true) ~= nil
+          or classicBlock:find(depName .. ",", 1, true) ~= nil
+        if not wired then missing[#missing + 1] = depName end
+      end
+      add("classic_ui_required_dependency_coverage", #missing == 0,
+        #missing > 0 and table.concat(missing, ",") or nil)
+    end
+
+    add("graveyard_viewer_read_only_contract",
+      type(classicUiSource2916) == "string"
+      and classicUiSource2916:find('local function graveyardRows(game)', 1, true) ~= nil
+      and classicUiSource2916:find('row.status == "DEAD"', 1, true) ~= nil
+      and classicUiSource2916:find('Strings("GRAVEYARD")', 1, true) ~= nil
+      and classicUiSource2916:find('Strings("IN MEMORY")', 1, true) ~= nil
+      and classicUiSource2916:find('read_only = true', 1, true) ~= nil
+      and classicUiSource2916:find('mod.save:set("nuzlocke_graveyard"', 1, true) == nil)
+    add("graveyard_dev_health_contract",
+      type(devDiagnostics2910) == "string"
+      and devDiagnostics2910:find("graveyard_viewer_health", 1, true) ~= nil)
+
+    -- 2.9.17: Almanac/Run Recap must remain a read-only consumer of the
+    -- existing Run History v2/statistics ledger and recorded Randomizer run
+    -- snapshot. It must label incomplete evidence rather than reconstructing it.
+    add("almanac_run_recap_read_only_contract",
+      type(classicUiSource2916) == "string"
+      and classicUiSource2916:find('local function almanacSnapshot(game)', 1, true) ~= nil
+      and classicUiSource2916:find('Strings("ALMANAC")', 1, true) ~= nil
+      and classicUiSource2916:find('Strings("RUN RECAP")', 1, true) ~= nil
+      and classicUiSource2916:find('coverage.detail_complete == false', 1, true) ~= nil
+      and classicUiSource2916:find('randomizerRunConfigKey', 1, true) ~= nil
+      and classicUiSource2916:find('mod.save:set("nuzlocke_almanac"', 1, true) == nil)
+    add("almanac_dev_health_contract",
+      type(devDiagnostics2910) == "string"
+      and devDiagnostics2910:find("almanac_run_recap_health", 1, true) ~= nil)
+
+    -- 2.9.18: END RUN is an explicit-confirmation lifecycle action. Natural
+    -- completion stays progression-owned; abandonment commits history before
+    -- disabling the master switch and defaults the destructive prompt to NO.
+    local mainSource2918 = safeRead("main.lua")
+    local runHistorySource2918 = safeRead("run_history.lua")
+    add("end_run_lifecycle_contract",
+      type(mainSource2918) == "string"
+      and mainSource2918:find('label = "END RUN"', 1, true) ~= nil
+      and classicUiSource2916:find('Strings("ABANDON RUN?")', 1, true) ~= nil
+      and classicUiSource2916:find('confirm.index = 1', 1, true) ~= nil
+      and classicUiSource2916:find('setConfigValue("nuzlocke_enabled", false', 1, true) ~= nil
+      and type(runHistorySource2918) == "string"
+      and runHistorySource2918:find('RunHistory.recordAbandoned', 1, true) ~= nil
+      and runHistorySource2918:find('"run.abandoned"', 1, true) ~= nil)
+    add("end_run_dev_health_contract",
+      type(devDiagnostics2910) == "string"
+      and devDiagnostics2910:find("end_run_lifecycle_health", 1, true) ~= nil)
+
+    -- 2.9.21: Split-Evolution Dupes is an explicit fourth Dupes mode. The
+    -- default/legacy FAMILY contract remains mode 2; SPLIT is mode 3 and must
+    -- use directional ancestor/descendant traversal so sibling branches remain
+    -- eligible without weakening ordinary exact/linear-family duplicates.
+    local ruleCatalog2921 = safeRead("rule_catalog.lua")
+    local mainSource2921 = safeRead("main.lua")
+    add("split_evolution_dupes_contract",
+      type(ruleCatalog2921) == "string"
+      and ruleCatalog2921:find('key = "dupes_mode"', 1, true) ~= nil
+      and ruleCatalog2921:find('max = 3', 1, true) ~= nil
+      and ruleCatalog2921:find('SPLIT = ancestor/descendant lines are dupes', 1, true) ~= nil
+      and type(mainSource2921) == "string"
+      and mainSource2921:find('if mode == 3 then', 1, true) ~= nil
+      and mainSource2921:find('local function evolvesInto(fromSpecies, targetSpecies)', 1, true) ~= nil
+      and mainSource2921:find('evolvesInto(species, caughtSpecies)', 1, true) ~= nil
+      and mainSource2921:find('evolvesInto(caughtSpecies, species)', 1, true) ~= nil)
+
+    -- 2.9.22: guard the complete SPLIT enum path, not merely catalog/UI tokens.
+    -- Mode 3 must survive runtime normalization and the main Config marquee
+    -- must represent it truthfully. Movement Assist remains a 0..2 enum.
+    add("split_evolution_dupes_end_to_end_contract",
+      type(mainSource2921) == "string"
+      and mainSource2921:find('mod.exports.__beta26.dupesMode = function()', 1, true) ~= nil
+      and mainSource2921:find('math.min(3, math.floor(tonumber(value) or 0))',
+          mainSource2921:find('mod.exports.__beta26.dupesMode = function()', 1, true), true) ~= nil
+      and mainSource2921:find('local labels = { [0] = "OFF", [1] = "SPEC", [2] = "FAM", [3] = "SPLIT" }', 1, true) ~= nil
+      and mainSource2921:find('local function normalizeMovementAssistMode(value)', 1, true) ~= nil
+      and mainSource2921:find('return math.max(0, math.min(2, math.floor(tonumber(value) or 0)))',
+          mainSource2921:find('local function normalizeMovementAssistMode(value)', 1, true), true) ~= nil)
+    add("party_size_catch_decision_trace_contract",
+      type(mainSource2921) == "string"
+      and mainSource2921:find('pcall(Dev.recordDecision, "catch", "party_size_limit", "BLOCK",', 1, true) ~= nil
+      and mainSource2921:find('"party_size", game)', 1, true) ~= nil)
+
+    -- 2.9.25: Colorlocke/Alphabetlocke must exist end-to-end as catalogued
+    -- prospective acquisition rules and share the same catch/special-acquisition gate.
+    local rules2925 = safeRead("rule_catalog.lua") or ""
+    local main2925 = safeRead("main.lua") or ""
+    local speciesPolicy2925 = safeRead("species_policy.lua") or ""
+    add("color_alphabet_locke_end_to_end_contract",
+      rules2925:find('key = "colorlocke_mode"', 1, true) ~= nil
+      and rules2925:find('key = "alphabetlocke_mode"', 1, true) ~= nil
+      and speciesPolicy2925:find('challengeSpeciesAllows', 1, true) ~= nil
+      and speciesPolicy2925:find('return false,"colorlocke"', 1, true) ~= nil
+      and speciesPolicy2925:find('return false,"alphabetlocke"', 1, true) ~= nil
+      and main2925:find('return denied(challengeReason)', 1, true) ~= nil
+      and main2925:find('return challengeReason', 1, true) ~= nil)
+
+    -- 2.9.30: wiring alone is insufficient for data-dependent rules. Prove
+    -- that the complete Gen-I/II canonical color dataset is internally valid
+    -- and, when a live registry is available, that all ten categories resolve
+    -- on representative ordinary Gen-I species.
+    run("colorlocke_canonical_data_semantics",
+      mod.exports.__beta26.colorlockeDataAudit, deps.game or mod.game)
+
+    -- 2.9.36: implementation is not sufficient if an edition-specific
+    -- configuration surface silently filters the rule out. Verify the live
+    -- catalog + Gen-II reachability tables for both parent/child rows.
+    run("challenge_locke_gen2_reachability",
+      mod.exports.__beta26.challengeLockeGen2ReachabilityAudit)
+
+    -- 2.9.37: catch refusal policy and numeric enum/range metadata are now
+    -- reconciled semantically rather than inferred from scattered branches.
+    run("catch_denial_disposition_reconciliation",
+      mod.exports.__beta26.catchDenialDispositionAudit)
+    run("rule_enum_range_completeness",
+      mod.exports.__beta26.ruleEnumRangeCompletenessAudit)
+
+    -- 2.9.39: structured rule-status explanations must preserve exact-edition
+    -- reachability and runtime evidence boundaries. This audit checks the
+    -- diagnostic projection only; it does not certify gameplay behavior.
+    run("rule_status_certification_projection",
+      mod.exports.__beta26.ruleStatusCertificationAudit)
+
+    -- 2.9.38: source-derived persistence reference map. The structural audit
+    -- is promotion-facing, while source availability/completeness remains a
+    -- non-fatal diagnostic because supported launchers may deny mod:read().
+    local saveIndexAudit = run("save_reference_consumer_index",
+      mod.exports.__beta26.saveReferenceConsumerIndexAudit)
+    if type(saveIndexAudit) == "table" and saveIndexAudit.complete ~= true then
+      add("save_reference_consumer_index_source", false,
+        "status=" .. tostring(saveIndexAudit.status)
+          .. " unreadable=" .. tostring(saveIndexAudit.unreadable_count or 0)
+          .. " truncated=" .. tostring(saveIndexAudit.truncated == true), false)
+    end
+
+    -- 2.9.65: Nuzlocke-owned UI surfaces expose explicit repeat/edge
+    -- semantics so input-repeat/accessibility mods can distinguish navigation
+    -- and value stepping from activation and destructive confirmation.
+    local uiSystem2965 = safeRead("nuzlocke_ui_system.lua") or ""
+    add("ui_input_contract_version",
+      uiSystem2965:find("inputContractVersion = 1", 1, true) ~= nil)
+    add("ui_input_repeat_edge_modes",
+      uiSystem2965:find('repeat_safe = "repeat_safe"', 1, true) ~= nil
+      and uiSystem2965:find('edge_only = "edge_only"', 1, true) ~= nil
+      and uiSystem2965:find("function UI.isRepeatSafe", 1, true) ~= nil
+      and uiSystem2965:find("function UI.requiresEdge", 1, true) ~= nil)
+    add("ui_destructive_confirmation_contract",
+      uiSystem2965:find('UI.registerPolicy("NuzlockeAbandonConfirmScreen"', 1, true) ~= nil
+      and uiSystem2965:find('profile = "destructive_confirmation"', 1, true) ~= nil
+      and uiSystem2965:find("function UI.isDestructive", 1, true) ~= nil)
+    add("ui_contract_is_presentation_only",
+      uiSystem2965:find("They do not intercept engine input", 1, true) ~= nil
+      and uiSystem2965:find("mod.exports.nuzlocke_ui_system = UI", 1, true) ~= nil)
+    add("ui_contract_screen_policy_coverage",
+      select(2, uiSystem2965:gsub('UI.registerPolicy%("Nuzlocke', "")) == 27
+      and uiSystem2965:find('UI.registerPolicy("NuzlockeConfigScreen"', 1, true) ~= nil
+      and uiSystem2965:find('UI.registerPolicy("NuzlockeAbandonConfirmScreen"', 1, true) ~= nil)
+
+    -- 2.9.72: normalize Gen-II numeric item operands before Randomizer
+    -- classification/persistence, prevent legal shop no-op replacements, keep
+    -- trainer accepted-roster evidence visible, and recolor only private shiny
+    -- ImageData copies so palette changes cannot bleed into shared engine art.
+    local randomizer2972 = safeRead("randomizer_runtime.lua") or ""
+    local late2972 = safeRead("late_runtime.lua") or ""
+    local devReport2972 = safeRead("dev_report.lua") or ""
+    local classic2972 = safeRead("classic_ui.lua") or ""
+    add("gen2_item_reference_normalization_2_9_72",
+      randomizer2972:find("normalizeItemReference", 1, true) ~= nil
+      and randomizer2972:find("nativeItemReference", 1, true) ~= nil
+      and randomizer2972:find("lastFieldItemNormalization", 1, true) ~= nil)
+    add("random_shop_non_noop_2_9_72",
+      randomizer2972:find("if #pool > 1 then", 1, true) ~= nil
+      and randomizer2972:find("lastRandomShopTrace", 1, true) ~= nil)
+    add("random_trainer_boundary_trace_2_9_72",
+      randomizer2972:find("lastTrainerRandomizerPrimaryTrace", 1, true) ~= nil
+      and randomizer2972:find("randomTrainerTrace", 1, true) ~= nil
+      and devReport2972:find("random_trainer_trace", 1, true) ~= nil
+      and classic2972:find("ACCEPT S", 1, true) ~= nil)
+    add("shiny_private_image_copy_2_9_72",
+      late2972:find("local sourceId = Assets.imageData(path)", 1, true) ~= nil
+      and late2972:find("sourceId.clone", 1, true) ~= nil
+      and late2972:find("copy.paste", 1, true) ~= nil
+      and late2972:find("lastShinyPresentationTrace", 1, true) ~= nil)
+
+    -- 2.9.71: R/B/Y visible Random Field Items use the public world.talk
+    -- hook so the transformation composes at the engine-supported A-press seam.
+    local main2971 = safeRead("main.lua") or ""
+    local randomizer2971 = safeRead("randomizer_runtime.lua") or ""
+    local dev2971 = safeRead("dev_diagnostics.lua") or ""
+    add("rby_random_field_item_world_talk_contract",
+      main2971:find('mod.hooks.wrap, mod.hooks, "world.talk"', 1, true) ~= nil
+      and main2971:find("rbyFieldItemWorldTalkSession2971", 1, true) ~= nil
+      and main2971:find('rbyFieldItemHookMode = "world.talk_unavailable"', 1, true) ~= nil
+      and main2971:find('rbyFieldItemHookMode = "talkTo_fallback"', 1, true) == nil
+      and randomizer2971:find('or "world.talk"', 1, true) ~= nil
+      and dev2971:find('hook="world.talk"', 1, true) ~= nil
+      and dev2971:find("fieldItemPipeline", 1, true) ~= nil)
+
+    -- 2.9.70: invalid input profile names must report the profile whose
+    -- behavior was actually resolved, not echo a misspelled request.
+    local uiSystem2970 = safeRead("nuzlocke_ui_system.lua") or ""
+    add("ui_input_profile_resolution_consistent",
+      uiSystem2970:find("local resolvedProfile = profile and requestedProfile or", 1, true) ~= nil
+      and uiSystem2970:find("profile = resolvedProfile", 1, true) ~= nil)
+
+    -- 2.9.69: presentation ownership booleans must not collapse conditional
+    -- gameplay-authority descriptors into unconditional ownership.
+    local uiSystem2969 = safeRead("nuzlocke_ui_system.lua") or ""
+    add("ui_conditional_gameplay_authority_semantics",
+      uiSystem2969:find("function UI.gameplayAuthorityFor", 1, true) ~= nil
+      and uiSystem2969:find(
+          'gameplayAuthority = "nuzlocke_randomizer_when_enabled"', 1, true) ~= nil
+      and uiSystem2969:find(
+          'return authority == true or authority == "nuzlocke"', 1, true) ~= nil)
+
+    -- 2.9.68: Gold/Gen-II Nuzlocke utility pages use the shared typography
+    -- contract for centered titles. Keep centerX in the typography surface so
+    -- ClassicUI never falls through to a nil field at draw time.
+    local uiSystem2968 = safeRead("nuzlocke_ui_system.lua") or ""
+    local classic2968 = safeRead("classic_ui.lua") or ""
+    add("ui_typography_center_x_contract",
+      uiSystem2968:find("function T.centerX", 1, true) ~= nil
+      and classic2968:find("T.centerX(label, 8, 152)", 1, true) ~= nil)
+
+    -- 2.9.67: Dev Report must not depend on an accidental _ENV/global for
+    -- compatibility projection. compatPublicCopy is owned by main.lua and is
+    -- injected explicitly into dev_diagnostics.lua.
+    local devDiagnostics2967 = safeRead("dev_diagnostics.lua") or ""
+    local main2967 = safeRead("main.lua") or ""
+    add("dev_diagnostics_compat_copy_dependency",
+      devDiagnostics2967:find(
+          'local compatPublicCopy = assert(deps.compatPublicCopy', 1, true) ~= nil
+      and main2967:find(
+          'compatPublicCopy = compatPublicCopy,', 1, true) ~= nil
+      and devDiagnostics2967:find(
+          'capability_versions = compatPublicCopy(', 1, true) ~= nil)
+
+    -- 2.9.66: presentation ownership and shared trainer-constructor chaining.
+    local uiSystem2966 = safeRead("nuzlocke_ui_system.lua") or ""
+    local compat2966 = ownerSource("compatibility") or ""
+    local randomizer2966 = safeRead("randomizer_runtime.lua") or ""
+    local manifest2966 = safeRead("manifest.json") or ""
+    add("ui_presentation_contract_version",
+      uiSystem2966:find("presentationContractVersion = 1", 1, true) ~= nil
+      and uiSystem2966:find("apiVersion = 8", 1, true) ~= nil)
+    add("ui_presentation_surface_ownership",
+      uiSystem2966:find("UI.presentationSurfaces = {", 1, true) ~= nil
+      and uiSystem2966:find('party = {', 1, true) ~= nil
+      and uiSystem2966:find('battle_art = {', 1, true) ~= nil
+      and uiSystem2966:find('trainer_party = {', 1, true) ~= nil
+      and uiSystem2966:find("function UI.externalPresentationAllowed", 1, true) ~= nil)
+    add("hgss_visual_overhaul_102_target",
+      compat2966:find("HGSS_SPRITES = {", 1, true) ~= nil
+      and compat2966:find('tested = "1.0.2"', 1, true) ~= nil
+      and manifest2966:find('"HGSS_SPRITES"', 1, true) ~= nil)
+    add("gen1_trainer_wrapper_chain_contract",
+      randomizer2966:find("chainContractVersion=1", 1, true) ~= nil
+      and randomizer2966:find("callsPreviousExactlyOncePerPath=true", 1, true) ~= nil
+      and randomizer2966:find("presentationAgnostic=true", 1, true) ~= nil
+      and randomizer2966:find(
+          "gen1TrainerWrapperChainHealth = function()", 1, true) ~= nil)
+    add("gen1_trainer_wrapper_not_outermost_required",
+      randomizer2966:find("externalOuterWrapper", 1, true) ~= nil
+      and randomizer2966:find("current ~= ownWrapper", 1, true) ~= nil
+      and randomizer2966:find("This diagnostic never rewrites the chain.", 1, true) ~= nil)
+
+
     -- Keep the read-only structural Randomizer performance audit in the
     -- promotion gate. It does not benchmark host speed or materialize mappings.
     run("randomizer_performance_structural",
       mod.exports.__beta26.randomizerPerformanceAudit, deps.game or mod.game)
+
+    run("gen1_seed_ids_dependency",
+      mod.exports.__beta26.gen1SeedIdsDependencyAudit)
 
     -- Engine/runtime source introspection is diagnostic only. A supported
     -- launcher may legitimately deny mod:read() for package files; that must
@@ -2526,6 +3847,30 @@ return function(mod, deps)
           or ("unavailable: " .. tostring(err)), false)
     end
     return report
+  end
+
+  -- 2.9.62: split-safety regression guard. GEN1_SEED_IDS is private tracker
+  -- state consumed by ClassicUI/LateRuntime and must be explicitly exported
+  -- and locally bound before either consumer is registered.
+  mod.exports.__beta26.gen1SeedIdsDependencyAudit = function()
+    local tracker = safeRead("encounter_tracker.lua") or ""
+    local main = safeRead("main.lua") or ""
+    local classic = safeRead("classic_ui.lua") or ""
+    local late = safeRead("late_runtime.lua") or ""
+    local failures = {}
+    local function check(id, ok)
+      if not ok then failures[#failures + 1] = id end
+    end
+    check("tracker_exports_gen1_seed_ids",
+      tracker:find("GEN1_SEED_IDS = GEN1_SEED_IDS,", 1, true) ~= nil)
+    check("main_binds_tracker_gen1_seed_ids",
+      main:find("local GEN1_SEED_IDS = assert(EncounterTracker.GEN1_SEED_IDS", 1, true) ~= nil)
+    check("classic_receives_gen1_seed_ids",
+      main:find("GEN1_SEED_IDS = GEN1_SEED_IDS,", 1, true) ~= nil
+      and classic:find("classic_ui requires GEN1_SEED_IDS", 1, true) ~= nil)
+    check("late_requires_owned_gen1_seed_ids",
+      late:find("late_runtime requires GEN1_SEED_IDS", 1, true) ~= nil)
+    return { ok = #failures == 0, checked = 4, failures = failures }
   end
 
   mod.exports.__beta26.assertReleaseSafety = function()

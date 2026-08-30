@@ -23,10 +23,31 @@ return function(mod, deps)
       EVOLUTIONS = "EVOLUTIONS",
       SHOPS = "SHOPS",
       TMS = "TMS",
+      TM_LOCATIONS = "TM_LOCATIONS",
       GIFT_ITEMS = "GIFT_ITEMS",
   }
+  local function effectiveRandomSpeciesGeneration()
+      local configured = mod.save:get("random_encounter_tables", false) == true
+          or mod.save:get("random_trainers", false) == true
+          or mod.save:get("random_evolutions", false) == true
+      if not configured then return 0 end
+      return math.max(0, math.min(3, math.floor(tonumber(
+          mod.save:get("random_species_generation", 0)) or 0)))
+  end
+
+  mod.exports.__beta26.randomizerTrainerScopeAudit = function()
+      local okMode, mode = pcall(effectiveRandomSpeciesGeneration)
+      return {
+          ok = okMode and tonumber(mode) ~= nil
+              and tonumber(Randomizer.algorithmVersion) == 1,
+          effectiveSpeciesGeneration = okMode and mode or nil,
+          algorithmVersion = Randomizer.algorithmVersion,
+          error = okMode and nil or tostring(mode),
+      }
+  end
+
   local RANDOMIZER_STREAM_ORDER = {
-      "STARTER", "STARTER_SLATE", "ENCOUNTERS", "FIELD_ITEMS", "LEARNSETS", "TRAINERS", "EVOLUTIONS", "SHOPS", "TMS", "GIFT_ITEMS",
+      "STARTER", "STARTER_SLATE", "ENCOUNTERS", "FIELD_ITEMS", "LEARNSETS", "TRAINERS", "EVOLUTIONS", "SHOPS", "TMS", "TM_LOCATIONS", "GIFT_ITEMS",
   }
 
   -- 2.6.75: one authoritative source-map registry owns the durable save
@@ -69,6 +90,10 @@ return function(mod, deps)
       TMS = {
           saveKey = "__nuzlocke_random_tm_slots",
           stream = "TMS",
+      },
+      TM_LOCATIONS = {
+          saveKey = "__nuzlocke_random_tm_location_slots",
+          stream = "TM_LOCATIONS",
       },
       GIFT_ITEMS = {
           saveKey = "__nuzlocke_random_gift_item_slots",
@@ -163,6 +188,7 @@ return function(mod, deps)
           "random_shop_balance",
           "random_tms",
           "random_tm_compatibility",
+          "random_tm_locations",
           "random_gift_items",
       }
 
@@ -261,6 +287,7 @@ return function(mod, deps)
           { id="EVOLUTIONS", rule="random_evolutions", species=true },
           { id="SHOPS", rule="random_shops" },
           { id="TMS", rule="random_tms" },
+          { id="TM_LOCATIONS", rule="random_tm_locations" },
           { id="GIFT_ITEMS", rule="random_gift_items" },
       }
 
@@ -308,6 +335,7 @@ return function(mod, deps)
           { a="TRAINERS", b="LEARNSETS", status="compose", contract="species_projection_before_difficulty_moves" },
           { a="SHOPS", b="TMS", status="compose", contract="shop_stock_and_tm_payload_separate" },
           { a="SHOPS", b="GIFT_ITEMS", status="compose", contract="independent_acquisition_sources" },
+          { a="FIELD_ITEMS", b="TM_LOCATIONS", status="compose", contract="tm_locations_precede_field_items_for_authored_tm_pickups" },
           { a="FIELD_ITEMS", b="GIFT_ITEMS", status="compose", contract="independent_acquisition_sources" },
       }
 
@@ -390,6 +418,7 @@ return function(mod, deps)
               or enabled("random_evolutions")
               or enabled("random_shops")
               or enabled("random_tms")
+              or enabled("random_tm_locations")
               or enabled("random_gift_items")
       end
 
@@ -534,6 +563,7 @@ return function(mod, deps)
               streams={
                   STARTER=RANDOMIZER_STREAMS.STARTER, STARTER_SLATE=RANDOMIZER_STREAMS.STARTER_SLATE,
                   ENCOUNTERS=RANDOMIZER_STREAMS.ENCOUNTERS, FIELD_ITEMS=RANDOMIZER_STREAMS.FIELD_ITEMS,
+                  TM_LOCATIONS=RANDOMIZER_STREAMS.TM_LOCATIONS,
                   LEARNSETS=RANDOMIZER_STREAMS.LEARNSETS, TRAINERS=RANDOMIZER_STREAMS.TRAINERS,
                   EVOLUTIONS=RANDOMIZER_STREAMS.EVOLUTIONS, SHOPS=RANDOMIZER_STREAMS.SHOPS,
                   TMS=RANDOMIZER_STREAMS.TMS, GIFT_ITEMS=RANDOMIZER_STREAMS.GIFT_ITEMS,
@@ -1217,12 +1247,6 @@ return function(mod, deps)
           return mod.save:get("random_encounter_tables", false) == true
               or mod.save:get("random_trainers", false) == true
               or mod.save:get("random_evolutions", false) == true
-      end
-
-      local function effectiveRandomSpeciesGeneration()
-          if not speciesRandomizerConfigured() then return 0 end
-          return math.max(0, math.min(3, math.floor(tonumber(
-              mod.save:get("random_species_generation", 0)) or 0)))
       end
 
       mod.exports.__beta26.randomizerSpeciesSubsystemConfigured =
@@ -3230,7 +3254,7 @@ return function(mod, deps)
           local result = {
               subsystem = "LEARNSETS",
               enabled = mod.save:get("random_learnsets", false) == true,
-              algorithmVersion = RANDOMIZER_ALGORITHM_VERSION,
+              algorithmVersion = Randomizer.algorithmVersion,
               policyVersion = LEARNSET_POLICY_VERSION,
               generation = generation,
               stabMode = math.max(0, math.min(2, math.floor(tonumber(
@@ -3535,7 +3559,7 @@ return function(mod, deps)
               tableModel = gen2 and "GEN2_POCKETS" or "GEN1_FLAT",
               visibleSource = gen2
                   and "HiddenItems.ballPickupScript"
-                  or "OverworldController.talkTo",
+                  or "world.talk",
               hiddenOwned = false,
           }
       end
@@ -4134,7 +4158,7 @@ return function(mod, deps)
           report.phase="J"
           report.completedThrough=11
           report.runtimeCertificationDeferred=12
-          report.packageFilesExpected=30
+          report.packageFilesExpected=31
           return report
       end
 
@@ -4228,12 +4252,46 @@ return function(mod, deps)
 
       mod.exports.__beta26.randomFieldItemOwnership = fieldItemOwnership
 
-      function Randomizer.fieldItem(game, originalItem, semanticSlot, context)
+      local function normalizeItemReference(game, value)
+          local items = game and game.data and game.data.items or {}
+          if type(value) == "string" and type(items[value]) == "table" then
+              return tostring(value):upper(), { native=value, kind="canonical" }
+          end
+          local upper = type(value) == "string" and tostring(value):upper() or nil
+          if upper and type(items[upper]) == "table" then
+              return upper, { native=value, kind="canonical_case" }
+          end
+          local numeric = tonumber(value)
+          if numeric ~= nil then
+              numeric = math.floor(numeric)
+              for id, def in pairs(items) do
+                  if type(id) == "string" and type(def) == "table"
+                      and tonumber(def.index) == numeric then
+                      return tostring(id):upper(), { native=value, kind="index", index=numeric }
+                  end
+              end
+              return nil, { native=value, kind="index", index=numeric, error="missing_index" }
+          end
+          return nil, { native=value, kind=type(value), error="missing_definition" }
+      end
+
+      local function nativeItemReference(game, canonical, reference)
+          if type(reference) == "table" and reference.kind == "index" then
+              local items = game and game.data and game.data.items or {}
+              local def = items[tostring(canonical or ""):upper()]
+              local index = type(def) == "table" and tonumber(def.index) or nil
+              return index and math.floor(index) or reference.native
+          end
+          return canonical
+      end
+
+      mod.exports.__beta26.normalizeRandomizerItemReference = normalizeItemReference
+      mod.exports.__beta26.nativeRandomizerItemReference = nativeItemReference
+
+      local function fieldItemCanonical(game, originalItem, semanticSlot, context)
           if saveBlocked() then return originalItem end
           game = game or getCurrentGame() or mod.game
-          if mod.save:get("random_field_items", false) ~= true then
-              return originalItem
-          end
+          context = type(context) == "table" and context or {}
           local ownership = fieldItemOwnership(context)
           if ownership.owned ~= true then return originalItem end
           local items = game and game.data and game.data.items
@@ -4244,6 +4302,65 @@ return function(mod, deps)
           -- Protected authored pickups stay exactly where their source/provider
           -- put them. Required key/HM/story/progression items are never moved.
           if originalClass.protected then
+              return originalItem
+          end
+
+          local tableClass = fieldItemEditionTableClass(
+              game, originalItem, originalDef)
+          local originalIsTm = tableClass == "GEN1_TM"
+              or tableClass == "GEN2_TM"
+
+          -- 2.8.88: TM LOCATION is a separate method from TM CONTENTS. An
+          -- external TM-location owner suppresses only this physical pickup
+          -- method; Nuzlocke Random TMs may still own the move each TM teaches.
+          if originalIsTm and externalRuleDelegation(
+              "random_tm_locations", game, context) then
+              return originalItem
+          end
+          if originalIsTm
+              and mod.save:get("random_tm_locations", false) == true then
+              local pool = {}
+              for id, def in pairs(type(items) == "table" and items or {}) do
+                  local class = fieldItemEditionTableClass(game, id, def)
+                  if (class == "GEN1_TM" or class == "GEN2_TM")
+                      and not fieldItemClassification(id, def).protected then
+                      pool[#pool + 1] = tostring(id):upper()
+                  end
+              end
+              table.sort(pool)
+              if #pool > 1 then
+                  local filtered = {}
+                  local originalKey = tostring(originalItem or ""):upper()
+                  for _, id in ipairs(pool) do
+                      if id ~= originalKey then filtered[#filtered + 1] = id end
+                  end
+                  if #filtered > 0 then pool = filtered end
+              end
+              if #pool > 0 then
+                  local identity = fieldItemSourceIdentity(
+                      game, semanticSlot, context)
+                  local slot = table.concat({
+                      identity.canonical, tostring(originalItem or "")
+                  }, ":")
+                  local choice = stableChoice(
+                      RANDOMIZER_SOURCE_MAPS.TM_LOCATIONS.saveKey,
+                      slot, pool, function(id)
+                          local def = items[id]
+                          local class = fieldItemEditionTableClass(game, id, def)
+                          return (class == "GEN1_TM" or class == "GEN2_TM")
+                              and not fieldItemClassification(id, def).protected
+                      end, RANDOMIZER_STREAMS.TM_LOCATIONS, "tm_location_v1")
+                  if choice then return choice end
+              end
+              return originalItem
+          end
+
+          if mod.save:get("random_field_items", false) ~= true then
+              return originalItem
+          end
+          -- Unlike the old 2.8.87 report-only ownership path, execution now
+          -- honors the exact source/method owner before Nuzlocke transforms it.
+          if externalRuleDelegation("random_field_items", game, context) then
               return originalItem
           end
 
@@ -4366,6 +4483,25 @@ return function(mod, deps)
           map[canonicalScoped] = choice
           mod.save:set(RANDOMIZER_SOURCE_MAPS.FIELD_ITEMS.saveKey, map)
           return choice
+      end
+
+      function Randomizer.fieldItem(game, originalItem, semanticSlot, context)
+          game = game or getCurrentGame() or mod.game
+          local canonical, reference = normalizeItemReference(game, originalItem)
+          if canonical == nil then
+              mod.exports.__beta26.lastFieldItemNormalization = {
+                  original=originalItem, canonical=nil, kind=reference and reference.kind,
+                  error=reference and reference.error or "normalization_failed",
+              }
+              return originalItem
+          end
+          local choice = fieldItemCanonical(game, canonical, semanticSlot, context)
+          local native = nativeItemReference(game, choice, reference)
+          mod.exports.__beta26.lastFieldItemNormalization = {
+              original=originalItem, canonical=canonical, choice=choice, native=native,
+              kind=reference and reference.kind, index=reference and reference.index,
+          }
+          return native
       end
 
       mod.exports.__beta26.randomizeFieldItem = function(
@@ -5245,33 +5381,71 @@ return function(mod, deps)
       function Randomizer.shopStock(game, stock, source)
           if mod.save:get("random_shops", false) ~= true
               or externalRuleDelegation("random_shops", game) then
+              mod.exports.__beta26.lastRandomShopTrace = {
+                  enabled=mod.save:get("random_shops", false) == true,
+                  delegated=externalRuleDelegation("random_shops", game) == true,
+                  stop="disabled_or_delegated",
+              }
               return stock
           end
           if type(stock) ~= "table" then return stock end
+          game = game or getCurrentGame() or mod.game
           source = type(source) == "table" and source or {}
           local balance = math.max(0, math.min(2, math.floor(tonumber(
               mod.save:get("random_shop_balance", 2)) or 0)))
           local edition = tostring(getGameVersion() or "UNKNOWN"):upper()
           local sourceId = tostring(source.id or source.mapId or source.martId or "UNKNOWN")
-          local out = {}
+          local out, traceRows = {}, {}
           for i, raw in ipairs(stock) do
-              local original = tostring(type(raw) == "table"
-                  and (raw.item or raw.id or raw[1]) or raw or ""):upper()
-              -- Authored protected/TM/HM rows stay exactly where they are.
-              if not shopHardSafe(game, original) then
+              local rawItem = type(raw) == "table" and (raw.item or raw.id or raw[1]) or raw
+              local original, reference = normalizeItemReference(game, rawItem)
+              if original == nil then
                   out[i] = raw
+                  traceRows[#traceRows+1] = {slot=i, original=rawItem, stop="normalization_failed"}
+              elseif not shopHardSafe(game, original) then
+                  out[i] = raw
+                  traceRows[#traceRows+1] = {slot=i, original=original, stop="protected_or_unsafe"}
               else
                   local pool = shopCandidatePool(game, original, balance)
+                  -- A functioning shop randomizer should not silently preserve
+                  -- the authored row when at least one legal alternative exists.
+                  if #pool > 1 then
+                      local alternatives = {}
+                      for _, candidate in ipairs(pool) do
+                          if tostring(candidate):upper() ~= original then
+                              alternatives[#alternatives+1] = candidate
+                          end
+                      end
+                      if #alternatives > 0 then pool = alternatives end
+                  end
                   local identity = table.concat({edition, tostring(source.kind or "MART"),
                       sourceId, "slot", tostring(i), original}, ":")
                   local choice = stableChoice(
                       RANDOMIZER_SOURCE_MAPS.SHOPS.saveKey, identity, pool,
-                      function(id) return shopHardSafe(game, id) end,
+                      function(id) return shopHardSafe(game, id)
+                          and (#pool == 1 or tostring(id):upper() ~= original) end,
                       RANDOMIZER_STREAMS.SHOPS,
                       "sp" .. tostring(SHOP_POLICY_VERSION) .. ".b" .. tostring(balance))
-                  out[i] = choice or raw
+                  choice = choice or original
+                  local native = nativeItemReference(game, choice, reference)
+                  if type(raw) == "table" then
+                      local row = copy(raw)
+                      if raw.item ~= nil then row.item = native
+                      elseif raw.id ~= nil then row.id = native
+                      else row[1] = native end
+                      out[i] = row
+                  else
+                      out[i] = native
+                  end
+                  traceRows[#traceRows+1] = {slot=i, original=original, final=choice,
+                      native=native, pool=#pool, changed=choice ~= original,
+                      representation=reference and reference.kind}
               end
           end
+          mod.exports.__beta26.lastRandomShopTrace = {
+              enabled=true, delegated=false, balance=balance, source=sourceId,
+              rows=traceRows, members=#traceRows,
+          }
           return out
       end
       mod.exports.__beta26.randomizeShopStock = Randomizer.shopStock
@@ -5510,6 +5684,7 @@ return function(mod, deps)
               noBuying = mod.save:get("no_buying", false) == true,
               noSelling = mod.save:get("no_selling", false) == true,
               randomTms = mod.save:get("random_tms", false) == true,
+              randomTmLocations = mod.save:get("random_tm_locations", false) == true,
               noTms = mod.save:get("no_tm_use", false) == true,
               contract = "content_projection_before_authoritative_rule_gate",
           }
@@ -5553,17 +5728,19 @@ return function(mod, deps)
           local blind = tonumber(mod.save:get("randomizer_info_policy", 0)) == 1
           local mayReveal = reveal == true and not blind
           local info = {
-              algorithmVersion = RANDOMIZER_ALGORITHM_VERSION,
+              algorithmVersion = Randomizer.algorithmVersion,
               seed = tonumber(mod.save:get(RUN_SEED_KEY, nil)),
               edition = tostring(getGameVersion() or "UNKNOWN"):upper(),
               infoPolicy = blind and "BLIND" or "OPEN",
               randomShops = mod.save:get("random_shops", false) == true,
               shopBalance = math.floor(tonumber(mod.save:get("random_shop_balance", 2)) or 2),
               randomTms = mod.save:get("random_tms", false) == true,
+              randomTmLocations = mod.save:get("random_tm_locations", false) == true,
               tmCompatibility = math.floor(tonumber(mod.save:get("random_tm_compatibility", 0)) or 0),
               randomGiftItems = mod.save:get("random_gift_items", false) == true,
               shopMappings = mappingCount(RANDOMIZER_SOURCE_MAPS.SHOPS.saveKey),
               tmMappings = mappingCount(RANDOMIZER_SOURCE_MAPS.TMS.saveKey),
+              tmLocationMappings = mappingCount(RANDOMIZER_SOURCE_MAPS.TM_LOCATIONS.saveKey),
               giftMappings = mappingCount(RANDOMIZER_SOURCE_MAPS.GIFT_ITEMS.saveKey),
               protectedProgression = true,
               nativePrices = true,
@@ -6475,6 +6652,27 @@ return function(mod, deps)
       return false
   end
 
+  local function trainerTraceRoster(value)
+      local node = type(value) == "table" and (value.party or value.team
+          or value.roster or value.pokemon or value.mons or value.members or value) or nil
+      local rows = {}
+      if type(node) == "table" then
+          local keys = {}
+          for key, mon in pairs(node) do
+              if type(key)=="number" and type(mon)=="table" and mon.species~=nil then
+                  keys[#keys+1]=key
+              end
+          end
+          table.sort(keys)
+          for _, key in ipairs(keys) do
+              local mon=node[key]
+              rows[#rows+1]={slot=key, species=tostring(mon.species or ""):upper(),
+                  level=tonumber(mon.level)}
+          end
+      end
+      return rows
+  end
+
   local function composeRandomTrainerParty(next, classId, partyIndex, party)
       local Dev = mod.exports.__beta26.Dev
       if Dev and type(Dev.perfCount) == "function" then
@@ -6482,9 +6680,23 @@ return function(mod, deps)
       end
       mod.exports.__beta26.gen1TrainerPrimaryEntered =
           (tonumber(mod.exports.__beta26.gen1TrainerPrimaryEntered) or 0) + 1
+      -- 2.9.29: transform the COMPOSED incoming roster, never a reconstructed
+      -- vanilla roster. External trainer modifiers may legitimately own levels,
+      -- moves, evolutions/forms or party cardinality. Random Trainers owns only
+      -- its species-identity projection and preserves those orthogonal dimensions.
+      local authoredTrace = trainerTraceRoster(party)
       local resolved = next(classId, partyIndex, party) or party
       local game = getCurrentGame() or mod.game
+      local enabled = randomizerToggleOn("random_trainers")
+      local delegated = externalRuleDelegation
+          and externalRuleDelegation("random_trainers", game) or false
       if not randomTrainerRuleEnabled(game) or type(resolved) ~= "table" then
+          mod.exports.__beta26.lastTrainerRandomizerPrimaryTrace = {
+              classId=classId, partyIndex=partyIndex, enabled=enabled, delegated=delegated,
+              authored=authoredTrace, composed=trainerTraceRoster(resolved),
+              stop=type(resolved)~="table" and "invalid_composed_roster"
+                  or (not enabled and "disabled" or (delegated and "delegated" or "rule_inactive")),
+          }
           return resolved
       end
 
@@ -6720,6 +6932,13 @@ return function(mod, deps)
           end
       end
       mod.save:set("__nuzlocke_random_trainer_slots", map)
+      mod.exports.__beta26.lastTrainerRandomizerPrimaryTrace = {
+          classId=classId, partyIndex=partyIndex, enabled=true, delegated=false,
+          authored=authoredTrace, composed=trainerTraceRoster(resolved),
+          primary=trainerTraceRoster(changed and out or resolved),
+          changed=changed, stop=changed and "primary_changed" or "primary_no_change",
+          seed=currentSeed, seedReset=seedReset,
+      }
       mod.exports.__beta26.gen1TrainerPrimaryCompleted =
           (tonumber(mod.exports.__beta26.gen1TrainerPrimaryCompleted) or 0) + 1
       return changed and out or resolved
@@ -6748,8 +6967,10 @@ return function(mod, deps)
       end
       mod.exports.__beta26.gen1TrainerFinalizerEntered =
           (tonumber(mod.exports.__beta26.gen1TrainerFinalizerEntered) or 0) + 1
-      -- Preserve the engine-authored Gen I roster before any inner trainer.party
-      -- wrapper (Random Trainers, Difficulty, providers) mutates a copy.
+      -- Preserve the engine-authored Gen I roster only as a deterministic source
+      -- identity fallback. The authoritative output shape is `resolved`: external
+      -- trainer transforms may have padded/reordered the roster or changed levels,
+      -- moves and forms, and the finalizer must preserve those dimensions.
       local authored = starterCopy(party)
       local resolved = next(classId, partyIndex, party) or party
       local game = getCurrentGame() or mod.game
@@ -7022,6 +7243,167 @@ return function(mod, deps)
   end
   mod.hooks:wrap("trainer.party", finalizeRandomTrainerParty, 1000000000)
 
+  -- 2.8.89: observational accepted-roster evidence. The trainer.party hook
+  -- result is not enough to prove what Gen II actually put into Battle.new.
+  -- battle.started exposes the native enemyParty consumed by the battle engine,
+  -- so record only species/level identity after construction. This is DEV/read-
+  -- only evidence: it never rewrites a party, consumes RNG, or materializes a
+  -- mapping.
+  mod.events:on("battle.started", function(ev)
+      if type(ev) ~= "table" or ev.kind ~= "trainer"
+          or type(ev.battle) ~= "table" then return end
+      local game = getCurrentGame() or mod.game
+      if not mod.exports.__beta26.runtimeIsGen2(game) then return end
+      local party = ev.battle.enemyParty
+      local rows = {}
+      if type(party) == "table" then
+          for i, mon in ipairs(party) do
+              rows[#rows + 1] = {
+                  slot = i,
+                  species = tostring(type(mon) == "table" and mon.species or ""):upper(),
+                  level = tonumber(type(mon) == "table" and mon.level or nil),
+                  native = type(mon) == "table" and type(mon.moves) == "table"
+                      and (mon.stats ~= nil or mon.maxHp ~= nil or mon.maxHP ~= nil),
+              }
+          end
+      end
+      local finalizer = mod.exports.__beta26.lastGen2TrainerRandomizerFinalizer
+      mod.exports.__beta26.lastGen2TrainerAcceptedRoster = {
+          kind = ev.kind,
+          members = #rows,
+          rows = rows,
+          randomTrainersEnabled = randomizerToggleOn("random_trainers"),
+          delegated = externalRuleDelegation
+              and externalRuleDelegation("random_trainers", game) or false,
+          finalizer = type(finalizer) == "table" and starterCopy(finalizer) or nil,
+      }
+  end)
+
+  -- Static/headless audit for the Gen-II trainer pipeline's non-runtime
+  -- invariants. It intentionally does not claim engine execution.
+  mod.exports.__beta26.auditGen2TrainerRandomizerPipeline = function(game)
+      local report = { ok = true, checks = {} }
+      local function check(name, value, detail)
+          report.checks[#report.checks + 1] = { name=name, ok=value==true, detail=detail }
+          if value ~= true then report.ok = false end
+      end
+      local health = mod.exports.__beta26.randomTrainerHookHealth
+          and mod.exports.__beta26.randomTrainerHookHealth(game) or {}
+      check("trainer_party_requested", health.wants_hook == true, health.wants_hook)
+      check("primary_registered", health.primary_registered == true, health.primary_priority)
+      check("finalizer_registered", health.finalizer_registered == true, health.finalizer_priority)
+      check("primary_before_finalizer", tonumber(health.primary_priority) ~= nil
+          and tonumber(health.finalizer_priority) ~= nil
+          and tonumber(health.primary_priority) < tonumber(health.finalizer_priority),
+          tostring(health.primary_priority) .. "<" .. tostring(health.finalizer_priority))
+      local okMon, Gen2Mon = pcall(require, "src.battle.gen2.Mon")
+      check("native_mon_module", okMon and type(Gen2Mon) == "table", okMon)
+      check("native_mon_constructor", okMon and type(Gen2Mon.new) == "function",
+          okMon and type(Gen2Mon.new) or "missing")
+      report.lastFinalizer = mod.exports.__beta26.lastGen2TrainerRandomizerFinalizer
+      report.lastAccepted = mod.exports.__beta26.lastGen2TrainerAcceptedRoster
+      report.lastError = mod.exports.__beta26.lastGen2TrainerRandomizerError
+      report.evidence = "STATIC/OBSERVATIONAL_ONLY"
+      return report
+  end
+
+  mod.exports.__beta26.randomTrainerTrace = function(game)
+      game = game or getCurrentGame() or mod.game
+      local gen2 = mod.exports.__beta26.runtimeIsGen2(game) == true
+      local primary = mod.exports.__beta26.lastTrainerRandomizerPrimaryTrace
+      local finalizer = gen2 and mod.exports.__beta26.lastGen2TrainerRandomizerFinalizer
+          or mod.exports.__beta26.lastGen1TrainerRandomizerFinalizer
+      local accepted = gen2 and mod.exports.__beta26.lastGen2TrainerAcceptedRoster
+          or mod.exports.__beta26.lastTrainerRandomizerBattleObserved
+      local stop = "no_trainer_hook_observed"
+      if type(primary)=="table" then stop=tostring(primary.stop or "primary_observed") end
+      if type(finalizer)=="table" then
+          stop = finalizer.allVanilla == true and "finalizer_all_vanilla" or "finalizer_changed_or_validated"
+      end
+      if type(accepted)=="table" then stop="battle_roster_observed" end
+      return {
+          generation=gen2 and 2 or 1,
+          enabled=randomizerToggleOn("random_trainers"),
+          delegated=externalRuleDelegation and externalRuleDelegation("random_trainers", game) or false,
+          primary=starterCopy(primary), finalizer=starterCopy(finalizer),
+          accepted=starterCopy(accepted),
+          error=mod.exports.__beta26.lastGen2TrainerRandomizerError,
+          stop=stop, evidence="OBSERVATIONAL_ONLY",
+      }
+  end
+
+  -- 2.8.77: read-only semantic hook-chain health for Dev Hook Health.
+  -- Direct-method session descriptors cannot represent Runtime hook chains.
+  mod.exports.__beta26.randomTrainerHookHealth = function(game)
+      local okRuntime, Runtime = pcall(require, "src.mods.Runtime")
+      local report = {
+          generation = mod.exports.__beta26.runtimeIsGen2(game) and 2 or 1,
+          wants_hook = false,
+          primary_registered = false,
+          finalizer_registered = false,
+          last_error = mod.exports.__beta26.lastGen2TrainerRandomizerError,
+          last_finalizer = mod.exports.__beta26.lastGen2TrainerRandomizerFinalizer,
+      }
+      if not okRuntime or type(Runtime) ~= "table" then
+          report.error = "runtime_unavailable"
+          return report
+      end
+      if type(Runtime.wantsHook) == "function" then
+          local okWants, value = pcall(Runtime.wantsHook, "trainer.party")
+          report.wants_hook = okWants and value == true
+      end
+      local hooks = Runtime.hooks
+      local chain = type(hooks) == "table"
+          and type(hooks.chains) == "table"
+          and hooks.chains["trainer.party"] or nil
+      report.chain_entries = type(chain) == "table" and #chain or 0
+      for _, entry in ipairs(type(chain) == "table" and chain or {}) do
+          if type(entry) == "table" then
+              if entry.callback == composeRandomTrainerParty then
+                  report.primary_registered = true
+                  report.primary_priority = entry.priority
+              elseif entry.callback == finalizeRandomTrainerParty then
+                  report.finalizer_registered = true
+                  report.finalizer_priority = entry.priority
+              end
+          end
+      end
+      if type(mod.exports.__beta26.registerHook) == "function" then
+          local function callbackIsLive(callback)
+              local currentHooks = Runtime.hooks
+              local currentChain = type(currentHooks) == "table"
+                  and type(currentHooks.chains) == "table"
+                  and currentHooks.chains["trainer.party"] or nil
+              for _, entry in ipairs(type(currentChain) == "table"
+                  and currentChain or {}) do
+                  if type(entry) == "table" and entry.callback == callback then
+                      return true
+                  end
+              end
+              return false
+          end
+          if report.primary_registered then
+              mod.exports.__beta26.registerHook("random_trainers:primary", {
+                  owner="nuzlocke", wrapper=composeRandomTrainerParty,
+                  priority=tonumber(report.primary_priority) or 89000,
+                  mode="semantic_hook", feature="random_trainers",
+                  source="trainer.party",
+                  live=function() return callbackIsLive(composeRandomTrainerParty) end,
+              })
+          end
+          if report.finalizer_registered then
+              mod.exports.__beta26.registerHook("random_trainers:finalizer", {
+                  owner="nuzlocke", wrapper=finalizeRandomTrainerParty,
+                  priority=tonumber(report.finalizer_priority) or 1000000000,
+                  mode="semantic_hook", feature="random_trainers",
+                  source="trainer.party",
+                  live=function() return callbackIsLive(finalizeRandomTrainerParty) end,
+              })
+          end
+      end
+      return report
+  end
+
   do -- 2.8.22 Gen I trainer construction seam
       local function identityNext(_, _, party) return party end
 
@@ -7204,8 +7586,46 @@ return function(mod, deps)
           BattleState.newTrainer = wrapper
           BattleState.__nuzlockeGen1TrainerConstructionSession2822 = {
               owner=mod, previous=previous, wrapper=wrapper,
+              chainContractVersion=1,
+              callsPreviousExactlyOncePerPath=true,
+              presentationAgnostic=true,
           }
           return true
+      end
+
+      -- 2.9.66: read-only shared-wrapper health. Nuzlocke deliberately does
+      -- not require itself to remain the outermost BattleState.newTrainer
+      -- wrapper: a later presentation mod may wrap our function, while an
+      -- earlier presentation wrapper may be captured as `previous`. Either
+      -- order is valid so long as our own session still has callable previous
+      -- and wrapper functions. This diagnostic never rewrites the chain.
+      mod.exports.__beta26.gen1TrainerWrapperChainHealth = function()
+          local okBattle, BattleState = pcall(require, "src.battle.BattleState")
+          if not okBattle or type(BattleState) ~= "table" then
+              return { ok=false, reason="battle_state_unavailable" }
+          end
+          local session =
+              BattleState.__nuzlockeGen1TrainerConstructionSession2822
+          if type(session) ~= "table" or session.owner ~= mod then
+              return { ok=false, reason="nuzlocke_session_missing" }
+          end
+          local current = BattleState.newTrainer
+          local ownWrapper = session.wrapper
+          local previousFn = session.previous
+          return {
+              ok = type(current) == "function"
+                  and type(ownWrapper) == "function"
+                  and type(previousFn) == "function",
+              outermost = current == ownWrapper,
+              externalOuterWrapper = type(current) == "function"
+                  and current ~= ownWrapper,
+              chainContractVersion =
+                  tonumber(session.chainContractVersion) or 0,
+              callsPreviousExactlyOncePerPath =
+                  session.callsPreviousExactlyOncePerPath == true,
+              presentationAgnostic =
+                  session.presentationAgnostic == true,
+          }
       end
 
       mod.exports.__beta26.installGen1TrainerConstructionSeam = install

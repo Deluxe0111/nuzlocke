@@ -1,3 +1,889 @@
+## 2.9.72
+
+- Normalizes Gen-II numeric item operands through the active item registry before Random Field Item classification, TM detection, persistence identity, and selection, then converts the chosen canonical item back to the native numeric index required by Gen-II pickup builders.
+- Prevents Random Shops from selecting the authored item when at least one legal alternative exists; preserves the original only when no legal replacement is available.
+- Adds read-only shop traces and item-normalization evidence to bug-report diagnostics.
+- Adds a unified Random Trainer trace spanning enabled/delegation state, authored/composed roster, primary projection, finalizer output, and battle-accepted roster. No additional RNG is consumed.
+- Repairs a shiny-presentation isolation defect: Nuzlocke no longer recolors the ImageData returned by the engine asset cache in place. Shiny art is generated from a private copy, preventing palette bleed into unrelated Pokemon/menu surfaces.
+- Adds party shiny-identity and last sprite/icon projection evidence to the SHINY Dev page and bug-report snapshot.
+- No other-mod delegation is required for these fixes; runtime evidence supplied for this investigation used Nuzlocke as the only installed mod.
+- No Save Schema, Compatibility API, Diagnostics API, Translation API, UI contract, or Randomizer algorithm version bump. Runtime retest is required before PASS promotion.
+
+## 2.9.71
+
+- Repairs the Yellow/Gen-I Random Field Items runtime failure observed on 2.9.70 with Gen1Recomp 0.2.41.
+- Moves the primary R/B/Y visible-item composition seam from direct `OverworldController.talkTo` method ownership to Gen1Recomp's public `world.talk` hook, which runs immediately before the native talk/pickup handler consumes the item payload.
+- Preserves native bag-capacity checks, pickup removal/taken flags, item-name text, sounds, and retry behavior by temporarily projecting only the deterministic replacement item during the downstream call and restoring the authored object definition afterward.
+- Adds explicit R/B/Y Random Field Item pipeline diagnostics and hook-health reporting for the `world.talk` registration.
+- Updates Randomizer visible-source metadata and compatibility seam metadata to identify `world.talk` as the Gen-I visible-field-item owner boundary.
+- Retires the legacy direct `OverworldController.talkTo` path from normal Gen-I field-item installation. Because `world.talk` is present at the supported 0.2.24+ floor, a missing hook facade now fails closed and is reported by Dev diagnostics instead of silently falling back to the fragile direct wrapper.
+- Keeps Yellow 2.9.70 Random Field Items recorded as Runtime FAIL. 2.9.71 remains un-certified until exact-edition retest.
+- Preserves the Gen1Recomp 0.2.41 source-review baseline.
+- No Nuzlocke Save Schema, Compatibility API, Diagnostics API, Translation API, UI contract, or Randomizer algorithm version bump.
+- No Runtime PASS is promoted by static/package validation.
+
+## 2.9.70
+
+- Advances the Gen1Recomp source-review baseline from 0.2.40 to 0.2.41 release commit `3d3a9ba4b66832b8c70ac26e1e88dbae612efcd0`.
+- Confirms upstream Mod API 2, Link Protocol 2, Save Format 5, and ROM cache v5 remain unchanged.
+- Reviews the 0.2.41 platform/launcher expansion, FixedStep/PresentSync pacing hardening, and Gen-II save-export map-context changes; no Nuzlocke-critical public mod contract break was found.
+- Keeps FixedStep, PresentSync, VSync, FrameCap and presentation pacing engine-owned and read-only from Nuzlocke.
+- Fixes `normalizedInputPolicy` so an invalid/misspelled profile reports the actually resolved fallback profile (`navigation`) instead of returning contradictory profile metadata.
+- Adds Release Safety guards for the 0.2.41 engine profile and consistent input-profile resolution.
+- Preserves the 2.9.69 conditional-authority fix, 2.9.68 `Typography.centerX` repair, and 2.9.67 Dev Report dependency repair.
+- No Nuzlocke Save Schema, Compatibility API, Diagnostics API, Translation API, Run History, Randomizer algorithm, or UI contract-version bump.
+- No Runtime PASS is promoted by source/static/package validation.
+
+## 2.9.69
+
+- Fixes conditional presentation/gameplay ownership semantics: `presentationOwnsGameplay("trainer_party")` no longer treats the descriptor `nuzlocke_randomizer_when_enabled` as unconditional ownership.
+- Adds `gameplayAuthorityFor(surface)` so integrations can read the descriptive authority value without coercing it to a boolean.
+- Repairs the stale `ui_input_contract_version` Release Safety test by checking the feature-scoped `inputContractVersion = 1` rather than pinning the shared UI API counter to obsolete version 7.
+- Adds a regression guard preserving conditional gameplay-authority semantics.
+- Preserves the 2.9.68 `Typography.centerX` repair and 2.9.67 Dev Report dependency repair.
+- No gameplay-rule, save-schema, Compatibility API, UI contract-version, Randomizer algorithm, or compatibility-target bump.
+- No Runtime PASS is promoted by static/package validation.
+
+## 2.9.68
+
+- Fixes the Gen-II/Gold utility-screen draw crash at `classic_ui.lua:6568` where the shared typography object lacked the `centerX` helper used by centered Nuzlocke titles.
+- Adds `Typography.centerX(text, leftEdge, rightEdge)` to the existing Nuzlocke UI typography contract.
+- Adds Release Safety coverage tying the ClassicUI `T.centerX(...)` consumer to the helper definition.
+- Preserves the 2.9.67 Dev Report dependency repair, 2.9.66 UI input/presentation contracts, HGSS compatibility target, gameplay rules, save schema, Compatibility API, and Randomizer behavior.
+- Runtime evidence remains granular: the reported Gen-II draw crash is a separate UI defect from the earlier Dev Report dependency failure.
+- No Runtime PASS is promoted until the affected Gold/Gen-II screen and Dev Report are reopened on 2.9.68.
+
+## 2.9.67
+
+- Fixes the Yellow runtime Dev Report crash at `dev_diagnostics.lua:2448` where `compatPublicCopy` was resolved as a nonexistent global.
+- Restores explicit split-safe ownership by injecting `compatPublicCopy` from `main.lua` into `dev_diagnostics.lua` and asserting that dependency at module registration.
+- Adds a Release Safety guard so the Dev Report compatibility projection cannot regress to an accidental `_ENV` lookup.
+- Preserves the 2.9.66 UI presentation/input contracts, HGSS compatibility target, gameplay rules, save schema, Compatibility API, Randomizer algorithm, and all unrelated behavior.
+- Yellow 2.9.66 runtime evidence retained: game load PASS and ABANDON RUN flow PASS; Dev Report FAIL is isolated to this diagnostic dependency defect.
+- No Runtime PASS is promoted for 2.9.67 until the Dev Report is reopened on the repaired build.
+
+## 2.9.66
+
+- Adds UI presentation-ownership contract v1 and advances the Nuzlocke presentation UI API to v8.
+- Makes Party, PC, Pokédex, Bag, Mart, battle art/HUD, overworld rendering, generic ListMenu composition, Nuzlocke-owned screens, and trainer-party presentation/controller boundaries machine-readable.
+- Adds HGSS Visual Overhaul 1.0.2 (`HGSS_SPRITES`) as an explicit Yellow compatibility target and optional dependency.
+- Source review preserves HGSS ownership of presentation while Nuzlocke keeps challenge legality, provenance/tracker state, gameplay transactions, and Random Trainer party authority when enabled.
+- Hardens the Gen-I `BattleState.newTrainer` wrapper contract so Nuzlocke explicitly supports being inside or outside a presentation wrapper chain; Nuzlocke calls its captured prior implementation exactly once on every constructor path and does not require itself to remain outermost.
+- Adds read-only trainer-wrapper chain health diagnostics and Release Safety guards for the new presentation and shared-wrapper contracts.
+- No save schema, Compatibility API, Diagnostics API, Translation API, Randomizer algorithm, or gameplay-rule behavior change.
+- No Runtime PASS is promoted by source/static/package validation.
+
+## 2.9.65
+
+- Adds Nuzlocke UI input-contract v1 and advances the presentation UI API to v7.
+- Every known Nuzlocke-owned screen now has an explicit semantic input policy: repeat-safe navigation/value stepping where appropriate, edge-only activation/back, and a separate destructive-confirmation classification.
+- Adds query helpers for input-aware integrations: `inputPolicyFor`, `isRepeatSafe`, `requiresEdge`, `isDestructive`, and `applyInputContract`.
+- Keeps the contract descriptive only: Nuzlocke does not synthesize repeats, wrap global input, or take ownership from the engine or accessibility/input-repeat mods.
+- Documents WizzStar HoldToScrollUI 1.1.0 as a reviewed compatibility target by repository/release behavior; combined runtime testing and package-source review remain separate.
+- Adds Release Safety checks for the input-contract version, repeat/edge semantics, destructive confirmation, and presentation-only boundary.
+- No gameplay rule, save schema, Compatibility API, Diagnostics API, Translation API, Randomizer algorithm, or deferred Encounter Log / Area Log presentation change.
+
+## 2.9.64
+
+- Refreshes current voxel/presentation compatibility targets: Dramatic Shape 1.9.0, Battle Art Voxel Fork 1.10.0, and Battle Cinematics 1.2.4.
+- Keeps PotatoVoxel 1.9.6, Voxel Ascendant 2.0.2, Terrarium 1.27.0-mobile, Dramaless Shape 2.0.3, and Flying Overhaul 1.2.1 at their already-current reviewed versions.
+- Treats the active voxel renderers as distinct mutually exclusive presentation owners rather than interchangeable aliases; Nuzlocke continues to retain challenge legality/state while yielding renderer/camera ownership.
+- Reconciles stale current-document references to the older Dramatic Shape 1.0.6 target.
+- Adds Release Safety exact-target checks for the refreshed Dramatic Shape, Battle Art, and Battle Cinematics versions.
+- No gameplay-rule, save-schema, compatibility-API, Randomizer-algorithm, or deferred Encounter Log / Area Log presentation changes.
+
+## 2.9.63
+
+- Fixed the remaining release-blocking ClassicUI split-safety load failure by exporting the tracker-owned `legacyCandidates` function and explicitly binding it before ClassicUI registration.
+- Expanded Release Safety dependency coverage so required ClassicUI injections are checked as a set instead of surfacing one missing dependency at runtime.
+- Restored World Building tiered/region-specific denial text for `no_healing_items` and `no_battle_items` while preserving battle/bag decision metadata.
+- Advanced Gen1Recomp source/documentation compatibility review through 0.2.40. Mod API 2, upstream Save Format 5, and the accepted engine range remain unchanged; focused runtime revalidation remains required.
+- No save-schema, compatibility-API, Randomizer algorithm, or Encounter Log / Area Log presentation changes.
+
+## 2.9.62
+
+- Fixed a release-blocking split-safety regression where `classic_ui.lua` and `late_runtime.lua` required the Gen-I tracker seed-ID table but `main.lua` passed an undefined global instead of the tracker-owned table.
+- `encounter_tracker.lua` now explicitly exports its stable `GEN1_SEED_IDS` table and `main.lua` binds that export before either consumer is registered.
+- Added a Release Safety dependency audit to prevent this captured-before-owner/accidental-global failure from recurring.
+- No gameplay rules, Randomizer algorithms, save schema, compatibility API, or deferred Encounter Log / Area Log presentation were changed.
+
+## 2.9.62
+
+- Fixed the release-blocking Gen-I load regression where `classic_ui.lua` and `late_runtime.lua` were injected an unresolved `GEN1_SEED_IDS` dependency.
+- Restored explicit ownership by exporting the stable seeded-area identity table from `encounter_tracker.lua` and binding it in `main.lua` before dependent module registration.
+- Added Release Safety guards for the owner export and registration-order dependency.
+- No gameplay, Randomizer algorithm, save schema, compatibility API, or tracker presentation changes.
+
+## 2.9.61
+
+- Fixed Gen I Randomizer Evolution Balance labels so DEPTH/SIM BST/BALANCED render semantically instead of as raw numeric values.
+- Fixed setup preset load warnings by comparing normalized profiles and showing semantic rule values.
+- Fixed F. Token status reporting to resolve against the active game/save context.
+- Corrected randomized starter history provenance so starters are identified as STARTER rather than ordinary catches/gifts.
+- Updated Almanac randomizer status to report the live enabled feature state and clarified ambiguous summary labels.
+- Fixed NUZ MENU overflow with a scrolling viewport; MOD COMPAT and optional DEV TOOLS now precede END RUN, which remains the final destructive action.
+- Fixed END RUN/ABANDON selection by wiring Nuzlocke-owned ListMenu actions through the engine menu callback contract and restored framed presentation.
+- Corrected battle item denial copy so battle healing/X-item restrictions remain battle-specific at every World Building tier; removed the misleading Gym Guide attribution from field Rare Candy denial text.
+- Deferred the encounter/area log presentation cleanup for a later focused pass; no tracker layout rewrite is included here.
+
+## 2.9.60
+
+- Fully reviewed Gen1Recomp 0.2.39 source and current modding/Gen-II API documentation.
+- Advanced the source/documentation compatibility baseline to release commit `f90c3370e8c2a2116dbe31201af6adc2dea46471`.
+- Added the 0.2.39 compatibility profile; Mod API 2, upstream Save Format 5, and the existing engine range remain unchanged.
+- Classified the new PresentSync/PresentProbe, VSync, FrameCap, and FixedStep presentation-pacing subsystem as engine-owned.
+- Added a read-only PresentSync diagnostic snapshot without taking pacing ownership.
+- Added Release Safety tripwires preventing Nuzlocke from applying frame caps, VSync, FixedStep refresh periods, present waits, probe resets/reprobes, or software sleeps.
+- Revalidated the Gen-II shared API model and the native HiddenItems pickup signatures used by Random Field Items.
+- Gen-II Random Field Items remains unresolved; 0.2.39 does not supply evidence of a signature mismatch.
+- Corrected the current README package count to 37 files.
+- No Save Schema, Compatibility API, Randomizer algorithm, or Runtime PASS changes.
+
+## 2.9.59
+
+- Advanced explicit Shiny Pokemon compatibility review from Stone fork 1.2.20 to supplied 1.2.41.
+- Added additive consumption of Shiny 1.2.41 Nuzlocke integration validation when available, with legacy fallback preserved.
+- Added provider lifecycle fingerprints and stale-evidence tracking across provider handle, exports, registration, hook identity, value, and version.
+- Added cross-project Shiny audit-freshness metadata; newer Shiny versions require a new review before the recorded baseline advances.
+- Added reviewed voxel/3D coexistence targets from the Shiny 1.2.41 matrix, including Battle Art Voxel Fork, Voxel Ascendant, Terrarium, Dramaless Shape, Battle Cinematics, 3D Pokedex, Flying Overhaul, Dynamic Weather, and Dramatic Sky Ride; Dramatic Shape target advanced to 1.8.1.
+- Added conservative provider-owned shiny-source policy so explicitly provider-owned voxel/overworld source contexts do not receive a second Nuzlocke recolor bake.
+- Added machine-readable compatibility seam registry covering public/provider seams and retained bounded direct shiny seams.
+- Added release gates for Shiny 1.2.41 target/freshness, provider fingerprints, integration validation, source ownership, seam registration, shiny configuration defaults, and mod-local loader classification.
+- No shiny odds, Save Schema, public Compatibility API, or Runtime PASS changes.
+- Gen-II Random Field Items remain unchanged.
+
+## 2.9.58
+
+- Fixed Random Trainers calling an out-of-scope `effectiveRandomSpeciesGeneration`, which could resolve as a nil global at runtime.
+- Fixed two Randomizer diagnostic fields to use the canonical `Randomizer.algorithmVersion`.
+- Fixed AUTO compatibility ownership so it can skip an inactive first provider and select the next live candidate.
+- Fixed Gen-II NUZ STATUS rule rendering to resolve the live game before shiny/Colorlocke/Alphabetlocke status projection.
+- Added focused regression audits for trainer scope, AUTO provider fallback, and Gen-II live-game status resolution.
+- Random Field Items behavior is unchanged pending runtime evidence.
+- No save-schema, compatibility API, diagnostics API, translation API, or Runtime PASS change.
+
+## 2.9.57
+
+- Fixed the PokemonIdentity future-save-schema mutation guard by threading `saveSchemaTooNew` through a live getter.
+- Added owner-aware Release Safety source routing and reconciled moved World Building, Forgiveness, compatibility, and DEV diagnostic checks.
+- Added source-owner readability and PokemonIdentity future-schema guard regression checks.
+- No gameplay feature, save-schema, public API, or Runtime PASS change.
+
+# Changelog
+
+## 2.9.57
+
+- Added `evolution_policy.lua` as the dedicated owner for Evolution Limits and Trade Evolution QoL over `evolution.check`.
+- Preserved Randomizer evolution mappings, UI/config, identity/provenance, and acquisition policy under their existing owners.
+- Advanced the protected player package to 37 files / 27 Lua modules plus `mod.card`.
+- Paused further consolidation/relocation work after this build by user direction.
+- No save-schema, public API, Randomizer-algorithm, or Runtime PASS change.
+
+## 2.9.55
+
+- Strict child of exact packaged 2.9.54 (`f78967b861507c8a90967a8689fc54f3b51021bfb5315336b2075e43ec2bb186`).
+- Added `item_policy.lua` as the dedicated owner for shared item-use classification/legality, denial presentation, and ItemEffects/field-action guard installation.
+- Kept No Buying/No Selling compatibility policy, battle fallback orchestration, Difficulty, and unrelated challenge enforcement outside the module.
+- Preserved live current-game/current-save resolution across the module boundary and retained the existing `ItemPolicy` / `evaluateItemUsePolicy` call surfaces in `main.lua`.
+- Intentionally advanced the protected package contract to 36 files / 26 Lua modules plus `mod.card`.
+- Save Schema 5, Compatibility API 37, Diagnostics API 1, Translation API 2, Run History v2, and Randomizer algorithm v1 are unchanged. No new Runtime PASS is claimed.
+
+## 2.9.54
+
+- Added `species_policy.lua` as the dedicated owner for Type/Color/Alphabet Locke species policy, glitch classification, BST/species facts, and legendary/mythical/pseudo challenge classification.
+- Preserved Pokémon instance identity/provenance, tracker state, shiny generation/presentation, Randomizer mappings, and acquisition enforcement outside species-policy ownership.
+- Passed current-game, game-version, and category catalogs through live getters; focused harness passed Type Locke, BST/glitch, canonical Colorlocke, and late catalog resolution.
+- Repaired inherited build-provenance package-count drift by advancing `player_package_files` from stale 31 to the actual 35-file contract.
+- Intentionally advanced the protected package contract to 35 files / 25 Lua modules plus `mod.card`.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.53
+
+- Added `encounter_tracker.lua` as the dedicated owner for area catalogs, encounter-area projection, tracker persistence, legacy catch recovery, and save reconstruction.
+- Consumes the stable `pokemon_identity.lua` service for persistent IDs/provenance instead of duplicating identity behavior.
+- Late-bound current game, display-route, and game-version dependencies cross the module boundary through explicit getters.
+- Intentionally advanced the protected package contract to 34 files / 24 Lua modules plus `mod.card`.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+
+## 2.9.52
+
+- Added `pokemon_identity.lua` as the dedicated owner for stable Pokemon instance identity, species-definition/provider metadata lookup, persistent IDs, origin/baseline state, and provenance initialization.
+- Preserved Type/Color/Alphabet Locke policy, shiny generation/presentation, tracker reconstruction, and challenge legality outside the identity owner.
+- Passed mutable game/save state through live getters and preserved the existing Identity category helper call surface.
+- Intentionally advanced the protected package contract to 33 files / 23 Lua modules plus `mod.card`.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.51
+
+- Began the intentionally approved new-module phase from exact packaged 2.9.50.
+- Added `compatibility_runtime.lua` as the first-class owner for compatibility/provider discovery, ownership resolution, evidence classification, engine/mod relationship metadata, and compatibility public projections.
+- Preserved late-bound runtime dependencies through explicit getters for current game, rule activity/defaults, and catch policy; no registration-time snapshots are used for those mutable surfaces.
+- Updated the protected package contract intentionally from 31 files / 21 Lua modules to 32 files / 22 Lua modules plus `mod.card`.
+- Compatibility API remains 37; no Save Schema/Randomizer version or Runtime PASS changed.
+
+## 2.9.50
+
+- Continued existing-owner modularization from exact packaged 2.9.49.
+- Moved the remaining R/B/Y Forgiveness Token shop-filter implementation into `forgiveness.lua` verbatim.
+- Preserved semantic BUY/SELL identification, SELL-list rebuild filtering, stable wrapper-session ownership, and `game.ready` / `save.loaded` reinstall hooks.
+- Declared the currently reviewed existing-owner extraction phase substantially complete; future large splits should introduce approved first-class module owners.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.49
+
+- Continued existing-owner modularization from exact packaged 2.9.48.
+- Activated `title_setup_compat.lua` as the owner of the live Gen-II `MainMenu:choose()` and final-list SETUP adapter.
+- Kept setup-profile persistence/staging lifecycle in `main.lua` behind explicit callbacks; the historical R/B/Y engine-internal fallback remains dormant.
+- Focused semantic harness PASS for fresh-list insertion, existing-save suppression, setup/new/continue routing, and vanilla delegation.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.48
+
+- Continued existing-owner modularization from exact packaged 2.9.47.
+- Moved `Dev.hookHealth`, diagnostic snapshot/error/logging helpers, and self-test orchestration into `dev_diagnostics.lua` with a live current-game getter and explicit configuration dependencies.
+- Retained the small core Dev instrumentation primitives used across runtime (`push`, lifecycle/performance counters, decision trace, `pguard`) in `main.lua`.
+- `main.lua` reduced from 30,242 lines / 1,493,307 bytes to the sealed 2.9.48 measurement reported in release notes.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.47
+
+- Continued existing-owner modularization from exact packaged 2.9.46.
+- Moved the remaining reviewed shared World Building text/pagination, presentation transaction, tier-selection, once-per-save flavor, feedback, and pure tier-audit implementation into `world_building.lua`.
+- Challenge legality/enforcement remains outside the presentation owner; no runtime rule semantics moved.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.46
+
+- Continued existing-owner modularization from exact packaged 2.9.45.
+- Moved read-only Rule Effectiveness, Randomizer Integrity, Gen-II Edition Parity, and Storage Context diagnostics into `dev_diagnostics.lua` with explicit stable dependencies and a live current-game getter.
+- Deliberately retained `Dev.hookHealth`, snapshot/error capture, and self-test orchestration in `main.lua` pending separate live-hook dependency review.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.45
+
+- Continued existing-owner modularization from exact packaged 2.9.44 with a larger dependency-clean static/configuration batch.
+- Moved Locke preset definitions, shared Gen-II beta rule/description metadata, pure Pokemon-ban set normalization helpers, and pure RBY/Gen-II starting-resource resolution/audits into `rule_catalog.lua`.
+- Kept live preset application/classification, game-data species lookup, save-backed species-ban checks, `save.new_game`, enforcement, migrations, and provider/runtime ownership in `main.lua`.
+- No Save Schema/API/Randomizer version or Runtime PASS changed.
+
+## 2.9.44
+
+- Continued conservative modularization from exact packaged 2.9.43.
+- Moved pure read-only save-schema descriptor presentation and structural/default-type auditing (`describe`, `audit`) into existing semantic owner `rule_catalog.lua`.
+- Kept live save-schema versioning, migrations, transaction/storage-key ownership, persistence, and save reads/writes in `main.lua`; only the already-built field snapshot and current schema value cross the module boundary.
+- Preserved the established `__beta26.saveSchemaDescriptor` export and deep-copy behavior.
+- Save-schema descriptor parity PASS across 166 authoritative descriptor rows and 185 generated save fields, including role counts, bad-default/missing-field fault detection, and copy isolation.
+- `main.lua` reduced from 31,522 lines / 1,571,945 bytes to 31,462 lines / 1,568,827 bytes: net -60 lines / -3,118 bytes; approximately 69 implementation lines relocated with 9 lines of delegation/comments retained in `main.lua`.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.43.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1 unchanged.
+- Static/Semantic evidence only; no gameplay behavior or Runtime PASS changed.
+
+## 2.9.43
+
+- Continued conservative modularization from exact packaged 2.9.42.
+- Moved pure read-only rule-registry presentation and structural/default-type auditing (`describe`, `get`, `audit`) into existing semantic owner `rule_catalog.lua`.
+- Kept live enum/coercion certification and stored-save validation in `main.lua` because they depend on runtime-owned surfaces.
+- Preserved the established `__beta26.ruleRegistry` export and deep-copy behavior.
+- Registry parity PASS across all 166 authoritative descriptor rows, unknown-key lookup, structural audit output, and copy isolation.
+- `main.lua` reduced from 31,561 lines / 1,573,227 bytes to 31,522 lines / 1,571,945 bytes: net -39 lines / -1,282 bytes; approximately 48 implementation lines relocated.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.42.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1 unchanged.
+- Static/Semantic evidence only; no gameplay behavior or Runtime PASS changed.
+
+## 2.9.42
+
+- Continued conservative modularization from exact packaged 2.9.41 after dependency review of the machine-readable rule/save descriptor subsystem.
+- Moved only the pure descriptor-construction layer into existing semantic owner `rule_catalog.lua`: authoritative rule descriptor rows/index/collision construction, deep-copy support for descriptor values, and deterministic save-field map assembly.
+- Kept live stored-value validation, enum/coercion auditing, save-schema auditing, transaction-owner access, `mod.save` access, and exported runtime descriptor surfaces in `main.lua`.
+- Descriptor construction receives current rule/default inputs and explicit schema/transaction keys; it does not capture live save state or runtime owners.
+- Read-only construction parity PASS across all 166 authoritative descriptor rows and the complete generated save-field map.
+- Strengthened module-ownership evidence with a stable `Module owner: RuleCatalog` marker rather than tying ownership proof to one individual helper name.
+- Reconciled public-document current headings/baselines to 2.9.42 without changing public API versions or gameplay claims.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.41.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1 unchanged.
+- Static/Semantic evidence only; no gameplay behavior or Runtime PASS changed.
+
+## 2.9.41
+
+- Resumed the paused modularization program from exact packaged 2.9.40 with a deliberately small existing-owner pure/static split.
+- Moved ordinary rule-value coercion into `rule_catalog.lua`, beside the authoritative rule definitions/ranges/defaults it consumes.
+- Preserved `__beta26.coerceRuleValue` as a behavior-compatible delegating surface and passes the live definition index per call to avoid stale captured state.
+- Updated module-ownership Release Safety evidence to require `coerceRuleValue` ownership in `rule_catalog.lua`.
+- Read-only full-catalog coercion parity matrix PASS: 8,226 comparisons across every authoritative rule definition and representative read/write/malformed/range inputs.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.40.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1 unchanged.
+- Static/Semantic evidence only; no gameplay behavior or Runtime PASS changed.
+
+## 2.9.40
+
+- Audited Release Safety itself and replaced the G9 battle-stack adapter serialization/string-order tripwires with semantic assertions against the authoritative compatibility adapter tables.
+- Retained only a bounded set of narrow source checks for runtime seams that do not yet expose structured descriptors, and reports semantic/source evidence counts for that audit.
+- Added read-only compatibility evidence classification with independent `live_contract`, `source_reviewed`, and `combined_runtime_required` facts; no class grants ownership or Runtime PASS.
+- Added `compatibilityEvidenceClassificationAudit()` and `releaseSafetySelfAudit()` and wired both into promotion-facing Release Safety.
+- Compatibility reports now expose the evidence projection; discovered live compatibility layers are marked as live-contract evidence without implying active/selected ownership.
+- Explicit do-not-combine targets remain source-reviewed conflicts and are not mislabeled as combined-runtime certification targets.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.39.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1 unchanged.
+- Static/Semantic evidence only; no gameplay behavior or Runtime PASS changed.
+
+## 2.9.39
+
+- Added read-only `Dev.ruleCertification(key, game)` and structured `Dev.explainRuleStatus(key, game, preGame)` diagnostics over the authoritative rule catalog and edition-availability contract.
+- Added per-edition certification rows for Red/Blue/Yellow/Gold/Silver/Crystal with explicit reachability, exact-edition runtime evidence, and `REQUIRED` / `N/A` states where evidence is absent.
+- Runtime evidence is deliberately sparse and exact-edition: existing documented Random Starter PASS evidence is attached only to the editions that were actually tested and is not generalized to Blue, Gold, or combined-mod stacks.
+- Semantic evidence distinguishes full dedicated PASS, source-reviewed, disposition-reconciled, enum/range metadata PASS, and not-yet-assessed states instead of collapsing them into Runtime PASS.
+- Added `ruleStatusCertificationAudit()` and Release Safety coverage for edition isolation, Gen-I/Gen-II reachability disposition, unknown-rule handling, and non-generalization of runtime evidence.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.38.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1 unchanged.
+- Diagnostic/certification behavior only; no gameplay enforcement, persistence, provider ownership, or runtime certification changed.
+
+## 2.9.38
+
+- Added `saveReferenceConsumerIndex()`, a generated/read-only persistence-reference map over authoritative described save keys and shipped Lua source consumers.
+- Added bounded diagnostic limits: 512 described keys, 24 consumer hints per key, and 64 unresolved/unreadable/undescribed detail rows.
+- Literal `mod.save:get/set` references are classified as reads/writes; dynamic accesses are counted separately; other quoted references remain non-authoritative literal hints.
+- Source-read failure is fail-open and diagnostic-only; Release Safety validates structure/bounds while reporting incomplete source introspection non-fatally.
+- Dev stored-state diagnostics surface incomplete/truncated index state and bounded undescribed-key samples.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.37.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1 unchanged.
+- Static/Semantic evidence only; no Runtime PASS promoted.
+
+## 2.9.37
+- Added an authoritative read-only catch-denial disposition catalog and semantic audit reconciling progression-PC override eligibility with the existing executable eligible set.
+- Added numeric enum/range completeness certification for finite ordered bounds, in-range defaults, and canonical min/max clamping.
+- Release Safety now runs both audits. No catch legality, progression exception behavior, save schema, API, Randomizer algorithm, or runtime evidence changed.
+- Advanced executable and independent Release Safety provenance to exact packaged 2.9.36.
+- Reconciled the stale README visible release heading forward to the current build.
+
+
+## 2.9.36
+- Fixed Gen-II Config visibility for Colorlocke and Alphabetlocke (mode + child selector rows).
+- Added semantic/table-driven Gen-II reachability certification for those rules.
+- Repaired stale independent Release Safety parent provenance to exact 2.9.35.
+- No runtime certification added; Gen-II challenge-locke runtime testing remains pending.
+
+
+## 2.9.35
+- Consolidated eight pure rule/value helper responsibilities into existing `rule_catalog.lua` without changing their exported interfaces.
+- Reduced `main.lua` while preserving runtime-sensitive ownership boundaries.
+- Updated exact-parent provenance to 2.9.34.
+
+
+- Strict child of exact packaged 2.9.32 (`41faef47c0611f54cbf771e8f1d90b388246a202f78202d9d77e6c0ed90973fc`).
+- Moved the pure rule-definition index, duplicate-key collision scan, and default value-type normalization into existing `rule_catalog.lua`.
+- Preserved the established `ruleDefinitionByKey` and `ruleDefinitionCollisions` exports in `main.lua`; no gameplay enforcement or save semantics intentionally changed.
+- Updated executable and Release Safety parent provenance to exact packaged 2.9.32.
+- Static/Semantic validation only; no new Runtime PASS claimed.
+
+# 2.9.32 — First low-risk modularization relocation
+
+- Strict child of 2.9.31.
+- Extracted presentation-only rule description/interaction logic from `main.lua` into existing `rule_catalog.lua`.
+- Uses live dependency getters to preserve setup/current-game semantics.
+- No gameplay enforcement or persistence behavior intentionally changed.
+- Corrected stale independent Release Safety parent expectations to 2.9.31.
+
+# 2.9.31 — Stepwise module ownership audit
+
+- Strict child of exact packaged 2.9.30.
+- Performed a conservative existing-module ownership inventory before further modularization.
+- Intentionally moved no gameplay code in this step; runtime/static-protected seams remain untouched pending focused split-safety proof.
+- Recorded the next safe modularization direction and high-risk exclusions for subsequent one-scope builds.
+- Repaired parent provenance forward to exact packaged 2.9.30 (`d75895232e25fa9c7095a5ef77cd76a1a643fd07f176619e8bf2aeee105c3b89`).
+- No Save Schema, Compatibility API, Diagnostics API, Translation API, UI API, Run History, or Randomizer algorithm bump.
+
+# 2.9.30 — Colorlocke canonical data repair
+
+- Strict child of exact packaged 2.9.29 (`d3cbf770f3b5ae39312d2e106ca2b43570e013cb4822714b4bce922cad124135`).
+- Fixes the confirmed Colorlocke semantic no-op caused by absent vanilla Gen-I/II color metadata.
+- Adds a complete 251-entry National Dex color-id fallback using the PokéAPI/Veekun Pokédex-search color classification.
+- Preserves provider/runtime metadata precedence and unknown-custom-species fail-open behavior.
+- Adds semantic Release Safety coverage for dataset completeness, valid category IDs, and representative species in all ten color categories.
+- No Save Schema/API/Randomizer algorithm bump and no new Runtime PASS claim.
+
+# 2.9.29 — Level Match + modern menu compatibility hardening
+
+- Strict child of exact packaged 2.9.28 (`537048f7f9d46df41585239b1e566892e5426f228a29db8cf6dddd119c1eea35`).
+- Added Level Match 0.7.0 as an explicit Gen-II high-overlap compatibility target. Random Trainers now has a protected composition contract: it consumes the composed incoming `trainer.party`, owns species identity only, and preserves legitimate external roster size, levels, moves, items and other trainer-safe state.
+- Added Modern Start Menu UI 0.1.14 as an explicit Gen-I/Gen-II presentation target and assigned the Nuzlocke START action stable semantic id `nuzlocke.menu` so renderers/localizations need not recognize its label.
+- Refreshed the Modern Party UI 0.4.0 contract around controller-preserving Party/Summary/Naming/Relearn presentation.
+- Added Release Safety coverage for trainer-transform dimensions and stable START identity.
+- Reconciled stale packaged version metadata: `manifestVersion` now matches 2.9.29 and parent provenance points to exact packaged 2.9.28.
+- Save Schema 5, Compatibility API 37, Diagnostics API 1, Randomizer algorithm v1 and gameplay defaults are unchanged. Combined runtime certification remains required.
+
+## 2.9.28
+
+- Added explicit compatibility profiles for Gold Next Encounter Spawner 1.2.2 and Pokeball Colors 0.1.33, and refreshed Gen1BetterMenus to 1.0.32.
+- Audited encounter-transform precedence: Nuzlocke Random Encounters projects encounter tables, while intentional next-encounter spawning transforms the resolved candidate; final Nuzlocke catch/acquisition legality therefore evaluates the actual final species without repainting the external intentional selection.
+- Preserved dependency-free `isModOptions = true` markers for Nuzlocke-owned options/configuration screens so compatible widescreen UI can recognize screen purpose without hardcoded mod IDs.
+- Documented narrow ball-presentation ownership: cosmetic ball art/color remains external while Nuzlocke retains semantic catch/ball legality.
+- No Save Schema or public API bump. All three compatibility combinations remain Runtime Test Required.
+
+## 2.9.27
+
+- Added Blackjack Corner 0.8.2 as a source-reviewed high-overlap compatibility target.
+- Added additive semantic battle-roster and activity-state observation surfaces for cooperative compatibility without taking ownership of external battle/travel mechanics.
+- Preserved the existing opaque-token pre-transaction acquisition lifecycle; no parallel acquisition authority was added.
+- Corrected packaged parent provenance metadata to exact 2.9.26.
+- No gameplay rule, Randomizer algorithm, or save-schema change.
+
+# 2.9.27 — Compatibility expansion
+
+- Adds explicit source-reviewed compatibility targets for Double Battles 0.6.1 and Free Fly 1.8.0.
+- Defines conservative ownership boundaries: external mods keep their multi-battle/flight mechanics while Nuzlocke retains challenge legality, durable death state, acquisition policy and history.
+- Adds manifest optional-dependency signaling and Release Safety coverage for both targets.
+- Combined runtime certification remains required; no Runtime PASS is claimed.
+- No Save Schema, public API, gameplay-rule default, or Randomizer algorithm change.
+
+# 2.9.25 — Colorlocke + Alphabetlocke
+
+- Adds Colorlocke with OFF / RANDOM / CHOOSE modes and ten canonical species colors.
+- Adds Alphabetlocke with OFF / RANDOM / CHOOSE modes and A-Z selection.
+- RANDOM resolution is deterministic; Alphabetlocke RANDOM selects only initials represented in the live species registry.
+- Both are prospective acquisition restrictions: existing Pokemon and later evolutions remain legal.
+- Both compose with Type Locke, PKMN BAN, BST, legendary/mythical/pseudo/glitch, party, and acquisition policies.
+- Nuzlocke-owned Randomizer candidate legality reuses the same acquisition gate; mappings are not rerolled merely to satisfy these rules.
+- Unknown custom color metadata fails open rather than guessing from sprites. Localized names never change Alphabetlocke legality.
+- No Save Schema or public API bump. Runtime certification is required per edition.
+
+# 2.9.24 — Attribution and project-lineage hardening
+
+- Adds explicit permanent credit for bryanthaboi as creator of the original Nuzlocke mod/project baseline.
+- Adds explicit permanent credit for masterwebx as creator of the original Shiny Pokémon mod whose original implementation/project is part of the shiny code/design lineage.
+- Clarifies Stone696 as current Nuzlocke maintainer/developer and maintainer of the Shiny Pokémon fork.
+- Adds prominent README attribution and preserves the distinction between original authorship, maintained fork work, and the substantially reworked current Nuzlocke shiny subsystem.
+- No gameplay, rule, Randomizer, save-schema, API, ownership, or default changes.
+
+# 2.9.23 — Gen1Recomp 0.2.38 launcher compatibility refresh
+
+- Advances the Gen1Recomp source/documentation/launcher compatibility audit from 0.2.36 through 0.2.38.
+- Adds explicit 0.2.37 and 0.2.38 compatibility profiles while retaining Mod API 2, upstream Save Format 5, and the existing `>=0.2.24 <2.0.0` engine range.
+- Reviews the current launcher manifest-only mod manager, GitHub Update/Versions support, per-game targeting/status metadata, launch sync/update flow, and Gen-II cartridge save import/export.
+- Confirms Nuzlocke's existing manifest already supplies the relevant launcher metadata; no new gameplay hook, permission, Save Schema, or Compatibility API bump is required.
+- Updates Release Safety current-engine assertions through 0.2.38.
+- Exact-edition 0.2.38 runtime certification remains pending.
+
+# 2.9.22 — Split-Evolution Dupes repair
+
+- Fixes SPLIT Dupes enforcement: the saved mode 3 now survives `dupesMode()` normalization instead of silently collapsing to FAM.
+- Fixes the main Nuzlocke Config marquee so SPLIT displays as SPLIT instead of OFF.
+- Restores Movement Assist normalization to its documented OFF / HOLD B / ALWAYS range.
+- Adds the missing Dev decision trace for Party Size Limit catch refusals without making that hard refusal eligible for progression-catch override.
+- Strengthens Release Safety around enum range → normalization → UI label → runtime dispatch for SPLIT Dupes.
+- No save/API/schema/default changes. Runtime certification remains required.
+
+# 2.9.21 — Split-Evolution Dupes
+
+- Expanded Dupes Clause from OFF / SPEC / FAM to OFF / SPEC / FAM / SPLIT.
+- SPLIT preserves duplicate ancestry within a branch but allows sibling split-evolution branches to remain eligible.
+- Branch checks traverse live merged/provider evolution rows and fail open on incomplete custom metadata.
+- Preserved FAM as the default and retained legacy boolean coercion to FAM; no save migration or schema bump.
+- Updated Nuzlocke-owned rule labels, Gen-II applicability text, World Building copy, and public documentation.
+- TEST REQUIRED: exact-edition runtime certification for linear families, split families, custom/provider evolution graphs, Failed Encounters, Shiny Clause, and Randomizer combinations.
+
+# 2.9.20 — Special Acquisition Policy expansion
+
+- Added independent **Gift Slot Policy** and **Trade Slot Policy** controls: AREA preserves historical One Per Area consumption; BONUS records the acquisition without consuming the ordinary area slot.
+- Gift Slot Policy applies to the existing gift family, including fossils and Game Corner prize Pokemon when they arrive through gift provenance.
+- Existing **Gift Pokemon** and **In-Game Trades** allow/deny rules remain independent transaction-legality controls. Species bans, Type Locke, Maximum BST, party limits, and other acquisition legality continue to apply in BONUS mode.
+- BONUS mode bypasses only ordinary encounter-slot occupancy; it does not bypass species legality or mutate/delete post-transaction external acquisitions.
+- Existing saves default to AREA, preserving 2.9.19 behavior without a Save Schema bump.
+- No Runtime PASS is claimed; exact-edition transaction and tracker testing remains required.
+
+# 2.9.20 — Release Safety self-audit hardening
+
+- Repaired stale Release Safety source tripwires exposed by executing the shipped self-audit against the current source tree.
+- Updated World Building failed-encounter critical-callsite detection (`key` -> `area`) without changing gameplay behavior.
+- Updated Difficulty Review checks to protect semantic function/title presence rather than frozen call/assignment shapes.
+- Reconciled Gen-II healing, encounter-feedback, Randomizer ownership, options-screen-count, and current Shiny target assertions with their current owners/source shapes.
+- Fixed public-document hygiene auditing so ordinary gameplay/API uses of the word “handoff” are not mistaken for internal continuity-document leakage; removed one actual historical internal-governance phrase.
+- Hardened package/document drift checks around document-role version cadences and release-note subtitles instead of requiring every maintained document heading to equal the player build.
+- No gameplay rules/defaults, Save Schema, Compatibility API, Randomizer algorithm, ownership behavior, or Runtime PASS evidence changed.
+- Static/Semantic PASS; runtime behavior remains inherited and runtime certification debt is unchanged.
+
+# 2.9.18 — End / Abandon Run
+
+- Added **END RUN** to the Nuzlocke-owned NUZ MENU.
+- Added explicit **ABANDON RUN** lifecycle handling backed by the existing durable `run.abandoned` Run History v2 event.
+- Abandonment is deliberately distinct from natural progression-owned completion: the UI cannot manufacture a completed run.
+- Destructive confirmation defaults to **NO**, is idempotent/deduped per run, and commits durable abandonment before disabling the Nuzlocke master switch through the ordinary rule setter.
+- Successful abandonment opens the Almanac so the player can immediately view the final recap; completed/already-abandoned runs are read-only in END RUN.
+- Added lifecycle DEV health and Release Safety contracts. No Save Schema, public API, Randomizer algorithm, compatibility ownership, or Runtime PASS change.
+
+## 2.9.17
+- Strict child of exact packaged 2.9.16 (`50e00064fe29c29ef1e5114f22861b75693bdd07283ed04c0cc9e6fccdd69eaa`).
+- Added a translated, read-only Almanac / Run Recap under NUZ MENU.
+- Almanac summarizes durable Run History v2 totals for catches, deaths, badges/progression, failed encounters, blackouts, forgiveness, completion/abandon state, rule-integrity evidence, and recorded Randomizer run metadata.
+- Added explicit PARTIAL/COMPLETE history-coverage presentation so legacy or pruned detail is never guessed.
+- Added read-only Almanac DEV health and Release Safety contracts; the viewer creates no parallel save ledger and consumes no Randomizer RNG.
+- Save Schema remains 5; Run History remains v2; no API/default/support-level changes or new Runtime PASS are claimed. RUNTIME TEST REQUIRED.
+
+## 2.9.16
+- Strict child of exact packaged 2.9.15 (`78339f693cfcbb740104eadef3ac5da6359f3d419300f514df7d909542500803`).
+- Added a translated, read-only Graveyard Viewer under NUZ INFO with chronological fallen-Pokémon list and per-Pokémon memorial details.
+- Graveyard projects existing `nuzlocke_history` DEAD/REVIVED state, Run History v2, and the F. TOKEN dead archive; no duplicate graveyard ledger or Save Schema bump was introduced.
+- Future death records preserve optional level enrichment; legacy missing fields remain UNKNOWN rather than inferred.
+- Added read-only Graveyard Health diagnostics and Release Safety regression checks.
+- RUNTIME TEST REQUIRED; no new Runtime PASS claimed.
+
+## 2.9.15
+- Strict child of exact packaged 2.9.12 (`b876bfc720d430142af7aab50da54387d78c3dfe51cc1203ce6169abb91cd13d`).
+- Fixed tracker caught-area and catch-total counters so stale/untracked area keys no longer inflate current player-facing tracker/Pokegear counts.
+- Applied the same tracked-area filter to the optional Pokegear integration's duplicated area counters.
+- Added a Release Safety regression check for current-area count filtering.
+- No Save Schema, Compatibility API, Randomizer algorithm, defaults, support-level, or Runtime PASS change.
+
+## 2.9.12
+- Strict child of exact packaged 2.9.11 (`cfe5b25ba03c4916fe7d9ab3c9dbaadbdd528e09eee62133406d2980ef2dc63b`).
+- Added the missing `FIELD_ITEMS` ↔ `TM_LOCATIONS` entry to the declarative Randomizer compatibility matrix, documenting the implemented precedence contract for authored TM pickups.
+- Fixed R/B/Y Elite Four progression to use the transactional league-progression path, so Elite Four victories can be deduped and recorded in Run History like Gym Leaders, GSC stages, and the Champion.
+- Added Release Safety checks for both repaired contracts.
+- No Save Schema, Compatibility API, Randomizer algorithm, defaults, support-level, or Runtime PASS change.
+
+## 2.9.11
+- Strict child of exact packaged 2.9.10 (`58ad613dab705ec6fbe3cacd228f3f20f2a065f3896fcdd30ee7c972c25e9d60`).
+- Fixed audit-confirmed compatibility drift by declaring `DRAMATIC_SHAPE` in `manifest.json` optional dependencies.
+- Added `dramatic_shape_optional_dependency` to Release Safety so the manifest and compatibility registry must remain synchronized.
+- No gameplay/schema/API/Randomizer/default/Runtime PASS change.
+
+## 2.9.10
+- Added explicit DEV hook-health coverage for Random TM Locations (`TM_LOCATIONS` / `random_tm_locations`) so shared pickup-wrapper/session drift cannot fail silently behind Field Item coverage.
+- Fixed `RunHistory.list(..., {limit=N})` to return the most recent matching tail when no `after_seq` cursor is supplied; cursor-based calls keep forward-pagination behavior.
+
+## 2.9.7
+- DEV/diagnostics completeness and lifecycle-contract audit. Protects observational diagnostics, explicit lifecycle stages, and the rule that self-test evidence cannot become Runtime PASS.
+
+## 2.9.7
+- Final static Randomizer contract audit covering all ten subsystems, deterministic/persisted mappings, ownership boundaries, and unresolved Gen-II trainer/field-item runtime debt. No new Runtime PASS.
+
+# 2.9.7 — Compatibility registry reconciliation
+
+- Strict child of exact packaged 2.9.4 (`f575985792631e70812c959b39b3ef62b01cedff99b710916b009d1dcc42113d`).
+- Reconciles explicit compatibility adapters, manifest optional-dependency signaling, legacy-reviewed targets, presentation-only targets, and explicit conflicts/exclusions.
+- Adds a read-only Release Safety registry audit covering current high-overlap target identities and required exclusions.
+- Preserves `kanto_ascendant` as explicit conflict/do-not-combine and absent from optional dependencies; preserves SHINY_POKEMON as a target without reciprocal optional dependency.
+- Keeps Dex Overflow and Safari All legacy-reviewed rather than inventing current-source certification.
+- No gameplay ownership is inferred from manifest presence or load order, and no Runtime PASS is promoted.
+- No gameplay defaults, Save Schema, public API, Randomizer algorithm, or edition-support level changed.
+
+# 2.9.4 — Acquisition/provenance completeness audit
+
+- Strict child of exact packaged 2.9.3 (`cf5a83385d3d101bf839b7ac2ec446564b1cbf1ee09eaa824fe19b531beb456a`).
+- Audits acquisition/provenance coverage across wild/static/roaming captures, starters, gifts, in-game trades, fossils, Game Corner prizes, eggs/Day Care, scripted fixed sources, Wonder Trade, Stadium/transfer imports, external imports, and progression-required acquisitions.
+- Adds a read-only `acquisitionProvenanceCoverageAudit()` inventory; it consumes no RNG and mutates no gameplay/save state.
+- Reaffirms that unknown imported/edited Pokémon fail open as unverified rather than consuming guessed encounter provenance, and post-mutation acquisition events are observation/reconciliation seams rather than destructive rollback authority.
+- Repairs inherited independent Release Safety parent inputs so they again point at the exact immediate packaged parent instead of stale 2.9.1 metadata.
+- No gameplay defaults, Save Schema, public API, Randomizer algorithm, or Runtime PASS evidence changed.
+
+# 2.9.3 — External healing/services compatibility audit
+
+Strict child of exact packaged 2.9.2 (`aeb489f59364cbb496f2b7f1bff3dcd686ff5b78ac73a635d9caf654704757fa`). Audits healing as separate semantic surfaces: Center, Mom, field-item, battle-item, story, and external/post-battle convenience healing. Revalidates the Gen-II `special HealParty` service gate and its map/service classification, preserves unrelated story healing, retains survivor-only composition for external overhaul healing, and protects durable `nuzlockeDead` state from revival. Adds a static Release Safety healing/service ownership audit. No gameplay defaults, schemas/APIs, deterministic Randomizer behavior, or Runtime PASS status change.
+
+# 2.9.2 — Battle-stack compatibility audit
+
+- Strict child of exact packaged 2.9.1.
+- Re-audits G9 Battle Engine 1.2.3, `g9-battle-engine-beta` 2.0.2, QoL Toggles 1.30.8 and Nuzlocke battle-policy overlap.
+- Preserves external modern combat/stat ownership only for advertised dimensions while keeping native Gen-II DVs identity-bearing and Nuzlocke challenge policy on narrow semantic seams.
+- Adds a Release Safety battle-stack ownership audit covering G9 scope, lifecycle observe-only status, trainer/item/battle-finish composition, native Gen-II party routing, held-item semantics and the case-specific QoL Poison Save precedence.
+- Adds no speculative private battle-engine patch and claims no new Runtime PASS.
+
+# 2.9.1 — Party-stack compatibility audit
+
+- Audits the current party-stack boundary against Modern Party UI 0.4.0, QoL Toggles 1.30.8, PokéPC Followers 0.5.1, Followers EX 1.0.19, PotatoVoxel 1.9.6, and the protected native Gen-II party/item routing.
+- Records Modern Party UI as a Gen-I presentation owner only: its screen-record replacement does not transfer ownership of party targeting, TM/HM targeting, trades, forced battle switches, field moves, or other engine party-controller actions.
+- Reaffirms that Nuzlocke must not wrap Gen-II PartyMenu.new/openSubmenu/submenuItems for ordinary field features and must preserve native BattleState:openParty behavior.
+- Keeps the narrow Gen-II party-target item and held-item legality seams already required by Nuzlocke rules; no new broad PartyMenu interception is added.
+- Reaffirms follower/voxel mods as presentation/control companions rather than Nuzlocke party-state authorities; durable death, party-size legality, encounter provenance, and challenge rules remain Nuzlocke-owned.
+- Adds Release Safety tripwires for the Modern Party UI party-controller ownership contract.
+- No gameplay default, save schema, compatibility API, diagnostics API, translation API, Run History format, or Randomizer algorithm changes. Combined runtime certification remains required.
+
+# 2.9.0 — Full external documentation and code audit
+
+- Strict child of exact packaged 2.8.99 (`db8c1fc55de631685d956d613fc10e38f73e8506d82affaaeb339aded0c0fbfc`).
+- Restores the requested 2.9.x numbering convention: 2.9.0, 2.9.1, …, 2.9.10, 2.9.11.
+- Repairs stale executable and independent Release Safety parent metadata to the actual 2.8.99 immediate parent.
+- Advances stale Release Safety current-engine assertions from Gen1Recomp 0.2.33 to 0.2.36 and requires the 0.2.34–0.2.36 profiles while preserving historical audit aliases.
+- Corrects the Randomizer release-documentation package expectation from 30 to the canonical 31-file package contract.
+- Reconciles README, User Guide, API, Compatibility, Feature Confidence, Documentation Changelog, Release Notes, manifest/build identity, and current support wording.
+- Corrects current Randomizer scope from nine to ten ownership methods by including separate TM Locations.
+- Corrects stale current-facing Crystal “unsupported” wording; Crystal remains explicit alpha support.
+- No gameplay rules/defaults, save schema, public API versions, Run History version, or Randomizer algorithm changed. No new Runtime PASS claimed.
+
+## 2.8.99
+
+- Internal process-governance maintenance release. No gameplay behavior, compatibility API, save schema, diagnostics API, translation API, or Randomizer algorithm changes.
+- Gen1Recomp reviewed baseline remains 0.2.36; exact-edition runtime certification remains pending.
+
+# 2.8.98 — Gen1Recomp 0.2.36 Compatibility Refresh
+
+- Advances the source/documentation audit marker from Gen1Recomp 0.2.33 to 0.2.36.
+- Adds engine compatibility profiles for 0.2.34, 0.2.35, and 0.2.36; Mod API remains 2 and upstream Save Format remains 5.
+- Reviews the 0.2.33→0.2.36 forward release delta, including current ONLINE tournament/spectator/team-selection/remote-trade lifecycle changes, without bypassing engine ONLINE content-mod policy or claiming new gameplay ownership.
+- Keeps the supported engine range at `>=0.2.24 <2.0.0`.
+- No Nuzlocke Save Schema, Compatibility API, Diagnostics API, Translation API, Run History, or Randomizer algorithm bump.
+- No new Runtime PASS claimed.
+
+# 2.8.97 — Transfer / Stadium / Crystal-251 provenance audit
+
+- Revalidates the explicit-only Stadium acquisition-provenance contract and keeps presentation/importer detection separate from Pokémon acquisition.
+- Records upstream Gen-I/Gen-II wire preservation behavior without treating serialization as a gameplay transaction seam.
+- Explicitly classifies current Gen-II link trade as not yet a usable/certified acquisition transaction; no speculative veto or private hook added.
+- Clarifies Wonder Trade as post-mutation observe-only and preserves the no-destructive-rollback rule.
+- Unknown imported/edited Pokémon remain unverified rather than consuming guessed encounter provenance.
+- No save/API/schema/randomizer-algorithm bump and no Runtime PASS claimed.
+
+# 2.8.97 — Type-system compatibility audit
+
+- Unifies Game Difficulty type-sensitive decisions with Nuzlocke's normalized merged/provider species-facts path.
+- Revalidates Type Locke and Random Starter Trio Typing against the live merged species/type-chart architecture.
+- Retains Delta Type 1.2.0 and `steel_typing` 2.0.1 compatibility boundaries without private type-chart copying.
+- No save/API/schema/Randomizer algorithm bump; no Runtime PASS claimed.
+
+# 2.8.97 — Expanded species / Dex-provider compatibility audit
+
+- Revalidates the generic merged-species/provider path used by Maximum BST, species bans, Type Locke and Randomizer pools.
+- Retains Dex Overflow 0.1.1 as legacy reviewed because no newer/current public source was resolved.
+- Fixes normalized species facts so provider-supplied evolution data is used when the merged species row lacks evolutions.
+- Re-establishes Lua syntax validation using `texluac -p`; the 2.8.94 validation failure was a command-line misuse of `texlua -e`, not a source failure.
+- No schema/API/Randomizer algorithm bump; no Runtime PASS claimed.
+
+# 2.8.97 — Bag/inventory ecosystem compatibility audit
+
+- Adds explicit targets for Useful Bag 2.6.3, Modern Bag UI 0.4.5 and Bag Sort 0.1.0.
+- Separates presentation/storage/order ownership from semantic item legality.
+- No schema/API/Randomizer algorithm bump; no Runtime PASS claimed.
+
+# 2.8.97 — G9 Battle Engine lifecycle compatibility refresh
+
+- Refreshes published G9 Battle Engine to 1.2.3 and adds current combat-only `g9-battle-engine-beta` 2.0.2 as a separate Gen-II target.
+- Modern-stat ownership can resolve through either G9 id. Battle lifecycle/held-item/status surfaces remain observe-only and TEST REQUIRED; no speculative private battle patches.
+- Repairs stale Kanto Ascendant optional-dependency prose from 2.8.92.
+- No schema/API/Randomizer algorithm bump; no Runtime PASS claimed.
+
+# 2.8.97 — Safari / expanded-content acquisition compatibility audit
+
+- Re-audits Safari All, Kanto Ascendant and VanillaPlus acquisition/encounter overlap.
+- Safari All 1.1.0 is retained as a legacy scoped target but is no longer represented as current-index verified; no newer public source was found in the current mod index.
+- Refreshes Kanto Ascendant from historical 6.5.4 coexistence assumptions to current 6.5.17: its manifest explicitly conflicts with standalone Nuzlocke and includes its own ASC RUN Nuzlocke system. Removes `kanto_ascendant` from Nuzlocke optional dependencies and adds a read-only unsupported-stack warning.
+- Revalidates VanillaPlus 0.3.0 progression captures, badge-scaled Rocket ambushes, captain healing and random rewards. Existing progression exceptions remain exact and narrow; dead-Pokemon and item-use rules remain authoritative at their existing seams.
+- No save/API/schema/randomizer-algorithm bump and no new Runtime PASS.
+
+# 2.8.97 — The World 6.54.15 + Wonder Trade 1.2.1 compatibility refresh
+
+- Re-audits The World against current 6.54.15 documentation and refreshes the explicit target from 5.10.0 to 6.54.15 across Gen I and Gen II.
+- Records that current The World embeds Wonder Trader and declares standalone `wonder_trade` conflicting; adds a read-only stack warning when both are detected.
+- Re-audits standalone Wonder Trade 1.2.1. Its transaction still mutates the party before `pokemon.received` / `trade.completed`, so Nuzlocke remains observe-only and Wonderlocke remains disabled pending a safe pre-transaction cooperation seam.
+- No gameplay rule precedence is inferred from installation alone. No save/API/schema/randomizer-algorithm bump.
+
+# 2.8.97 — Gen-II Random Field Item Static Pipeline Audit
+
+- Performs the second planned no-runtime root-cause pass, focused on Gen-II visible item balls and native hidden/BG-event items.
+- Revalidates Gen1Recomp 0.2.33 `HiddenItems.ballPickupScript(item, quantity, objectId, sfxId)` and `HiddenItems.pickupScript(item, event)` signatures against Nuzlocke's direct-method wrappers; no upstream capability/signature gap was found in source.
+- Preserves the 2.8.88 method-specific ownership and deterministic mapping behavior; no speculative item-randomization rewrite is made.
+- Adds read-only decision evidence (`original`, mapped `choice`, source identity/context) and native pickup-script evidence showing the item embedded in `getitemname`/`giveitem` commands.
+- Adds `auditGen2FieldItemPipeline()` to verify both native builders and both live Nuzlocke-owned wrapper sessions without consuming RNG or materializing mappings.
+- Random Field Items remains runtime-unresolved until an exact-edition reproduction is tested.
+
+---
+
+# 2.8.89 — Gen-II Random Trainer Static Pipeline Audit
+
+- Performs a no-runtime root-cause audit of the Gen-II Random Trainers pipeline against Gen1Recomp 0.2.33's shared `trainer.party` contract.
+- Confirms the engine still exposes `trainer.party` on Gen II with the same class/party-index/roster semantics; no upstream capability gap was found in source.
+- Preserves the existing native Gen-II `Mon.new` rematerialization path and highest-priority final trainer authority; no speculative gameplay rewrite is made without runtime evidence.
+- Adds read-only `battle.started` accepted-roster evidence so DEV diagnostics can compare the finalizer's projected roster with the native `enemyParty` actually consumed by Gen-II battle.
+- Adds `auditGen2TrainerRandomizerPipeline()` for static hook-registration/order/native-constructor checks. It is explicitly static/observational evidence and cannot promote Runtime PASS.
+- Random Trainers remains runtime-unresolved until an exact-edition reproduction is tested.
+
+---
+
+# 2.8.88 — Method-Specific Item / TM Randomizer Ownership
+
+- Adds **Random TM Locations** as a separate Nuzlocke Randomizer option from **Random TMs**. Random TMs continues to change TM contents; Random TM Locations changes the TM item found at supported physical TM pickup sources while preserving HMs and native collection flow.
+- Adds an isolated deterministic `TM_LOCATIONS` stream and persisted source map so the new method does not perturb Starter, Encounter, Field Item, Learnset, Trainer, Evolution, Shop, TM-content, or Gift Item mappings.
+- Preserves historical Random Field Items behavior when Random TM Locations is OFF. When both are ON, the TM-only location method takes precedence for authored TM pickups.
+- Repairs the 2.8.87 external Field Item ownership path so delegation is enforced at the actual collection-time transformation seam rather than diagnostics/UI only.
+- Makes Item Randomizer ownership source-specific: Gen-II `gold_ball_items` owns visible item balls only and `gold_finder_items` owns native hidden/Itemfinder sources only; Gen-I `overworld_items` continues to own supported visible pickups.
+- Treats Pokémon Gen 1 Randomizer TM-location settings as ownership of the new TM-location method, not Nuzlocke TM-content randomization. Its ordinary/hidden item ownership is likewise source-method aware.
+- Keeps Gen 2 Randomizer+ `randomTMs` mapped to TM-content ownership because its current implementation rewrites TM assignments/compatibility rather than physical pickup locations.
+- Keeps the broader external-mod precedence philosophy provisional and case-specific pending later user review.
+- No Save Schema, Compatibility API, Diagnostics API, Translation API, or global Randomizer algorithm bump. Runtime coexistence certification remains required.
+
+---
+
+# 2.8.87 — External Randomizer Compatibility Ownership Refresh
+
+- Re-audits active external Randomizer targets against Pokémon Gen 1 Randomizer 0.46.4, Gen 2 Randomizer+ 2.9.0 release behavior, and Item Randomizer 1.1.1.
+- Expands `pokemon_randomizer` active-run delegation to source-confirmed Trainer, Evolution, Shop, ordinary field-item, and hidden-item ownership in addition to Starter/Wild/Learnset ownership.
+- Expands `gen_2_randomizer_plus` active-option delegation to Random Trainers, Random World Items, and Random TMs in addition to Starter/Wild/Learnset ownership.
+- Expands Item Randomizer Gen-II field-item delegation so `gold_finder_items` (native hidden/Itemfinder finds) is recognized alongside `gold_ball_items`.
+- Preserves installation-only fail-open behavior: no external Randomizer disables a Nuzlocke subsystem unless the matching external feature is positively active.
+- Records the Gen 2 Randomizer+ 2.9.0 release/source-manifest discrepancy for diagnostics: the published release advertises Gold/Silver support while the tagged source manifest still reports version 2.5.0 / Gold-only. Nuzlocke does not depend on that stale manifest version for ownership.
+- Downgrades the 2.8.86 external-convenience precedence statement from permanent governance to a provisional case-specific decision pending later user review.
+- No Save Schema, Compatibility API, Diagnostics API, Translation API, or Nuzlocke Randomizer algorithm bump. Combined-mod runtime testing remains required.
+
+---
+
+# 2.8.86 — QoL Toggles 1.30.8 Compatibility Hardening
+
+- Advances the reviewed QoL Toggles baseline from 1.24.1 to **1.30.8** and recognizes its current Gen-I/Gen-II scope.
+- Adds a narrow provider-helper guard so QoL **POISON SAVE** cannot clamp away a field-poison faint while Nuzlocke Permadeath is active; Permadeath OFF preserves QoL behavior.
+- Revalidates existing precedence for No TMs vs Unlimited TMs, No Held Items vs Gen-II held-item restoration, No Escape vs Instant Flee/quick-run conveniences, post-battle dead-mon pruning vs Heal After Battle, Auto-Repel vs No Repels, and HOLD-B running composition.
+- No save/API/schema/Randomizer algorithm bump. Runtime combination testing remains required.
+
+---
+
+# 2.8.85 — Kanto Reforged 1.5.3 Compatibility Revalidation
+
+- Revalidates the Kanto Reforged compatibility adapter against current **1.5.3** source, including its expanded Gen-I/Gen-II support.
+- Confirms the existing `core.host` scoped Random Spawn option contract, `ui.level_caps.capFor` soft-cap seam, Gen-I held-item catalog path, and native Gen-II held-item effect composition remain valid.
+- Revalidates Kanto Reforged fixed legendary/mythical encounter provenance already recognized by Nuzlocke.
+- Retains Kanto Reforged ownership of its content/battle systems while Nuzlocke remains authoritative for challenge legality, death state, encounter/capture policy, and the stricter active level cap.
+- No Save Schema, Compatibility API, Diagnostics API, Translation API, or Randomizer algorithm change. Combined-mod runtime certification remains separate.
+
+---
+
+# 2.8.84 — Gen1Recomp + UI Compatibility Freshness
+
+- Re-scanned the current Gen1Recomp release/main/dev state; 0.2.33 remains the current published gameplay/API baseline and no newer forward engine seam was identified.
+- Updates the Gen1 Modern UI reviewed baseline to 0.9.2 and records it as retired/frozen Gen-I legacy compatibility.
+- Updates Modern Party UI from the older 0.3.8 audit baseline to 0.4.0; presentation remains externally owned while source/engine controllers retain semantic actions.
+- Updates Wide Menus to 0.3.0 and revalidates Nuzlocke's `register`/`size` integration against the current documented export contract.
+- Retains `variable_width_kerning` as a passive legacy identity without inventing a current version.
+- Tracks Clean UI/`clean-ui-core` as a successor-watch architecture only; no installable target or dependency is claimed.
+- No gameplay, save schema, Compatibility API, Diagnostics API, Translation API, or Randomizer algorithm changes.
+
+---
+
+# 2.8.83 — Shiny-Ecosystem Voxel Target Completion
+
+- Completes the cross-project voxel/visual compatibility sweep against the maintained Shiny fork's current tree and historical integration work.
+- Adds **Dramatic Shape Voxel Mod 1.0.6** (`DRAMATIC_SHAPE`) as an explicit Gen-I presentation coexistence target.
+- Preserves Dramatic Shape as a target-only relationship rather than a manifest dependency, matching Shiny's historical integration model and avoiding unnecessary load-order constraints.
+- Retains all existing Nuzlocke targets including Shiny 1.2.20, Wilds 2.2.0, PokéPC Followers 0.5.1, Followers EX 1.0.19, PotatoVoxel 1.9.6, BATTLE_ART_VOXEL_FORK, translations, Randomizer integrations and other reviewed adapters.
+- Nuzlocke retains challenge rules, encounter/capture legality, tracker/progression state and gameplay transactions while Dramatic Shape owns its voxel/diorama presentation.
+- Adds Release Safety coverage so the explicit Dramatic Shape target cannot silently disappear.
+- No gameplay rule, save data, Randomizer mapping, public API/schema, dependency direction, or deterministic behavior changes. Combined-mod runtime certification remains separate.
+
+# 2.8.82 — Explicit Compatibility Target Alignment
+
+- Updates the explicit `SHINY_POKEMON` reviewed target from maintained fork 1.2.7 to the current published maintained fork **1.2.20**.
+- Adds **PokéPC Followers (Voxel Merge) 0.5.1** (`PokePCFollowers_VoxelMerge`) and **Followers EX 1.0.19** (`FOLLOWERS_EX`) as explicit optional Gen-I coexistence targets.
+- Removes Nuzlocke's reciprocal manifest `SHINY_POKEMON` optional-dependency edge because maintained Shiny 1.2.20 already declares `nuzlocke` optional; this prevents the Gen1Recomp loader from rejecting the pair as an optional-dependency cycle while preserving provider/API integration.
+- Preserves Nuzlocke's newer **Wilds of Kanto 2.2.0** audit rather than replacing it with Shiny 1.2.20's older 2.1.9 audit marker.
+- Preserves all existing Nuzlocke-specific compatibility adapters, translation targets, optional identities, ownership rules, and exact-edition confidence boundaries.
+- Adds Release Safety tripwires so the Shiny 1.2.20/PokéPC/Followers EX target declarations cannot silently disappear from a later build.
+- No gameplay rule, save data, Randomizer mapping, Compatibility API, Diagnostics API, Translation API, Run History format, or Randomizer algorithm behavior changes. New target declarations are not Runtime PASS claims.
+
+# 2.8.81 — DEV Stored-State Audit Coverage Accounting Fix
+
+- Strict child of exact packaged 2.8.80.
+- Fixes `storedStateAudit()` in `dev_diagnostics.lua` passing `present=false` for `randomizer_phase_h_economy_progression` even when `randomizerItemEconomyRegressionAudit` exists and executes.
+- The Phase-H economy audit now passes `present=true` in the function-present branch, matching sibling stored-state audits; the missing-function branch remains `present=false`.
+- This restores accurate `report.present` coverage accounting used by DEV diagnostics/assertions.
+- No gameplay behavior, rule defaults, Randomizer mappings, Save Schema, Compatibility API, Diagnostics API, Translation API, Run History format, or Randomizer algorithm version changed.
+
+# 2.8.80 — F. TOKEN Confirmation Safety
+
+- Fixes the failed-area F. TOKEN spend confirmation so directional input selects an explicit YES/NO value instead of toggling the current value after the first press.
+- Left/Up always selects YES; Right/Down always selects NO. Repeating the same direction is now idempotent and cannot flip the cursor to the opposite destructive choice.
+- No rule defaults, save schema, public API versions, Randomizer mappings, compatibility ownership behavior, or transaction semantics changed.
+- Exact runtime reproduction/confirmation remains required before marking this repair Runtime PASS.
+
+# 2.8.79 — Documentation Reconciliation
+
+- Reconciles current public documentation with the cumulative project contract without changing gameplay.
+- Preserves exact-edition support/confidence wording: R/B/Y mature baseline, Gold/Silver beta, Crystal alpha.
+- Reaffirms current public API/schema and compatibility ownership boundaries.
+- Keeps known Gen II Random Field Item/Trainer runtime failures and pending Crystal/engine certification explicit.
+- No gameplay rules, defaults, save schema, Randomizer mappings, deterministic namespaces, transactions, compatibility ownership behavior, or public API versions changed.
+
+# 2.8.78 — Gen1Recomp 0.2.30–0.2.33 Compatibility Audit
+
+- Strict child of exact 2.8.77 (`1c3e3d0e866a8010c42a534b73a4f33ae5f4c927fe92098b0f5c9b34ed4b8e69`).
+- Advances `recompCompatAudited` from 0.2.29 to 0.2.33 and adds profiles for 0.2.30–0.2.33.
+- Corrects upstream engine Save Format metadata: 0.2.24 is 4; 0.2.25–0.2.33 are 5.
+- Source-revalidates protected Gen II seams and the Crystal shiny-flash safety boundary without claiming a new runtime PASS.
+- Records `pokemon.level_visible` as a future Gen-I Blind Levels/No Level Info opportunity, distinct from Randomizer BLIND INFO.
+- Records Gen II save import/export, Pokedex registry, and MenuRepeat/transition integration opportunities.
+- Documents the Gen1Recomp 0.2.33 ONLINE arena's intentional `disableAll`/`cartOnly` ordinary-content-mod policy; Nuzlocke does not bypass it, while ordinary modded/LAN link remains `affects_link=true`.
+- Engine range, Save Schema 5, Compatibility API 36, Diagnostics API 1, Translation API 2, Run History v2, and Randomizer algorithm v1 remain unchanged.
+- Gen2 Random Field Items and Random Trainers remain unresolved; Crystal shiny exact-runtime certification and 0.2.30–0.2.33 smoke tests remain pending.
+
+# 2.8.77 — Migration / Compatibility / Randomizer Diagnostics Hardening
+
+- Strict child of exact 2.8.76 (`f673cae7db46c7c018a52483b2d6897008df6a40e47121380a3369863dd102c2`).
+- Fixes `save_migration.lua` shadow-store copy-on-read asymmetry: staged `after_value` tables are now returned through `deps.copy()` instead of exposing the journal's internal table by reference.
+- Extends the transaction/self-test harness with nested shadow copy-isolation coverage.
+- Advances Compatibility API **35 → 36** because `nuzlocke_compat.runtime_environment` now exposes the current environment string rather than an accidental function object.
+- Makes `Content.registerBundle()` prevalidate the entire content/provider bundle before mutation, preventing a bad late child or Randomizer policy from leaving partial registrations.
+- Adds `Content.validateBundle()` and a focused bundle atomicity self-test proving an invalid child causes zero registrations.
+- Corrects Gen2 visible Field Item Hook Health to use `__nuzlockeRandomFieldItemBallSession2808`.
+- Adds Gen2 hidden Field Item Hook Health for `HiddenItems.pickupScript` / `__nuzlockeRandomHiddenItemSession2808`.
+- Adds read-only semantic `trainer.party` Hook Health using the actual Runtime hook chain, including primary/finalizer registration and last Gen2 trainer Randomizer evidence.
+- Adds Release Safety tripwires for all of the above defect families.
+- Save Schema remains 5; Diagnostics API remains 1; Translation API remains 2; Run History remains v2; Randomizer algorithm remains 1.
+- Reported Gen2 Random Field Item and Random Trainer gameplay failures remain open pending runtime diagnosis; this release improves diagnostic truthfulness and does not claim those gameplay paths fixed.
+
+# 2.8.76 — Ball Policy / Forgiveness Recovery / Six-Edition Audit Fixes
+
+- Strict child of exact 2.8.75.
+- R/B/Y native Ball use now fails closed if the authoritative item-use policy evaluator throws.
+- Policy exceptions produce `policy_error`, preserve diagnostic detail, enter the existing denial/refund path, and cannot arm encounter bookkeeping or consume the encounter Ball budget.
+- Normal allowed/denied Ball behavior and the existing progression-catch override remain unchanged.
+- Adds `rbyBallPolicyErrorSelfTest()` and a Release Safety runtime gate for the policy-error normalization path.
+- Fixes `forgiveness.lua` treating any `encounter_states[key]` row as a FAILED projection.
+- F. Token recovery now recognizes only `status == "FAILED"` as failed; `CAUGHT`, missing, and unrelated states do not falsely block transaction reconciliation.
+- Adds `forgivenessFailedProjectionStateSelfTest()` covering FAILED, CAUGHT, other, missing-status, and nil states.
+- Updates World Building catalog certification from five to six exact editions: Red, Blue, Yellow, Gold, Silver, Crystal.
+- Removes repeated magic-number edition counts from certification math and derives totals from an explicit exact-edition list.
+- The World Building audit now also verifies the exact edition-ID set, not just its count.
+- No gameplay tuning, Difficulty profiles, acquisition rules, translation behavior, Randomizer behavior, Save Schema, or public API version changed.
+
+# 2.8.75 — Run History Death Boolean Evidence Fix
+
+- Strict child of exact 2.8.74.
+- Fixes `RunHistory.recordDeath()` using Lua `and/or` pseudo-ternary logic for the `shiny` field.
+- An explicit caller-supplied `shiny=false` is now preserved exactly.
+- Live Pokemon shiny detection is used only when the caller leaves `fields.shiny` unset.
+- Adds `RunHistory.deathShinyBooleanSelfTest()`, which supplies a Pokemon that resolves shiny while explicitly recording `shiny=false` and verifies the archived death payload remains false.
+- Adds Release Safety guards preventing reintroduction of the broken `and/or` form.
+- No gameplay rule, Difficulty, acquisition, transaction, translation, Randomizer, UI, save schema, or public API behavior changed.
+
+# 2.8.74 — Gen-I Gift Provenance Consistency
+
+- Strict child of exact 2.8.73.
+- Fixes `MAGIKARP` being omitted from the deterministic common-gift fallback table.
+- Source-less compatibility events for the Route 4 gift Magikarp can now be classified as deterministic gift provenance consistently with the authoritative Gen-I gift catalog.
+- Adds `acquisitionCatalogConsistencySelfTest()`.
+- The self-test derives expectations from `GIFT_LOCATIONS` rather than maintaining another hardcoded list.
+- Every version-neutral (`version=nil`) Gen-I gift must resolve as deterministic fallback in Red, Blue, and Yellow.
+- Current catalog count: 9 version-neutral gifts.
+- The self-test explicitly skips non-Gen-I editions because this catalog is not active there.
+- Adds Release Safety guards for the Magikarp fallback and catalog-driven self-test.
+- No unrelated acquisition, trade, encounter, toast, UI, Difficulty, Randomizer, translation, save, or API behavior changed.
+
+# 2.8.73 — Transaction Identity + External Item Policy Hardening
+
+- Strict child of exact 2.8.72.
+- Gameplay Transaction identity now protects the requested payload in addition to transaction ID and kind.
+- New transaction journals store an immutable request-payload fingerprint.
+- New committed receipts retain that compact fingerprint.
+- Reusing the same ID and kind with a different pending payload now fails with `transaction_payload_mismatch`.
+- Reusing the same committed ID and kind with a different payload now fails with `receipt_payload_mismatch`.
+- Legitimate crash/reload replay remains allowed when ID, kind, and original request payload match.
+- Checkpoint fields may still extend the working transaction payload without invalidating a legitimate replay because the fingerprint represents the original request, not mutable checkpoint state.
+- Legacy pre-2.8.73 receipts without a fingerprint remain readable and retain prior compatibility behavior; historical payload detail is not invented.
+- Expanded the Gameplay Transaction self-test for pending-payload collision, receipt-payload collision, and legitimate checkpoint replay.
+- Repaired the pre-existing future-version self-test fixture so it uses a registered handler and actually reaches the intended `newer_transaction` guard.
+- External `ItemAPI.evaluate()` now fails closed if the authoritative item-use policy evaluator throws.
+- Policy exceptions return `allowed=false`, `rule/reason/code=policy_error`, preserve the error detail diagnostically, and cannot silently authorize alternate Bag/shortcut/auto-item use.
+- Normal allowed and denied item-policy behavior is unchanged.
+- If no authoritative item-policy evaluator exists at all, the compatibility fallback remains unchanged.
+- Adds Release Safety guards for transaction payload identity and external item-policy fail-closed behavior.
+- No gameplay feature, Difficulty profile, translation target, save schema, public API version, or Run History version changes.
+
 # 2.8.72 — Difficulty UX, Silver/Crystal Profiles, and Full Documentation
 
 - Strict child of exact 2.8.71.
@@ -7480,3 +8366,30 @@ Apply the four pre-runtime code-review decisions with the smallest practical cha
 - Added official Crystal shiny color pairs for all Gen I species as data-only runtime palette input; no ROM-derived sprites are shipped.
 - Gen II keeps native Gen1Recomp shiny identity/palette ownership through `shiny.roll` and `mon.shiny`; Nuzlocke only adds its configured intro cue while it owns the shiny system.
 - Compatible external shiny providers still cause immediate full generation/presentation stand-down.
+
+
+## 2.9.8
+- Added a static cross-rule interaction matrix covering the highest-risk policy combinations and shared ownership seams.
+- Added a focused save migration/idempotence audit for presence/value preservation, isolated dry-run state, schema-marker-last ordering, and exactly-once transaction recovery.
+- No gameplay, schema/API, Randomizer algorithm, or Runtime PASS change.
+
+
+## 2.9.9
+- Added a hook lifecycle/install-order Release Safety audit covering registration, installer health, load-order resolution, and protected native Gen-II ownership.
+- Added edition-capability and failure-policy reconciliation across all six declared editions.
+- Formalized existing failure boundaries: unknown custom metadata generally fails open; durable ambiguity/policy exceptions fail closed; optional compatibility installation remains fail-soft.
+- No gameplay, schema/API, Randomizer algorithm, or Runtime PASS change.
+
+## 2.9.15
+- Added Action/Legality API 1, Services API 1, and Capability API 1 as additive semantic interoperability surfaces.
+- The new APIs delegate to existing policy owners and do not create new rule state, save state, or gameplay defaults.
+
+## 2.9.15
+- Added Acquisition/Provenance API 1 by formalizing the existing acquisition preflight/commit lifecycle and explicit observation-only mode.
+- Added Event Contract 1 for non-persistent semantic interoperability events; Run History remains the durable chronology owner.
+
+## 2.9.34
+- Batched three low-risk static ownership moves into existing `rule_catalog.lua`: movement-assist labels, battle-scope labels, and the Nuzlocke-authored translation source catalog.
+- Preserved existing exported helpers and runtime behavior contracts; no runtime-sensitive subsystem was relocated.
+- No save/API/Randomizer algorithm/default/support-level/Runtime PASS change.
+

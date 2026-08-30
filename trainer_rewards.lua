@@ -293,8 +293,8 @@ function M.ensureForgivenessTokenItem(game)
     return true
 end
 
-function M.forgivenessTokens()
-    local game = d.getCurrentGame()
+function M.forgivenessTokens(game)
+    game = game or d.getCurrentGame()
     local save = game and game.save
     local id = mod.exports.__beta26.forgivenessTokenItemId
     local inventory = save and save.inventory
@@ -638,13 +638,22 @@ function M.recordLeagueProgression(battle, result)
     for _, entry in ipairs(d.eliteFourCaps) do
         if trainerIdentityEquals(identity, entry.id)
             or trainerIdentityEquals(identity, entry.name) then
-            local defeated = d.eliteFourDefeated()
-            if defeated[entry.id] ~= true then
-                defeated[entry.id] = true
-                local okWrite = checkedSaveSet("nuzlocke_e4_defeated", defeated)
-                if okWrite ~= true then return false end
-            end
-            return true
+            -- 2.9.12: Elite Four progression must use the same transactional
+            -- progression/history path as R/B/Y Gym Leaders, the Champion,
+            -- and GSC stages. The prior direct save write created a durable
+            -- Run History hole for all four Elite Four victories.
+            return commitLeagueProgression(
+                "league_progression:rby:e4:" .. tostring(entry.id), {
+                    storage_mode = "table",
+                    storage_key = "nuzlocke_e4_defeated",
+                    entry_key = entry.id,
+                    history_required = historyRequired,
+                    badge_name = entry.name,
+                    badge_dedupe = historyRequired
+                        and ("badge:rby:e4:" .. tostring(entry.id)) or nil,
+                    leader = entry.name,
+                    region = "KANTO",
+                })
         end
     end
 

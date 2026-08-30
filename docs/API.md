@@ -1,3 +1,93 @@
+<!-- Current build: 2.9.72 -->
+# Nuzlocke API — 2.9.72
+
+> Current compatibility/documentation baseline: **2.9.72**.
+
+## Current public contract
+
+## UI presentation-ownership contract
+
+Conditional gameplay authority remains descriptive. `gameplayAuthorityFor(surface)` returns the descriptor, while `presentationOwnsGameplay(surface)` returns true only for unconditional ownership; callers must not treat `nuzlocke_randomizer_when_enabled` as active without resolving Randomizer state.
+
+
+`mod.exports.nuzlocke_ui_system` now exposes UI API version 8 with presentation-contract version 1. `presentationPolicyFor(surface)` reports the declared renderer/controller ownership boundary for Nuzlocke screens, Party, PC, Pokédex, Bag, Mart, battle art/HUD, overworld rendering, generic ListMenu composition, and trainer-party presentation. `externalPresentationAllowed(surface)` is a convenience query for presentation integrations.
+
+Presentation ownership never grants challenge/gameplay authority. In particular, an external Party/PC/battle-art renderer may own presentation while the engine retains the controller and Nuzlocke/Randomizer retains trainer-party/challenge authority when enabled.
+
+## UI input-semantics contract
+
+`mod.exports.nuzlocke_ui_system` exposes presentation-only UI metadata with UI API version 7 and input-contract version 1. `inputPolicyFor(screenId)` reports whether vertical/horizontal movement is repeat-safe, whether activation/back requires an edge-triggered action, and whether a screen is a destructive confirmation. `isRepeatSafe`, `requiresEdge`, `isDestructive`, and `applyInputContract` are convenience helpers.
+
+This contract describes Nuzlocke-owned UI intent only. It does not intercept input, synthesize repeats, or claim ownership of external/native UI behavior.
+
+
+- Compatibility API: **37**
+- Diagnostics API: **1**
+- Translation API: **2**
+- Run History storage/API: **v2**
+- Randomizer algorithm: **v1**
+- Nuzlocke Save Schema: **5**
+- Gen1Recomp source/documentation audit marker: **0.2.41**
+
+2.9.40 does not change the public API or save schema. Its compatibility-evidence projection and Release Safety self-audits remain private/internal diagnostics and do not change the public provider contract.
+
+## Randomizer ownership registry
+
+The registry contains ten methods: `STARTER`, `ENCOUNTERS`, `FIELD_ITEMS`, `LEARNSETS`, `TRAINERS`, `EVOLUTIONS`, `SHOPS`, `TMS`, `TM_LOCATIONS`, and `GIFT_ITEMS`. `TMS` owns TM contents; `TM_LOCATIONS` owns physical TM pickup identity. Named adapters may resolve these independently. Generic provider capability vocabulary is unchanged.
+
+## Compatibility semantics
+
+Provider detection, advertised capability, selected ownership, degraded state, and Nuzlocke fallback are distinct states. Load/dependency order may determine when an adapter can inspect a provider, but it does not itself grant gameplay ownership. Presentation ownership is not gameplay authority.
+
+Expanded species/type consumers use normalized merged/provider facts. Unknown provider schemas fail open. Acquisition provenance is explicit; presentation/import detection alone does not relabel a Pokémon acquisition. Wonder Trade remains post-mutation observe/reconcile only.
+
+
+## Random Field Item visible-source contract
+
+For Gen I visible item balls, Nuzlocke composes through Gen1Recomp's public `world.talk` hook. It temporarily projects the deterministic replacement into the native object's `def.item`, calls the downstream hook/native handler exactly once, and restores the authored definition afterward. This keeps bag-capacity checks, removal flags, item-name text, sounds, and other native pickup behavior in engine ownership. Gen-II visible and hidden field items continue to use their generation-specific `HiddenItems` script-builder seams.
+
+`randomFieldItemEditionProfile(game).visibleSource` reports `world.talk` for Gen I and `HiddenItems.ballPickupScript` for Gen II. This is descriptive metadata and does not change Randomizer algorithm versioning.
+
+## Engine compatibility metadata
+
+Profiles through Gen1Recomp 0.2.41 are represented with Mod API 2 and the applicable upstream save-format metadata. The 0.2.41 profile is source reviewed; engine pacing remains engine-owned and exact-edition runtime certification remains separate. Nuzlocke does not bypass Gen1Recomp ONLINE policies that disable ordinary content mods.
+
+## Diagnostics contract
+
+The developer diagnostics surface remains Diagnostics API 1. 2.9.71 adds the read-only `field_item_pipeline` diagnostic. It reports the active edition's field-item hook/script-builder health plus the most recent observed field-item decision/projection when available. The diagnostic never requests a writable Randomizer seed or materializes unseen mappings.
+
+
+
+Passive diagnostics are observational: they do not consume Randomizer RNG, materialize unseen mappings, mutate save/rule state, select ownership, or repair gameplay. Gen-II Random Trainer accepted-roster evidence and Gen-II Field Item decision/native-script evidence remain diagnostic aids for unresolved runtime failures.
+
+2.9.39 adds private/internal `mod.exports.__beta26.Dev.ruleCertification(key, game)` and `Dev.explainRuleStatus(key, game, preGame)`. They project the existing rule catalog/availability/evidence contracts read-only and do not extend public Diagnostics API 1. Runtime evidence rows are exact-edition and remain `REQUIRED` where no exact evidence is recorded.
+
+## Correctness hardening — 2.8.76
+
+No public API version changes.
+
+R/B/Y native Ball-use policy failures now fail closed. Forgiveness recovery requires an exact FAILED encounter state rather than mere row presence. World Building certification now enumerates all six exact editions.
+
+## Run History death-event boolean preservation — 2.8.75
+
+No public API version change.
+
+`RunHistory.recordDeath()` now treats an explicitly supplied `shiny=false` value as authoritative and only falls back to live Pokemon shiny detection when the field is absent.
+
+## Acquisition catalog consistency — 2.8.74
+
+No public API version change.
+
+The Gen-I deterministic gift fallback now includes Route 4 Magikarp, and the acquisition catalog exposes an internal consistency self-test that derives its expected common gifts from the authoritative catalog.
+
+## Transaction/item-policy hardening — 2.8.73
+
+No public API version changes.
+
+The internal Gameplay Transaction Coordinator now treats the original request payload as part of durable transaction identity. New journals/receipts carry a compact payload fingerprint while legacy receipts remain readable.
+
+The existing public item-use compatibility surface now fails closed with `policy_error` if Nuzlocke's authoritative evaluator throws. This is a safety correction to existing semantics, not a new API shape.
+
 ## Difficulty documentation/edition contract — 2.8.72
 
 No public API version changes.
@@ -6,18 +96,38 @@ Built-in Difficulty selection is now exact-edition aware for Red, Blue, Yellow, 
 
 The in-game profile summary is a concise presentation surface. The authoritative player-facing mechanical specification for every built-in profile lives in `docs/USER_GUIDE.md` under **Difficulty Profiles — Full Mechanical Reference** and must be updated whenever a profile's enforcement fields change.
 
-# Nuzlocke API — 2.8.72
+# Historical Nuzlocke API — 2.8.76
 
 ## Current API versions
 
 - **Mod API:** 2
-- **Compatibility API:** 35
+- **Compatibility API:** 37
 - **Diagnostics API:** 1
 - **Save Schema:** 5
 - **Randomizer algorithm:** 1
 - **Engine manifest range:** `>=0.2.24 <2.0.0`
-- **Engine source/documentation audit marker:** 0.2.29
+- **Engine source/documentation audit marker (current):** 0.2.33
 - **Manifest editions:** `red`, `blue`, `yellow`, `gold`, `silver`, `crystal`
+
+## Compatibility API 37 — semantic battle roster and activity state
+
+Compatibility API **37** adds two observational/cooperative surfaces without changing Nuzlocke gameplay ownership:
+
+- `mod.exports.nuzlocke.battle` (API 1) exposes `describe(battle, context)` and `activeCombatants(battle, side, context)`. A cooperative provider may advertise `battle_roster` and supply `describeBattle`; otherwise the conservative native fallback reports the ordinary singular player/enemy battlers. This allows multi-active battle mods to describe plural combatants without Nuzlocke wrapping their private turn loop.
+- `mod.exports.nuzlocke.activity` (API 1) exposes `current(game, context)`. A cooperative provider may advertise `activity_state` and supply `activityState`; otherwise the result is explicitly `known=false`/`mode=unknown`. This avoids inferring travel or other activity state from private UI/player fields.
+
+The legacy `nuzlocke_compat` surface mirrors these as `battleApi` and `activityApi`. Existing Acquisition/Provenance API 1 already provides the authoritative opaque-token pre-transaction `begin`/`commitDecision` lifecycle; 2.9.27 preserves that stronger contract rather than adding a parallel acquisition API. Compatibility API 37 remains additive and preserves `compatible_from = 10`.
+
+## Compatibility API 36 — corrected runtime environment and atomic content bundles
+
+Compatibility API **36** corrects two existing public-contract behaviors while preserving `compatible_from = 10`.
+
+- `nuzlocke_compat.runtime_environment` is now the current environment value (`"gameplay"` or `"save_editor"`) rather than an accidentally exposed function object.
+- `registerContentBundle()` now validates the complete provider bundle before mutating content registries. An invalid child or Randomizer policy rejects the bundle before any earlier rows are registered.
+- `nuzlocke_compat.content.validateBundle(bundle)` exposes the same read-only validation contract used by registration.
+- Diagnostics API remains 1. Hook Health now reports the real Gen2 visible/hidden field-item wrapper sessions and adds read-only semantic health for the `trainer.party` Randomizer chain.
+
+No Save Schema change is required; these changes do not alter serialized run data.
 
 ## Compatibility API 35 — semantic provider status
 
@@ -159,7 +269,7 @@ Compatibility is capability-based. Provider detection/advertisement alone never 
 
 Shiny ownership follows a single-owner model: Nuzlocke owns built-in shiny generation/presentation only when no compatible external shiny provider owns the active edition. Shiny Clause remains Nuzlocke policy either way.
 
-The Randomizer ownership registry currently contains nine subsystems: `STARTER`, `ENCOUNTERS`, `FIELD_ITEMS`, `LEARNSETS`, `TRAINERS`, `EVOLUTIONS`, `SHOPS`, `TMS`, and `GIFT_ITEMS`.
+The Randomizer ownership registry currently contains ten subsystems: `STARTER`, `ENCOUNTERS`, `FIELD_ITEMS`, `LEARNSETS`, `TRAINERS`, `EVOLUTIONS`, `SHOPS`, `TMS`, `TM_LOCATIONS`, and `GIFT_ITEMS`.
 
 For field items, visible item-ball sources are Nuzlocke-owned when routed through the supported field-item seam. Native Gen II hidden/BG-event item sources are also eligible when the adapter explicitly supplies `nuzlockeOwnedHidden=true`; arbitrary provider-defined hidden sources are not claimed automatically.
 
@@ -552,3 +662,31 @@ Nuzlocke's external shiny-owner resolver prefers the existing public `nuzlocke.i
 
 Palette/COLORS changes do not authorize Nuzlocke to invalidate engine Renderer/Assets state. Nuzlocke's custom-species fallback shiny cache is private and palette-signature-keyed instead.
 
+## Semantic APIs added in 2.9.15
+
+The following additive API-v1 surfaces are exported under `mod.exports.nuzlocke` without changing Compatibility API 36:
+
+- `action` — `evaluate(action, context)` / `canPerform(action, context)` for semantic challenge actions. It delegates to the existing item, acquisition, service, and escape-policy owners rather than duplicating rule state.
+- `services` — `evaluate(kind, context)` / `canUse(kind, context)` for `CENTER`, `MOM`, `STORY_HEAL`, `EXTERNAL_HEAL`, `SHOP_BUY`, `SHOP_SELL`, and `DAYCARE`. Story/external healing are intentionally distinct from Center/Mom ownership.
+- `capability` — read-only `describe(game)` / `supports(name, game)` edition and feature-capability introspection. Edition maturity remains Red/Blue/Yellow mature, Gold/Silver beta, Crystal alpha.
+
+Unknown actions/services fail open as unknown semantic vocabulary; internal policy evaluation errors fail closed. These APIs do not change gameplay defaults or save representation.
+
+## Acquisition/Provenance API 1 and Event Contract 1 (2.9.15)
+
+`mod.exports.nuzlocke.acquisition` formalizes the existing acquisition lifecycle with `classify`, `evaluate`, `begin`, `commit`, `commitDecision`, `observe`, and `capabilities`. Pre-transaction policy and post-mutation observation are explicitly distinct. Observation-only integrations must never imply that a received Pokémon can safely be rolled back.
+
+`mod.exports.nuzlocke.events` provides Event Contract 1: a small semantic envelope (`api`, session-local `seq`, `kind`, `edition`, `source`, optional `subject`, `context`, and `data`) plus `emit`. The event contract is observational and non-persistent; it does not change Save Schema 5 or replace Run History's durable chronology.
+
+
+## Graveyard diagnostic surface (2.9.16)
+
+`mod.exports.__beta26.graveyardHealth(game)` and `graveyardRows(game)` are internal diagnostic/presentation helpers, not a new public compatibility API. They are read-only projections over existing durable history. External integrations should continue to use the published semantic APIs rather than treating Graveyard internals as a compatibility contract.
+
+
+## Almanac diagnostic surface (2.9.17)
+
+`mod.exports.__beta26.almanacSnapshot(game)` returns the read-only player-facing projection used by the Almanac. `mod.exports.__beta26.almanacHealth(game)` reports structural availability/partial-coverage state for DEV diagnostics. These are internal diagnostic/UI surfaces, not a new public compatibility API. They do not repair/migrate Run History or write save state.
+
+## 2.9.72 additive diagnostics
+`randomTrainerTrace(game)` is read-only observational evidence for the latest trainer pipeline. Bug-report snapshots also include the latest Random Shop trace, field-item normalization record, and shiny presentation record. These surfaces do not roll RNG or materialize unseen mappings.

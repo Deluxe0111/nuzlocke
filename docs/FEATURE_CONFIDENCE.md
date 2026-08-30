@@ -1,10 +1,35 @@
-# Feature Confidence — 2.8.48
+<!-- Current build: 2.9.72 -->
+# Feature Confidence — 2.9.72
+
+Evidence labels are intentionally strict: Runtime PASS/FAIL applies only to the exact tested edition/stack; Static/Semantic or Source/Compatibility review never upgrades itself to runtime certification.
+
+## Current confidence
+- UI presentation-ownership contract v1 / UI API 8: **STATIC CONTRACT PASS — external presentation stacks still require combined runtime evidence**.
+- HGSS Visual Overhaul 1.0.2: **SOURCE REVIEW PASS / EXPECTED COMPATIBLE — Yellow combined runtime test required**.
+- Nuzlocke UI input-semantics contract v1: **STATIC CONTRACT PASS — combined input-repeat mod runtime test still required**.
+
+- Gen1Recomp 0.2.41 source compatibility: **SOURCE PASS — exact-edition runtime smoke remains separate**.
+- Yellow 2.9.70 / Gen1Recomp 0.2.41 Random Field Items: **RUNTIME FAIL** — native pickup completed but configured field-item randomization was not applied.
+- R/B/Y Random Field Items 2.9.71 repair: **STATIC/SOURCE PASS — runtime retest required**; primary visible-item seam moved to public `world.talk`.
+- R/B/Y: **mature baseline**, with individual features retaining their historical runtime evidence.
+- Gold/Silver: **beta**; exact-edition evidence remains independent.
+- Crystal: **alpha**; exact-edition certification remains limited and must fail closed where evidence is absent.
+- Red standalone built-in shiny test from 2.8.37: **RUNTIME PASS — PROTECTED**, only for that Red/Nuzlocke-only configuration.
+- Gen-II Random Trainers: **RUNTIME FAIL / UNRESOLVED**; static pipeline/accepted-roster diagnostics exist but do not constitute a fix.
+- Gen-II Random Field Items: **RUNTIME FAIL / UNRESOLVED**; static native-builder/script-projection diagnostics exist but do not constitute a fix.
+- Shiny Pokémon 1.2.20, Kanto Reforged 1.5.3, QoL Toggles 1.30.8, current Randomizer coexistence targets, G9 Battle Engine family, The World/Wonder Trade, bag ecosystem, expanded species/type providers, and Blackjack Corner 0.8.2, Double Battles 0.6.1, Free Fly 1.8.0, and other compatibility targets: **SOURCE/CONTRACT REVIEWED — combined runtime certification remains target-specific unless separately recorded**.
+- F. TOKEN failed-area directional confirmation repair: **STATIC/PARSE PASS — focused runtime reproduction pending unless separately reported**.
+- Save Schema 5 / Compatibility API 37 / Diagnostics API 1 / Translation API 2 / Run History v2 / Randomizer algorithm v1: **CURRENT CONTRACT**.
+
+2.9.40 classifies compatibility evidence as live-contract, source-reviewed, and combined-runtime-required while preserving exact-edition/stack Runtime PASS boundaries. Release Safety itself received semantic and false-positive hardening; no new Runtime PASS is claimed.
+
+# Historical Feature Confidence — 2.8.48
 
 ## Gen1Recomp 0.2.28 / 0.2.29 compatibility
 
 - **0.2.28 source diff:** PASS — HostShell/iOS metadata only; no Nuzlocke gameplay seam changed.
 - **0.2.29 source diff:** PASS — launcher/importer/input/UI only; no battle/Pokémon/hook/Strings/Chrome/save/shiny/Randomizer-consumed data seam changed.
-- **Compatibility API 35:** STATIC CONTRACT PASS target; additive semantic provider/capability status versioning only.
+- **Compatibility API 36:** STATIC CONTRACT PASS target; additive semantic provider/capability status versioning only.
 - **Save Schema:** remains 5; no migration is required.
 - **Runtime certification:** no new exact-edition runtime PASS is claimed by this source audit.
 
@@ -56,6 +81,7 @@
 - Silver 2.8.31 Gen II Random Starter full identity chain: **RUNTIME PASS — PROTECTED**.
 - 2.8.32 live type-chart / `steel_typing` integration: **STATIC REVIEW PASS — COMBINED-MOD RUNTIME REQUIRED**.
 - PotatoVoxel 1.9.6 renderer/presentation coexistence: **SOURCE/STATIC AUDIT PASS — COMBINED-MOD RUNTIME REQUIRED**.
+- Dramatic Shape Voxel Mod 1.9.0 (`DRAMATIC_SHAPE`) presentation coexistence: **SOURCE/TARGET VERIFIED — COMBINED-MOD RUNTIME REQUIRED**.
 - Generalized presentation ownership guard (`render.compose`, `Gen2BattleState`, native BattleState draw methods): **STATIC CONTRACT PASS**.
 - PotatoVoxel cache/prebuild non-progression behavior: **SOURCE AUDIT PASS — RUNTIME TRIPWIRE TEST RECOMMENDED**.
 
@@ -480,8 +506,8 @@ Important historical protected classes include R/B/Y rule input behavior, select
 
 Highest-value provider tests:
 
-- Kanto Reforged 1.3.0: custom Day Care, held items, fixed statics, Full/Pure spawn ownership, Gold restored content and dual-cap composition.
-- The World 5.10.0: dynamic trainers/roles, expanded species/moves, acquisition kinds, weather/status composition and Wonder Trader stability.
+- Kanto Reforged 1.5.3: custom Day Care, held items, fixed statics, Full/Pure spawn ownership, Gold restored content and dual-cap composition.
+- The World 6.54.15: dynamic trainers/roles, expanded species/moves, acquisition kinds, weather/status composition and Wonder Trader stability.
 - public randomizer policy calls using every canonical value and alias through registration, inline encounter context and learnset policy setters.
 - provider acquisitions using `trainer_capture`, `theft`, `owned_capture`, and deliberate neutral/scripted kinds.
 
@@ -512,3 +538,59 @@ Logical-surface policy, wide Gen 1 Rules/Setup/Tracker composition, and the Dev 
 - 0.2.27 audited profile + diagnostics marker: **STATIC PASS**.
 - Overall 0.2.27 source/documentation compatibility review: **PASS**; gameplay/UI runtime certification remains edition-specific and pending.
 
+
+## 2.8.89 Randomizer method-specific ownership evidence
+
+**STATIC/PARSE PASS — RUNTIME REQUIRED.** A dedicated `TM_LOCATIONS` stream/source map is present; Random TMs and Random TM Locations are distinct controls; the collection-time Field Item path now checks source/method-specific external ownership before applying a Nuzlocke transform; and Item Randomizer visible/hidden source controls no longer globally suppress each other. No Runtime PASS is claimed for the new TM-location behavior or combined-mod ownership.
+
+## 2.8.87 compatibility evidence
+External Randomizer ownership expansion is **Source/API Reviewed / Runtime Pending**. No new gameplay Runtime PASS is claimed.
+
+
+### Bag compatibility
+Source-reviewed targets: Useful Bag 2.6.3, Modern Bag UI 0.4.5, and Bag Sort 0.1.0. Nuzlocke composes with presentation/storage/order and enforces item legality by actual item/action rather than pocket position. Combined runtime certification is pending.
+
+
+### Expanded species compatibility
+Expanded species are consumed through final merged species data and the existing species metadata/evolution provider contracts. BST/type/species-ban rules and Randomizer eligibility therefore do not require a hardcoded native-only Pokédex assumption. Dex Overflow 0.1.1 remains a legacy reviewed target; combined expanded-Dex runtime certification is pending.
+
+
+### Transfer/import provenance
+Stadium/Crystal-251 model or ROM import is not Pokémon acquisition. Real external acquisitions must explicitly mark the concrete Pokémon through the public acquisition-provenance surface (or preserve equivalent fields). Unknown imports are not guessed into encounter slots. Gen-II link Pokémon codecs exist upstream, but the full Gen-II trade transaction is not yet a certified Nuzlocke acquisition seam.
+
+
+### Graveyard Viewer — 2.9.16
+- **R/B/Y:** STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED.
+- **Gold/Silver:** STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED.
+- **Crystal:** STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED.
+- Read-only projection over existing death/history state; no Save Schema bump and no Runtime PASS claimed.
+
+
+### Almanac / Run Recap — 2.9.17
+- Evidence: **STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED**.
+- Read-only projection over persisted Run History v2 statistics/summary and the already-recorded Randomizer run snapshot.
+- Explicitly labels incomplete legacy/pruned evidence PARTIAL and leaves unavailable individual facts UNKNOWN.
+- Does not call RunHistory.ensure() while opening/viewing, so the UI does not trigger history repair/migration writes.
+- No Save Schema, Run History format, Randomizer algorithm, compatibility ownership, or gameplay default change.
+
+## End / Abandon Run — 2.9.18
+- **STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED.** Explicit abandonment uses existing Run History v2 `run.abandoned`, defaults destructive confirmation to NO, commits history before disabling challenge enforcement, and cannot manufacture natural completion evidence. Exact-edition runtime certification remains pending.
+
+
+## 2.9.21 Split-Evolution Dupes
+- **STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED.** Dupes Clause now includes SPLIT mode. Exact species and ancestor/descendant lines remain duplicates; sibling branches after a split remain independently eligible. Live merged/provider evolution rows are used and incomplete custom metadata fails open.
+
+
+## 2.9.22 Split-Evolution Dupes repair
+- **STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED.**
+- Source-confirmed 2.9.21 defect repaired: `dupesMode()` now preserves mode 3 so the SPLIT runtime branch is reachable.
+- Main Config marquee now maps mode 3 to SPLIT.
+- Release Safety now checks the enum path beyond mere token/branch presence.
+- No Runtime PASS is inferred from this repair.
+
+## 2.9.23 Gen1Recomp 0.2.38 launcher compatibility refresh
+- 0.2.37/0.2.38 source/documentation/launcher review: **SOURCE/DOC PASS**.
+- Manifest compatibility with launcher metadata contract: **STATIC/SEMANTIC PASS**.
+- Exact-edition 0.2.38 gameplay/runtime smoke: **TEST REQUIRED**.
+
+- 2.9.72 Gen-II item normalization / Random Shop non-no-op / Random Trainer trace / shiny private-copy repair: **STATIC/SOURCE PASS — runtime retest required**.

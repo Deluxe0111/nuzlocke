@@ -97,6 +97,7 @@ return function(mod, deps)
       local key = tostring(species or ""):upper()
       if kind == "gift" then
           local common = {
+              MAGIKARP = true,
               HITMONCHAN = true, HITMONLEE = true, LAPRAS = true,
               EEVEE = true, OMANYTE = true, KABUTO = true,
               AERODACTYL = true, PORYGON = true,
@@ -116,9 +117,70 @@ return function(mod, deps)
       return false
   end
 
+  -- 2.8.74: keep the deterministic source fallback synchronized with
+  -- the version-neutral Gen-I gift catalog. The catalog is authoritative; the
+  -- test deliberately derives its expectations from GIFT_LOCATIONS so future
+  -- additions cannot silently require a second manual audit list.
+  mod.exports.__beta26.acquisitionCatalogConsistencySelfTest = function()
+      local ver = getGameVersion()
+      if ver ~= "RED" and ver ~= "BLUE" and ver ~= "YELLOW" then
+          return { ok=true, skipped=true, reason="gen1_catalog_not_active",
+              checked=0, failures={} }
+      end
+
+      local failures, checked = {}, 0
+      for _, gift in ipairs(GIFT_LOCATIONS) do
+          if gift.version == nil then
+              checked = checked + 1
+              local species = tostring(gift.species or "")
+              if species == ""
+                  or mod.exports.__beta26.deterministicSourceFallback(
+                      "gift", species) ~= true then
+                  failures[#failures + 1] = species ~= "" and species
+                      or "<missing_species>"
+              end
+          end
+      end
+
+      return {
+          ok = #failures == 0,
+          skipped = false,
+          checked = checked,
+          failures = failures,
+      }
+  end
+
+  -- 2.9.4: static acquisition/provenance completeness inventory. This is
+  -- observational only: it names the semantic source families that must stay
+  -- distinct so future adapters cannot silently collapse a gift, trade, egg,
+  -- prize, transfer, or scripted/static source into an ordinary wild catch.
+  mod.exports.__beta26.acquisitionProvenanceCoverageAudit = function()
+      local families = {
+          wild_capture = true, static_capture = true, roaming_capture = true,
+          starter = true, gift = true, ingame_trade = true, fossil = true,
+          game_corner_prize = true, egg = true, daycare = true,
+          scripted_fixed = true, wonder_trade = true, stadium_transfer = true,
+          external_import = true, progression_required = true,
+      }
+      local required = {
+          "wild_capture", "static_capture", "roaming_capture", "starter",
+          "gift", "ingame_trade", "fossil", "game_corner_prize", "egg",
+          "daycare", "scripted_fixed", "wonder_trade", "stadium_transfer",
+          "external_import", "progression_required",
+      }
+      local failures = {}
+      for _, key in ipairs(required) do
+          if families[key] ~= true then failures[#failures + 1] = key end
+      end
+      return { ok = #failures == 0, checked = #required,
+          failures = failures, families = families, observational = true }
+  end
+
   return {
     buildGiftLookup = mod.exports.__beta26.buildGiftLookup,
     buildTradeLookup = mod.exports.__beta26.buildTradeLookup,
     deterministicSourceFallback = mod.exports.__beta26.deterministicSourceFallback,
+    consistencySelfTest = mod.exports.__beta26.acquisitionCatalogConsistencySelfTest,
+    provenanceCoverageAudit = mod.exports.__beta26.acquisitionProvenanceCoverageAudit,
   }
 end

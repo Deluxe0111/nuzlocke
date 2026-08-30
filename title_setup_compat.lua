@@ -286,4 +286,147 @@ function M.install(mod, deps)
     return true
 end
 
+
+-- 2.9.49: active Gen-II title SETUP adapter ownership. The older M.install()
+-- entry above remains historical R/B/Y fallback code and is intentionally not
+-- invoked by main.lua. This owner wraps only Gen-II MainMenu:choose/buildList;
+-- setup-profile lifecycle remains behind explicit callbacks supplied by main.
+function M.installGen2(mod, deps)
+    deps = deps or {}
+    local Strings = assert(deps.Strings, "title setup compat requires Strings")
+    local runtimeIsGen2 = assert(deps.runtimeIsGen2,
+        "title setup compat requires runtimeIsGen2")
+    local isSaveEditorSession = assert(deps.isSaveEditorSession,
+        "title setup compat requires isSaveEditorSession")
+    local openSetup = assert(deps.openSetup,
+        "title setup compat requires openSetup")
+    local stageNewGame = assert(deps.stageNewGame,
+        "title setup compat requires stageNewGame")
+    local clearContinue = assert(deps.clearContinue,
+        "title setup compat requires clearContinue")
+
+    local function install()
+        if isSaveEditorSession() then
+            return false, "not_applicable", "save-editor session"
+        end
+        if not runtimeIsGen2(nil) then
+            return false, "not_applicable", "non-Gen2 edition"
+        end
+
+        local okMenu, MainMenu = pcall(require, "src.ui.gen2.MainMenu")
+        if not okMenu or type(MainMenu) ~= "table"
+            or type(MainMenu.choose) ~= "function" then return false end
+        local chooseInstalled = MainMenu.__nuzlockeTitleSetupOwner == mod
+            and MainMenu.choose == MainMenu.__nuzlockeTitleSetupFunction
+        local listInstalled = type(MainMenu.buildList) ~= "function"
+            or (MainMenu.__nuzlockeTitleSetupListOwner == mod
+                and MainMenu.buildList
+                    == MainMenu.__nuzlockeTitleSetupListFunction)
+        if chooseInstalled and listInstalled then return true end
+
+        if MainMenu.__nuzlockeTitleSetupOwner ~= nil
+            and MainMenu.__nuzlockeTitleSetupOwner ~= mod
+            and MainMenu.choose == MainMenu.__nuzlockeTitleSetupFunction
+            and type(MainMenu.__nuzlockeTitleSetupPrevious) == "function" then
+            MainMenu.choose = MainMenu.__nuzlockeTitleSetupPrevious
+        end
+
+        if not chooseInstalled then
+            local vanillaChoose = MainMenu.choose
+            local chooseWrapper
+            chooseWrapper = function(self, value, ...)
+                if value == "nuzlocke_setup" then
+                    openSetup(self.game)
+                    return
+                elseif value == "new" then
+                    stageNewGame(self.game)
+                elseif value == "continue" then
+                    clearContinue(self.game)
+                end
+                return vanillaChoose(self, value, ...)
+            end
+            MainMenu.choose = chooseWrapper
+            MainMenu.__nuzlockeTitleSetupOwner = mod
+            MainMenu.__nuzlockeTitleSetupPrevious = vanillaChoose
+            MainMenu.__nuzlockeTitleSetupFunction = chooseWrapper
+        end
+
+        if type(MainMenu.buildList) == "function" and not listInstalled then
+            if MainMenu.__nuzlockeTitleSetupListOwner ~= nil
+                and MainMenu.__nuzlockeTitleSetupListOwner ~= mod
+                and MainMenu.buildList
+                    == MainMenu.__nuzlockeTitleSetupListFunction
+                and type(MainMenu.__nuzlockeTitleSetupListPrevious)
+                    == "function" then
+                MainMenu.buildList = MainMenu.__nuzlockeTitleSetupListPrevious
+            end
+            local vanillaBuildList = MainMenu.buildList
+            local listWrapper
+            listWrapper = function(self, ...)
+                local result = vanillaBuildList(self, ...)
+                if isSaveEditorSession() then return result end
+                local list = self and self.list
+                local items = list and list.items
+                if type(items) ~= "table" then return result end
+
+                local function labelOf(item)
+                    if type(item) ~= "table" then return nil end
+                    local label = item.label
+                    if type(label) == "table" then
+                        label = label.source or label.text or label.label
+                    end
+                    return type(label) == "string" and label:upper() or nil
+                end
+                local hasContinue, hasSetup, newIndex = false, false, nil
+                for index, item in ipairs(items) do
+                    if type(item) == "table" then
+                        local label = labelOf(item)
+                        if item.value == "continue" or label == "CONTINUE" then
+                            hasContinue = true
+                        end
+                        if item.nuzlockeSetup == true
+                            or item.value == "nuzlocke_setup" then
+                            hasSetup = true
+                        end
+                        if newIndex == nil and (item.value == "new"
+                            or label == "NEW GAME") then
+                            newIndex = index
+                        end
+                    end
+                end
+
+                local continued = self.hasSave == true or hasContinue
+                if continued then
+                    for index = #items, 1, -1 do
+                        local item = items[index]
+                        if type(item) == "table"
+                            and (item.nuzlockeSetup == true
+                                or item.value == "nuzlocke_setup") then
+                            table.remove(items, index)
+                        end
+                    end
+                elseif not hasSetup and newIndex ~= nil then
+                    table.insert(items, newIndex, {
+                        label = Strings("SETUP"),
+                        value = "nuzlocke_setup",
+                        nuzlockeSetup = true,
+                    })
+                end
+                return result
+            end
+            MainMenu.buildList = listWrapper
+            MainMenu.__nuzlockeTitleSetupListOwner = mod
+            MainMenu.__nuzlockeTitleSetupListPrevious = vanillaBuildList
+            MainMenu.__nuzlockeTitleSetupListFunction = listWrapper
+        end
+        return true
+    end
+
+    mod.exports.__beta26.installGoldTitleSetupAdapter = install
+    mod.events:on("game.ready", function()
+        mod.exports.__beta26.attemptInstall("setup.gen2_title_adapter", install)
+    end)
+    return true
+end
+
 return M

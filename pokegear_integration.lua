@@ -6,6 +6,8 @@
 return function(mod, opts)
     opts = opts or {}
 
+    local isTrackedArea = assert(opts.isTrackedArea, "pokegear_integration requires isTrackedArea")
+
     local CARD_ID = "nuzlocke_status"
     local MAP_ID = "nuzlocke_map_status"
     local RADIO_ID = "nuzlocke_radio_world"
@@ -85,7 +87,7 @@ return function(mod, opts)
     local function countTrackerCatches()
         local total = 0
         for key, entries in pairs(getTable("tracker_log")) do
-            if key ~= "__LEGACY__" and type(entries) == "table" then
+            if key ~= "__LEGACY__" and isTrackedArea(key) and type(entries) == "table" then
                 for _, entry in ipairs(entries) do
                     if type(entry) == "table" and entry.species then
                         total = total + 1
@@ -99,7 +101,7 @@ return function(mod, opts)
     local function countCaughtAreas()
         local total = 0
         for key, value in pairs(getTable("caught_areas")) do
-            if key ~= "__LEGACY__" and value ~= nil then total = total + 1 end
+            if key ~= "__LEGACY__" and value ~= nil and isTrackedArea(key) then total = total + 1 end
         end
         return total
     end
@@ -107,7 +109,7 @@ return function(mod, opts)
     local function countVisitedAreas()
         local total = 0
         for key, value in pairs(getTable("visited_areas")) do
-            if key ~= "__LEGACY__" and value == true then total = total + 1 end
+            if key ~= "__LEGACY__" and value == true and isTrackedArea(key) then total = total + 1 end
         end
         return total
     end

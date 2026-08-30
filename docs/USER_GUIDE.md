@@ -1,288 +1,45 @@
-# Nuzlocke User Guide — 2.8.72
+<!-- Current build: 2.9.72 -->
+# Nuzlocke User Guide — 2.9.72
 
-## Current 2.8.48 release contract
+> Current documentation baseline: **Nuzlocke 2.9.72**.
 
-This section is authoritative for the current package. Older version notes retained later in this file are historical and describe the build named in their heading.
+## Supported games and confidence
 
-- **Supported manifest editions:** Red, Blue, Yellow, Gold, Silver, and Crystal.
-- **Support stage:** R/B/Y are the mature baseline; Gold/Silver are beta targets; Crystal is an explicit alpha target. Runtime evidence remains exact-edition rather than automatically carrying between games.
-- **Gen1Recomp requirement:** `>=0.2.24 <2.0.0`.
-- **Source/documentation compatibility audited through:** Gen1Recomp **0.2.29**.
-- **Mod API:** 2.
-- **Save Schema:** 5.
-- **Compatibility API:** 35.
-- **Diagnostics API:** 1.
-- **Randomizer algorithm version:** 1.
-- **Battle Menu UI:** Gen I only. Gold/Silver/Crystal always retain the native Gen II battle command presentation.
-- **Dev Mode:** diagnostics-only. Its health, bug-report, transaction, hook-drift, shiny, Randomizer reproducibility, performance, rule-consistency, save/run identity, and ownership-history pages do not repair or mutate a run.
+Nuzlocke declares Red, Blue, Yellow, Gold, Silver, and Crystal. R/B/Y are the mature baseline; Gold/Silver are beta; Crystal is alpha. A Runtime PASS applies only to the exact edition and stack that was tested. Gen1Recomp `>=0.2.24 <2.0.0` is accepted, with source review current through 0.2.41. Gen1Recomp owns frame pacing/vsync/present synchronization; Nuzlocke does not override those engine settings.
 
-### Shiny ownership
+## Controls and ownership
 
-Nuzlocke has built-in shiny rate, colors, and intro support when no compatible external shiny provider owns the active edition. **Shiny Clause remains Nuzlocke challenge policy regardless of presentation owner.** When a compatible external shiny provider such as the current `SHINY_POKEMON` target owns shiny generation/presentation, Nuzlocke stands down its own roll/recolor/intro work and consumes the resulting shiny identity for legality, Shiny Clause, tracking, Catch Info, and Run History.
+Nuzlocke-owned Setup/Rules screens use Up/Down for navigation, Left/Right for values/pages, A for confirm, and B for back. Numeric resources may use their documented numeric controls. Nuzlocke UI now exposes an explicit input-semantics contract: navigation/value stepping may be repeat-safe, while activation/back actions are edge-only and destructive confirmation is separately identified. The contract is descriptive and does not take over engine input-repeat timing, so compatible accessibility/hold-to-scroll mods can accelerate repeat-safe movement without being treated as owners of Nuzlocke actions. Presentation ownership is now also explicit: external Party/PC/Pokédex/Bag/Mart/battle-art/overworld renderers may own those visuals without acquiring Nuzlocke gameplay authority. Gold/Silver/Crystal keep the native Gen-II battle party and battle command routing; the optional Battle Menu UI is Gen I only. Nuzlocke does not replace native or companion-owned Bag, Party, PC, Pokédex, Mart, or battle presentation merely for visual consistency.
 
-### Randomizer scope
+World Building defaults to **T3**. Player-facing Nuzlocke denials are player-paced where implemented rather than disappearing on a short timer.
 
-The current Nuzlocke-owned Randomizer has nine independently-owned subsystems: **Starter, Encounters, Field Items, Learnsets, Trainers, Evolutions, Shops, TMs, and Gift Items**. Shared controls provide deterministic seed/reproducibility, presets, spoiler/info policy, species-generation policy, and subsystem-specific balance/diversity settings.
+## Randomizer
 
-Native Gen II hidden field-item/BG-event sources are supported when their adapter explicitly marks them as Nuzlocke-owned. Nuzlocke does not claim arbitrary third-party hidden-item sources merely because they are hidden.
+There are ten ownership methods: **Starter, Encounters, Field Items, Learnsets, Trainers, Evolutions, Shops, TM Contents, TM Locations, and Gift Items**. TM Contents changes what a TM teaches; TM Locations changes the TM item obtained from supported physical TM pickup sources and never moves HMs. Random Field Items keeps its historical broader behavior when TM Locations is off.
 
-### Compatibility model
+Compatible external Randomizers take ownership only when the overlapping feature is positively active. Installing one does not automatically disable the Nuzlocke option. Known Gen-II Random Trainer and Random Field Item runtime failures remain unresolved; do not treat their static diagnostics as a fix.
 
-Optional companions are never required to run Nuzlocke. Compatibility is capability/ownership based where possible: detecting a mod or advertised capability is not the same as selecting it as owner. MOD COMPAT and Dev diagnostics distinguish detected, advertised, selected, degraded, and Nuzlocke-fallback states.
+## Shiny behavior
 
-Current optional compatibility identities declared by the manifest include:
-`pokegear_cards`, `pokemon_randomizer`, `wide-menus`, `variable_width_kerning`, `gen1_modern_ui`, `gen_2_randomizer_plus`, `overworld_wild_spawns`, `modern_party_ui`, `kanto_ascendant`, `delta_type`, `dex_overflow`, `safari_all`, `wonder_trade`, `qol_toggles`, `quality_of_life`, `g9-battle-engine`, `gen1-better-menus`, `gen1_pt-br`, `steel_typing`, `potato_voxel`, and `SHINY_POKEMON`.
+Shiny Clause is always Nuzlocke policy. Shiny generation/presentation has one owner per edition/session: a healthy compatible external provider owns it when selected; otherwise Nuzlocke may use its built-in implementation. Gold/Silver/Crystal native shiny identity/presentation remains protected. Exact-edition certification still applies.
 
-## Achievement readiness
+## Compatibility notes
 
-Nuzlocke does not display or award achievements yet. Starting with 2.8.49, Run History keeps a durable background evidence ledger so future achievements can evaluate catches, deaths, failed encounters, badges, forgiveness, blackouts, completions, shiny outcomes, rule changes, and related run facts even after old detailed history rows roll off. Older runs may be marked **partial** when a fact was not historically recorded; the future achievement system must not guess missing evidence.
+- Kanto Ascendant 6.5.17 explicitly conflicts with standalone Nuzlocke and should use its integrated ASC RUN system instead.
+- Wonder Trade is currently observed/reconciled after the swap; Wonderlocke is disabled because there is no safe pre-transaction seam.
+- Useful Bag / Modern Bag UI / Bag Sort may own pockets, capacity, ordering, or presentation. Nuzlocke item legality is based on the actual item/action, not pocket or row position.
+- Type/species providers compose through normalized merged species facts. Runtime typing is authoritative for concrete transformed Pokémon where available.
+- Expanded/indexless species must be battle-safe before Randomizer inclusion; byte-addressed paths are not assumed safe.
 
-## Brazilian Portuguese companion
+## Dev Mode
 
-Nuzlocke 2.8.50 explicitly recognizes current **VersaoVermelha 0.2.5** as an optional Brazilian Portuguese compatibility target while retaining the older `gen1_pt-br` identity separately. Installing a translation companion does not change Nuzlocke rules; it only supplies localization/presentation where that mod supports it.
+Dev Mode is diagnostic-only unless a named tool explicitly says it changes state. Health, compatibility, hook-drift, Randomizer reproduction, transaction, performance, save/run identity, and bug-report views must not consume gameplay RNG, create unseen mappings, change ownership, or repair saves merely by being opened.
 
-Nuzlocke-authored text that has no translation override may still appear in English. Compatibility means the translated game and Nuzlocke can coexist safely; complete translation coverage is a separate language-pack task.
+2.9.39 adds a structured internal rule-status explanation surface. It can distinguish catalog/structural presence, semantic/reconciliation evidence, exact-edition reachability, current operational/dependency state, and exact-edition runtime evidence. `RUNTIME PASS` is never inferred from source/static/semantic evidence or copied from another edition.
 
-## German Universal companion
+## Known WIP / unavailable
 
-Translation German Universal 0.2.0 is an explicit optional compatibility target. If it is installed in English/no-op mode, Nuzlocke reports it as installed but not actively translating. Pending language changes may be shown as requiring restart; Nuzlocke does not pretend the language changed before the companion actually rematerializes its catalogs on restart.
-
-Changing language does not reset encounter areas or alter Nuzlocke rules.
-
-## Localization diagnostics
-
-Dev Mode's DEV REPORT now includes **LOCALIZATION**. It shows installed/active translation companions, pending restart state, and how much of Nuzlocke's discoverable source catalog currently resolves to a different localized value.
-
-This is diagnostic only. Missing Nuzlocke-specific translations do not change rules, saves, encounters, or compatibility ownership.
-
-## Longer translated text
-
-Nuzlocke-owned shared UI rows and diagnostic pages now use glyph-aware fitting/wrapping where the engine exposes it. Gen-II NUZ STATUS summary lines are bounded with marquee behavior instead of overflowing the native frame.
-
-This does not change rules or Randomizer results; it only improves presentation under longer translations and variable-width fonts.
-
-## Spanish companion
-
-Traduccion Espanola 0.1.0 is an explicit optional compatibility target for Red/Blue. With the matching Spanish EUR cartridge in `imports/`, the companion can apply its official cartridge-derived Spanish layer. Without it, its engine-authored Spanish strings still work but cartridge dialogue/content remains English.
-
-Nuzlocke does not read or require your Spanish cartridge and does not change rules based on language.
-
-## French companions
-
-Nuzlocke recognizes the generated `translation-fr` French translation and the optional `trad-fr-extended` overlay. The overlay requires the base translation and fills additional text gaps; it does not replace Nuzlocke rules or gameplay behavior.
-
-The reviewed base generator supports all six Nuzlocke editions, but each exact game/mod combination still requires runtime certification.
-
-## Translation support status
-
-The current reviewed translation targets are summarized in the compatibility matrix. A listed target may be source-compatible while still awaiting exact runtime certification for a particular edition.
-
-Forgiveness/F. TOKEN and Battle Clause messages are now part of Nuzlocke's discoverable translation source catalog.
-
-## LOCAL CERT
-
-In Dev Mode, open **DEV REPORT → LOCAL CERT** to record translation runtime checks for the current exact combination.
-
-- Up/Down: choose a check.
-- A: cycle UNTESTED / PASS / FAIL.
-- Left/Right: change Dev Report section.
-- B: back.
-
-The checklist is session-only and does not touch your save. A translation setup is not considered certified until a companion is present and every check is manually marked PASS.
-
-## Current player-facing notes
-
-- **Gen II battle menus are native.** The Battle Menu UI toggle is R/B/Y-only. Gen II PKMN/PACK targeting remains engine-owned.
-- **World Building defaults to T3** on fresh/default configurations; existing explicitly-stored values are preserved.
-- **TOOLS profiles** use one Profile Slot selector (`OFF / 1 / 2 / 3`) plus Save Profile and Load Profile actions.
-- **Localization infrastructure is active but coverage is incomplete.** Rule Catalog, Setup/NUZ RULES, substantial Classic UI/Forgiveness text, and the first localization hardening batch use the engine `Strings` registry. World Building and Randomizer authored text remain larger future localization phases.
-- **Exact-edition evidence is required.** A runtime PASS in Red does not certify Blue/Yellow, and a Gold/Silver PASS does not certify Crystal.
-
-## Historical user-guide notes
-
-The following retained notes are ordered by the build in which behavior changed. Any statement such as “current,” “supported,” or an API/engine value inside those sections is historical to that version.
-
-2.8.46 adds **DEV REPORT > RULE CONFIG**, **SAVE/RUN**, and **OWNER HISTORY**. They report configuration consistency, cross-surface run identity, and compatibility owner transitions without changing gameplay or repairing state.
-
-2.8.45 improves Dev signal quality by coalescing repeated warning/error diagnostics and adds **DEV REPORT > PERFORMANCE** for cheap Dev-only Randomizer builder counters.
-
-2.8.44 adds **DEV REPORT > SHINY** and **DEV REPORT > RANDOM REPRO**. Both are read-only: SHINY reports ownership/configuration/materialized identity, while RANDOM REPRO reports the persisted run contract and source-map counts without consuming RNG.
-
-2.8.43 adds **DEV REPORT > TRANSACTIONS** and **DEV REPORT > HOOK DRIFT**. TRANSACTIONS shows journal/receipt health and pending state without repairing anything. HOOK DRIFT shows whether Nuzlocke's registered wrappers are still direct, have another mod layered above them, or cannot be live-probed. Both are diagnostics-only.
-
-2.8.42 adds **DEV REPORT > BUG REPORT**, a compact shareable diagnostics snapshot covering build/engine/edition, save/run identity, subsystem health, provider ownership, current encounter provenance, recent decisions, warnings/errors, and recent breadcrumbs. It is read-only and does not invoke gameplay logic or RNG.
-
-# Nuzlocke User Guide — 2.8.41
-
-Dev Mode's DEV REPORT now has HEALTH, PROVIDERS, ENCOUNTER, and DECISIONS sections. HEALTH summarizes major subsystem state; PROVIDERS distinguishes detection from selected ownership; ENCOUNTER reports already-materialized provenance only; DECISIONS shows a bounded trace of recent core rule denials. These views are read-only.
-
-
-
-2.8.40 is a strict child of 2.8.39. Player-facing gameplay is unchanged; the update strengthens Release Safety so known regression shapes are caught during promotion instead of being rediscovered in play.
-
-
-2.8.39 is a strict child of 2.8.38. Gameplay behavior is unchanged; the update improves MOD COMPAT/provider diagnostics and documents the compatibility fallbacks that remain intentionally supported. Provider status now separates detected/advertised capability metadata from an actually selected external owner, while Nuzlocke fallback remains explicit.
-
-2.8.38 is a strict child of full-release 2.8.37. It keeps the runtime-passed Red standalone shiny behavior unchanged and begins the next localization coverage pass using Gen1Recomp 0.2.27's `Strings` registry.
-
-### Gen1Recomp 0.2.27 UI / nickname compatibility
-
-On current 0.2.27 engines, R/B/Y catch nickname enforcement uses the engine's public catch-nickname decision seam. Gold/Silver/Crystal Nuzlocke utility screens use the engine's palette-aware Chrome drawing path, so custom GB/COLOR palettes continue through NUZ STATUS and Recover Catches. The Gen II shiny send-out workaround has also been source-revalidated for 0.2.27 and remains narrowly scoped to the queued `shiny-flash` presentation event. Older supported engine builds retain compatibility fallbacks.
-
-
-## Localization status
-
-Nuzlocke localization infrastructure is active. Rule names/descriptions, Setup/NUZ RULES, substantial Classic UI text, and Forgiveness already use the engine string registry. 2.8.38 additionally covers Battle Clause denials, Forgiveness action choices, NUZ STATUS / Run History labels and templates, and Legacy Recovery fallbacks. If no translation override exists, English remains the automatic fallback. Randomizer and World Building authored text remain future dedicated coverage phases.
-
-## Shiny support
-
-The shiny controls are separate on purpose. **Shiny Clause** controls catch exceptions. **Shiny Rate** controls rarity. **Shiny Colors** controls recoloring. **Shiny Intro** controls the battle sparkle/audio cue. Turning visuals off never makes a shiny non-shiny, and changing the rate never grants a catch exception.
-
-When Nuzlocke owns shinies, Red/Blue/Yellow use the virtual Gen-II DV pattern for natural shinies plus the selected enhanced-rate layer; an enhanced shiny is marked on the live mon without rewriting its DVs or stats. Gold/Silver/Crystal use Gen1Recomp's native shiny field and public `shiny.roll` seam. Nuzlocke also verifies that the exact Gen II roll result reaches the created wild mon before battle presentation; this does not add a second roll.
-
-Nuzlocke's visual layer uses Gen1Recomp's live Pokemon sprite/icon hooks, so screens that present a specific live shiny Pokemon can request its cached shiny art without Nuzlocke replacing the screen. The battle intro cue uses `battle.overlay` and therefore does not take ownership of the battle state machine.
-
-If a compatible external shiny provider is active, **the external provider owns everything shiny-facing for that edition**: roll/generation, recolor, sparkle, and shiny SFX. Nuzlocke immediately stops doing those jobs and only consumes the resulting shiny identity for Shiny Clause, legality, tracker/Catch Info, and run history.
-
-# Nuzlocke User Guide — 2.8.33
-
-## Optional Renderer Companion: PotatoVoxel
-
-Nuzlocke 2.8.33 explicitly supports coexistence with **PotatoVoxel 1.9.6**. PotatoVoxel may render the overworld and optional staged battle scene in 3D; Nuzlocke continues to enforce the challenge rules underneath. No PotatoVoxel installation is required to use Nuzlocke.
-
-For combined testing, use only one voxel-world mod at a time. With PotatoVoxel enabled, normal Nuzlocke encounters, catches, rule denials, switching, item targeting, tracker state, NUZ INFO, and lock-ins should behave the same as in the native 2D presentation. Building or rebuilding PotatoVoxel's cache is graphics preparation and should not consume encounters or advance Nuzlocke progression.
-
-On Gold, Silver, and Crystal the battle command/menu state remains native Gen II-owned. Nuzlocke does not add a competing battle renderer. Runtime support claims remain edition-specific.
-
-# Nuzlocke User Guide — 2.8.32
-
-## Recommended Companion: STEEL/FAIRY AND TYPING CHARTS
-
-Nuzlocke 2.8.32 explicitly supports the optional `steel_typing` companion. When it adds Fairy or changes Steel/Dark/type-chart relationships, Nuzlocke's typing-aware systems consume the merged runtime data. Random Starter **Trio Typing: AUTO** now uses the live battle type chart as well. The companion is recommended, not required; changes to that mod require its documented save/restart cycle.
-
-# Nuzlocke User Guide — 2.8.31
-
-## Gold / Gen II Random Starter
-
-With **Random Starter = ON** and **Starter Style = 3-STAGE**, each Elm ball now resolves to the **base form** of a genuine three-stage evolution line. A stale choice from an older build that no longer satisfies the selected Starter Style is discarded and regenerated from the same deterministic seed/style namespace.
-
-When inspecting an Elm starter ball, the randomized portrait/cry transaction and confirmation text use the same persisted choice. The confirmation textbox should name the randomized Pokémon rather than showing `...`. Choosing YES must grant that same species.
-
-2.8.29's native Gold/Silver/Crystal battle menu and blocked-item denial behavior remain unchanged.
-
-# Nuzlocke User Guide — 2.8.29
-
-In Gold, Silver, and Crystal, the battle command menu is always the game's native FIGHT / PKMN / PACK / RUN screen. The Nuzlocke Battle Menu UI option is Gen I-only and is not shown in Gen II Setup or NUZ RULES.
-
-When a Gen II battle item or capture attempt is blocked by a Nuzlocke rule, the refusal is shown through the native battle message box. Press A or B to page/close the message; control should return to the native battle command flow without an empty textbox or frozen battle.
-
-# Nuzlocke User Guide — 2.8.29
-
-**Battle Menu UI is Red/Blue/Yellow-only.** Gold, Silver, and Crystal always use the native battle command menu, including the native PKMN glyph and Gen II command-box layout. A saved Battle Menu UI value from an older build has no effect on Gen II and the option is no longer shown there. Blocked Gen II battle items use the native battle refusal state; Nuzlocke no longer creates a custom battle-message phase.
-
-## Historical current note: Nuzlocke User Guide — 2.8.27
-
-In Gold, Silver, and Crystal, the battle POKéMON command and its B/cancel path
-are native. NUZ INFO remains field-only. Party-target items continue to use the
-native direct target list rather than the ordinary field action submenu.
-
-## 2.8.01 hotfix note
-Gold/Silver/Crystal Setup and NUZ RULES again expose Random Trainers plus Trainer Balance, Trainer Diversity, and Trainer Theme. When an overworld poison tick kills the final usable party Pokémon, Nuzlocke now independently evaluates Whiteout/Blackout instead of relying only on the engine's whiteout flag. The known Gen II party-item-use issue remains open.
-
-
-## 2.8.00 runtime note
-
-In Gold/Silver/Crystal, field Pack healing items, status cures, revives, vitamins and Rare Candy should open the normal “Use on which Pokémon?” chooser; selecting a Pokémon should then apply the effect, consume one item on success, and show the result message. Rare Candy-to-cap remains available when a finite cap exists. Setup/NUZ RULES held navigation now starts after about 0.48 s and ramps through five progressively faster—but slightly slower than 2.7.106—repeat stages.
-
-## 2.7.106 runtime note
-
-In New Game Setup and NUZ RULES, tapping UP/DOWN moves one row. Holding a direction pauses briefly, then accelerates through five repeat speeds. Holding SELECT while using UP/DOWN keeps the existing section-jump behavior and follows the same progressive repeat cadence. On Gen2, simple party consumables (healing/status/revive items, vitamins, Rare Candy) now execute directly on the Pokémon selected from the native item chooser; PP items and evolution stones retain their specialized flows.
-
-## 2.7.105 party-item and list navigation note
-
-On Gen2, choosing **USE** on a party-target item should open "Use on which Pokémon?" and selecting the target should immediately run the item action; it should **not** open the normal WATERFALL/STATS/SWITCH/MOVE/ITEM/NUZ INFO submenu. 2.7.105 repairs that chooser distinction.
-
-In **NUZLOCKE SETUP** and **NUZ RULES**, tap UP/DOWN to move one row or hold UP/DOWN to rapidly repeat after a short delay. Hold **SELECT** while navigating to keep the existing whole-section jump behavior. Numeric digit-entry rows keep their deliberate tap/edge editing behavior.
-
-## 2.7.104 runtime note
-
-TOOLS profile controls keep the 2.7.103 behavior: Profile Slot selects OFF/1/2/3; Save Profile and Load Profile act on that selection. For Gen2 randomized starters, 2.7.104 may repair the tracked starter's internal native party-record shape automatically on the next party-item attempt. This is a compatibility repair and does not intentionally change the Pokémon's species, current HP/status, moves, held item, OT, or Nuzlocke provenance.
-
-## 2.7.103 TOOLS + World Building defaults
-
-TOOLS uses one selector and two actions: **Profile Slot** cycles OFF/1/2/3; **Save Profile** saves the current configuration into the selected numbered slot; **Load Profile** previews and loads the selected saved configuration. LEFT/RIGHT on Save/Load does not change the slot. World Building now defaults to **T3** in every game on fresh/default configurations. Existing saves retain an explicitly stored tier.
-
-## 2.7.102 TOOLS profiles and Gen2 party items
-
-In Setup and in-run Rules, TOOLS uses one shared profile target with `OFF / 1 / 2 / 3`. LEFT/RIGHT on Profile Slot, Save Profile, or Load Profile changes that target. A cycles Profile Slot. A on Save Profile saves the current configuration to the selected numbered slot; A on Load Profile previews and, after confirmation, applies the selected numbered slot. OFF performs no save/load action. Profiles remain configuration-only.
-
-Gen2 party-target consumables retain native Gen1Recomp item-effect ownership. Before native party-item dispatch, Nuzlocke normalizes any compatible numeric owned-Pokemon species representation to the semantic species key expected by Gen2 Pokemon data. Runtime certification is required.
-
-## 2.7.101 in-run tools
-
-The bottom of NUZLOCKE RULES now contains **TOOLS**: Save Rules, Profile Slot, Save Profile, Load Profile, and Encounter Assignment. Profiles store configuration only. Loading previews rule changes before applying them. Encounter Assignment is the player-assisted provenance recovery tool for Pokemon whose encounter area could not be recovered automatically. Gen2 Services & Economy now exposes Shop Restrictions with OFF / NO BUY / NO SELL / NEITHER.
-
-## 2.7.95 presentation update
-
-The Gen-2 ENC TRACKER MAP is ordered for players rather than ROM internals: normal Johto progression appears first, followed by Kanto and then evidence-backed custom/unknown encounter areas. Ordinary non-encounter interiors are not listed merely because they exist in the ROM map catalog. New Bark remains visible because it owns opening-starter provenance.
-
-R/B/Y pre-game **NUZLOCKE SETUP** now uses the same black-on-white normal-content treatment as live **NUZLOCKE RULES**. MOD COMPAT keeps its two-column ownership information but uses safer title/help-selector spacing and a slow-blinking down indicator when more rows exist. Battle Menu UI remains optional and presentation-only; ON uses compact pixel-box command chrome while native battle input/actions remain authoritative.
-
-## 2.7.94 Random Starter
-
-Random Starter chooses from the hard-safe live species pool for the running edition/content registry and then applies Starter Style and active challenge legality. **Species Pool does not restrict Random Starter.** Species Pool applies to Random Encounters, Random Trainers, and Random Evolutions. This separation restores the last runtime-proven Gen1 starter behavior while keeping the shared Randomizer configuration system.
-
-## 2.7.93 UI / movement consolidation
-
-**Battle Menu UI** is available under UI in Red/Blue/Yellow and defaults OFF. OFF uses the normal Gen1Recomp battle command menu. ON replaces only the ordinary Gen I command presentation with Nuzlocke's centered bottom 2x2 panel while the native battle state still owns selection and actions. Gold/Silver/Crystal always use their native battle command menu; Safari and tutorial/demo menus remain native.
-
-QOL now has one **Run / Surf** selector instead of separate Running Shoes and Fast Surf rows: `OFF`, `HOLD B`, or `ALWAYS`. It applies the same selected mode to player-controlled walking and Surf. Biking, scripted movement, Surf initiation, Waterfall, fishing, menus, and cutscenes stay native. Existing saves/presets choose the more restrictive old movement setting when the two historical values disagree.
-
-## 2.7.92 Setup / Rules appearance
-
-Nuzlocke-owned Setup and Rules screens use one emphasized bold title and a consistent black normal-content treatment. Normal rule names, values, cursor/navigation glyphs, the bottom-centered pager, and help text no longer use mixed normal-row colors. WIP/delegated rows may still dim. The three visible rows remain moved upward and the pager remains centered at the bottom of the list panel.
-
-## 2.7.91 Random Starter crash / Rules pager update
-
-Silver 2.7.90 runtime testing confirmed the vanilla Elm starter path now works without the false glitch warning. 2.7.91 protects that path by treating starter-slate materialization as optional: a randomizer materialization fault falls back to the selected vanilla starter rather than crashing Elm's mandatory grant. The Setup/Rules layout also moves the visible rules upward and centers the ▲ current/total ▼ pager at the bottom of the list panel on both Gen-1 and Gen-2 surfaces. Crystal Mom DST remains deferred.
-
-## 2.7.90 starter provenance repair
-
-Gold/Silver/Crystal Elm starter flow now carries one same-script mandatory-starter marker from POKEPIC through GIVEPOKE, plus a one-transaction receipt window while the native party mutation emits pokemon.received. Generic gift/glitch gates must not re-evaluate that same mandatory starter. New Game Random Starter settings are also copied into the fresh save-backed mod state at save.created so R/B/Y and Gen 2 do not lose the setup choice before the starter transaction. Crystal remains ALPHA; Mom DST cleanup is deferred.
-
-## 2.7.89 starter transaction recovery
-
-Setup/Rules no longer show the redundant edition / NEW RUN/LIVE subtitle beneath the title. Random Starter recovery now follows the recently runtime-proven ownership model: R/B/Y uses the first canonical opening starter gift, while Gold/Silver/Crystal treats Elm Lab GIVEPOKE as the mandatory starter story transaction before optional gift/glitch policy. Crystal remains ALPHA; its remaining Mom DST prompt is deferred.
-
-## 2.7.88 starter / clock / DEV report runtime repair
-
-Silver and Crystal runtime testing through 2.7.87 showed that the Elm transaction could still reach Nuzlocke as a numeric Gen-2 species identity and be rejected as glitch-shaped. 2.7.88 resolves numeric species against the live Pokemon registry's public `index` field before acquisition legality, and Elm's mandatory transaction additionally recognizes the three canonical cartridge GIVEPOKE operands in Elm Lab. Gen-2 Random Starter uses the same canonical/native conversion; R/B/Y Random Starter now mutates the gift only when the rule is enabled. Manual Time's rules-row summary displays `HH:MM`. VIEW REPORT generates and displays the live NZR6 code first. Crystal remains ALPHA.
-
-## 2.7.87 Gen-2 Elm / Manual Time / DEV report repair
-
-Gold/Silver/Crystal script GIVEPOKE uses numeric Gen-2 species IDs. Nuzlocke now resolves those IDs through Gen1Recomp's canonical Gen-2 species order before starter recognition and legality. Random Starter uses the same authority in reverse when converting a selected canonical species back to the native grant index. Manual Time supports both hour and minute editing. On Crystal, System Date/Time now also owns Mom's initial DST confirmation ladder. DEV TOOLS -> VIEW REPORT opens on the long shareable report code first; Left/Right reaches the human-readable report sections. Crystal remains ALPHA.
-
-## 2.7.86 Gen-2 starter/setup repair
-
-Silver and Crystal runtime testing of 2.7.85 showed vanilla Elm starters being rejected as glitch Pokemon, leaving the story advanced with an empty party. 2.7.86 resolves canonical Gen-2 species names through numeric/row-indexed registries before glitch classification. It also restores System Date/Time and System Clock Sync to shared Gen-2 setup applicability. Crystal remains ALPHA.
-
-# Nuzlocke User Guide — 2.7.85
-
-## 2.7.85 Crystal Alpha runtime note
-
-Crystal remains intentionally supported in Alpha. 2.7.84 runtime testing reached Elm Lab but crashed on the first starter-ball interaction. 2.7.85 leaves Crystal's native animated starter portrait/cry presentation untouched while retaining Nuzlocke's shared Gen-2 starter grant/tracking transaction. Retest the starter flow before treating Random Starter presentation as certified on Crystal.
-
-
-
-## 2.7.84 Crystal Alpha support
-
-**Pokémon Crystal is now an intentional Nuzlocke target, currently in ALPHA.** Nuzlocke-owned Crystal rules/status/configuration screens identify the game as **CRYSTAL ALPHA**. Core shared Gen-2 systems are enabled where the engine uses the same contract as Gold/Silver, including the 251-species rule pool, Gen-2 clock controls, shared encounter/rule surfaces, and Elm-style starter handling.
-
-Alpha means runtime coverage is incomplete. Crystal-specific story events, script specials, static/gift encounters, Battle Tower behavior, progression details, and edition-specific UI paths may still be unverified or incomplete. A feature working on Gold or Silver does **not** count as Crystal proof. Report Crystal failures with the exact rule, location/story state, and whether the run is NEW GAME or an existing save.
-
-The Gen1Recomp compatibility profile is now source/documentation-audited through **0.2.27**, and **Gen1Recomp 0.2.24 or newer is required** for this build because Crystal is an explicit manifest target. No Nuzlocke save migration is required for this support change.
-
-
+Wonderlocke remains disabled pending a safe pre-transaction Wonder Trade seam. Permanent Rule Seal remains WIP-disabled. Crystal is supported as an **alpha** target, not an unsupported edition.
 
 ## Difficulty Profiles — Full Mechanical Reference (2.8.72)
 
@@ -414,7 +171,7 @@ The full formulas, tier meanings, exact per-profile values, and provider-composi
 
 ## 2.7.81 engine compatibility notes
 
-On Gen1Recomp 0.2.21, **System Date/Time** remains a Gen2 NEW GAME option and **System Clock Sync** remains an in-run Gen2 QoL option. Automatic setup uses platform-local time/day and now covers either initial Daylight Saving Time branch without applying the cartridge DST adjustment a second time. Gold and Silver should still be tested independently. Crystal is not a supported Nuzlocke edition.
+On Gen1Recomp 0.2.21, **System Date/Time** remains a Gen2 NEW GAME option and **System Clock Sync** remains an in-run Gen2 QoL option. Automatic setup uses platform-local time/day and now covers either initial Daylight Saving Time branch without applying the cartridge DST adjustment a second time. Gold and Silver should still be tested independently. Historical note: at that build Crystal was not yet a supported Nuzlocke edition; current 2.9.1 support is alpha.
 ## 2.7.80 — Gold/Silver clock options and safer TO CAP batches
 
 Gold/Silver NEW GAME setup now includes `System Date/Time`. When enabled, Nuzlocke uses the engine's native Gen-2 clock to initialize time and weekday from the platform local clock and bypass the manual opening clock flow where the engine path allows it. The regular QoL option `System Clock Sync` keeps that native clock aligned while enabled; turning it OFF stops further re-anchoring and leaves the current game-clock offset alone.
@@ -478,7 +235,7 @@ This build preserves the complete 2.7.72 feature/rule surface and repairs an int
 
 On selectable MOD COMPAT rows, use Left/Right to cycle the preferred owner. `AUTO` is recommended and chooses the live compatible provider normally. A row may also offer the native `Nuzlocke`/`Engine` owner and any installed provider that actually advertises the matching capability. Rows without a safe substitutable provider contract remain read-only. Gameplay-impacting changes show an OWNER WARNING before applying; Cancel leaves the preference unchanged.
 
-> **Current build:** 2.7.84. The shared Nuzlocke architecture remains canonical; this build advances the Gen1Recomp compatibility audit through 0.2.24-era source and intentionally adds Crystal as an ALPHA target with independent runtime evidence.
+> **Historical build:** 2.7.84. The shared Nuzlocke architecture remains canonical; that build advanced the Gen1Recomp compatibility audit through 0.2.24-era source and intentionally added Crystal as an ALPHA target with independent runtime evidence.
 
 ## 2.7.63 build note
 
@@ -572,7 +329,7 @@ One Per Area limits legal catches by encounter area. Failed Encounters can consu
 Supported acquisition paths require a non-default nickname. The rule is independent of player/rival automatic naming options.
 
 ### Dupes / Shiny
-Dupes can be OFF, exact-species, or evolution-family based. Shiny Clause is a numeric exception policy rather than an ordinary boolean toggle; explicit stored values are preserved.
+Dupes can be OFF, exact-species, whole evolution-family, or SPLIT branch based. SPLIT keeps ancestor/descendant lines duplicate while allowing sibling branches after a genuine split (for example, Vaporeon does not block Jolteon). Shiny Clause is a numeric exception policy rather than an ordinary boolean toggle; explicit stored values are preserved.
 
 ### First Rival Mercy
 Applies only to the intended first Rival battle and is consumed when that battle begins. Later Rival battles are not exempt.
@@ -746,7 +503,7 @@ Dev Mode includes self-test/report surfaces for build provenance, rule registry/
 
 ## WIP / unavailable
 
-Wonderlocke remains disabled until a safe pre-transaction Wonder Trade seam exists. Permanent Rule Seal remains WIP-disabled. Crystal is not currently a declared target.
+Wonderlocke remains disabled until a safe pre-transaction Wonder Trade seam exists. Permanent Rule Seal remains WIP-disabled. Historical note: Crystal was not declared by the build described in this old section; current 2.9.1 declares Crystal as alpha.
 ## Reliability / interruption behavior
 
 2.6.57 adds internal recovery infrastructure for future interruption-sensitive gameplay mutations. A pending supported transaction is reconciled on load before normal schema migration/enforcement resumes. If Nuzlocke cannot prove whether an interrupted mutation already happened, it fails closed rather than repeating the mutation blindly. This infrastructure does not change ordinary rule choices or claim that every existing gameplay path has already adopted transaction recovery.
@@ -799,3 +556,53 @@ The Rules and Setup lists show only settings that can currently matter. Edition-
 ## Gen II Nuzlocke utility-screen layout (2.8.04)
 
 Nuzlocke-owned Gold/Silver/Crystal utility screens use the shared Gen II Chrome layout. NUZ STATUS, MOD COMPAT, ENC TRACKER, and DEV REPORT reserve a centered emphasized title band, bounded body text inside the native 20x18 tile frame, and a dedicated footer row. Long labels/values are fitted to their assigned lane instead of being allowed to cross the border. DEV REPORT opens on its semantic SUMMARY view; machine-oriented report codes remain diagnostic data rather than the default player-facing page.
+
+
+### Bag compatibility
+Source-reviewed targets: Useful Bag 2.6.3, Modern Bag UI 0.4.5, and Bag Sort 0.1.0. Nuzlocke composes with presentation/storage/order and enforces item legality by actual item/action rather than pocket position. Combined runtime certification is pending.
+
+
+### Expanded species compatibility
+Expanded species are consumed through final merged species data and the existing species metadata/evolution provider contracts. BST/type/species-ban rules and Randomizer eligibility therefore do not require a hardcoded native-only Pokédex assumption. Dex Overflow 0.1.1 remains a legacy reviewed target; combined expanded-Dex runtime certification is pending.
+
+
+### Transfer/import provenance
+Stadium/Crystal-251 model or ROM import is not Pokémon acquisition. Real external acquisitions must explicitly mark the concrete Pokémon through the public acquisition-provenance surface (or preserve equivalent fields). Unknown imports are not guessed into encounter slots. Gen-II link Pokémon codecs exist upstream, but the full Gen-II trade transaction is not yet a certified Nuzlocke acquisition seam.
+
+
+## Graveyard Viewer (2.9.16)
+
+Open **NUZ MENU → GRAVEYARD** to view Pokémon that are still authoritatively fallen. The list is chronological; select a Pokémon with **A** for its **IN MEMORY** page and use **B** to return.
+
+The viewer is read-only. It does not move Pokémon, alter Permadeath, consume F. TOKENs, change encounter legality, or create a separate graveyard save. It projects the existing durable death/history records. If a Pokémon is legitimately revived by F. TOKEN, its old death remains part of Run History but it no longer appears as currently fallen in the Graveyard.
+
+Memorial details show only information the mod actually recorded. Older/legacy deaths can therefore show **UNKNOWN** for level, location, opponent, move, or cause. The viewer never guesses missing history. New deaths preserve level in the existing history payload when available.
+
+Graveyard labels use the normal translation/fallback path. 2.9.16 is **STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED** across the declared editions.
+
+
+## Almanac / Run Recap (2.9.17)
+
+Open **NUZ MENU → ALMANAC** to view a read-only summary of the current run. The Almanac uses the existing Run History v2 durable aggregate/evidence ledger and recorded Randomizer run snapshot; it does not create a second history save. Pages cover run totals/status, progression, Pokémon history, rule-integrity evidence, Randomizer metadata, and history coverage.
+
+When an older run predates complete history capture or detailed journal rows have been pruned, the Almanac displays **PARTIAL** rather than inventing missing facts. Missing individual values display **UNKNOWN**. Opening the Almanac does not change rules, catches, deaths, Randomizer state, mappings, or history. Labels use the normal translation/fallback path. 2.9.17 is **STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED** across declared editions.
+
+## End / Abandon Run (2.9.18)
+
+Open **NUZ MENU → END RUN** to explicitly abandon an active Nuzlocke run. **ABANDON RUN** opens a destructive confirmation that always defaults to **NO**; **B** or choosing **NO** makes no changes.
+
+Choosing **YES** records the durable Run History v2 abandonment first. Only after that commit succeeds does the mod disable the Nuzlocke master switch through its normal rule path. This preserves the final history/rule-integrity state and releases transient challenge locks consistently. If history cannot be written safely, the run remains active instead of silently ending without a record.
+
+END RUN cannot mark a run completed. Natural completion remains tied to actual game progression. Completed or already-abandoned runs are read-only here. After a successful abandonment, the Almanac opens to show the final recap. Graveyard, encounter history, Randomizer records, and unrelated save data are preserved. 2.9.18 is **STATIC/SEMANTIC PASS — RUNTIME TEST REQUIRED** across declared editions.
+
+
+## Colorlocke and Alphabetlocke (2.9.25)
+
+**Color classification:** for canonical National Dex #001-#251 species, Nuzlocke uses provider/runtime Pokédex-color metadata when available and otherwise its bundled PokéAPI/Veekun Pokédex-search color classification. Sprite palettes, shiny colors, UI recolors, and localization do not change Colorlocke legality. Unknown custom species without color metadata fail open.
+
+
+**Colorlocke**: OFF disables it; RANDOM deterministically chooses one of BLACK, BLUE, BROWN, GRAY, GREEN, PINK, PURPLE, RED, WHITE, YELLOW; CHOOSE uses the Color selector. Classification is species metadata, not sprite pixels, so shiny/visual mods cannot change legality. Unknown custom metadata fails open.
+
+**Alphabetlocke**: OFF disables it; RANDOM deterministically chooses an A-Z initial represented by the live species registry; CHOOSE uses the Letter selector. Classification uses canonical species identity rather than localized display text.
+
+Both rules apply only when a Pokemon is newly acquired. Existing Pokemon are never removed and evolution does not retroactively invalidate a legal teammate. They are additional hard acquisition restrictions and therefore compose with Type Locke, PKMN BAN, Maximum BST, legendary/mythical/pseudo/glitch restrictions, gifts/trades, and Randomizer-produced species.

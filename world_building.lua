@@ -365,7 +365,7 @@ return function(mod, deps)
       },
       dupes_mode = {
           t1="Dupes Clause is active.",
-          t2="Already-owned species or families can be passed without spending the area.",
+          t2="Already-owned species, families, or same-branch evolutions can be passed without spending the area.",
           kanto="The Kanto ledger checks your collection before it closes a route.",
           johto="The Johto ledger checks your collection before it closes a route.",
       },
@@ -1014,12 +1014,21 @@ return function(mod, deps)
           hash = (hash * 131 + string.byte(canonical, i)) % 2147483647
       end
       report.checksum = hash
-      -- Five exact editions x three tiers. Each resolved edition/tier
-      -- owns a pool of at least three preset choices.
-      report.resolved_combinations = report.key_count * 3 * 5
+      -- Six exact editions x three tiers. Silver and Crystal share the Gen2
+      -- text family where appropriate, but remain distinct certification
+      -- surfaces and must never disappear from audit accounting.
+      local exactEditions = {
+          "red", "blue", "yellow", "gold", "silver", "crystal",
+      }
+      local exactEditionCount = #exactEditions
+      report.exact_editions = exactEditions
+      report.exact_edition_count = exactEditionCount
+      report.resolved_combinations =
+          report.key_count * 3 * exactEditionCount
       report.minimum_variants_per_tier = 3
       report.exact_edition_tier_surfaces = report.resolved_combinations
-      report.minimum_preset_options = report.key_count * 5 * 3 * 3
+      report.minimum_preset_options =
+          report.key_count * exactEditionCount * 3 * 3
 
       if report.key_count ~= report.expected_key_count then
           report.ok = false
@@ -1027,7 +1036,23 @@ return function(mod, deps)
               .. tostring(report.key_count) .. " != "
               .. tostring(report.expected_key_count)
       end
-      local expectedResolved = report.expected_key_count * 3 * 5
+      local expectedEditionIds = {
+          red=true, blue=true, yellow=true,
+          gold=true, silver=true, crystal=true,
+      }
+      local editionSetOk = exactEditionCount == 6
+      for _, edition in ipairs(exactEditions) do
+          if expectedEditionIds[edition] ~= true then editionSetOk = false end
+          expectedEditionIds[edition] = nil
+      end
+      for _ in pairs(expectedEditionIds) do editionSetOk = false break end
+      if not editionSetOk then
+          report.ok = false
+          report.failures[#report.failures + 1] =
+              "exact edition set mismatch"
+      end
+      local expectedResolved =
+          report.expected_key_count * 3 * exactEditionCount
       if report.resolved_combinations ~= expectedResolved then
           report.ok = false
           report.failures[#report.failures + 1] = "resolved combinations "
@@ -1208,5 +1233,253 @@ return function(mod, deps)
   end
 
 
-  return { worldTier = worldTier }
+  ---------------------------------------------------------------------
+  -- 2.9.47 WORLD BUILDING PRESENTATION / TRANSACTION OWNERSHIP
+  -- Moved from main.lua. This owns only cosmetic presentation and the
+  -- existing once-per-save flavor flags; challenge legality never depends on it.
+  ---------------------------------------------------------------------
+  local function worldFlags()
+      local flags = mod.save:get("nuzlocke_world_flags", {})
+      if type(flags) ~= "table" then flags = {} end
+      return flags
+  end
+
+  -- Keep every mod-authored World Building line well-formed before it reaches
+  -- either a TextBox or an engine message queue. This deliberately preserves
+  -- explicit newlines/page breaks while removing accidental doubled spaces,
+  -- spaces beside line breaks, and spaces before punctuation.
+  mod.exports.__beta26.cleanWorldText = function(message)
+      -- World-building, rule-denial, and item-policy callers pass their stable
+      -- English source text through this shared presentation boundary.  That
+      -- gives translation mods one reliable key without changing rule logic.
+      local text = Strings(tostring(message or ""))
+      text = text:gsub("\r\n", "\n"):gsub("\r", "\n")
+      text = text:gsub("[ \t]+\n", "\n"):gsub("\n[ \t]+", "\n")
+      text = text:gsub("[ \t]+\v", "\v"):gsub("\v[ \t]+", "\v")
+      text = text:gsub("[ \t]+", " ")
+      text = text:gsub(" +([,%.%!%?;:])", "%1")
+      text = text:gsub("^%s+", ""):gsub("%s+$", "")
+      return text
+  end
+
+  -- 2.1.23: every Nuzlocke-owned overworld/world-building message shares one
+  -- paginator. Gen1's native \v continuation scroll deliberately retains the
+  -- previous line; that is correct for vanilla text but made mod-authored T3
+  -- dialogue look duplicated/stitched across Mom, lab, tutorial, and other
+  -- interactions. Convert our own continuation markers to ordinary logical
+  -- line boundaries, wrap to the native 18-glyph dialogue width, and emit at
+  -- most two lines per explicit page. Vanilla engine text is never rewritten.
+  mod.exports.__beta26.formatWorldText = function(message)
+      local text = mod.exports.__beta26.cleanWorldText(message)
+      if text == "" then return text end
+      text = text:gsub("\v", "\n")
+      local pages = {}
+      local function appendWrappedBlock(block)
+          local lines = {}
+          for raw in (tostring(block or "") .. "\n"):gmatch("(.-)\n") do
+              local words = {}
+              for word in raw:gmatch("%S+") do words[#words + 1] = word end
+              if #words == 0 then
+                  if #lines > 0 then lines[#lines + 1] = "" end
+              else
+                  local line = ""
+                  for _, word in ipairs(words) do
+                      if deps.nuzGlyphLen(word) > 18 then
+                          if line ~= "" then lines[#lines + 1], line = line, "" end
+                          local rest = word
+                          while deps.nuzGlyphLen(rest) > 18 do
+                              lines[#lines + 1] = deps.nuzGlyphSlice(rest, 1, 18)
+                              rest = deps.nuzGlyphSlice(rest, 19)
+                          end
+                          line = rest
+                      else
+                          local candidate = line == "" and word or (line .. " " .. word)
+                          if deps.nuzGlyphLen(candidate) <= 18 then
+                              line = candidate
+                          else
+                              if line ~= "" then lines[#lines + 1] = line end
+                              line = word
+                          end
+                      end
+                  end
+                  if line ~= "" then lines[#lines + 1] = line end
+              end
+          end
+          local i = 1
+          while i <= #lines do
+              local first = lines[i] or ""
+              local second = lines[i + 1]
+              pages[#pages + 1] = second ~= nil and (first .. "\n" .. second) or first
+              i = i + 2
+          end
+      end
+      local start = 1
+      while true do
+          local cut = text:find("\f", start, true)
+          if cut then
+              appendWrappedBlock(text:sub(start, cut - 1))
+              start = cut + 1
+          else
+              appendWrappedBlock(text:sub(start))
+              break
+          end
+      end
+      return table.concat(pages, "\f")
+  end
+
+  -- Own one active World Building TextBox at a time. Compatibility fallbacks
+  -- can observe the same transaction through more than one seam; suppress an
+  -- identical message only while its first box is still active, then release
+  -- ownership when the player closes it so later legitimate interactions keep
+  -- giving rule feedback.
+  mod.exports.__beta26.pushWorldText = function(game, message, onDone)
+      if not (game and game.stack) then return false end
+
+      -- beta.30.0.0.20: never layer optional Nuzlocke World Building text over
+      -- an already-active vanilla/other-mod TextBox. Gen1Recomp TextBox is a
+      -- foreground blocking state; nesting cosmetic dialogue over it can cause
+      -- the underlying script text to resume at an already-presented scroll/
+      -- wrap boundary. This is presentation-only: callers treat false as
+      -- "do not show flavor text"; rule enforcement must never depend on it.
+      local top = type(game.stack.top) == "function" and game.stack:top() or nil
+      if type(top) == "table" and top.isTextBox == true then
+          return false
+      end
+      local states = game.stack.states
+      if type(states) == "table" then
+          for _, state in ipairs(states) do
+              if type(state) == "table" and state.isTextBox == true then
+                  return false
+              end
+          end
+      end
+
+      local text = mod.exports.__beta26.formatWorldText(message)
+      if text == "" then return false end
+      local state = mod.exports.__beta26.worldPresentation
+      if type(state) ~= "table" then
+          state = {}
+          mod.exports.__beta26.worldPresentation = state
+      end
+      if state.game == game and state.activeText == text then return false end
+      local okText, TextBox = pcall(require, "src.render.TextBox")
+      if not okText or not TextBox or type(TextBox.new) ~= "function" then
+          return false
+      end
+      state.game, state.activeText = game, text
+      local ok = pcall(function()
+          game.stack:push(TextBox.new(game, text, function(...)
+              if state.game == game and state.activeText == text then
+                  state.activeText = nil
+              end
+              if type(onDone) == "function" then return onDone(...) end
+          end))
+      end)
+      if not ok then state.activeText = nil end
+      return ok
+  end
+
+  local function worldOnce(game, key, message, minimumTier)
+      minimumTier = minimumTier or 3
+      if worldTier(game) < minimumTier then return false end
+      local flags = worldFlags()
+      if flags[key] then return false end
+      if not mod.exports.__beta26.pushWorldText(game, message) then return false end
+      flags[key] = true
+      mod.save:set("nuzlocke_world_flags", flags)
+      return true
+  end
+
+  local function worldMessageText(tier, tier1, tier2, tier3, critical)
+      tier = math.max(0, math.min(3, math.floor(tonumber(tier) or 0)))
+      -- World Building OFF suppresses optional flavor, never consequential
+      -- enforcement/state-change feedback. Critical feedback deliberately uses
+      -- the plain Tier-1 wording at T0 rather than escalating presentation.
+      if tier <= 0 then
+          return critical == true and tier1 or nil
+      end
+      return tier == 1 and tier1
+          or (tier == 2 and (tier2 or tier1) or (tier3 or tier2 or tier1))
+  end
+
+  local function worldMessage(game, tier1, tier2, tier3, critical)
+      local message = worldMessageText(
+          worldTier(game), tier1, tier2, tier3, critical)
+      return message and mod.exports.__beta26.pushWorldText(game, message) or false
+  end
+
+  local function worldMechanic(game, key, tier1, tier2, tier3, critical)
+      local tier = worldTier(game)
+      if tier <= 0 and critical ~= true then return false end
+      if key then
+          local flags = worldFlags()
+          -- One gameplay/story event speaks once for the life of the save.
+          -- Changing World Building tiers later must not replay the same beat.
+          if flags[key] then return false end
+          if not worldMessage(game, tier1, tier2, tier3, critical) then
+              return false
+          end
+          flags[key] = true
+          mod.save:set("nuzlocke_world_flags", flags)
+          return true
+      end
+      return worldMessage(game, tier1, tier2, tier3, critical)
+  end
+
+  mod.exports.__beta26.emitFailedEncounterFeedback = function(game, area)
+      local t1, t2, t3 = mod.exports.__beta26.worldRuleTriplet(
+          game, "failed_encounter")
+      -- This is consequential encounter-state feedback, not optional flavor.
+      -- T0/T1 use the plain explanation; T2/T3 progressively add flavor.
+      return worldMechanic(game, "failed:" .. tostring(area), t1, t2, t3, true)
+  end
+
+  mod.exports.__beta26.failedEncounterFeedbackTierAudit = function()
+      local report = { ok=true, checked=0, failures={} }
+      local function expect(id, actual, expected)
+          report.checked = report.checked + 1
+          if actual ~= expected then
+              report.ok = false
+              report.failures[#report.failures + 1] = tostring(id)
+          end
+      end
+      expect("failed_t0_plain",
+          worldMessageText(0, "PLAIN", "FLAVOR", "REGIONAL", true), "PLAIN")
+      expect("failed_t1_plain",
+          worldMessageText(1, "PLAIN", "FLAVOR", "REGIONAL", true), "PLAIN")
+      expect("failed_t2_flavor",
+          worldMessageText(2, "PLAIN", "FLAVOR", "REGIONAL", true), "FLAVOR")
+      expect("failed_t3_regional",
+          worldMessageText(3, "PLAIN", "FLAVOR", "REGIONAL", true), "REGIONAL")
+      return report
+  end
+
+  mod.exports.__beta26.worldCriticalFeedbackAudit = function()
+      local report = { ok = true, checked = 0, failures = {} }
+      local function expect(id, actual, expected)
+          report.checked = report.checked + 1
+          if actual ~= expected then
+              report.ok = false
+              report.failures[#report.failures + 1] = tostring(id)
+          end
+      end
+      expect("t0_optional_off",
+          worldMessageText(0, "plain", "mid", "rich", false), nil)
+      expect("t0_critical_plain",
+          worldMessageText(0, "plain", "mid", "rich", true), "plain")
+      expect("t1_plain",
+          worldMessageText(1, "plain", "mid", "rich", false), "plain")
+      expect("t2_mid",
+          worldMessageText(2, "plain", "mid", "rich", false), "mid")
+      expect("t3_rich",
+          worldMessageText(3, "plain", "mid", "rich", false), "rich")
+      return report
+  end
+
+  return {
+      worldTier = worldTier,
+      worldOnce = worldOnce,
+      worldMessage = worldMessage,
+      worldMechanic = worldMechanic,
+  }
 end

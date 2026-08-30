@@ -1,3 +1,247 @@
+<!-- Current build: 2.9.72 -->
+# Nuzlocke Compatibility — 2.9.72
+
+
+## 2.9.72 focused runtime repairs
+Gen-II field-item pickup operands may arrive as numeric cartridge indexes. Nuzlocke now resolves those indexes through the active item registry to canonical IDs before Randomizer policy/persistence and converts the selected item back to the native representation for the pickup builder. Random Shops now exclude the authored item when a legal alternative exists. Random Trainers continue to use the existing `trainer.party` seam; 2.9.72 adds observational boundary tracing rather than requesting a new engine hook. Shiny presentation now recolors private ImageData copies rather than shared engine asset data.
+
+# 2.9.71 — Gen-I Random Field Items seam correction
+
+Yellow runtime testing on Nuzlocke 2.9.70 / Gen1Recomp 0.2.41 showed that visible Random Field Items were not replacing the authored pickup even though the native pickup itself completed. Source review confirmed that Gen1Recomp exposes `world.talk` as the public hook at the A-press boundary before `OverworldController:talkTo` consumes the object's item payload. Nuzlocke 2.9.71 therefore uses `world.talk` as the primary Gen-I visible-field-item composition seam rather than relying on direct method ownership of `OverworldController.talkTo`.
+
+The downstream native handler still owns bag capacity, item removal/taken flags, item-name text, sounds, and retry behavior. Nuzlocke changes only the item payload for the duration of the downstream call and restores the authored object definition afterward. Because `world.talk` exists at the supported 0.2.24+ engine floor, 2.9.71 does not silently fall back to the retired direct `OverworldController.talkTo` wrapper. If the hook facade is unexpectedly unavailable, installation fails closed and Dev diagnostics report the missing pipeline.
+
+This is a focused compatibility/correctness repair. Gen1Recomp remains source-reviewed through 0.2.41, with Mod API 2, Link Protocol 2, Save Format 5, and ROM cache v5. No Nuzlocke Compatibility API, Save Schema, or Randomizer algorithm bump is required. 2.9.71 does not claim Random Field Items Runtime PASS until exact-edition retesting succeeds.
+
+# 2.9.63 — Gen1Recomp 0.2.40 compatibility refresh
+
+Gen1Recomp **0.2.40** is source/documentation reviewed at release commit `0cf543d597ce84e4d847b2aba782f1bf2799fde0`. Mod API remains 2 and upstream Save Format remains 5. The 0.2.40 delta materially revises Gen-I/Gen-II battle presentation and Gen-II party-item/evolution stack handling while preserving the public loader/mod vocabulary. Nuzlocke continues to treat engine pacing and audio timing as **engine-owned**. Focused exact-edition runtime revalidation is required.
+
+The current Gen-II compatibility reference continues to define one shared API vocabulary across generations, with generation-specific availability guarded by the engine. The 0.2.40 release does not identify a HiddenItems contract change that explains the unresolved Gen-II Random Field Items problem; runtime diagnosis remains required. Gen-II party-item/Rare-Candy flows receive focused revalidation because `Game2:usePartyItem` changed materially upstream.
+
+The existing engine range `>=0.2.24 <2.0.0`, Nuzlocke Save Schema 5, Compatibility API 37, and exact-edition runtime-evidence rules are unchanged. Source/documentation review is not Runtime PASS.
+
+
+## Compatibility evidence classes (2.9.40)
+
+Compatibility diagnostics now keep three evidence facts separate. **Live contract** means a currently loaded external mod publishes a cooperation/compatibility surface; it does not by itself prove that the provider is active, selected, or runtime-certified. **Source reviewed** means Nuzlocke carries a reviewed descriptive adapter/ownership record for that target. **Combined runtime required** means the coexistence claim still requires exact-edition testing of the combined stack before it can be called Runtime PASS. A target may be both source reviewed and combined-runtime-required. Explicit do-not-combine targets remain source-reviewed conflicts rather than runtime-certification targets.
+
+These classes are diagnostic confidence metadata only. They do not grant provider ownership, change rule precedence, or promote standalone runtime evidence to a combined-mod PASS.
+
+## Level Match 0.7.0
+
+**Source/Compatibility Reviewed — Runtime Test Required.** Level Match is a high-overlap Gen-II trainer/wild scaling target. It may alter trainer levels, moves/evolutions and boss roster cardinality, wild levels, and persisted roamer levels. Nuzlocke Random Trainers treats `trainer.party` as a dimensioned composition: it consumes the composed incoming roster, changes species identity only when Nuzlocke owns Random Trainers, and preserves legitimate incoming levels, moves, items and roster cardinality. Level-cap surfaces should observe the effective composed trainer ace where available. Runtime testing is required for Random Trainers, level caps, boss padding, wild scaling and roamers.
+
+## Modern Start Menu UI 0.1.14
+
+**Source/Compatibility Reviewed — Runtime Test Required.** The presentation consumes the final `ui.start_menu.items` composition and preserves supplied callbacks. Nuzlocke's single START action now supplies stable semantic id `nuzlocke.menu`; translated/rendered labels are presentation only and must not be used as the compatibility identity. Nuzlocke does not require or detect Modern Start Menu UI.
+
+## Modern Party UI 0.4.0
+
+The existing reviewed target is retained. Party/Summary/Naming/Relearn presentation may be replaced while the provider/native controller remains authoritative. Nuzlocke enforces challenge legality through semantic/native action seams and does not clone or broadly replace the Party controller.
+
+Compatibility API remains **37**; this build hardens composition contracts without adding a new public API surface.
+
+
+# 2.9.23 — Gen1Recomp 0.2.38 launcher compatibility refresh
+
+Gen1Recomp **0.2.38** is source/documentation/launcher reviewed at release commit `73d004d47ecf7966c2546d8b475e7007038b29da`; 0.2.37 is represented at `16f30120f5839b05f7317c2ff457f55c7d85e58f`. Mod API remains 2 and upstream Save Format remains 5. The current launcher validates and displays manifests before game load without executing mod entry code, while the real loader remains authoritative at boot. Nuzlocke's existing manifest already supplies the launcher-relevant metadata it needs: `api: 2`, `game_version`, `profile`, `category`, `github`, `games`, `affects_link`, and the `engine_internals` permission. No new launcher permission, dependency, save schema, or gameplay hook is required.
+
+The reviewed launcher can expose GitHub-backed Update/Versions actions for Nuzlocke through the existing `github: Stone696/nuzlocke` field. Compatibility warnings are derived from validated manifest metadata; Nuzlocke therefore keeps its existing `>=0.2.24 <2.0.0` engine range rather than pinning to 0.2.38. Gen-II cartridge save import/export is engine/launcher tooling and does not give Nuzlocke a safe transaction-veto seam or alter Nuzlocke save ownership. Exact-edition runtime smoke remains required.
+
+# Nuzlocke Compatibility — 2.9.28
+
+## 2.9.28 compatibility pass — encounter intent and presentation ownership
+
+Source/Compatibility Reviewed — Runtime Test Required. Gold Next Encounter Spawner 1.2.2 is an explicit Gen-II encounter-transform target. Its public `encounter.species` wrapper intentionally replaces a resolved wild/sweet-scent candidate and consumes one-shot state only after a real wild `battle.started`. Nuzlocke's Random Encounters implementation projects the encounter registry rather than wrapping `encounter.species`, so the reviewed composition is: Nuzlocke/randomizer registry result -> intentional external candidate transform -> ordinary final-species Nuzlocke catch/acquisition legality. Nuzlocke must not repaint an intentionally selected final candidate merely to satisfy its deterministic Randomizer mapping. Exact Gold/Silver/Crystal runtime testing remains required.
+
+Pokeball Colors 0.1.33 is an explicit Gen-I/Gen-II presentation target. It owns ball-toss/heal-machine coloration and now contains its own narrow ownership arbitration with other ball-art mods. Nuzlocke retains semantic catch/ball legality only and does not infer legality from palette/artwork or claim ball-presentation ownership. No Nuzlocke dependency or dedicated ball-color API is required.
+
+Gen1BetterMenus is refreshed from the historical 1.0.3 target to current reviewed 1.0.32. Its dependency-free `isModOptions = true` semantic screen marker is compatible with Nuzlocke's existing options/configuration screens; 2.9.28 preserves those markers and treats self-described screen purpose as preferable to mod-ID/screen-ID recognition. Nuzlocke gameplay legality remains outside replacement Bag/Party/UI presentation.
+
+
+## 2.9.5 compatibility-registry reconciliation
+
+The compatibility registry, manifest signaling, legacy targets, and explicit exclusions were reconciled as one source/static contract. Manifest presence or load order is discovery/order evidence only, never gameplay ownership. Kanto Ascendant remains explicit conflict/do-not-combine and is intentionally absent from optional dependencies. SHINY_POKEMON remains a compatibility target but is intentionally absent as a reciprocal optional dependency. Dex Overflow and Safari All remain legacy-reviewed until current public source/index evidence is resolved. A read-only Release Safety audit now protects these relationships.
+
+## 2.9.4 acquisition/provenance completeness audit
+
+Acquisition provenance is source-specific rather than inferred from final party state. The audited source families are ordinary wild capture, static capture, roaming capture, starter, gift, in-game trade, fossil, Game Corner prize, egg/Day Care, scripted fixed acquisition, Wonder Trade, Stadium/transfer import, external import, and progression-required acquisition. Unknown imported or save-edited Pokémon remain unverified rather than consuming a guessed encounter slot. Post-mutation receive/trade events are observation/reconciliation seams, not destructive rollback authority. A read-only coverage audit now protects this taxonomy. Combined runtime remains source- and edition-specific.
+
+## 2.9.2 battle-stack ownership audit
+
+The battle stack is split into **combat/stat implementation**, **challenge policy**, **semantic action seams**, **identity/provenance**, and **presentation**. Loading or wrapping a battle engine does not automatically grant ownership of every one of those dimensions.
+
+- **G9 Battle Engine 1.2.3 / `g9-battle-engine-beta` 2.0.2 (Gen II):** remain separate mod ids in one reviewed modern-combat family. Their advertised modern battle-stat/stat-growth dimensions may be external/exclusive; Nuzlocke does not rewrite those internals. Battle lifecycle, held-item behavior, status behavior, and move-category behavior remain observe/compose surfaces until combined runtime proves a stronger contract.
+- **Identity DVs:** native Gen-II DVs remain identity-bearing for shiny/gender/Unown/Nuzlocke identity even when an external modern-stat engine owns combat calculations.
+- **Nuzlocke challenge policy:** faint/permadeath, No Escape, item legality, party limits, battle finish/whiteout policy, and rule-owned held-item suppression remain semantic policy. They compose at the narrow engine/public seams already used by Nuzlocke rather than by replacing an external combat engine.
+- **Trainer parties / EXP:** provider-composed trainer rosters and modern stat growth must not be overwritten merely because Nuzlocke observes the battle. Gen-I-only constructor/Experience interposition remains edition-scoped and is not treated as a G9 integration path.
+- **QoL Toggles 1.30.8:** Poison Save precedence remains case-specific: it may not clamp away a Nuzlocke Permadeath field-poison faint. This does not create blanket Nuzlocke-first precedence for unrelated battle behavior.
+- **Gen-II party routing:** remains native-owned as established by 2.9.1; battle-stack work must not reintroduce broad PartyMenu/BattleState routing replacement.
+
+No speculative private G9 lifecycle patch was justified by this source/static pass. Combined runtime remains required for fainting, switching, escape, items, held items, battle completion, EXP/stat growth, trainer rosters, status behavior, and modern battle presentation.
+
+
+## 2.9.3 healing/services ownership audit
+
+Healing is not one ownership surface. Nuzlocke distinguishes **Center service**, **Mom service**, **field-item healing**, **battle-item healing**, **story/script healing**, and **external/post-battle convenience healing**. A provider or overhaul that heals in one dimension does not automatically own the others.
+
+- Gen-II Center/Mom restrictions remain on the semantic `special HealParty` path, with service/map classification deciding whether `No Center Heal` or `No Mom Heal` applies. Unrelated story healing is deliberately left native.
+- `No Field Heal` and `No Healing Items` remain item-context policies and are not inferred from service ownership.
+- External convenience/overhaul healing may compose for living survivors where that feature owns the service. It may not make a durable `nuzlockeDead` Pokémon usable again; Nuzlocke reasserts death state at its protected lifecycle seams.
+- QoL/overhaul detection alone is not permission to intercept every healing event. New service providers should use the public service-ownership/semantic compatibility surface where available.
+- This is source/static compatibility evidence. Center/Mom plus external-healing combinations remain exact-edition runtime TEST REQUIRED.
+
+## Current engine baseline
+
+Gen1Recomp **0.2.40** is the current published/source/documentation-reviewed baseline at release commit `0cf543d597ce84e4d847b2aba782f1bf2799fde0`. Nuzlocke accepts `>=0.2.24 <2.0.0`, uses Mod API 2, and records upstream Save Format 4 for 0.2.24 and 5 from 0.2.25 through 0.2.40. The 0.2.36→0.2.38 review includes substantial launcher/save tooling work: launcher-side manifest-only mod inspection, GitHub-backed Update/Versions workflows, compatibility/status derivation, per-game targeting, launch sync/update options, and Gen-II cartridge save import/export. The launcher still does not execute a mod entry chunk before `Game:load`; the real loader remains boot authority. Nuzlocke does not claim ownership of launcher-side save conversion or bypass engine ONLINE policy. Exact-edition runtime smoke remains pending.
+
+## Current ownership model
+
+Compatibility is mechanic-specific. Detection or load order is not ownership. Nuzlocke resolves the narrow capability/method, prefers public provider/hook contracts, and falls back safely when a provider is absent or unhealthy. Presentation-only mods retain presentation ownership without becoming challenge-policy owners.
+
+Randomizer ownership is method-specific across ten methods: Starter, Encounters, Field Items, Learnsets, Trainers, Evolutions, Shops, TM Contents, TM Locations, and Gift Items. TM contents and physical TM locations are separate. Visible/hidden field-item sources may also have different owners.
+
+Bag compatibility similarly separates presentation, pockets, sorting/order, slot count, stack capacity, item-use legality, shop legality, and GameplayTransactions. Nuzlocke never enforces item legality by pocket number or list position.
+
+## Current high-value reviewed targets
+
+- Shiny Pokémon maintained fork 1.2.20 — external shiny generation/presentation owner when healthy; Shiny Clause remains Nuzlocke policy.
+- Wilds of Kanto 2.2.0; PokéPC Followers 0.5.1; Followers EX 1.0.19; PotatoVoxel 1.9.6; Dramatic Shape 1.9.0; Battle Art Voxel Fork 1.10.0; Battle Cinematics 1.2.4 — composition/presentation targets with edition-specific runtime certification.
+- Pokémon Gen1 Randomizer 0.46.4; Gen2 Randomizer+ 2.9.0; Item Randomizer 1.1.1 — active-feature/method-specific Randomizer delegation.
+- Kanto Reforged 1.5.3; QoL Toggles 1.30.8; Delta Type 1.2.0; VanillaPlus 0.3.0; The World 6.54.15; Wonder Trade 1.2.1.
+- G9 Battle Engine 1.2.3 and separate `g9-battle-engine-beta` 2.0.2 — invasive Gen-II battle/stat-growth family; combined runtime certification required.
+- Useful Bag 2.6.3; Modern Bag UI 0.4.5; Bag Sort 0.1.0 — storage/presentation/order owners, not Nuzlocke legality owners.
+- STEEL/FAIRY AND TYPING CHARTS 2.0.1; expanded-species/provider targets consume the final merged live type/species graph where stable.
+
+Special status:
+- **Kanto Ascendant 6.5.17:** explicit upstream conflict; do not advertise or certify coexistence with standalone Nuzlocke.
+- **Dex Overflow 0.1.1** and **Safari All 1.1.0:** legacy reviewed/current source unresolved; no newer version is invented.
+- **Wonder Trade:** post-mutation observe/reconcile only; Wonderlocke remains WIP/disabled.
+- **SHINY_POKEMON:** explicit target but intentionally not a reciprocal optional dependency because the maintained fork already declares Nuzlocke optional.
+
+## Current known runtime debt
+
+Gen-II Random Trainers and Gen-II Random Field Items remain tester Runtime FAIL/unresolved. Crystal shiny native presentation and the 0.2.40 exact-edition engine smoke also remain pending. Other combined-mod targets retain the confidence stated in `docs/FEATURE_CONFIDENCE.md`; source review is not Runtime PASS.
+
+---
+
+## Historical compatibility notes
+
+The material below records earlier audits in their original version context. Statements such as “current” or “unsupported” inside a historical section describe that historical build and do not override the authoritative 2.9.2 contract above.
+
+# 2.8.98 — Gen1Recomp 0.2.36 compatibility refresh
+
+Gen1Recomp **0.2.36** is the current published/source-reviewed baseline (release commit `fc56b9b05f01c559610c71f801355abfa4ae920f`). Review of the 0.2.33→0.2.36 forward delta found the newest release work concentrated in ONLINE tournament, spectator, team-selection, and remote-trade lifecycle/UI paths. Nuzlocke does not bypass engine ONLINE content-mod policy and does not infer new gameplay ownership from those paths. Mod API remains 2, upstream Save Format remains 5, and Nuzlocke's engine range remains `>=0.2.24 <2.0.0`. Exact-edition runtime smoke is still required.
+
+# 2.8.97 Gen-II Random Field Item source audit
+
+Gen1Recomp 0.2.33 retains `HiddenItems.ballPickupScript` and `HiddenItems.pickupScript` with signatures matching Nuzlocke's visible/hidden wrappers. No basic upstream seam gap was found. Nuzlocke adds observational decision/script evidence while preserving method-specific ownership; runtime reproduction remains required.
+
+# 2.8.89 Gen-II Random Trainer source audit
+
+Gen1Recomp 0.2.33 continues to expose `trainer.party` on Gen II with shared semantics. Nuzlocke therefore retains its existing semantic hook/native-Mon composition and adds observational accepted-roster evidence rather than declaring an upstream capability gap. Runtime reproduction is still required.
+
+# Nuzlocke Compatibility — 2.8.88
+
+## 2.8.88 method-specific Randomizer ownership
+
+Randomizer ownership is now evaluated at the actual method/source seam where needed. `Random TMs` is TM-content ownership; `Random TM Locations` is physical TM-pickup ownership. These are independent. Item Randomizer visible and hidden Gen-II controls own only their corresponding pickup source class, and Pokémon Gen 1 Randomizer item/hidden/TM-location settings are mapped to their matching location methods rather than suppressing unrelated Nuzlocke Randomizer controls. Gen 2 Randomizer+ `randomTMs` remains TM-content ownership because its current implementation projects TM assignments and compatibility.
+
+The 2.8.87 ownership metadata did not by itself suppress the collection-time Field Item transform; 2.8.88 closes that execution gap. Combined-mod runtime testing remains required.
+
+---
+
+## Current Gen1Recomp compatibility status
+
+Historical 2.8.86 note: Gen1Recomp 0.2.33 was the latest published compatibility profile reviewed by that release. The 0.2.33 release commit is still the current gameplay/API baseline; the post-release `main` movement reviewed for 2.8.86 is packaging metadata only, and the protected `dev` branch is behind/diverged from the release line rather than a newer forward engine baseline. Engine range remains `>=0.2.24 <2.0.0`, Mod API remains 2, and the upstream engine Save Format is recorded as 4 for 0.2.24 and 5 for 0.2.25–0.2.33. Protected Gen II battle, item, save, and script compatibility remains unchanged.
+
+The Gen-I `pokemon.level_visible` hook is available but not owned by Nuzlocke. It is a future Blind Levels/No Level Info opportunity and is separate from Randomizer BLIND INFO. Gen II save import/export, Pokedex registry, and MenuRepeat/transition work are likewise recorded as future opportunities, not active adapters.
+
+Gen1Recomp 0.2.33's ONLINE arena intentionally disables ordinary content mods through the loader's `disableAll`/`cartOnly` policies. Nuzlocke does not bypass that restriction. Ordinary modded or LAN link sessions remain declared with `affects_link=true`.
+
+The narrow Crystal shiny-flash safety retains its non-ownership boundary. No new 0.2.30–0.2.33 runtime certification is claimed. Gen2 Random Field Items and Random Trainers remain unresolved runtime failures; Crystal shiny exact-runtime evidence and engine smoke tests remain pending.
+
+---
+
+
+## 2.8.87 external Randomizer code audit
+
+| Target | Reviewed baseline | Active ownership recognized by Nuzlocke | Confidence |
+| --- | --- | --- | --- |
+| `pokemon_randomizer` | published 0.46.4 | Starter, wild encounter tables, ordinary/hidden field-item locations, TM locations, learnsets, trainer species, evolutions, shops | Source/API reviewed; combined runtime required |
+| `gen_2_randomizer_plus` | published 2.9.0 | Starter, wild Pokémon, world items, learnsets, trainer species, TM contents | Source/settings reviewed; combined runtime required |
+| `item_randomizer` | 1.1.1 | Gen-I visible pickups; Gen-II item balls and native hidden/Itemfinder finds | Source/options reviewed; combined runtime required |
+
+The Gen 2 Randomizer+ 2.9.0 release explicitly advertises Gold/Silver support, while the tagged source manifest still reports version 2.5.0 with Gold-only scope. Nuzlocke therefore does not use that stale source-manifest version as the ownership gate; it resolves the stable mod id and source-confirmed live option bucket.
+
+External Randomizer ownership is subsystem-specific and active-state based. Merely installing any of these mods leaves the corresponding Nuzlocke Randomizer control available.
+
+---
+
+## 2.8.86 engine + UI freshness audit
+
+| Target | Current reviewed baseline | Status / ownership | Runtime status |
+| --- | --- | --- | --- |
+| Gen1Recomp | 0.2.33 | Historical 2.8.86 engine baseline; superseded by the authoritative 2.9.2 / 0.2.36 section above | 0.2.30–0.2.33 exact-edition smoke was still required |
+| `gen1_modern_ui` | 0.9.2 | Retired/frozen Gen-I presentation target; released `registerAdapter` contract remains available; conflicts with successor `gen1_clean_ui` | Combined runtime retest required |
+| `modern_party_ui` | 0.4.0 | Active Gen-I party/summary presentation owner; source callbacks/controllers remain authoritative for actions such as rename/relearn/item/party flows | Combined runtime retest required |
+| `wide-menus` | 0.3.0 | Active Gen-I/Gen-II layout target; Nuzlocke current `register`/`size` integration still matches the documented export contract | Combined runtime retest required |
+| `variable_width_kerning` | legacy identity / current upstream unresolved | Passive typography coexistence only; Nuzlocke consumes live `Font` measurement and does not own glyph advances/kerning | No current-version claim |
+| Clean UI successor family | watch only | `clean-ui-core` is shared non-installable source with Clean UI API V3 architecture; it is not a Nuzlocke dependency/target until a concrete installable product manifest is available | Not a runtime target |
+
+The freshness audit deliberately separates **current release**, **retired legacy target**, **active target**, **unresolved legacy identity**, and **successor watch**. A source repository or architecture project is not promoted to a manifest dependency merely because it supersedes an older UI project.
+
+---
+
+## Explicit compatibility target registry — 2.8.86
+
+2.8.86 continues to treat compatibility targets as an additive registry. Shared targets from the maintained Shiny fork are added where relevant, but they do not replace stronger/newer Nuzlocke audits or Nuzlocke-specific adapters. A target declaration means "reviewed/expected to compose under the documented ownership contract"; it does **not** mean an exact-edition combined runtime PASS.
+
+### Shared Shiny-ecosystem targets
+
+| Target | Reviewed target | Scope | Nuzlocke ownership/composition | Confidence |
+| --- | --- | --- | --- | --- |
+| `SHINY_POKEMON` | Stone696 maintained fork 1.2.20 | R/B/Y/G/S/C | External shiny generation/presentation owner when its provider contract is healthy; Nuzlocke retains Shiny Clause, legality, tracking, Catch Info, and Run History | Source/contract target; combined runtime certification edition-specific |
+| `overworld_wild_spawns` | Nuzlocke audit 2.2.0 | current reviewed Wilds scope | Wilds owns its spawn/capture transaction surface; Nuzlocke composes capture legality/provenance | Nuzlocke's 2.2.0 audit retained; Shiny 1.2.20's 2.1.9 marker is older |
+| `PokePCFollowers_VoxelMerge` | 0.5.1 | R/B/Y | External follower sprite/presentation owner; Nuzlocke observes party/Pokémon identity and does not own follower render/movement | Source/coexistence target; runtime combination required |
+| `FOLLOWERS_EX` | 1.0.19 | R/B/Y | External trainer/Pokémon control and pack/trailer presentation owner; Nuzlocke retains encounter legality/provenance and challenge policy | Source/coexistence target; runtime combination required |
+| `DRAMATIC_SHAPE` | 1.9.0 | R/B/Y | External 3D diorama/voxel presentation owner; Nuzlocke retains challenge rules, encounter/capture legality, progression, tracker state and gameplay transactions | Historical Shiny-ecosystem coexistence target; source identity verified; combined runtime required |
+
+Current voxel compatibility treats `DRAMATIC_SHAPE`, `BATTLE_ART_VOXEL_FORK`, `DRAMALESS_SHAPE`, `potato_voxel`, `TERRARIUM`, and `VOXEL_ASCENDANT` as distinct renderer identities with separate ownership/conflict behavior rather than interchangeable aliases. Nuzlocke yields renderer/camera presentation ownership while retaining challenge legality and state.
+
+The maintained Shiny 1.2.20 compatibility layer keeps public API v1 and explicit integration contracts for Nuzlocke, Wilds, PokéPC/follower integration, and Followers EX/shared follower rendering. The maintained fork's inherited voxel integration history also explicitly targets Dramatic Shape; Nuzlocke now carries that target forward separately as a presentation-coexistence contract. Nuzlocke consumes only the surfaces it needs and does not mirror Shiny's implementation internals.
+
+### Existing Nuzlocke-specific reviewed targets retained
+
+The following reviewed targets remain additive to the shared Shiny ecosystem targets:
+
+- Indigo Conference 1.1.0
+- Kanto Ascendant 6.5.17 — **explicit current conflict / do not combine**; Ascendant includes its own ASC RUN Nuzlocke system and declares standalone `nuzlocke` conflicting
+- Kanto Reforged 1.5.3
+- Delta Type 1.2.0
+- Dex Overflow 0.1.1
+- Safari All 1.1.0 — legacy reviewed target; not present in the current public mod-index snapshot, so no newer version is claimed
+- Wonder Trade 1.2.1
+- QOL Toggles 1.30.8
+- VanillaPlus 0.3.0
+- The World 6.54.15
+- PotatoVoxel 1.9.6
+- Dramatic Shape Voxel Mod 1.9.0 (`DRAMATIC_SHAPE`)
+- Gen1 Better Menus 1.0.3
+- Quality of Life / Easy Interactions 1.3.0
+- G9 Battle Engine published target 1.2.3; current combat-only source line `g9-battle-engine-beta` 2.0.2
+- STEEL/FAIRY AND TYPING CHARTS 2.0.1 (`steel_typing`)
+- the existing Randomizer, UI, metadata, Stadium/Crystal-251, translation, and provider identities already documented in this file and declared through the manifest/provider contracts.
+
+The translation target registry remains separately normalized below because it carries language/edition/overlay/legacy roles and LOCAL CERT requirements.
+
+### Dependency direction
+
+All shared Shiny-ecosystem integrations remain optional companions, but **targeting is not the same thing as declaring a manifest dependency**. Maintained Shiny 1.2.20 already declares `nuzlocke` as an optional dependency, so Nuzlocke intentionally does **not** declare `SHINY_POKEMON` back; current Gen1Recomp rejects dependency cycles. Shiny therefore loads after Nuzlocke and can register its provider/API into the already-loaded Nuzlocke surface. `FOLLOWERS_EX` requires PokéPC Followers + Wilds and optionally depends on Shiny. Nuzlocke declares PokéPC and Followers EX as optional load-order targets because neither creates a reciprocal Nuzlocke cycle. Dramatic Shape remains an explicit compatibility target only and is intentionally not added as a manifest dependency, matching the Shiny integration's historical dependency model. No new hard dependency or conflict is introduced.
+
+---
+
 # Run History v2 diagnostic compatibility — 2.8.70
 
 Stored-state diagnostics now compare the persisted Run History root against the module's current `storage_version` instead of a stale literal v1 expectation. This prevents valid Run History v2 saves from incorrectly failing the hard `stored_nonrule_state` Release Safety gate.
@@ -725,6 +969,14 @@ The current source-audited engine marker is **Gen1Recomp 0.2.29**. The supported
 - Existing 0.2.27 public `catch.nickname`, Chrome/palette, shiny, and battle integration remains the applicable gameplay contract because those source boundaries are unchanged in 0.2.28/0.2.29.
 - Exact-edition runtime certification remains separate from source compatibility.
 
+## Compatibility API 36
+
+2.8.77 advances the Nuzlocke Compatibility API from **35 to 36** because the public `nuzlocke_compat.runtime_environment` field changes from an accidental function object to its documented/current environment value, and content-bundle registration now guarantees prevalidation before registry mutation. `compatible_from = 10` remains unchanged.
+
+The content bundle contract now rejects an invalid area/dungeon/boss/gift/encounter or Randomizer policy before applying any earlier bundle rows. This prevents partial provider registration after a late validation error.
+
+Diagnostics API remains 1. Gen2 Field Item Hook Health now resolves the actual visible-item and hidden-item session markers, and Random Trainers gain semantic `trainer.party` chain observability without changing gameplay ownership.
+
 ## Compatibility API 35
 
 2.8.48 advances the Nuzlocke Compatibility API from **34 to 35**. This is an additive contract-version reconciliation, not a gameplay ownership change. API 35 formally includes the public semantic status helpers already present in the current implementation: provider status, capability status, and compatibility snapshots, while preserving API-34 rule availability/dependency APIs and `compatible_from = 10`.
@@ -761,15 +1013,15 @@ The Gen II shiny send-out safety boundary was also source-revalidated against 0.
 The global source/documentation-audited engine profile is now **Gen1Recomp 0.2.27**. Mod API 2, Save Format 4, and the existing `>=0.2.24 <2.0.0` manifest range remain valid. Exact-edition runtime evidence is still tracked separately.
 
 
-## Shiny Pokémon 1.2.7 / Gen1Recomp 0.2.27
+## Shiny Pokémon maintained fork 1.2.20 (current target; historical 1.2.7 audit retained)
 
-Shiny Pokémon **1.2.7** is the current explicit shiny companion target. Its maintained 1.2.x architecture is generation-neutral at the compatibility layer but intentionally split internally: Gen I still runs the inherited presentation/generation implementation, while Gen II registers options and uses the engine-native `shiny.roll` / native presentation path without executing the inherited Gen-I `main.lua`. Therefore Nuzlocke must not require the old top-level `exports.isShiny` / `exports.rollShiny` pair to recognize a Gen-II owner.
+Shiny Pokémon **1.2.20** is the current explicit shiny companion target. The earlier 1.2.7/Gen1Recomp 0.2.27 audit remains historical evidence rather than the current target marker. Its maintained 1.2.x architecture is generation-neutral at the compatibility layer but intentionally split internally: Gen I still runs the inherited presentation/generation implementation, while Gen II registers options and uses the engine-native `shiny.roll` / native presentation path without executing the inherited Gen-I `main.lua`. Therefore Nuzlocke must not require the old top-level `exports.isShiny` / `exports.rollShiny` pair to recognize a Gen-II owner.
 
 Nuzlocke now prefers the public provider registration that Shiny Pokémon publishes into `nuzlocke.interop` (`SHINY_IDENTITY` + `SHINY_PRESENTATION`). If registration order has not completed yet, Nuzlocke can also inspect the maintained `exports.shiny_pokemon` / `exports.shiny_compat` API and its `shiny_identity` / `shiny_presentation` ownership descriptors. The historical direct export probe remains a fallback only. This keeps external-owner failover functional on Red/Blue/Yellow and Gold/Silver/Crystal.
 
-Shiny Pokémon 1.2.7 also establishes an important Gen1Recomp 0.2.27 COLORS-transition boundary: **Gen1Recomp alone owns Renderer/Assets invalidation.** Nuzlocke performs no renderer reset, asset reset, or palette-transition engine-cache flush. Official Gen-I Crystal shiny pairs are independent of the selected engine COLORS mode. For custom/unknown species whose fallback shiny colors derive from `PaletteFX.monPal`, Nuzlocke includes the active PaletteFX mode/custom-ramp signature in its own private derived-image cache key. A COLORS transition therefore selects/rebuilds only a Nuzlocke-private artifact and never invalidates engine resources.
+The maintained Shiny 1.2.x line also preserves the Gen1Recomp COLORS-transition boundary established by the 1.2.7 audit: **Gen1Recomp alone owns Renderer/Assets invalidation.** Nuzlocke performs no renderer reset, asset reset, or palette-transition engine-cache flush. Official Gen-I Crystal shiny pairs are independent of the selected engine COLORS mode. For custom/unknown species whose fallback shiny colors derive from `PaletteFX.monPal`, Nuzlocke includes the active PaletteFX mode/custom-ramp signature in its own private derived-image cache key. A COLORS transition therefore selects/rebuilds only a Nuzlocke-private artifact and never invalidates engine resources.
 
-When Shiny Pokémon 1.2.7 is active, its Mod Manager controls remain authoritative and Nuzlocke hides/stands down `Shiny Rate`, `Shiny Colors`, and `Shiny Intro`. `Shiny Clause` remains visible because it is Nuzlocke challenge policy. On Gen II the external provider's own battle-presentation safety path remains untouched; Nuzlocke's Crystal `shiny-flash` workaround runs only while Nuzlocke itself is the shiny owner. Combined runtime certification is still edition-specific.
+When Shiny Pokémon 1.2.20 is active, its Mod Manager controls remain authoritative and Nuzlocke hides/stands down `Shiny Rate`, `Shiny Colors`, and `Shiny Intro`. `Shiny Clause` remains visible because it is Nuzlocke challenge policy. On Gen II the external provider's own battle-presentation safety path remains untouched; Nuzlocke's Crystal `shiny-flash` workaround runs only while Nuzlocke itself is the shiny owner. Combined runtime certification is still edition-specific.
 
 ## Shiny providers
 
@@ -930,7 +1182,7 @@ The direct Difficulty chooser continues to respect external trainer/difficulty p
 
 ## 2.7.82 Gen1Recomp 0.2.21 runtime hardening
 
-The audited engine target remains Gen1Recomp 0.2.21. The Gen-2 script VM can carry numeric `special` operands, so Nuzlocke now resolves Mom clock/DST specials through the live VM's `specialName()` before ownership decisions. Lifecycle-sensitive Gen-2 installation uses the exact Game supplied by `game.ready`, `save.loaded`, or `save.created`, while the PartyMenu NUZ INFO wrapper gates on its live `self.game`. The explicit manifest set remains Red, Blue, Yellow, Gold, Silver; Crystal is not inferred from upstream generation aliases.
+The audited engine target remains Gen1Recomp 0.2.21. The Gen-2 script VM can carry numeric `special` operands, so Nuzlocke now resolves Mom clock/DST specials through the live VM's `specialName()` before ownership decisions. Lifecycle-sensitive Gen-2 installation uses the exact Game supplied by `game.ready`, `save.loaded`, or `save.created`, while the PartyMenu NUZ INFO wrapper gates on its live `self.game`. Historical note: that build explicitly declared Red, Blue, Yellow, Gold, and Silver and did not infer Crystal from upstream generation aliases. Current 2.9.2 explicitly declares Crystal as alpha.
 
 
 ## Gen1Recomp 0.2.21 source audit
@@ -1024,12 +1276,12 @@ Nuzlocke yields duplicate randomizer controls only when an external mechanic is 
 
 Source-confirmed named adapters currently include:
 
-- `pokemon_randomizer` — active-run starter, wild encounter, and learnset ownership from its exported run contract.
-- `gen_2_randomizer_plus` — starter, wild encounter, and learnset ownership from its live source-confirmed option bucket.
+- `pokemon_randomizer` — active-run starter, wild encounter, ordinary/hidden field-item, TM-location, learnset, trainer, evolution, and shop ownership from its exported run contract.
+- `gen_2_randomizer_plus` — starter, wild encounter, world-item, learnset, trainer-species, and TM-content ownership from its live source-confirmed option bucket.
 - `Kanto-Reforged` — encounter ownership only while its supported spawn-randomization modes are active.
-- `item_randomizer` — visible Field Item ownership only while `overworld_items` is true in R/B/Y or `gold_ball_items` is true in Gold/Silver.
+- `item_randomizer` — source-specific Field Item/TM-location ownership while `overworld_items` is true in R/B/Y, `gold_ball_items` is true for Gen-II visible item balls, or `gold_finder_items` is true for Gen-II hidden/Itemfinder sources.
 
-For `item_randomizer`, hidden finds, shops, gifts, berries, held-item, PC-item, and other non-visible-pickup features do not claim Nuzlocke's `Random Field Items` control.
+For `item_randomizer`, Gen-II native hidden/Itemfinder finds now overlap Nuzlocke's supported Gen-II hidden field-item sources and therefore claim `Random Field Items` when `gold_finder_items` is active. Shops, gifts, berries, held items, PC items, and other non-field-pickup features remain composition-only.
 
 Generic provider ownership is also supported through `starter_randomizer_provider`, `encounter_randomizer_provider`, `field_item_randomizer_provider`, and `learnset_randomizer_provider`. External mods without a stable active-run signal or provider capability are not guessed as owners.
 
@@ -1101,7 +1353,7 @@ Canonical values are `allow`, `deny`, and `provider`. Aliases normalize centrall
 
 Use semantic roles such as `rival`, `gym_leader`, `elite_four`, `champion`, and `progression_boss` rather than arbitrary trainer-id substring matching.
 
-## Kanto Reforged 1.3.0
+## Kanto Reforged 1.5.3
 
 Kanto Reforged is treated as a high-overlap content provider, not a replacement Nuzlocke ruleset.
 
@@ -1115,7 +1367,7 @@ Kanto Reforged is treated as a high-overlap content provider, not a replacement 
 
 Combination runtime testing remains required.
 
-## The World 5.10.0
+## The World 6.54.15
 
 The World is handled capability-first. Nuzlocke does not read private The World save state merely to infer Dynamic Champion, Rocket Ball, WX, weather or simulation semantics.
 
@@ -1126,6 +1378,12 @@ The World is handled capability-first. Nuzlocke does not read private The World 
 - Wonder Trade remains observe-only unless a safe pre-transaction provider seam exists.
 
 Combination runtime testing remains required.
+
+## Safari All + expanded-content acquisition refresh (2.8.97)
+
+- **Safari All 1.1.0:** retained as a legacy source-reviewed scoped encounter target. The current public mod-index snapshot no longer lists it, so this build does not fabricate a newer version or broaden the old contract. Installation alone never delegates global encounter legality.
+- **Kanto Ascendant 6.5.17:** current manifest explicitly conflicts with standalone `nuzlocke` and directs users to its integrated ASC RUN system. Nuzlocke therefore removes `kanto_ascendant` from optional dependencies and treats a forced stack as unsupported. Historical difficulty/presentation detection remains defensive only.
+- **VanillaPlus 0.3.0:** current source still describes the Lost Bulbasaur, Problematic Squirtle, Scared Kid/Charmander, badge-scaled Rocket ambushes, captain pre-battle healing, and random rewards. Existing exact progression-capture exceptions remain narrow; ordinary ambushes and the no-catch guardian Starmie receive no exception.
 
 ## VanillaPlus 0.3.0
 
@@ -1179,3 +1437,96 @@ On Gen II, Nuzlocke uses the public `shiny.roll` identity seam and the engine's 
 
 ### Gen II shiny identity handoff hardening (2.8.36)
 When Nuzlocke owns shinies, its Gen II `shiny.roll` wrapper records the exact species/level/DV decision and the following wild battle verifies that the created mon carries the same `mon.shiny` identity. This is a verification/repair layer, not a second roll: matched false decisions remain false, matched true decisions are repaired only if the battle mon lost the boolean, and only builders that bypass `shiny.roll` entirely receive one fail-soft battle-start roll. External shiny providers bypass this layer completely.
+
+
+## Bag / inventory ecosystem — 2.8.97 source audit
+- **Useful Bag 2.6.3**: canonical `save.inventory` / `Bag.order` remains the hidden bag; pocketing/capacity/presentation compose externally.
+- **Modern Bag UI 0.4.5**: presentation/capacity owner; current documentation preserves owning native controllers for item use, party targeting, battle turns, TMs/HMs, tossing and contextual items.
+- **Bag Sort 0.1.0**: order-only target.
+- Nuzlocke item restrictions are semantic, never pocket-index/list-row based. No Buying/Selling are transaction rules independent of storage size. Expanded x999 storage does not alter GameplayTransactions exactly-once requirements.
+- Combined runtime certification remains pending.
+
+
+## Expanded species / Dex-provider audit — 2.8.97
+
+- **Dex Overflow 0.1.1** is retained as a legacy reviewed Gold target. The current public index/source surface did not resolve a newer/current package during this audit, so no newer-version claim is made.
+- Generic expanded-species compatibility is capability-based through the existing `species_metadata` and `species_evolutions` contracts, not tied to a particular Dex mod id.
+- Challenge classification reads the final merged species record plus provider metadata for BST, types, generation, legendary/mythical/pseudo flags. Unknown provider schemas fail open instead of falsely banning an expanded species.
+- 2.8.97 closes a normalized-facts gap: when a merged species row lacks evolutions but the selected metadata provider supplies them, `getSpeciesFacts(...).evolutions` now carries the provider evolution data.
+- Maximum BST, species bans, Type Locke and Randomizer eligibility remain based on merged/provider facts. Indexless species are allowed into runtime Randomizer pools only when the final merged record is battle-safe; byte-addressed script/link paths remain excluded.
+- Run History remains identity/event based and must preserve canonical string species ids rather than forcing expanded species into the native 151/251 numeric range.
+- No new provider capability/API version was required. Combined expanded-Dex runtime certification remains pending.
+
+
+# Type-system compatibility audit — 2.8.97
+
+Nuzlocke's type-sensitive challenge surfaces now share the normalized final species facts path: Type Locke, Maximum BST/species filters, Randomizer classification, and Game Difficulty species/STAB/type-item choices consume merged species data plus the established `species_metadata` composition contract rather than introducing companion-specific type tables.
+
+The engine's API-2 data model defines `pokemon.types` as id-typed fields resolved after registry merge, and `type_chart` is a deep merged registry. Random Starter Trio Typing continues to consume the live `game.data.type_chart.matchups`, so Steel/Dark/Fairy and compatible chart patches are evaluated from the running game's merged chart rather than a copied Nuzlocke chart.
+
+- **Delta Type 1.2.0** remains the explicit transformed-Pokemon target. Concrete runtime Pokemon typing remains authoritative for Type Locke; base/provider species facts are fallback before a concrete transformed mon is available.
+- **STEEL/FAIRY AND TYPING CHARTS 2.0.1 (`steel_typing`)** remains an explicit optional companion. No private type-chart implementation is copied into Nuzlocke.
+- Unknown truly custom type identifiers outside Nuzlocke's stable 18-type Type Locke vocabulary continue to fail open rather than being falsely rejected.
+- Game Difficulty's species matching, STAB scoring, and type-themed held-item selection now use the normalized species-facts type path instead of directly assuming `def.types` is the complete compatibility surface.
+
+No Runtime PASS is claimed; exact-edition and combined-mod testing remains required.
+
+
+## Transfer / Stadium / Crystal-251 acquisition provenance — 2.8.97 audit
+
+This pass re-audits Pokémon that enter a save outside ordinary wild capture and scripted gift/trade transactions. The existing `nuzlocke_acquisition_provenance` v2 surface remains the correct cooperation point for Stadium prize/import providers. Presentation/model import alone never implies that a Pokémon was acquired from Stadium. A provider must explicitly mark the concrete created Pokémon with `mark()` / `markImported()` or preserve equivalent provenance fields.
+
+Current Gen1Recomp link protocol serializes Pokémon as plain data and reconstructs derived stats from the receiver's live species data. Gen-I wire records preserve OT/OT ID and the JSON-safe `extra` namespace; Gen-II codecs also preserve held item, happiness, Pokérus, caught level, egg state and `extra`. This is favorable to durable Nuzlocke-owned metadata where a supported transaction actually carries it, but serialization support is not itself an acquisition-policy seam.
+
+The upstream Gen-II link design explicitly states that the Gen-II trade session/UI/mail transaction is not yet built. Nuzlocke therefore does **not** invent a Gen-II transfer veto or claim trade certification from the existence of `packMon2`/`unpackMon2`. When a future engine transaction exists, compatibility must be reviewed at its actual pre-commit/commit event boundary.
+
+Crystal-251 remains an overlay/content/importer compatibility surface. It never changes the exact running edition identity. Stadium/Crystal presentation detection is diagnostics-only; acquisition origin is explicit-only.
+
+Wonder Trade remains post-mutation observe-only: `pokemon.received` / `trade.completed` occur after replacement, so Nuzlocke preserves the received Pokémon and does not perform destructive rollback. Wonderlocke remains WIP until a safe pre-transaction cooperation seam exists.
+
+Run History and persistent identity consume explicit Pokémon provenance when available. Unknown imported/edited Pokémon must remain EXTERNAL/UNVERIFIED or legacy-recovered rather than being guessed into a route, gift, trade, Stadium, or encounter slot.
+
+
+## Upstream attribution and shiny lineage (2.9.24)
+
+The original Nuzlocke project baseline was created by **bryanthaboi**. The original Shiny Pokémon mod was created by **masterwebx**; that implementation/project is part of the code/design lineage and technical foundation behind the shiny ecosystem this project integrates with. **Stone696** maintains the current Nuzlocke project and the maintained Shiny Pokémon fork.
+
+Nuzlocke's current built-in shiny subsystem has been substantially reworked around current Gen1Recomp public seams and single-owner compatibility architecture. Attribution to masterwebx is therefore retained as project/code-design lineage rather than a claim that the current subsystem is a wholesale copy of the original mod.
+
+
+## Newly source-reviewed in 2.9.27
+
+### Double Battles 0.6.1
+Explicit coexistence target; **SOURCE/COMPATIBILITY REVIEWED — COMBINED RUNTIME TEST REQUIRED**. Double Battles owns its multi-battler turn loop, target selection, partner/refill state and double-battle presentation. Nuzlocke retains challenge legality, catch/ball/item restrictions, durable faint/death/permadeath state, encounter provenance and run history. Nuzlocke does not replace Double Battles' private turn loop. Focused testing should cover wild/trainer doubles, catching either target, switching, blocked items, faint/death/whiteout handling, trainer completion and Random Trainers composition.
+
+### Free Fly 1.8.0
+Explicit coexistence target; **SOURCE/COMPATIBILITY REVIEWED — COMBINED RUNTIME TEST REQUIRED**. Free Fly owns airborne movement, landing/story/badge gates, its FREEFLY party action, aerial interception and flight lifecycle. Nuzlocke retains challenge/acquisition legality and must not infer encounter consumption merely from airborne traversal. Free Fly's optional quick-start gift remains subject to ordinary Nuzlocke acquisition legality/provenance where a safe acquisition seam is observable; Nuzlocke must not destructively roll back an external post-mutation gift. Focused testing should cover Travel/Dungeon/Gym lock-ins, field-move legality, aerial encounters, blackout/permadeath, and quick-start gift handling in Gen I and Gen II.
+
+
+## Blackjack Corner 0.8.2
+
+**Source/Compatibility Reviewed — Runtime Test Required.** Blackjack Corner is treated as a high-overlap external content/minigame owner. Its starter/prize Pokemon and item delivery, casino economy, shiny presentation/provider composition, trainer content, and world/progression presentation remain externally owned. Nuzlocke retains challenge legality and provenance through cooperative semantic pre-transaction acquisition seams when available; post-mutation observation must never trigger destructive rollback. Ordinary Mart buy/sell hooks are not assumed to own casino coin conversion or other distinct transactions. No manifest dependency is declared solely for recognition.
+
+## Semantic multi-active battle and activity state
+
+Compatibility API 37 adds observational `nuzlocke.battle` and `nuzlocke.activity` surfaces. Multi-battler mods can advertise `battle_roster` and return plural active combatants without surrendering their turn-loop ownership. Travel/activity mods can advertise `activity_state` instead of forcing consumers to infer state from private movement/UI fields. Missing providers return conservative native/unknown observations and do not create gameplay authority.
+
+## Hold-to-scroll / input-repeat UI mods
+
+WizzStar HoldToScrollUI 1.1.0 is a reviewed compatibility target by repository/release behavior. It advertises menu-only D-pad repeat, standard input/ListMenu composition, all six editions, and battle/minigame bypasses. Nuzlocke's UI input-semantics contract marks navigation/value stepping as repeat-safe where appropriate and activation/back/destructive confirmation as edge-only semantics. Combined runtime testing is still required; this review does not claim package-source or Runtime PASS evidence.
+
+
+
+## Gen1Recomp 0.2.41 source review
+
+Nuzlocke 2.9.70 advances its source-review baseline to Gen1Recomp 0.2.41 release commit `3d3a9ba4b66832b8c70ac26e1e88dbae612efcd0`. Upstream Mod API remains 2, Link Protocol remains 2, Save Format remains 5, and the ROM cache remains `rom-cache-v5`.
+
+The 0.2.40→0.2.41 delta is primarily platform/launcher expansion, presentation-pacing hardening, and Gen-II save-export map-context support. `FixedStep` now more aggressively bounds catch-up debt and reseeds pacing after discarded catch-up; `PresentSync` continues to own display-sync probing and FixedStep refresh-period application. Those systems remain engine-owned: Nuzlocke does not wrap, reset, reprobe, cap, or retime them.
+
+Gen-II save conversion gained map-context support for export. Nuzlocke does not own raw SRAM export and no Nuzlocke save-schema migration is required. No Nuzlocke-critical public mod-loader/provider contract break was found by source review. Exact-edition runtime certification remains separate.
+
+## HGSS Visual Overhaul 1.0.2
+
+`HGSS_SPRITES` 1.0.2 is an explicit Yellow presentation compatibility target. Source review found scoped PartyMenu/ListMenu and BattleState presentation wrappers that chain previously installed implementations. Nuzlocke therefore yields overworld, Party/PC, and battle-art presentation while retaining challenge legality, provenance/tracker state, transactions, and Random Trainer party authority when enabled.
+
+The shared `BattleState.newTrainer` seam is intentionally order-independent: Nuzlocke may wrap an earlier presentation implementation or itself be wrapped later. Nuzlocke does not require itself to remain the outermost constructor wrapper. Combined runtime certification is still required, especially for Random Trainers, HGSS Party/PC presentation, shiny artwork, and one voxel renderer.

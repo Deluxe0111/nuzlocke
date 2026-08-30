@@ -228,9 +228,32 @@ return function(mod, deps)
       return rows
   end
 
+  local function encounterStateIsFailed(state)
+      return type(state) == "table" and state.status == "FAILED"
+  end
+
+  mod.exports.__beta26.forgivenessFailedProjectionStateSelfTest = function()
+      local cases = {
+          { value = { status = "FAILED" }, expected = true, name = "failed" },
+          { value = { status = "CAUGHT" }, expected = false, name = "caught" },
+          { value = { status = "AVAILABLE" }, expected = false, name = "other" },
+          { value = {}, expected = false, name = "missing_status" },
+          { value = nil, expected = false, name = "nil" },
+      }
+      local failures = {}
+      for _, case in ipairs(cases) do
+          if encounterStateIsFailed(case.value) ~= case.expected then
+              failures[#failures + 1] = case.name
+          end
+      end
+      return { ok = #failures == 0, failures = failures, checked = #cases }
+  end
+
   local function areaHasFailedProjection(game, key)
       local states = mod.exports.__beta26.encounterStates()
-      if type(states) == "table" and states[key] ~= nil then return true end
+      if type(states) == "table" and encounterStateIsFailed(states[key]) then
+          return true
+      end
       local ledger = mod.save:get("encounter_area_state_ledger", {})
       if type(ledger) ~= "table" then return false end
       for ledgerKey, row in pairs(ledger) do
@@ -789,11 +812,9 @@ return function(mod, deps)
                   local chooseYes = game.input:wasPressed("left") or game.input:wasPressed("up")
                   local chooseNo = game.input:wasPressed("right") or game.input:wasPressed("down")
                   if chooseYes or chooseNo then
-                      if self.confirmChoice == 0 then
-                          self.confirmChoice = chooseYes and 1 or 2
-                      else
-                          self.confirmChoice = self.confirmChoice == 1 and 2 or 1
-                      end
+                      -- Direction selects an explicit choice. Repeating the same direction
+                      -- must be idempotent for this irreversible F. TOKEN confirmation.
+                      self.confirmChoice = chooseYes and 1 or 2
                       return
                   end
                   if game.input:wasPressed("a") then
@@ -1177,6 +1198,104 @@ return function(mod, deps)
       pcall(mod.exports.__beta26.reconcileForgivenessDeathArchive,
           (type(ev) == "table" and ev.game) or getCurrentGame() or mod.game)
   end)
+
+  -- 2.9.50: R/B/Y Forgiveness Token shop filtering moved from main.lua.
+  ---------------------------------------------------------------------
+  -- FORGIVENESS TOKEN SHOP FILTER (2.5.40)
+  --
+  -- The carried token is never merchandise. Filter it from both BUY stock
+  -- and R/B/Y's inventory-backed SELL list, including the SELL list rebuild
+  -- that happens after SELECT reordering. Gold's native Pack-backed SELL
+  -- surface is filtered in G2.installMartGate below.
+  ---------------------------------------------------------------------
+  mod.exports.__beta26.installForgivenessRbyShopFilter = function()
+      if mod.exports.__beta26.isSaveEditorSession() then return true end
+      local okList, ListMenu = pcall(require, "src.ui.ListMenu")
+      if not okList or type(ListMenu) ~= "table"
+          or type(ListMenu.new) ~= "function" then return false end
+      local session = ListMenu.__nuzlockeForgivenessShopFilterSession
+      if type(session) == "table" and session.owner == mod
+          and ListMenu.new == session.wrapper then return true end
+      if type(session) == "table" and session.owner ~= mod
+          and ListMenu.new == session.wrapper
+          and type(session.previous) == "function" then
+          ListMenu.new = session.previous
+      end
+      local previous = ListMenu.new
+      local wrapper
+      local function semanticShopKind(title, opts)
+          -- Prefer semantic ListMenu metadata when supplied by the engine or
+          -- another compatible menu layer. Display text is never uppercased
+          -- and compared to English literals.
+          if type(opts) == "table" then
+              local raw = opts.kind or opts.shopKind or opts.action
+                  or opts.semanticKind
+              local kind = tostring(raw or ""):lower()
+              if kind == "buy" or kind == "shop_buy" or kind == "mart_buy"
+                  or kind == "item_shop_buy" then return "BUY" end
+              if kind == "sell" or kind == "shop_sell" or kind == "mart_sell"
+                  or kind == "item_shop_sell" then return "SELL" end
+          end
+          -- Older native ListMenu constructors expose only the already
+          -- localized title. Compare against the canonical Strings source so
+          -- translation packs remain authoritative; never add language-
+          -- specific BUY/SELL spellings here.
+          local shown = tostring(title or "")
+          if shown == tostring(Strings("BUY")) then return "BUY" end
+          if shown == tostring(Strings("SELL")) then return "SELL" end
+          return nil
+      end
+
+      wrapper = function(game, title, items, opts, ...)
+          local shop = semanticShopKind(title, opts)
+          local tokenId = tostring(
+              mod.exports.__beta26.forgivenessTokenItemId or "")
+          local function filter(rows)
+              if type(rows) ~= "table" or tokenId == "" then return rows end
+              local out = {}
+              for _, row in ipairs(rows) do
+                  if tostring(row and row.value or "") ~= tokenId then
+                      out[#out + 1] = row
+                  end
+              end
+              return out
+          end
+          if shop == "BUY" or shop == "SELL" then
+              items = filter(items)
+              if shop == "SELL" and type(opts) == "table"
+                  and type(opts.onSelectKey) == "function" then
+                  local copied = {}
+                  for key, value in pairs(opts) do copied[key] = value end
+                  local priorSelect = copied.onSelectKey
+                  copied.onSelectKey = function(item, list, ...)
+                      local result = priorSelect(item, list, ...)
+                      if type(list) == "table" then
+                          list.items = filter(list.items)
+                          list.index = math.min(list.index or 1,
+                              math.max(1, #(list.items or {})))
+                      end
+                      return result
+                  end
+                  opts = copied
+              end
+          end
+          return previous(game, title, items, opts, ...)
+      end
+      ListMenu.new = wrapper
+      ListMenu.__nuzlockeForgivenessShopFilterSession = {
+          owner = mod, previous = previous, wrapper = wrapper,
+      }
+      return true
+  end
+  mod.exports.__beta26.attemptInstall("gen1.forgiveness_shop_filter", mod.exports.__beta26.installForgivenessRbyShopFilter)
+  mod.events:on("game.ready", function()
+      mod.exports.__beta26.attemptInstall("gen1.forgiveness_shop_filter", mod.exports.__beta26.installForgivenessRbyShopFilter)
+  end)
+  mod.events:on("save.loaded", function()
+      mod.exports.__beta26.attemptInstall("gen1.forgiveness_shop_filter", mod.exports.__beta26.installForgivenessRbyShopFilter)
+  end)
+
+
 
   return true
 end

@@ -20,6 +20,7 @@ return function(mod, deps)
   local ALL_ROUTES = assert(deps.ALL_ROUTES, "late_runtime requires ALL_ROUTES")
   local GEN1_SEED_IDS = assert(deps.GEN1_SEED_IDS, "late_runtime requires GEN1_SEED_IDS")
   local registerArea = assert(deps.registerArea, "late_runtime requires registerArea")
+  local isTrackedArea = assert(deps.isTrackedArea, "late_runtime requires isTrackedArea")
   local routeName = assert(deps.routeName, "late_runtime requires routeName")
   local caughtAreas = assert(deps.caughtAreas, "late_runtime requires caughtAreas")
   local trackerLog = assert(deps.trackerLog, "late_runtime requires trackerLog")
@@ -3920,6 +3921,7 @@ return function(mod, deps)
         end
 
         function G2.ruleNames()
+            local game = getCurrentGame() or mod.game
             local names = {}
             if mod.save:get("nuzlocke_enabled", true) ~= true then
                 return { Strings("Nuzlocke OFF") }
@@ -3979,7 +3981,8 @@ return function(mod, deps)
                     elseif rule.key == "dupes_mode" then
                         local mode = tonumber(value) or 0
                         if mode == 1 then label = Strings("Dupes SPEC")
-                        elseif mode == 2 then label = Strings("Dupes FAM") end
+                        elseif mode == 2 then label = Strings("Dupes FAM")
+                        elseif mode == 3 then label = Strings("Dupes SPLIT") end
                     elseif rule.key == "evolution_limit" then
                         local mode = tonumber(value) or 0
                         if mode == 1 then label = Strings("No Final Evo")
@@ -4025,6 +4028,14 @@ return function(mod, deps)
                         local limit = mod.exports.__beta26.encounterBallLimitValues[
                             tonumber(value) or 0] or 0
                         if limit > 0 then label = Strings("Ball Limit %d", limit) end
+                    elseif rule.key == "colorlocke_mode" then
+                        local mode=math.floor(tonumber(value) or 0)
+                        if mode>0 then label=Strings("Colorlocke %s", mod.exports.__beta26.colorlockeResolvedColor(game) or "UNKNOWN") end
+                    elseif rule.key == "alphabetlocke_mode" then
+                        local mode=math.floor(tonumber(value) or 0)
+                        if mode>0 then label=Strings("Alphabetlocke %s", mod.exports.__beta26.alphabetlockeResolvedLetter(game) or "UNKNOWN") end
+                    elseif rule.key == "colorlocke_color" or rule.key == "alphabetlocke_letter" then
+                        label=nil
                     elseif rule.key == "type_lock_mode" then
                         local mode = math.max(0, math.min(6, tonumber(value) or 0))
                         if mode > 0 then
@@ -5129,6 +5140,7 @@ return function(mod, deps)
                 return Strings(text, ...)
             end,
             ruleDefault = defaultRuleValue,
+            isTrackedArea = isTrackedArea,
         })
 
     -----------------------------------------------------------------
@@ -6428,10 +6440,10 @@ return function(mod, deps)
             return value ~= false and value ~= 0
         end
 
-        -- Gen1Recomp 0.2.29 source revalidation + Crystal runtime safety:
+        -- Gen1Recomp 0.2.33 source revalidation + Crystal runtime safety:
         -- the engine still carries the native queued `shiny-flash` send-out
         -- event, and the 0.2.26 Crystal runtime failure remains relevant until
-        -- an exact-edition runtime test proves the native event safe. 0.2.28/0.2.29
+        -- an exact-edition runtime test proves the native event safe. 0.2.28-0.2.33
         -- did not change the Gen-II battle/shiny source boundary. It can
         -- leave both battler pictures hidden
         -- after the animation. When Nuzlocke owns Gen-II shiny presentation,
@@ -6473,24 +6485,26 @@ return function(mod, deps)
                 Gen2BattleState.__nuzlockeShinyFlashSafety2836 = true
                 mod.exports.__beta26.gen2ShinyFlashSafetyStatus = {
                     installed = true,
-                    audited_engine = "0.2.29",
+                    audited_engine = "0.2.33",
                     mode = "advance_queue_only",
                     restores_picture_latches = true,
                     owns_draw = false,
                     owns_update = false,
                     runtime_certified_0_2_27 = false,
                     source_revalidated_0_2_29 = true,
+                    source_revalidated_0_2_33 = true,
                 }
             elseif mod.exports.__beta26.gen2ShinyFlashSafetyStatus == nil then
                 mod.exports.__beta26.gen2ShinyFlashSafetyStatus = {
                     installed = false,
-                    audited_engine = "0.2.29",
+                    audited_engine = "0.2.33",
                     mode = "unavailable_or_already_owned",
                     restores_picture_latches = false,
                     owns_draw = false,
                     owns_update = false,
                     runtime_certified_0_2_27 = false,
                     source_revalidated_0_2_29 = true,
+                    source_revalidated_0_2_33 = true,
                 }
             end
         end
@@ -6675,7 +6689,13 @@ return function(mod, deps)
         end
 
         local function ensureShinyPath(path, ctx, kind)
+            mod.exports.__beta26.lastShinyPresentationError = nil
             if not visualRule("shiny_colors", true) then return nil end
+            local sourcePolicy = mod.exports.__beta26.shinyPresentationSourcePolicy
+            if type(sourcePolicy) == "function" then
+                local okPolicy, policy = pcall(sourcePolicy, ctx)
+                if okPolicy and policy == "provider_owned" then return nil end
+            end
             if type(path) ~= "string" or path == "" then return nil end
             local mon = ctx and ctx.mon
             if not monShiny(mon) then return nil end
@@ -6696,8 +6716,33 @@ return function(mod, deps)
                 return rel
             end
             local ok, result = pcall(function()
-                local id = Assets.imageData(path)
-                if not id or type(id.mapPixel) ~= "function" then return nil end
+                local sourceId = Assets.imageData(path)
+                if not sourceId or type(sourceId.mapPixel) ~= "function" then return nil end
+                -- 2.9.72: never recolor Assets.imageData(path) in place. The
+                -- engine may cache/share that ImageData across ordinary and shiny
+                -- consumers; mutating it can leak a shiny palette into unrelated
+                -- Pokemon or later menu surfaces. Recolor a private copy only.
+                local id = nil
+                if type(sourceId.clone) == "function" then
+                    local okClone, clone = pcall(sourceId.clone, sourceId)
+                    if okClone then id = clone end
+                end
+                if id == nil and love.image and type(love.image.newImageData) == "function"
+                    and type(sourceId.getWidth) == "function"
+                    and type(sourceId.getHeight) == "function" then
+                    local okCopy, copy = pcall(love.image.newImageData,
+                        sourceId:getWidth(), sourceId:getHeight())
+                    if okCopy and copy and type(copy.paste) == "function" then
+                        local okPaste = pcall(copy.paste, copy, sourceId, 0, 0, 0, 0,
+                            sourceId:getWidth(), sourceId:getHeight())
+                        if okPaste then id = copy end
+                    end
+                end
+                if id == nil then
+                    mod.exports.__beta26.lastShinyPresentationError =
+                        "private_image_copy_unavailable:" .. tostring(species)
+                    return nil
+                end
                 local colors = paletteFor(ctx and ctx.data, species)
                 id:mapPixel(function(_, _, r, g, b, a)
                     if a == 0 then return r, g, b, a end
@@ -6760,6 +6805,14 @@ return function(mod, deps)
                     if ok and yes then return resolved end
                 end
                 local shinyPath = ensureShinyPath(resolved, ctx, "sprite")
+                mod.exports.__beta26.lastShinyPresentationTrace = {
+                    surface="pokemon.sprite", species=tostring(ctx and ctx.species
+                        or (ctx and ctx.mon and ctx.mon.species) or "?"),
+                    identity=monShiny(ctx and ctx.mon),
+                    source=tostring(resolved or ""), projected=tostring(shinyPath or ""),
+                    projected_ok=type(shinyPath)=="string",
+                    error=mod.exports.__beta26.lastShinyPresentationError,
+                }
                 if shinyPath then
                     ctx.trueColor = true
                     return shinyPath
@@ -6775,7 +6828,16 @@ return function(mod, deps)
                     local ok, yes = pcall(gen2, gameNow())
                     if ok and yes then return resolved end
                 end
-                return ensureShinyPath(resolved, ctx, "icon") or resolved
+                local shinyPath = ensureShinyPath(resolved, ctx, "icon")
+                mod.exports.__beta26.lastShinyPresentationTrace = {
+                    surface="pokemon.icon", species=tostring(ctx and ctx.species
+                        or (ctx and ctx.mon and ctx.mon.species) or "?"),
+                    identity=monShiny(ctx and ctx.mon),
+                    source=tostring(resolved or ""), projected=tostring(shinyPath or ""),
+                    projected_ok=type(shinyPath)=="string",
+                    error=mod.exports.__beta26.lastShinyPresentationError,
+                }
+                return shinyPath or resolved
             end)
         end
 

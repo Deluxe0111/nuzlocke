@@ -45,8 +45,8 @@ return function(mod, deps)
       function shadow:get(key, fallback)
           local row = entries[key]
           if row ~= nil then
-              if row.after_present then return row.after_value end
-              return fallback
+              if row.after_present then return deps.copy(row.after_value) end
+              return deps.copy(fallback)
           end
           return deps.copy(baseStore:get(key, fallback))
       end
@@ -155,6 +155,61 @@ return function(mod, deps)
       return root.by_id[tostring(id or "")]
   end
 
+  -- 2.8.73: transaction identity is (id, kind, payload), not merely (id, kind).
+  -- Pending journals can compare their serialized payload structurally; durable
+  -- receipts keep a compact deterministic fingerprint so a reused ID cannot
+  -- silently authorize a different same-kind mutation. Legacy receipts created
+  -- before 2.8.73 have no fingerprint and remain readable for compatibility.
+  local function txPayloadFingerprint(value)
+      local chunks = {}
+      local function push(token) chunks[#chunks + 1] = token end
+      local function encode(v, seen)
+          local t = type(v)
+          if t == "nil" then push("n;"); return end
+          if t == "boolean" then push(v and "b1;" or "b0;"); return end
+          if t == "number" then push("d" .. string.format("%.17g", v) .. ";"); return end
+          if t == "string" then
+              push("s" .. tostring(#v) .. ":" .. v .. ";")
+              return
+          end
+          if t ~= "table" then
+              push("x" .. t .. ":" .. tostring(v) .. ";")
+              return
+          end
+          seen = seen or {}
+          if seen[v] then
+              -- Save payloads are expected to be acyclic. Encode a stable cycle
+              -- marker instead of recursing forever if a malformed caller errs.
+              push("c;")
+              return
+          end
+          seen[v] = true
+          local keys = {}
+          for key in pairs(v) do keys[#keys + 1] = key end
+          table.sort(keys, function(a, b)
+              local ta, tb = type(a), type(b)
+              if ta ~= tb then return ta < tb end
+              return tostring(a) < tostring(b)
+          end)
+          push("t" .. tostring(#keys) .. "{")
+          for _, key in ipairs(keys) do
+              encode(key, seen)
+              encode(v[key], seen)
+          end
+          push("};")
+          seen[v] = nil
+      end
+      encode(type(value) == "table" and value or {}, {})
+      local text = table.concat(chunks)
+      local h1, h2 = 5381, 2166136261
+      for i = 1, #text do
+          local byte = text:byte(i)
+          h1 = (h1 * 33 + byte) % 2147483647
+          h2 = (h2 * 16777619 + byte) % 4294967291
+      end
+      return string.format("%08x:%08x:%d", h1, h2, #text)
+  end
+
   -- Durable monotonic attempt identities share the receipt store so they are
   -- outside gameplay objects and survive reloads without adding a second save
   -- key. Gaps are acceptable; sequence reuse is not.
@@ -180,6 +235,8 @@ return function(mod, deps)
       if root.by_id[id] == nil then root.order[#root.order + 1] = id end
       root.by_id[id] = {
           id = id, kind = tostring(txn.kind or "unknown"),
+          payload_fingerprint = tostring(txn.payload_fingerprint
+              or txPayloadFingerprint(txn.payload)),
           build = tostring(mod.exports.__beta26.build), state = "committed",
       }
       while #root.order > TX.receipt_limit do
@@ -210,10 +267,17 @@ return function(mod, deps)
       id, kind = tostring(id or ""), tostring(kind or "")
       if id == "" then return false, "missing_id" end
       if kind == "" then return false, "missing_kind" end
+      local requestedPayload = type(payload) == "table" and payload or {}
+      local requestedFingerprint = txPayloadFingerprint(requestedPayload)
       local receipt = txReceipt(store, id)
       if type(receipt) == "table" then
           if tostring(receipt.kind or "") ~= kind then
               return false, "receipt_kind_mismatch"
+          end
+          local receiptFingerprint = receipt.payload_fingerprint
+          if receiptFingerprint ~= nil
+              and tostring(receiptFingerprint) ~= requestedFingerprint then
+              return false, "receipt_payload_mismatch"
           end
           return false, "already_committed"
       end
@@ -221,13 +285,27 @@ return function(mod, deps)
       if type(current) == "table" then
           if tostring(current.id or "") == id
               and tostring(current.kind or "") == kind then
+              if current.payload_fingerprint ~= nil then
+                  if tostring(current.payload_fingerprint)
+                      ~= requestedFingerprint then
+                      return false, "transaction_payload_mismatch"
+                  end
+              elseif not shadowValuesEqual(
+                  type(current.payload) == "table" and current.payload or {},
+                  requestedPayload) then
+                  -- Legacy pre-2.8.73 journals have no immutable request
+                  -- fingerprint, so structural equality is the best exact
+                  -- evidence available until that transaction finishes.
+                  return false, "transaction_payload_mismatch"
+              end
               return true, deps.copy(current)
           end
           return false, "busy"
       end
       local txn = {
           version = TX.api, id = id, kind = kind, state = "intent",
-          payload = deps.copy(type(payload) == "table" and payload or {}),
+          payload = deps.copy(requestedPayload),
+          payload_fingerprint = requestedFingerprint,
           build = tostring(mod.exports.__beta26.build),
       }
       local ok, err = txSet(store, TX.storage_key, txn)
@@ -313,6 +391,12 @@ return function(mod, deps)
           local requestedKind = tostring(kind or "")
           if tostring(receipt.kind or "") ~= requestedKind then
               return false, "receipt_kind_mismatch"
+          end
+          local receiptFingerprint = receipt.payload_fingerprint
+          if receiptFingerprint ~= nil
+              and tostring(receiptFingerprint) ~= txPayloadFingerprint(
+                  type(payload) == "table" and payload or {}) then
+              return false, "receipt_payload_mismatch"
           end
           local leftover = txGet(store, TX.storage_key, nil)
           if type(leftover) == "table"
@@ -476,6 +560,31 @@ return function(mod, deps)
           data[key] = deps.copy(value)
           return true
       end
+      -- 2.8.77: shadow reads must never expose the journal's staged table
+      -- by reference. Mutating a fetched value without shadow:set() must leave
+      -- the staged value and its nested children unchanged.
+      local shadowBaseData = {}
+      local shadowBase = {}
+      function shadowBase:get(key, fallback)
+          local value = shadowBaseData[key]
+          if value == nil then return fallback end
+          return deps.copy(value)
+      end
+      function shadowBase:set(key, value)
+          shadowBaseData[key] = deps.copy(value)
+          return true
+      end
+      local shadow = mod.exports.__beta26.saveUpgrade.newShadowStore(shadowBase)
+      shadow:set("selftest_shadow_copy", { value=1, nested={ value=2 } })
+      local shadowRead = shadow:get("selftest_shadow_copy", {})
+      shadowRead.value = 99
+      shadowRead.nested.value = 88
+      local shadowReadAgain = shadow:get("selftest_shadow_copy", {})
+      local shadowCopyIsolation = type(shadowReadAgain) == "table"
+          and shadowReadAgain.value == 1
+          and type(shadowReadAgain.nested) == "table"
+          and shadowReadAgain.nested.value == 2
+
       local applied = 0
       TX.register("__selftest_once", {
           probe = function(payload)
@@ -498,6 +607,10 @@ return function(mod, deps)
           { token="A" }, opts)
       local okFresh = TX.execute("selftest:fresh", "__selftest_once",
           { token="B" }, opts)
+      -- Same ID/kind with a different requested payload must not inherit the
+      -- committed receipt for token B.
+      local receiptPayloadOk, receiptPayloadReason = TX.execute(
+          "selftest:fresh", "__selftest_once", { token="DIFFERENT" }, opts)
       -- Simulate receipt persisted but journal-clear interrupted.
       txSet(store, TX.storage_key, {
           version=1, id="selftest:fresh", kind="__selftest_once",
@@ -511,6 +624,8 @@ return function(mod, deps)
       -- while another intent owns the single durable journal.
       local okBusyBegin = TX.begin("selftest:busy-a", "__selftest_once",
           { token="C" }, opts)
+      local sameIdPayloadOk, sameIdPayloadReason = TX.begin(
+          "selftest:busy-a", "__selftest_once", { token="DIFFERENT" }, opts)
       local okBusySecond, busyReason = TX.begin("selftest:busy-b", "__selftest_once",
           { token="D" }, opts)
       TX.clear("selftest:busy-a", opts)
@@ -519,6 +634,11 @@ return function(mod, deps)
       local okCheckpoint = okCheckpointBegin and TX.checkpoint(
           "selftest:checkpoint", "native_effect_returned", true, opts)
       local checkpointed = TX.pending(opts)
+      -- Checkpoint fields mutate the working payload, but a legitimate replay
+      -- with the original request payload must still match its immutable
+      -- request fingerprint.
+      local checkpointReplayOk = TX.begin(
+          "selftest:checkpoint", "__selftest_once", { token="E" }, opts)
       TX.clear("selftest:checkpoint", opts)
       local seq1 = TX.nextSequence("selftest_attempts", opts)
       local seq2 = TX.nextSequence("selftest_attempts", opts)
@@ -535,13 +655,13 @@ return function(mod, deps)
       local futureTxn = {
           version = TX.api + 1,
           id = "selftest:future",
-          kind = "__selftest",
+          kind = "__selftest_once",
           state = "intent",
           payload = {},
       }
       local futureWriteOk = txSet(store, TX.storage_key, futureTxn)
       local futureOk, futureReason =
-          TX.execute("selftest:future", "__selftest", {}, opts)
+          TX.execute("selftest:future", "__selftest_once", {}, opts)
       local futureAfterExecute = txGet(store, TX.storage_key, nil)
 
       local futureAdvanceOk, futureAdvanceReason =
@@ -587,8 +707,14 @@ return function(mod, deps)
           txGet(store, TX.storage_key, nil)
       TX.clear("selftest:collision", opts)
 
-      local ok = okRecover == true and okReplay == true
+      local ok = shadowCopyIsolation == true
+          and okRecover == true and okReplay == true
           and replay == "already_committed" and okFresh == true and applied == 1
+          and receiptPayloadOk == false
+          and receiptPayloadReason == "receipt_payload_mismatch"
+          and sameIdPayloadOk == false
+          and sameIdPayloadReason == "transaction_payload_mismatch"
+          and checkpointReplayOk == true
           and okReceiptCleanup == true and receiptCleanup == "already_committed"
           and txGet(store, TX.storage_key, nil) == nil
           and okBusyBegin == true and okBusySecond == false and busyReason == "busy"
@@ -627,9 +753,13 @@ return function(mod, deps)
       TX.handlers.__selftest_once = nil
       return { ok=ok, failures=ok and {} or {"exactly_once_recovery"},
           applied=applied, replay=tostring(replay), busy=tostring(busyReason),
+          receipt_payload=tostring(receiptPayloadReason),
+          pending_payload=tostring(sameIdPayloadReason),
+          checkpoint_replay=tostring(checkpointReplayOk),
           receipt_cleanup=tostring(receiptCleanup),
           checkpoint=tostring(okCheckpoint), sequence=tostring(seq1) .. ":" .. tostring(seq2),
           unverified=tostring(unverifiedReason),
+          shadow_copy_isolation=tostring(shadowCopyIsolation),
           future=tostring(futureReason),
           future_advance=tostring(futureAdvanceReason),
           future_checkpoint=tostring(futureCheckpointReason),

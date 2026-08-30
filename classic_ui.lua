@@ -374,10 +374,11 @@ return function(mod, deps)
       end
 
       for _, r in ipairs(ALL_ROUTES) do
-          -- On Gold/Silver, only show maps that actually belong to the active
-          -- Gen II map catalog. This removes the Gen I seed rows (Pallet, Route
-          -- 1, etc.) until their real Gen II Kanto counterparts occur in the
-          -- host map order. Dynamically discovered custom maps remain visible.
+          -- On Gen II, the explicit canonical Johto/Kanto progression list is
+          -- intentionally prospective: canonical areas may be browsed before
+          -- visitation, while ordinary interiors/custom rows still require real
+          -- encounter/tracker evidence. Shared Gen-I seed IDs are therefore not
+          -- discovery-gated when they are canonical Gen-II Kanto destinations.
           local permitted = true
           if mod.exports.__beta26.runtimeIsGen2(game) then
               local states = mod.save:get("encounter_states", {})
@@ -727,17 +728,19 @@ return function(mod, deps)
           ["badge.earned"] = Strings("BADGE"), ["run.blackout"] = Strings("BLACKOUT"),
           ["run.completed"] = Strings("COMPLETE"),
       }
-      local label = labels[kind] or kind:upper():gsub("^.-%.", "")
+      local label = (kind == "pokemon.caught" and tostring(row.source or "") == "starter")
+          and Strings("STARTER")
+          or labels[kind] or kind:upper():gsub("^.-%.", "")
       return name ~= "" and (label .. " " .. name) or label
   end
 
-  local function nuzStatusTokenBalance()
+  local function nuzStatusTokenBalance(game)
       local fn = mod.exports.__beta26.forgivenessTokens
       if type(fn) ~= "function" and mod.exports.__beta26.TrainerRewards then
           fn = mod.exports.__beta26.TrainerRewards.forgivenessTokens
       end
       local ok, value = false, 0
-      if type(fn) == "function" then ok, value = pcall(fn) end
+      if type(fn) == "function" then ok, value = pcall(fn, game) end
       return math.max(0, math.floor(tonumber(value) or 0))
   end
 
@@ -869,7 +872,10 @@ return function(mod, deps)
               local row = rows[i]
               if type(row) == "table" then
                   local kind = tostring(row.kind or "EVENT")
-                  local label = labels[kind] or kind:upper():gsub("^.-%.", "")
+                  local label = (kind == "pokemon.caught"
+                      and tostring(row.source or "") == "starter")
+                      and Strings("STARTER")
+                      or labels[kind] or kind:upper():gsub("^.-%.", "")
                   local detail = tostring(row.name or row.badge or row.species
                       or row.target or row.area or "")
                   detail = clipGlyphText(detail, 12, "")
@@ -932,6 +938,519 @@ return function(mod, deps)
       return menu
   end
   mod.exports.__beta26.pushRunHistoryViewer = pushNuzlockeRunHistoryViewer
+
+  ---------------------------------------------------------------------
+  -- GRAVEYARD VIEWER (2.9.16)
+  --
+  -- Read-only projection over the existing durable death/history state. The
+  -- viewer never creates a second graveyard save ledger: nuzlocke_history's
+  -- DEAD/REVIVED status is the current tombstone authority, Run History v2
+  -- enriches witnessed deaths, and the forgiveness archive can supply exact
+  -- retained Pokemon fields while a dead mon remains revivable. Unknown
+  -- legacy fields stay UNKNOWN rather than being inferred.
+  ---------------------------------------------------------------------
+  local function graveyardRows(game)
+      local historyRows = mod.save:get("nuzlocke_history", {})
+      local runHistory = mod.exports.__beta26.RunHistory
+      local runRoot = type(runHistory) == "table" and type(runHistory.storage_key) == "string"
+          and mod.save:get(runHistory.storage_key, nil) or nil
+      local runEvents = type(runRoot) == "table" and runRoot.events or {}
+      local archive = mod.save:get("route_forgiveness_dead_archive", {})
+      if type(historyRows) ~= "table" then historyRows = {} end
+      if type(runEvents) ~= "table" then runEvents = {} end
+      if type(archive) ~= "table" then archive = {} end
+
+      local latestDeathById = {}
+      for _, event in ipairs(runEvents) do
+          if type(event) == "table" and event.kind == "pokemon.died"
+              and event.pokemonId ~= nil then
+              latestDeathById[tostring(event.pokemonId)] = event
+          end
+      end
+
+      local out = {}
+      for ordinal, row in ipairs(historyRows) do
+          if type(row) == "table" and row.status == "DEAD" then
+              local id = row.pokemonId ~= nil and tostring(row.pokemonId) or nil
+              local event = id and latestDeathById[id] or nil
+              local archived = id and archive[id] or nil
+              local archivedMon = type(archived) == "table" and archived.mon or nil
+              out[#out + 1] = {
+                  ordinal = ordinal,
+                  pokemonId = id,
+                  name = row.name or (event and event.name) or (archived and archived.name),
+                  species = row.species or (event and event.species) or (archived and archived.species),
+                  level = row.level or (event and event.level)
+                      or (type(archivedMon) == "table" and archivedMon.level or nil),
+                  catchLocation = row.catchLocation or (event and event.catchLocation),
+                  deathLocation = row.deathLocation or (event and event.area),
+                  deathCause = row.deathCause or (event and event.cause),
+                  opponentSpecies = row.deathOpponentSpecies
+                      or (event and event.opponentSpecies),
+                  move = row.deathMove or (event and event.move),
+                  critical = row.deathCritical,
+                  statusCondition = row.deathStatusCondition
+                      or (event and event.statusCondition),
+                  source = event and event.source or nil,
+                  seq = event and event.seq or nil,
+                  legacyRecovered = event == nil,
+              }
+          end
+      end
+      table.sort(out, function(a, b)
+          local as = tonumber(a.seq)
+          local bs = tonumber(b.seq)
+          if as and bs and as ~= bs then return as < bs end
+          if as and not bs then return false end
+          if bs and not as then return true end
+          return (tonumber(a.ordinal) or 0) < (tonumber(b.ordinal) or 0)
+      end)
+      return out
+  end
+
+  local function graveyardDisplayValue(value, fallback)
+      if value == nil or value == "" then return Strings(fallback or "UNKNOWN") end
+      return Strings(tostring(value))
+  end
+
+  local function decorateGraveyardMenu(game, menu, title)
+      if type(menu) ~= "table" then return menu end
+      if not mod.exports.__beta26.runtimeIsGen2(game) then
+          decorateNativeInfoList(menu, title, { headers = true })
+          return menu
+      end
+      menu.draw = function(self)
+          local Chrome = require("src.ui.gen2.Chrome")
+          local GoldFont = require("src.render.Font")
+          local UiSystem = mod.exports.__beta26.UiSystem
+          UiSystem.gen2ScreenFrame(Chrome, { headerRows = 3, footerRows = 2 })
+          mod.exports.__beta26.drawGen2NuzTitle(Chrome, GoldFont, title, nil, { row = 1 })
+          local total = #(self.items or {})
+          local rowsVisible = 8
+          local index = math.max(1, math.min(math.max(1, total), self.index or 1))
+          local scroll = math.max(0, math.floor(tonumber(self.scroll) or 0))
+          if index <= scroll then scroll = index - 1 end
+          if index > scroll + rowsVisible then scroll = index - rowsVisible end
+          scroll = math.max(0, math.min(math.max(0, total - rowsVisible), scroll))
+          self.scroll = scroll
+          for slot = 1, rowsVisible do
+              local i = scroll + slot
+              local item = self.items and self.items[i]
+              if not item then break end
+              UiSystem.gen2Row(Chrome, GoldFont, {
+                  label = item.label or "", value = item.right or "",
+                  focused = i == index,
+              }, { x = 2, y = 3 + slot - 1, rightCol = 18 })
+          end
+          if scroll > 0 then Chrome.cursor(18, 3, true) end
+          if scroll + rowsVisible < total then
+              GoldFont.drawCode(Chrome.DOWN_ARROW, 18 * 8, 14 * 8)
+          end
+          Chrome.print(self.footer or Strings("B:BACK"), 5, 16)
+      end
+      return menu
+  end
+
+  local function pushGraveyardMemorial(game, row, index, total)
+      local items = {}
+      local function add(label, value)
+          items[#items + 1] = {
+              label = Strings(label), right = graveyardDisplayValue(value, "UNKNOWN")
+          }
+      end
+      items[#items + 1] = {
+          label = graveyardDisplayValue(row.name or row.species, "UNKNOWN"), right = "",
+          nuzlockeBoldHeader = true,
+      }
+      add("SPECIES", row.species)
+      add("LEVEL", row.level and ("LV" .. tostring(row.level)) or nil)
+      add("MET", row.catchLocation)
+      add("FELL", row.deathLocation)
+      add("OPPONENT", row.opponentSpecies)
+      add("MOVE", row.move)
+      add("STATUS", row.statusCondition)
+      if row.critical == true then add("CRITICAL", "YES") end
+      if row.legacyRecovered == true then add("RECORD", "LEGACY / RECOVERED") end
+      if row.deathCause ~= nil and row.deathCause ~= "" then
+          items[#items + 1] = { label = Strings("CAUSE"), right = "", nuzlockeBoldHeader = true }
+          for _, line in ipairs(wrapText(Strings(tostring(row.deathCause)), 18)) do
+              items[#items + 1] = { label = tostring(line), right = "" }
+          end
+      end
+      items[#items + 1] = {
+          label = Strings("MEMORIAL %d/%d", tonumber(index) or 1, tonumber(total) or 1),
+          right = "",
+      }
+      local menu = mod.ui.ListMenu.new(game, Strings("IN MEMORY"), items, {
+          kind = "nuzlocke_graveyard_memorial", pageJump = true, wrap = false,
+      })
+      if type(menu) == "table" then
+          menu.screenId = "NuzlockeGraveyardMemorialScreen"
+          menu.rows = mod.exports.__beta26.runtimeIsGen2(game) and 8 or 7
+          menu.footer = Strings("B:BACK")
+          decorateGraveyardMenu(game, menu, "IN MEMORY")
+      end
+      if game and game.stack and menu then game.stack:push(menu) end
+      return menu
+  end
+
+  local function pushNuzlockeGraveyardViewer(game)
+      local rows = graveyardRows(game)
+      local items = {}
+      if #rows == 0 then
+          items[1] = { label = Strings("NO FALLEN POKEMON"), right = "" }
+      else
+          for i, row in ipairs(rows) do
+              local selectedRow, selectedIndex = row, i
+              local name = graveyardDisplayValue(selectedRow.name or selectedRow.species, "UNKNOWN")
+              local species = graveyardDisplayValue(selectedRow.species, "UNKNOWN")
+              items[#items + 1] = {
+                  label = clipGlyphText(name, 11, "."),
+                  right = clipGlyphText(species, 8, "."),
+                  onSelect = function()
+                      pushGraveyardMemorial(game, selectedRow, selectedIndex, #rows)
+                  end,
+              }
+          end
+      end
+      local menu = mod.ui.ListMenu.new(game, Strings("GRAVEYARD"), items, {
+          kind = "nuzlocke_graveyard", pageJump = true, wrap = false,
+          onChoose = function(item)
+              if item and type(item.onSelect) == "function" then item.onSelect() end
+          end,
+      })
+      if type(menu) == "table" then
+          menu.screenId = "NuzlockeGraveyardScreen"
+          menu.rows = mod.exports.__beta26.runtimeIsGen2(game) and 8 or 7
+          menu.footer = #rows > 0 and Strings("A:DETAILS  B:BACK") or Strings("B:BACK")
+          decorateGraveyardMenu(game, menu, "GRAVEYARD")
+      end
+      if game and game.stack and menu then game.stack:push(menu) end
+      return menu
+  end
+  mod.exports.__beta26.pushGraveyardViewer = pushNuzlockeGraveyardViewer
+  mod.exports.__beta26.graveyardRows = graveyardRows
+
+  local function graveyardHealth(game)
+      local rows = graveyardRows(game or getCurrentGame())
+      local ids, duplicates, legacy = {}, 0, 0
+      for _, row in ipairs(rows) do
+          if row.legacyRecovered then legacy = legacy + 1 end
+          if row.pokemonId then
+              if ids[row.pokemonId] then duplicates = duplicates + 1 end
+              ids[row.pokemonId] = true
+          end
+      end
+      return {
+          ok = duplicates == 0,
+          fallen = #rows,
+          legacy_recovered = legacy,
+          duplicate_identities = duplicates,
+          read_only = true,
+      }
+  end
+  mod.exports.__beta26.graveyardHealth = graveyardHealth
+
+  ---------------------------------------------------------------------
+  -- ALMANAC / RUN RECAP (2.9.17)
+  --
+  -- Read-only player-facing projection over Run History v2. This deliberately
+  -- reads the persisted ledger directly instead of calling RunHistory.ensure(),
+  -- because opening a history viewer must never repair/migrate/write the save.
+  -- Durable aggregate counters remain authoritative when the bounded journal
+  -- has pruned detail; incomplete legacy/detail coverage is labelled PARTIAL.
+  ---------------------------------------------------------------------
+  local function almanacSnapshot(game)
+      local RH = mod.exports.__beta26.RunHistory
+      local key = type(RH) == "table" and RH.storage_key or "run_history_v1"
+      local root = mod.save:get(key, nil)
+      if type(root) ~= "table" then
+          return { available = false, partial = true, counters = {}, flags = {}, context = {} }
+      end
+      local stats = type(root.statistics) == "table" and root.statistics or {}
+      local counters = type(stats.counters) == "table" and stats.counters or {}
+      local flags = type(stats.flags) == "table" and stats.flags or {}
+      local coverage = type(stats.coverage) == "table" and stats.coverage or {}
+      local context = type(stats.context) == "table" and stats.context or {}
+      local first = type(stats.first) == "table" and stats.first or {}
+      local last = type(stats.last) == "table" and stats.last or {}
+      local rules = type(stats.rule_integrity) == "table" and stats.rule_integrity or {}
+      local randomizerKey = mod.exports.__beta26.randomizerRunConfigKey
+      local randomizer = type(randomizerKey) == "string" and mod.save:get(randomizerKey, nil) or nil
+      -- Runtime UI must describe the live authoritative rule state. The
+      -- persisted run-config record is provenance/audit evidence and can lag
+      -- behind current toggles, so it is not an ON/OFF source of truth.
+      local randomizerToggleKeys = {
+          "random_starter", "random_encounter_tables", "random_field_items",
+          "random_learnsets", "random_trainers", "random_evolutions",
+          "random_shops", "random_tms", "random_tm_locations", "random_gift_items",
+      }
+      local randomizerActiveCount = 0
+      for _, key in ipairs(randomizerToggleKeys) do
+          if getConfigValue(key, false) == true then
+              randomizerActiveCount = randomizerActiveCount + 1
+          end
+      end
+      local randomizerEnabled = randomizerActiveCount > 0
+      local partial = root.partial == true or coverage.partial == true
+          or coverage.detail_complete == false or rules.partial == true
+      local status = flags.abandoned == true and "ABANDONED"
+          or flags.completed == true and "COMPLETED" or "ACTIVE"
+      return {
+          available = true,
+          run_id = root.run_id,
+          edition = root.edition or context.edition,
+          generation = root.generation or context.generation,
+          coverage_start_build = root.coverage_start_build or stats.coverage_start_build,
+          retained_events = type(root.events) == "table" and #root.events or 0,
+          partial = partial,
+          counters = counters, flags = flags, first = first, last = last,
+          rules = rules, context = context, status = status,
+          randomizer = type(randomizer) == "table" and randomizer or nil,
+          randomizer_enabled = randomizerEnabled,
+          randomizer_active_count = randomizerActiveCount,
+      }
+  end
+
+  local function almanacValue(value, fallback)
+      if value == nil or value == "" then return Strings(fallback or "UNKNOWN") end
+      return Strings(tostring(value))
+  end
+
+  local function pushAlmanacPage(game, title, rows)
+      local items = {}
+      for _, row in ipairs(rows or {}) do
+          items[#items + 1] = {
+              label = Strings(row[1]),
+              right = almanacValue(row[2], row[3] or "UNKNOWN"),
+              nuzlockeBoldHeader = row.header == true,
+          }
+      end
+      local menu = mod.ui.ListMenu.new(game, Strings(title), items, {
+          kind = "nuzlocke_almanac_page", pageJump = true, wrap = false,
+      })
+      if type(menu) == "table" then
+          menu.screenId = "NuzlockeAlmanacPageScreen"
+          menu.rows = mod.exports.__beta26.runtimeIsGen2(game) and 8 or 7
+          menu.footer = Strings("B:BACK")
+          decorateGraveyardMenu(game, menu, title)
+      end
+      if game and game.stack and menu then game.stack:push(menu) end
+      return menu
+  end
+
+  local function pushNuzlockeAlmanac(game)
+      local snap = almanacSnapshot(game)
+      local function count(name)
+          return math.max(0, math.floor(tonumber(snap.counters[name]) or 0))
+      end
+      local items = {}
+      if not snap.available then
+          items[1] = { label = Strings("NO RUN HISTORY"), right = "" }
+      else
+          items = {
+              { label = Strings("RUN HISTORY"), right = snap.partial and Strings("PARTIAL") or Strings("COMPLETE"),
+                onSelect = function()
+                  pushAlmanacPage(game, "RUN HISTORY", {
+                      {"STATUS", snap.status}, {"EDITION", snap.edition},
+                      {"CATCHES", count("catches")}, {"DEATHS", count("deaths")},
+                      {"BADGES", count("badges")}, {"FAILED", count("failed_encounters")},
+                      {"BLACKOUTS", count("blackouts")}, {"F. TOKEN USED", count("forgiveness_used")},
+                      {"COVERAGE", snap.partial and "PARTIAL" or "COMPLETE"},
+                  })
+                end },
+              { label = Strings("BADGES"), right = tostring(count("badges")),
+                onSelect = function()
+                  pushAlmanacPage(game, "PROGRESSION", {
+                      {"STATUS", snap.status}, {"BADGES", count("badges")},
+                      {"LAST BADGE", snap.last.badge},
+                      {"COMPLETIONS", count("completions")},
+                      {"TARGET", snap.last.completion_target},
+                      {"BLACKOUTS", count("blackouts")},
+                  })
+                end },
+              { label = Strings("CATCHES"), right = tostring(count("catches")),
+                onSelect = function()
+                  pushAlmanacPage(game, "POKEMON", {
+                      {"CATCHES", count("catches")}, {"DEATHS", count("deaths")},
+                      {"SHINY CATCHES", count("shiny_catches")},
+                      {"SHINY DEATHS", count("shiny_deaths")},
+                      {"FIRST CATCH", snap.first.catch_species},
+                      {"LAST CATCH", snap.last.catch_species},
+                      {"FIRST DEATH", snap.first.death_species},
+                      {"LAST DEATH", snap.last.death_species},
+                  })
+                end },
+              { label = Strings("RULE CHANGES"), right = tostring(math.max(0, math.floor(tonumber(snap.rules.change_count) or 0))),
+                onSelect = function()
+                  pushAlmanacPage(game, "RULE CHANGES", {
+                      {"RULE CHANGES", math.max(0, math.floor(tonumber(snap.rules.change_count) or 0))},
+                      {"INTEGRITY", snap.rules.partial == true and "PARTIAL" or "RECORDED"},
+                      {"START BUILD", snap.context.first_build},
+                      {"LAST BUILD", snap.context.last_build},
+                      {"COVERAGE", snap.partial and "PARTIAL" or "COMPLETE"},
+                  })
+                end },
+              { label = Strings("RANDOMIZER"), right = snap.randomizer_enabled
+                    and Strings("%d ON", tonumber(snap.randomizer_active_count) or 0)
+                    or Strings("OFF"),
+                onSelect = function()
+                  local r = snap.randomizer or {}
+                  pushAlmanacPage(game, "RANDOMIZER", {
+                      {"STATUS", snap.randomizer_enabled and "ON" or "OFF"},
+                      {"FEATURES", tonumber(snap.randomizer_active_count) or 0},
+                      {"ALGORITHM", r.algorithm and ("V" .. tostring(r.algorithm)) or nil},
+                      {"SEED", r.seed}, {"GAME", r.game},
+                      {"RECORD", snap.randomizer and "RECORDED" or "UNKNOWN"},
+                  })
+                end },
+              { label = Strings("DATA COVERAGE"), right = snap.partial and Strings("PARTIAL") or Strings("COMPLETE"),
+                onSelect = function()
+                  pushAlmanacPage(game, "DATA COVERAGE", {
+                      {"DETAIL", snap.partial and "PARTIAL" or "COMPLETE"},
+                      {"START BUILD", snap.coverage_start_build},
+                      {"RETAINED", snap.retained_events},
+                      {"RUN ID", snap.run_id},
+                  })
+                end },
+          }
+      end
+      local menu = mod.ui.ListMenu.new(game, Strings("ALMANAC"), items, {
+          kind = "nuzlocke_almanac", pageJump = true, wrap = false,
+          onChoose = function(item)
+              if item and type(item.onSelect) == "function" then item.onSelect() end
+          end,
+      })
+      if type(menu) == "table" then
+          menu.screenId = "NuzlockeAlmanacScreen"
+          menu.rows = mod.exports.__beta26.runtimeIsGen2(game) and 8 or 7
+          menu.footer = snap.available and Strings("A:DETAILS  B:BACK") or Strings("B:BACK")
+          decorateGraveyardMenu(game, menu, "ALMANAC")
+      end
+      if game and game.stack and menu then game.stack:push(menu) end
+      return menu
+  end
+  mod.exports.__beta26.pushAlmanac = pushNuzlockeAlmanac
+  mod.exports.__beta26.almanacSnapshot = almanacSnapshot
+
+  local function almanacHealth(game)
+      local snap = almanacSnapshot(game or getCurrentGame())
+      return {
+          ok = true, available = snap.available == true,
+          partial = snap.partial == true, read_only = true,
+          retained_events = tonumber(snap.retained_events) or 0,
+      }
+  end
+  mod.exports.__beta26.almanacHealth = almanacHealth
+
+  ---------------------------------------------------------------------
+  -- END / ABANDON RUN (2.9.18)
+  -- Natural completion remains progression-owned. This Nuzlocke-owned surface
+  -- records only explicit abandonment, commits history first, then disables
+  -- challenge enforcement through the ordinary rule setter. Destructive
+  -- confirmation is direction-stable, idempotent, and defaults to NO.
+  ---------------------------------------------------------------------
+  local function runLifecycleSnapshot(game)
+      local RH = mod.exports.__beta26.RunHistory
+      local key = type(RH) == "table" and RH.storage_key or "run_history_v1"
+      local root = mod.save:get(key, nil)
+      local stats = type(root) == "table" and type(root.statistics) == "table"
+          and root.statistics or {}
+      local flags = type(stats.flags) == "table" and stats.flags or {}
+      return { available = type(root) == "table",
+          run_id = type(root) == "table" and root.run_id or nil,
+          completed = flags.completed == true, abandoned = flags.abandoned == true,
+          active = type(root) == "table" and flags.completed ~= true and flags.abandoned ~= true,
+          nuzlocke_enabled = mod.save:get("nuzlocke_enabled", true) == true }
+  end
+
+  local function abandonCurrentRun(game)
+      local snap = runLifecycleSnapshot(game)
+      if not snap.available then return false, "no_run_history" end
+      if snap.completed then return false, "already_completed" end
+      if snap.abandoned then return false, "already_abandoned" end
+      if not mod.exports.__beta26.canWriteNuzlockeSave(game) then return false, "save_blocked" end
+      local RH = mod.exports.__beta26.RunHistory
+      if type(RH) ~= "table" or type(RH.recordAbandoned) ~= "function" then
+          return false, "history_unavailable"
+      end
+      if type(mod.exports.__beta26.setConfigValue) ~= "function" then
+          return false, "rule_setter_unavailable"
+      end
+      local ok, result, detail = pcall(RH.recordAbandoned, game, {
+          source = "end_run_ui", reason = "player_abandoned",
+          dedupe = "abandon:" .. tostring(snap.run_id or "unknown") })
+      if not ok or result ~= true then
+          return false, tostring(detail or result or "history_write_failed")
+      end
+      mod.exports.__beta26.setConfigValue("nuzlocke_enabled", false, false, false)
+      return true
+  end
+
+  local function pushEndRunScreen(game)
+      local snap = runLifecycleSnapshot(game)
+      local items
+      if not snap.available then
+          items = { { label = Strings("NO RUN HISTORY"), right = "" } }
+      elseif snap.completed then
+          items = { { label = Strings("RUN COMPLETED"), right = "" } }
+      elseif snap.abandoned then
+          items = { { label = Strings("RUN ABANDONED"), right = "" } }
+      else
+          items = { { label = Strings("ABANDON RUN"), right = "",
+              onSelect = function()
+                  local confirmItems = {
+                      { label = Strings("NO"), right = "", onSelect = function()
+                          if game and game.stack then game.stack:pop() end
+                      end },
+                      { label = Strings("YES"), right = "", onSelect = function()
+                          local success = abandonCurrentRun(game)
+                          if game and game.stack then game.stack:pop(); game.stack:pop() end
+                          if success and type(mod.exports.__beta26.pushAlmanac) == "function" then
+                              mod.exports.__beta26.pushAlmanac(game)
+                          end
+                      end },
+                  }
+                  local confirm = mod.ui.ListMenu.new(game, Strings("ABANDON RUN?"),
+                      confirmItems, {
+                          kind = "nuzlocke_abandon_confirm", wrap = false,
+                          onChoose = function(item)
+                              if item and type(item.onSelect) == "function" then item.onSelect() end
+                          end,
+                      })
+                  if type(confirm) == "table" then
+                      confirm.screenId = "NuzlockeAbandonConfirmScreen"
+                      confirm.index = 1
+                      confirm.footer = Strings("A:CONFIRM  B:BACK")
+                      decorateGraveyardMenu(game, confirm, "ABANDON RUN?")
+                  end
+                  if game and game.stack and confirm then game.stack:push(confirm) end
+              end } }
+      end
+      local menu = mod.ui.ListMenu.new(game, Strings("END RUN"), items, {
+          kind = "nuzlocke_end_run", wrap = false,
+          onChoose = function(item)
+              if item and type(item.onSelect) == "function" then item.onSelect() end
+          end,
+      })
+      if type(menu) == "table" then
+          menu.screenId = "NuzlockeEndRunScreen"
+          menu.footer = Strings("A:SELECT  B:BACK")
+          decorateGraveyardMenu(game, menu, "END RUN")
+      end
+      if game and game.stack and menu then game.stack:push(menu) end
+      return menu
+  end
+
+  mod.exports.__beta26.pushEndRun = pushEndRunScreen
+  mod.exports.__beta26.runLifecycleSnapshot = runLifecycleSnapshot
+  mod.exports.__beta26.abandonCurrentRun = abandonCurrentRun
+  mod.exports.__beta26.runLifecycleHealth = function(game)
+      local snap = runLifecycleSnapshot(game or getCurrentGame())
+      return { ok = true, available = snap.available == true, active = snap.active == true,
+          completed = snap.completed == true, abandoned = snap.abandoned == true,
+          write_action = "explicit_confirmation_only" }
+  end
 
   local function recordRunBlackout(game, source)
       if not (game and mod.exports.__beta26.canWriteNuzlockeSave(game)) then return false end
@@ -1071,6 +1590,7 @@ return function(mod, deps)
                       local mode = tonumber(value) or 0
                       if mode == 1 then return Strings("Dupes SPEC") end
                       if mode == 2 then return Strings("Dupes FAM") end
+                      if mode == 3 then return Strings("Dupes SPLIT") end
                       return nil
                   elseif rule.key == "evolution_limit" then
                       local mode = tonumber(value) or 0
@@ -1119,6 +1639,14 @@ return function(mod, deps)
                       local limit = mod.exports.__beta26.encounterBallLimitValues[
                           tonumber(value) or 0] or 0
                       return limit > 0 and Strings("Ball Limit %d", limit) or nil
+                  elseif rule.key == "colorlocke_mode" then
+                      local mode=math.floor(tonumber(value) or 0)
+                      if mode>0 then return Strings("Colorlocke %s", mod.exports.__beta26.colorlockeResolvedColor(game) or "UNKNOWN") end
+                  elseif rule.key == "alphabetlocke_mode" then
+                      local mode=math.floor(tonumber(value) or 0)
+                      if mode>0 then return Strings("Alphabetlocke %s", mod.exports.__beta26.alphabetlockeResolvedLetter(game) or "UNKNOWN") end
+                  elseif rule.key == "colorlocke_color" or rule.key == "alphabetlocke_letter" then
+                      return nil
                   elseif rule.key == "type_lock_mode" then
                       local mode = math.max(0, math.min(6, tonumber(value) or 0))
                       if mode <= 0 then return nil end
@@ -1418,7 +1946,7 @@ return function(mod, deps)
                   return cap >= 100 and Strings("MAX") or Strings("LV%d", cap)
               end, "?")
               items[#items + 1] = metric("F. TOKEN", function()
-                  return nuzStatusTokenBalance()
+                  return nuzStatusTokenBalance(game)
               end, 0)
               do
                   local areaLabel, areaStatus = nuzStatusEncounterSnapshot(game)
@@ -1561,7 +2089,7 @@ return function(mod, deps)
                           return {
                               Strings("Active challenge rules"),
                               Strings("CAP %s  F. TOKEN %d", tostring(nextLevelCap(save)),
-                                  nuzStatusTokenBalance()),
+                                  nuzStatusTokenBalance(self.game)),
                               Strings("AREA %s: %s", tostring(areaLabel), tostring(areaStatus)),
                               Strings("LAST %s", nuzStatusLastHistoryEvent(self.game)),
                           }
@@ -1712,7 +2240,7 @@ return function(mod, deps)
               local visitedAreasCount = countVisitedAreas(self.game)
               local totalAreas = #getDisplayRoutes(self.game)
               local cap = nextLevelCap(self.game and self.game.save)
-              local tokens = nuzStatusTokenBalance()
+              local tokens = nuzStatusTokenBalance(self.game)
               local areaLabel, areaStatus = nuzStatusEncounterSnapshot(self.game)
               local lastEvent = nuzStatusLastHistoryEvent(self.game)
 
@@ -3959,6 +4487,21 @@ return function(mod, deps)
                       putPair("IDENTITY", d.current_identity and "SHINY" or "NORMAL")
                   end
                   putPair("SOURCE", d.identity_source or "?")
+                  for _, row in ipairs(d.party or {}) do
+                      put(string.format("P%s %s %s RAW %s",
+                          tostring(row.slot or "?"), tostring(row.species or "?"),
+                          row.identity == true and "SHINY" or (row.identity == false and "NORMAL" or "?"),
+                          tostring(row.raw_shiny)))
+                  end
+                  if type(d.last_presentation)=="table" then
+                      put("LAST " .. tostring(d.last_presentation.surface or "?")
+                          .. " " .. tostring(d.last_presentation.species or "?"))
+                      put("IDENT " .. tostring(d.last_presentation.identity==true)
+                          .. " PROJECT " .. tostring(d.last_presentation.projected_ok==true))
+                      if d.last_presentation.error then
+                          put("ERROR " .. tostring(d.last_presentation.error))
+                      end
+                  end
                   put("READ ONLY / NO ROLL")
               elseif name == "RANDOM REPRO" then
                   local r = mod.exports.__beta26.Dev.randomizerReproducibility
@@ -4302,6 +4845,30 @@ return function(mod, deps)
                               end
                           end
                       end
+                  else
+                      put("")
+                      put("TRAINER RANDOMIZER")
+                      local trace = type(mod.exports.__beta26.randomTrainerTrace)=="function"
+                          and mod.exports.__beta26.randomTrainerTrace(self.game) or {}
+                      put("ENABLED " .. tostring(trace.enabled==true)
+                          .. " DELEG " .. tostring(trace.delegated==true))
+                      put("STOP " .. tostring(trace.stop or "?"))
+                      local primary=trace.primary or {}
+                      put("PRIMARY " .. tostring(primary.stop or "NO SAMPLE")
+                          .. " CHANGED " .. tostring(primary.changed==true))
+                      local finalizer=trace.finalizer or {}
+                      put("FINAL VANILLA " .. tostring(finalizer.allVanilla==true)
+                          .. " REAP " .. tostring(finalizer.reapplied or 0))
+                      for _, row in ipairs(finalizer.details or {}) do
+                          put(string.format("S%s %s>%s", tostring(row.slot or "?"),
+                              tostring(row.original or "?"), tostring(row.final or "?")))
+                      end
+                      local accepted=trace.accepted or {}
+                      for _, row in ipairs(accepted.rows or {}) do
+                          put(string.format("ACCEPT S%s %s L%s", tostring(row.slot or "?"),
+                              tostring(row.species or "?"), tostring(row.level or "?")))
+                      end
+                      if trace.error then put("ERROR " .. tostring(trace.error)) end
                   end
               else
                   return rawFormatter(rawText, width)
@@ -6181,6 +6748,9 @@ return function(mod, deps)
       nuzStatusTokenBalance = nuzStatusTokenBalance,
       nuzCompatIdentityLine = nuzCompatIdentityLine,
       pushNuzlockeRunHistoryViewer = pushNuzlockeRunHistoryViewer,
+      pushNuzlockeGraveyardViewer = pushNuzlockeGraveyardViewer,
+      graveyardRows = graveyardRows,
+      graveyardHealth = graveyardHealth,
       recordRunBlackout = recordRunBlackout,
   }
 end

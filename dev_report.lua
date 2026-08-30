@@ -6,6 +6,7 @@ return function(mod, deps)
   local getCurrentGame = assert(deps.currentGame, "dev_report requires currentGame getter")
   local SAVE_SCHEMA_KEY = assert(deps.SAVE_SCHEMA_KEY, "dev_report requires SAVE_SCHEMA_KEY")
   local CURRENT_SAVE_SCHEMA = assert(deps.CURRENT_SAVE_SCHEMA, "dev_report requires CURRENT_SAVE_SCHEMA")
+  local isShiny = assert(deps.isShiny, "dev_report requires isShiny")
   local function liveGame() return getCurrentGame() end
 
   ---------------------------------------------------------------------
@@ -396,6 +397,22 @@ return function(mod, deps)
       }
   end
 
+  -- 2.9.10: explicit TM_LOCATIONS hook-health projection. TM Locations
+  -- shares pickup wrappers with FIELD_ITEMS but must remain independently
+  -- visible in DEV diagnostics so wrapper/session drift cannot fail silently.
+  mod.exports.__beta26.Dev.randomizerTmLocationsHealth = function(game)
+      local hook = type(mod.exports.__beta26.Dev.hookHealth) == "function"
+          and mod.exports.__beta26.Dev.hookHealth(game) or {}
+      local rows = {}
+      for _, row in ipairs(type(hook.rows) == "table" and hook.rows or {}) do
+          if tostring(row.id or ""):find("random_tm_locations", 1, true) then
+              rows[#rows + 1] = row
+          end
+      end
+      return { subsystem="TM_LOCATIONS", rule="random_tm_locations",
+          status=#rows > 0 and "OK" or "WARN", rows=rows }
+  end
+
   -- 2.8.44: read-only Randomizer reproducibility view. It deliberately
   -- consumes the Randomizer's existing reproducibility report, which reads
   -- only persisted seed/run-contract/source-map metadata and never asks for
@@ -490,6 +507,17 @@ return function(mod, deps)
       if type(external) == "table" then
           providerId = tostring(external.id or external.name or "SHINY_POKEMON")
       end
+      local partyRows = {}
+      local party = game and game.save and game.save.party or {}
+      for i, partyMon in ipairs(type(party)=="table" and party or {}) do
+          local identity = nil
+          local okIdentity, value = pcall(isShiny, partyMon)
+          if okIdentity then identity = value == true end
+          partyRows[#partyRows+1] = { slot=i, species=tostring(
+              type(partyMon)=="table" and partyMon.species or "?"):upper(),
+              identity=identity, raw_shiny=type(partyMon)=="table" and partyMon.shiny or nil,
+              source=type(partyMon)=="table" and partyMon.nuzlockeShinySource or nil }
+      end
       return {
           status=owner == "N/A" and "N/A" or "OK",
           owner=owner,
@@ -506,6 +534,9 @@ return function(mod, deps)
           current_identity=shiny,
           identity_source=source
               or (shiny ~= nil and "materialized_mon" or "unavailable"),
+          party=partyRows,
+          last_presentation=mod.exports.__beta26.lastShinyPresentationTrace,
+          presentation_error=mod.exports.__beta26.lastShinyPresentationError,
       }
   end
 
@@ -886,6 +917,233 @@ return function(mod, deps)
           decision_count=#(mod.exports.__beta26.Dev.decisions or {}) }
   end
 
+  ---------------------------------------------------------------------
+  -- 2.9.39 RULE STATUS / CERTIFICATION EXPLANATION
+  -- Read-only diagnostic projection over the authoritative rule catalog,
+  -- edition availability contract, and existing semantic/runtime evidence.
+  -- This is deliberately not a second rules authority. Missing evidence stays
+  -- explicit instead of being promoted from source/static confidence.
+  ---------------------------------------------------------------------
+  local RULE_CERT_EDITIONS = { "red", "blue", "yellow", "gold", "silver", "crystal" }
+  local RULE_RUNTIME_EVIDENCE = {
+      -- Exact-edition runtime evidence only. Do not generalize one edition to
+      -- another or one stack to a combined-mod configuration.
+      random_starter = {
+          red = { status="PASS", build="2.7.94",
+              detail="Red New Game Random Starter AUTO awarded a non-vanilla starter without crash." },
+          yellow = { status="PASS", build="2.7.28",
+              detail="Published Yellow New Game Random Starter runtime PASS." },
+          silver = { status="PASS", build="2.8.31",
+              detail="Silver Gen-II Random Starter full identity chain runtime PASS." },
+          crystal = { status="PASS", build="2.7.94",
+              detail="Crystal Random Starter AUTO selected and awarded Growlithe without crash." },
+      },
+      random_field_items = {
+          yellow = { status="FAIL", build="2.9.70",
+              detail="Yellow on Gen1Recomp 0.2.41 completed a visible Potion pickup while Random Field Items was enabled, but the configured random replacement was not applied." },
+      },
+  }
+
+  local function ruleReachabilityForEdition(key, spec, edition)
+      edition = tostring(edition or ""):lower()
+      if type(spec) ~= "table" then
+          return { status="UNKNOWN_RULE", applicable=false, source="catalog" }
+      end
+      local native = type(mod.exports.__beta26.ruleNativeAvailableForEdition) == "function"
+          and mod.exports.__beta26.ruleNativeAvailableForEdition(spec, edition) == true
+          or false
+      local isGen2 = edition == "gold" or edition == "silver" or edition == "crystal"
+      if native then
+          if isGen2 then
+              local beta = mod.exports.__beta26.gen2BetaRules or {}
+              if beta[key] == true then
+                  return { status="PASS", applicable=true, source="gen2_beta_surface" }
+              end
+              if type(spec.capabilityGate) == "string" and spec.capabilityGate ~= "" then
+                  return { status="PROVIDER_DEPENDENT", applicable=true,
+                      source="capability_gate", capability=spec.capabilityGate }
+              end
+              return { status="MISSING_SURFACE", applicable=true, source="gen2_beta_surface" }
+          end
+          return { status="PASS", applicable=true, source="native_catalog" }
+      end
+      if type(spec.capabilityGate) == "string" and spec.capabilityGate ~= "" then
+          return { status="PROVIDER_DEPENDENT", applicable=true,
+              source="capability_gate", capability=spec.capabilityGate }
+      end
+      return { status="N/A", applicable=false, source="edition_disposition" }
+  end
+
+  local function ruleSemanticEvidence(key, spec, game)
+      if type(spec) ~= "table" then
+          return { status="UNKNOWN_RULE", evidence={} }
+      end
+      local evidence = {}
+      local status = "NOT_ASSESSED"
+      if key == "colorlocke_mode" or key == "colorlocke_color" then
+          local audit = mod.exports.__beta26.colorlockeDataAudit
+          if type(audit) == "function" then
+              local ok, report = pcall(audit, game or liveGame() or mod.game)
+              if ok and type(report) == "table" and report.ok == true then
+                  status = "PASS"
+                  evidence[#evidence + 1] = "colorlocke_canonical_data_semantics"
+              else
+                  status = "FAIL"
+                  evidence[#evidence + 1] = "colorlocke_canonical_data_semantics"
+              end
+          end
+      elseif key == "alphabetlocke_mode" or key == "alphabetlocke_letter" then
+          -- Reachability is audited, but there is not yet a dedicated
+          -- per-rule semantic known-answer audit equivalent to Colorlocke data.
+          status = "SOURCE_REVIEWED"
+          evidence[#evidence + 1] = "challenge_locke_source_review"
+      end
+      local dispositions = mod.exports.__beta26.catchDenialDispositions or {}
+      for reason, row in pairs(dispositions) do
+          if type(row) == "table" and row.rule == key then
+              local audit = mod.exports.__beta26.catchDenialDispositionAudit
+              local ok, report = false, nil
+              if type(audit) == "function" then
+                  ok, report = pcall(audit)
+              end
+              if ok and type(report) == "table" and report.ok == true then
+                  if status == "NOT_ASSESSED" then status = "RECONCILED" end
+                  evidence[#evidence + 1] = "catch_denial_disposition:" .. tostring(reason)
+              end
+              break
+          end
+      end
+      if spec.numeric == true and type(mod.exports.__beta26.ruleEnumRangeCompletenessAudit) == "function" then
+          local ok, report = pcall(mod.exports.__beta26.ruleEnumRangeCompletenessAudit)
+          if ok and type(report) == "table" and report.ok == true then
+              evidence[#evidence + 1] = "enum_range_metadata"
+              if status == "NOT_ASSESSED" then status = "METADATA_PASS" end
+          end
+      end
+      return { status=status, evidence=evidence }
+  end
+
+  mod.exports.__beta26.Dev.ruleCertification = function(key, game)
+      key = tostring(key or "")
+      local spec = mod.exports.__beta26.ruleDefinitionByKey
+          and mod.exports.__beta26.ruleDefinitionByKey[key] or nil
+      if type(spec) ~= "table" then
+          return { key=key, status="UNKNOWN_RULE", structural="FAIL", editions={} }
+      end
+      local semantic = ruleSemanticEvidence(key, spec, game)
+      local editions = {}
+      for _, edition in ipairs(RULE_CERT_EDITIONS) do
+          local reach = ruleReachabilityForEdition(key, spec, edition)
+          local runtime = { status = reach.applicable and "REQUIRED" or "N/A" }
+          local exact = RULE_RUNTIME_EVIDENCE[key] and RULE_RUNTIME_EVIDENCE[key][edition]
+          if reach.applicable and type(exact) == "table" then
+              runtime = {
+                  status=tostring(exact.status or "REQUIRED"),
+                  build=exact.build, detail=exact.detail,
+                  exact_edition=true,
+              }
+          end
+          editions[edition] = {
+              applicable=reach.applicable == true,
+              reachability=reach.status,
+              reachability_source=reach.source,
+              capability=reach.capability,
+              runtime=runtime,
+          }
+      end
+      return {
+          key=key,
+          structural="PASS",
+          semantic=semantic.status,
+          semantic_evidence=semantic.evidence,
+          editions=editions,
+      }
+  end
+
+  mod.exports.__beta26.Dev.explainRuleStatus = function(key, game, preGame)
+      game = game or liveGame() or mod.game
+      key = tostring(key or "")
+      local spec = mod.exports.__beta26.ruleDefinitionByKey
+          and mod.exports.__beta26.ruleDefinitionByKey[key] or nil
+      if type(spec) ~= "table" then
+          return { ok=false, key=key, status="UNKNOWN_RULE",
+              message="No authoritative rule definition exists for this key." }
+      end
+      local edition = type(mod.exports.__beta26.Dev.gameId) == "function"
+          and mod.exports.__beta26.Dev.gameId(game) or "unknown"
+      local configured = type(mod.exports.__beta26.rawConfiguredRuleValue) == "function"
+          and mod.exports.__beta26.rawConfiguredRuleValue(key, preGame == true) or spec.default
+      local operational, reason = true, "unknown"
+      if type(mod.exports.__beta26.ruleOperationalState) == "function" then
+          operational, reason = mod.exports.__beta26.ruleOperationalState(
+              key, preGame == true, game)
+      end
+      local cert = mod.exports.__beta26.Dev.ruleCertification(key, game)
+      local editionCert = cert.editions and cert.editions[edition] or {
+          applicable=false, reachability="UNKNOWN", runtime={status="REQUIRED"},
+      }
+      local overall
+      if editionCert.applicable ~= true then
+          overall = "N/A"
+      elseif editionCert.runtime and editionCert.runtime.status == "PASS" then
+          overall = "RUNTIME_PASS"
+      elseif editionCert.runtime and editionCert.runtime.status == "FAIL" then
+          overall = "RUNTIME_FAIL"
+      elseif cert.structural == "PASS" and editionCert.reachability == "PASS"
+          and cert.semantic ~= "FAIL" then
+          overall = cert.semantic == "PASS" and "SEMANTIC_PASS_RUNTIME_REQUIRED"
+              or "STRUCTURAL_PASS_RUNTIME_REQUIRED"
+      else
+          overall = "REVIEW_REQUIRED"
+      end
+      return {
+          ok=true,
+          key=key,
+          name=tostring(spec.shortName or spec.name or key),
+          edition=edition,
+          configured=configured,
+          operational=operational == true,
+          operational_reason=tostring(reason or "unknown"),
+          certification=cert,
+          edition_certification=editionCert,
+          overall=overall,
+          evidence_boundary="Runtime evidence is exact-edition; source/static/semantic evidence never promotes another edition.",
+      }
+  end
+
+  -- Promotion-facing self-check for the explanation shape and edition isolation.
+  mod.exports.__beta26.ruleStatusCertificationAudit = function()
+      local report = { ok=true, checked=0, failures={} }
+      local function check(id, cond)
+          report.checked = report.checked + 1
+          if cond then return end
+          report.ok = false
+          report.failures[#report.failures + 1] = tostring(id)
+      end
+      local color = mod.exports.__beta26.Dev.ruleCertification("colorlocke_mode")
+      check("color_known", color.structural == "PASS")
+      check("color_gen2_reachable", color.editions and color.editions.gold
+          and color.editions.gold.reachability == "PASS")
+      local roamer = mod.exports.__beta26.Dev.ruleCertification("gold_roamer_clause")
+      check("gen2_only_red_na", roamer.editions and roamer.editions.red
+          and roamer.editions.red.applicable == false)
+      check("gen2_only_gold_reachable", roamer.editions and roamer.editions.gold
+          and roamer.editions.gold.reachability == "PASS")
+      local split = mod.exports.__beta26.Dev.ruleCertification("route_2_split")
+      check("rby_only_red_reachable", split.editions and split.editions.red
+          and split.editions.red.reachability == "PASS")
+      check("rby_only_gold_na", split.editions and split.editions.gold
+          and split.editions.gold.applicable == false)
+      local starter = mod.exports.__beta26.Dev.ruleCertification("random_starter")
+      check("runtime_exact_red", starter.editions and starter.editions.red
+          and starter.editions.red.runtime.status == "PASS")
+      check("runtime_not_generalized_blue", starter.editions and starter.editions.blue
+          and starter.editions.blue.runtime.status == "REQUIRED")
+      local missing = mod.exports.__beta26.Dev.ruleCertification("__missing_rule__")
+      check("unknown_rule_fail_closed", missing.status == "UNKNOWN_RULE")
+      return report
+  end
+
   -- 2.8.42: compact, read-only bug-report snapshot. This intentionally
   -- consumes only already-materialized diagnostics and passive descriptors.
   -- It must not run self-tests, resolve AUTO seeds, invoke gameplay rules,
@@ -927,6 +1185,10 @@ return function(mod, deps)
           or mod.exports.__beta26.Dev.randomizerReproducibility(game)
       local shinyDiag = health.shiny_diagnostics
           or mod.exports.__beta26.Dev.shinyDiagnostics(game)
+      local trainerTrace = type(mod.exports.__beta26.randomTrainerTrace)=="function"
+          and mod.exports.__beta26.randomTrainerTrace(game) or nil
+      local shopTrace = mod.exports.__beta26.lastRandomShopTrace
+      local fieldNormalization = mod.exports.__beta26.lastFieldItemNormalization
       local perf = health.performance
           or (type(mod.exports.__beta26.Dev.performanceCounters) == "function"
               and mod.exports.__beta26.Dev.performanceCounters()
@@ -987,6 +1249,9 @@ return function(mod, deps)
           hook_drift = drift,
           randomizer_reproducibility = randomRepro,
           shiny_diagnostics = shinyDiag,
+          random_trainer_trace = trainerTrace,
+          random_shop_trace = shopTrace,
+          field_item_normalization = fieldNormalization,
           performance = perf,
           rule_consistency = ruleConsistency,
           save_run_identity = identityHealth,
@@ -1014,6 +1279,31 @@ return function(mod, deps)
           healthBits[#healthBits + 1] = key .. ":" .. tostring(row.status or "N/A")
       end
       lines[#lines + 1] = "systems=" .. table.concat(healthBits, ",")
+
+      if type(trainerTrace)=="table" then
+          lines[#lines+1] = "trainer_trace=" .. tostring(trainerTrace.stop or "?")
+              .. " enabled=" .. tostring(trainerTrace.enabled==true)
+              .. " delegated=" .. tostring(trainerTrace.delegated==true)
+      end
+      if type(shopTrace)=="table" then
+          lines[#lines+1] = "shop_trace=" .. tostring(shopTrace.stop or "observed")
+              .. " rows=" .. tostring(shopTrace.members or 0)
+      end
+      if type(fieldNormalization)=="table" then
+          lines[#lines+1] = "field_item_normalization="
+              .. tostring(fieldNormalization.kind or "?") .. ":"
+              .. tostring(fieldNormalization.original or "?") .. "->"
+              .. tostring(fieldNormalization.canonical or "?") .. "->"
+              .. tostring(fieldNormalization.native or "?")
+      end
+      if type(shinyDiag)=="table" and type(shinyDiag.last_presentation)=="table" then
+          local sp=shinyDiag.last_presentation
+          lines[#lines+1] = "shiny_presentation=" .. tostring(sp.surface or "?")
+              .. ":" .. tostring(sp.species or "?")
+              .. " identity=" .. tostring(sp.identity==true)
+              .. " projected=" .. tostring(sp.projected_ok==true)
+              .. " error=" .. tostring(sp.error or "none")
+      end
 
       local localization = health.localization or
           mod.exports.__beta26.Dev.localizationDiagnostics(game)
@@ -1663,6 +1953,47 @@ return function(mod, deps)
       end
 
       lines[#lines + 1] = ""
+      lines[#lines + 1] = "[FIELD ITEM PIPELINE]"
+      local fieldPipeline = report.field_item_pipeline or {}
+      lines[#lines + 1] = string.format(
+          "selected=%s ok=%s generation=%s error=%s",
+          tostring(fieldPipeline.selected == true),
+          tostring(fieldPipeline.ok == true),
+          tostring(fieldPipeline.generation or "?"),
+          tostring(fieldPipeline.error or "none"))
+      for _, row in ipairs(fieldPipeline.checks or {}) do
+          lines[#lines + 1] = string.format("%s %s %s",
+              row.ok == true and "PASS" or "WARN",
+              semanticLabel(row.name),
+              tostring(row.detail or ""))
+      end
+      local decision = fieldPipeline.lastDecision
+      if type(decision) == "table" then
+          lines[#lines + 1] = string.format(
+              "last decision slot=%s original=%s final=%s error=%s",
+              tostring(decision.slot or "?"),
+              tostring(decision.original or "?"),
+              tostring(decision.final or "?"),
+              tostring(decision.error or "none"))
+      end
+      local normalization = fieldPipeline.lastNormalization
+      if type(normalization) == "table" then
+          lines[#lines + 1] = string.format(
+              "normalization kind=%s original=%s canonical=%s native=%s error=%s",
+              tostring(normalization.kind or "?"), tostring(normalization.original or "?"),
+              tostring(normalization.canonical or "?"), tostring(normalization.native or "?"),
+              tostring(normalization.error or "none"))
+      end
+      local projection = fieldPipeline.lastProjection
+      if type(projection) == "table" then
+          lines[#lines + 1] = string.format(
+              "last projection mode=%s original=%s choice=%s",
+              tostring(projection.mode or projection.kind or "?"),
+              tostring(projection.original or "?"),
+              tostring(projection.choice or "?"))
+      end
+
+      lines[#lines + 1] = ""
       lines[#lines + 1] = "[HOOK HEALTH]"
       local hookHealth = report.hook_health or {}
       local hookCounts = hookHealth.counts or {}
@@ -1678,12 +2009,14 @@ return function(mod, deps)
           tostring(hookHealth.engine_family or report.engine_family or "?"),
           tostring(hookHealth.profile_scope or report.profile_scope or "?"))
       for _, row in ipairs(hookHealth.rows or {}) do
+          local target = row.hook
+              and ("hook:" .. tostring(row.hook))
+              or (tostring(row.path or "?") .. "." .. tostring(row.method or "?"))
           lines[#lines + 1] = string.format(
-              "%-8s %-26s %s.%s %s",
+              "%-8s %-26s %s %s",
               tostring(row.state or "?"),
               semanticLabel(row.adapter_id or row.id),
-              tostring(row.path or "?"),
-              tostring(row.method or "?"),
+              target,
               tostring(row.detail or ""))
       end
 
@@ -2169,6 +2502,7 @@ return function(mod, deps)
       assertions = mod.exports.__beta26.Dev.assertions,
       snapshot = mod.exports.__beta26.Dev.snapshot,
       hook_health = mod.exports.__beta26.Dev.hookHealth,
+      field_item_pipeline = mod.exports.__beta26.Dev.fieldItemPipeline,
       hook_registry = mod.exports.__beta26.hookRegistry.describe,
       feature_health = mod.exports.__beta26.featureHealth.status,
       gameplay_transactions = mod.exports.__beta26.GameplayTransactions.status,
@@ -2216,6 +2550,7 @@ return function(mod, deps)
       contracts = {
           self_test = 1,
           hook_health = 1,
+          field_item_pipeline = 1,
           hook_registry = 1,
           feature_health = 1,
           gameplay_transactions = 1,

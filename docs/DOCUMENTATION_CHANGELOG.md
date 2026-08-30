@@ -1,3 +1,145 @@
+# 2.9.72
+
+- Documented Gen-II item-reference normalization, shop non-no-op selection, unified trainer tracing, and shiny private-image isolation.
+- Kept runtime failures separate from static/source/package validation.
+
+# 2.9.71
+
+- Advanced all current documentation markers to Nuzlocke 2.9.71.
+- Recorded Yellow 2.9.70 / Gen1Recomp 0.2.41 Random Field Items as Runtime FAIL.
+- Documented the 2.9.71 Gen-I `world.talk` visible-field-item composition seam and its native-ownership boundaries.
+- Kept Gen1Recomp source-review baseline at 0.2.41 and preserved strict separation between source/static review and Runtime PASS.
+
+<!-- Current build: 2.9.60 -->
+# Documentation Changelog
+
+## 2.9.60
+- Advanced Gen1Recomp source/documentation compatibility through 0.2.40 (`0cf543d597ce84e4d847b2aba782f1bf2799fde0`).
+- Documented engine ownership of PresentSync/PresentProbe, VSync, FrameCap, and FixedStep presentation pacing.
+- Revalidated the shared Gen-II mod API model and HiddenItems field-item constructor signatures without promoting runtime evidence.
+- Corrected the current package inventory to 37 files / 27 Lua modules plus `mod.card`.
+- Public Nuzlocke API/schema contracts remain unchanged.
+
+
+## 2.9.55
+- Advanced current documentation to 2.9.55, documented `item_policy.lua` ownership and the intentional package inventory increase to 36 files / 26 Lua modules plus `mod.card`; public API/schema/runtime confidence is unchanged.
+
+## 2.9.54
+- Advanced current documentation to 2.9.54, documented `species_policy.lua` ownership and the repaired build-provenance inventory count, and intentionally updated the protected package inventory to 35 files / 25 Lua modules plus `mod.card`; public API/schema/runtime confidence is unchanged.
+
+## 2.9.53
+- Advanced current documentation to 2.9.53, documented the new `encounter_tracker.lua` ownership boundary, and intentionally updated the protected package inventory to 34 files / 24 Lua modules plus `mod.card`; public API/schema/runtime confidence is unchanged.
+
+## 2.9.52
+- Advanced current documentation to 2.9.52, documented the new `pokemon_identity.lua` ownership boundary, and intentionally updated the protected package inventory to 33 files / 23 Lua modules plus `mod.card`; public API/schema/runtime confidence is unchanged.
+
+## 2.9.47
+
+
+## 2.9.51
+- Advanced current documentation baseline to 2.9.51, documented the new `compatibility_runtime.lua` ownership boundary, and intentionally updated the player-package inventory contract to 32 files / 22 Lua modules plus `mod.card`; Compatibility API remains 37 and Runtime PASS evidence is unchanged.
+
+
+## 2.9.50
+- Advanced the current documentation baseline to 2.9.50 and recorded completion of the reviewed existing-owner modularization phase; public contracts and Runtime PASS evidence are unchanged.
+
+
+## 2.9.49
+- Advanced the current documentation baseline to 2.9.49 and recorded Gen-II title SETUP ownership activation in `title_setup_compat.lua`; public contracts and Runtime PASS evidence are unchanged.
+
+
+## 2.9.48
+- Advanced current documentation baseline to 2.9.48 and documented Dev-diagnostics ownership closure; public contracts and Runtime PASS evidence are unchanged.
+- Reconciled documentation to the World Building ownership-completion build.
+
+
+## 2.9.46
+- Reconciled documentation to the diagnostic ownership-consolidation build.
+
+
+## 2.9.45
+- Reconciled player documentation to the 2.9.45 static catalog-consolidation build.
+- Recorded the batched existing-owner modularization without promoting runtime evidence.
+
+
+## 2.9.44
+- Reconciled player documentation to the 2.9.44 save-schema descriptor modularization build.
+- Recorded `main.lua` progress at 31,462 lines / 1,568,827 bytes, down 60 lines / 3,118 bytes from 2.9.43.
+- No player-facing rule/API/schema behavior changed.
+
+## 2.9.43
+- Reconciled player documentation to the 2.9.43 descriptor-registry modularization build and added quantitative `main.lua` progress reporting.
+
+## 2.9.42
+- Reconciled player documentation to the 2.9.42 descriptor-construction modularization build.
+- Updated current document headings/baselines while preserving historical sections and unchanged public contracts.
+- No player-facing rule/API/schema behavior changed.
+
+## 2.9.41
+- Reconciled player documentation to the 2.9.41 pure rule-value coercion modularization build.
+- No player-facing rule/API/schema behavior changed; current contracts remain Save Schema 5, Compatibility API 37, Diagnostics API 1, Translation API 2, Run History v2, and Randomizer algorithm v1.
+# 2.9.40 documentation reconciliation
+
+Documents the Release Safety semantic self-audit, compatibility evidence classes (`live_contract`, `source_reviewed`, `combined_runtime_required`), and the corrected role-document heading validation. No gameplay, provider-ownership, save-schema, or public API version changed.
+
+# 2.9.39 documentation reconciliation
+
+Documents the new private/internal structured rule-status certification diagnostics, exact-edition runtime evidence boundary, and the distinction between structural, semantic/reconciled metadata, reachability, and Runtime PASS. No gameplay or public API version changed.
+
+# 2.9.5 documentation reconciliation
+
+Documents the external healing/services ownership audit and preserves the distinction between service healing, item healing, story healing, and survivor-only external healing. No Runtime PASS promotion.
+
+# Documentation Changelog — 2.9.2
+
+- Added the authoritative battle-stack ownership contract and combined-runtime test matrix for G9/QoL/Nuzlocke overlaps.
+- Clarified modern combat/stat ownership versus Nuzlocke challenge policy, native Gen-II identity DVs, semantic held-item enforcement, and native battle-party routing.
+- Added the authoritative party-stack ownership contract and runtime test matrix.
+- Clarified Modern Party UI 0.4.0 as Gen-I presentation ownership with engine/source controller ownership retained for semantic party actions.
+- Reaffirmed protected native Gen-II party routing and follower/voxel presentation boundaries.
+- No public API/schema change and no new Runtime PASS claim.
+
+# 2.8.97 documentation reconciliation
+
+Documented the Gen-II Random Field Items source/static pipeline audit, native script-projection evidence, and continued runtime-pending status.
+
+---
+
+# 2.8.89 documentation reconciliation
+
+Documented the Gen-II Random Trainers source/static pipeline audit, read-only accepted-roster diagnostics, and continued runtime-pending status.
+
+---
+
+# 2.8.88 documentation reconciliation
+
+Documented the new Random TM Locations method, the TM-content/TM-location ownership split, source-specific visible/hidden Item Randomizer delegation, and the correction from 2.8.87 report-only Field Item ownership to execution-time enforcement. Broader external-mod precedence remains provisional.
+
+---
+
+# 2.8.87 documentation reconciliation
+
+Updated public compatibility documentation for the external Randomizer ownership audit: Pokémon Gen 1 Randomizer 0.46.4, Gen 2 Randomizer+ 2.9.0, and Item Randomizer 1.1.1. Clarified that the broader external-mod precedence policy remains undecided and that 2.8.86 Poison Save handling is case-specific.
+
+---
+
+# Documentation Changelog — 2.8.86
+- 2.8.86: Updated QoL Toggles review to 1.30.8/Gen-I+Gen-II and documented Permadeath precedence over POISON SAVE plus revalidated TM/held-item/escape/heal/repel/running composition.
+- 2.8.86: Revalidated Kanto Reforged 1.5.3 Gen-I/Gen-II compatibility ownership, fixed-static provenance, scoped encounter-randomizer delegation, held-item composition, and stricter level-cap composition; no public API/schema change.
+
+- 2.8.86: Refreshes Gen1Recomp/UI compatibility baselines and status classes: engine 0.2.33 remains current; Gen1 Modern UI 0.9.2 is retired legacy; Modern Party UI 0.4.0 and Wide Menus 0.3.0 are current reviewed targets; legacy variable-width kerning remains unversioned/passive; Clean UI is successor-watch only.
+- 2.8.83: Adds Dramatic Shape Voxel Mod 1.0.6 (`DRAMATIC_SHAPE`) to the explicit Gen-I presentation compatibility target registry while keeping it target-only rather than a manifest dependency.
+- 2.8.82: Added a consolidated explicit compatibility-target alignment for maintained Shiny 1.2.20, PokéPC Followers 0.5.1, Followers EX 1.0.19, and the preserved Nuzlocke Wilds 2.2.0 target; retained all Nuzlocke-specific/translation targets and kept source targets distinct from Runtime PASS.
+- 2.8.80: Documented the failed-area F. TOKEN confirmation safety repair: directional choices are now explicit/idempotent, with runtime confirmation still required; public API/schema contracts are unchanged.
+
+- 2.8.79: Reconciled current public documentation with the cumulative release contract: preserved exact-edition support/confidence wording, public API/schema values, compatibility ownership boundaries, and known runtime failures; no gameplay behavior or public API changed. Internal project-process and research provenance remain outside player-facing documentation.
+
+- 2.8.78: Audited Gen1Recomp 0.2.30–0.2.33; corrected upstream Save Format profile metadata; documented `pokemon.level_visible`, Gen II future opportunities, ONLINE-arena mod policy, protected-seam revalidation, and pending runtime evidence. Public Nuzlocke contracts remain Save Schema 5, Compatibility API 36, Diagnostics API 1, Translation API 2, Run History v2, and Randomizer algorithm v1.
+- 2.8.77: Advanced Compatibility API 35→36 for corrected `runtime_environment` value semantics and atomic content-bundle prevalidation; documented Gen2 field-item Hook Health session repairs and semantic `trainer.party` diagnostics. Save Schema remains 5; Diagnostics API remains 1.
+- 2.8.76: Documented R/B/Y Ball fail-closed handling, F. Token FAILED-state recovery semantics, and six-edition World Building certification accounting.
+- 2.8.75: Documented explicit false preservation for Run History death shiny evidence and its focused regression self-test.
+- 2.8.74: Documented Route 4 Magikarp deterministic gift fallback repair and catalog-driven acquisition consistency self-test.
+- 2.8.73: Documented durable transaction payload identity, legacy receipt compatibility, transaction self-test repair, and fail-closed external item-policy exceptions.
 - 2.8.72: Added full built-in Difficulty mechanical reference, Silver/Crystal profile catalogs, concise in-game chooser contract, percent-glyph-free explanation policy, native confirmation cursor, and scrollable profile-detail guidance.
 - 2.8.71: Fixed Gen1 Difficulty Review lexical-scope crash, added R/B/Y profile-control value/result rendering, and documented numeric-rule registry bounds audit.
 - 2.8.70: Documented Run History v2 abandon durability/backfill, generalized partial-detail coverage, live-pruning coverage, and dynamic stored-state history-version validation.
@@ -578,3 +720,24 @@ Documented logical-surface policy, responsive Gen 1 build coverage, centered chi
 
 - 2.8.36 / 0.2.27 phase 1: documented R/B/Y `catch.nickname` migration, older-engine fallback, and palette-aware Gen II NUZ STATUS / Recover Catches Chrome surfaces.
 
+## 2.9.18
+- Documented END RUN / ABANDON RUN lifecycle behavior, NO-default destructive confirmation, durable-history-first commit order, progression-owned completion boundary, and Almanac final recap.
+
+
+## 2.9.21
+- Documented the new SPLIT Dupes Clause mode and its branch-aware ancestor/descendant semantics.
+
+
+## 2.9.22
+- Corrected public confidence/release documentation for the 2.9.21 SPLIT Dupes source-confirmed defects and 2.9.22 repair.
+- Recorded Party Size Limit decision-trace completeness repair and Movement Assist enum normalization cleanup.
+
+## 2.9.23
+- Advanced Gen1Recomp source/documentation/launcher compatibility coverage through 0.2.38 and documented the launcher manifest/update/save-tooling boundaries.
+
+
+## 2.9.24
+- Formalized permanent upstream attribution: bryanthaboi for the original Nuzlocke mod/project baseline, masterwebx for the original Shiny Pokémon mod and its code/design lineage, and Stone696 for current Nuzlocke development/maintenance and the maintained Shiny Pokémon fork.
+- Added prominent README credit and technical compatibility/provenance wording while distinguishing current reworked shiny architecture from original lineage.
+
+- 2.9.27: Documented Compatibility API 37 semantic battle-roster/activity-state observations, Blackjack Corner 0.8.2 compatibility ownership, exact 2.9.26 parent provenance, and preserved Acquisition/Provenance API 1 as the sole cooperative pre-transaction acquisition authority.

@@ -1,54 +1,154 @@
-# Nuzlocke 2.8.72 — Release Notes
+# Nuzlocke 2.9.72 — Randomizer tracing and shiny isolation
 
-2.8.72 completes the Difficulty UI follow-up from the Red runtime test.
+2.9.72 is a focused runtime-repair/diagnostic build from exact sealed 2.9.71. It addresses the confirmed Gen-II numeric item-reference mismatch, removes legal Random Shop no-op selections, exposes the existing Random Trainer pipeline end-to-end, and prevents Nuzlocke shiny recoloring from mutating shared engine ImageData.
 
-## Clear APPLY / CANCEL selection
+Random Field Items, Random Shops, Random Trainers, and shiny presentation remain runtime-test-required on 2.9.72. The new diagnostics are designed so a failed retest identifies the boundary that failed rather than merely reporting that the feature looked vanilla.
 
-The confirmation dialog now uses the native Gen1 cursor glyph beside the active choice instead of relying on a textual `>` character that does not render reliably. CANCEL remains the safe initial choice.
+# Nuzlocke 2.9.71 — Random Field Items repair
 
-## Useful in-game profile explanations
+2.9.71 is a focused Random Field Items runtime repair built strictly from sealed 2.9.70.
 
-The Difficulty chooser no longer dumps raw internal values like unexplained AI tiers or percent-formatted level fields.
+Yellow runtime testing on 2.9.70 with Gen1Recomp 0.2.41 showed a clear failure: the native overworld pickup completed, but Random Field Items did not replace the authored item. Source review confirmed that Gen1Recomp provides `world.talk` as the public Gen-I hook immediately before `OverworldController:talkTo` handles an object. 2.9.71 moves the Gen-I visible-item Randomizer to that supported composition seam.
 
-It now gives compact decision information:
-- concrete regular/boss level gains at trainer levels 25 and 50;
-- team-upgrade frequency as `N OF 100`;
-- whether stronger same-type species substitutions are active;
-- move quality in plain terms;
-- AI quality in plain terms;
-- DV minimums or PERFECT;
-- Gen-II held-item quality;
-- Badge Boost ownership.
+The native pickup path still owns bag capacity, item removal state, pickup text, item names, sounds, and retry behavior. Nuzlocke temporarily projects the deterministic replacement into the item's object definition only while the downstream hook/native handler runs, then restores the authored definition.
 
-No percent glyph is required.
+2.9.71 also adds focused R/B/Y field-item pipeline diagnostics so the Dev tools can report whether the `world.talk` hook registration is actually present.
 
-If the explanation exceeds the visible three-line detail area, SELECT pages through every detail line and the screen shows the current detail position.
+The Gen1Recomp compatibility baseline remains 0.2.41. No save-schema or public API version bump is required. Random Field Items require runtime retest before any PASS is recorded.
 
-## Silver and Crystal
+# Nuzlocke 2.9.70
 
-Silver and Crystal now have exact edition routing and their own built-in profile catalogs rather than falling through to Red profiles.
+2.9.70 is a Gen1Recomp 0.2.41 compatibility-review and UI-contract correctness release built strictly from sealed 2.9.69.
 
-Silver:
-- SILVER POLISHED*
-- SILVER LEGACY*
+The engine review advances Nuzlocke's source baseline to the official 0.2.41 release commit. Upstream Mod API 2, Link Protocol 2, Save Format 5 and ROM cache v5 are unchanged. The reviewed delta is concentrated in platform/launcher support, presentation pacing, and Gen-II save export. Nuzlocke continues to leave presentation timing entirely engine-owned, and no Nuzlocke-critical public mod contract break was found.
 
-Crystal:
-- CRYSTAL POLISHED*
-- CRYSTAL LEGACY*
+This build also fixes the previously identified dormant input-contract bug: an invalid profile name now falls back both behavior and reported profile identity to `navigation`.
 
-These are Nuzlocke-built edition-focused profiles inspired by stronger Gen-II play, not exact copies of external hacks.
+Exact-edition runtime testing remains required; this release does not promote Runtime PASS from source review.
 
-## Full documentation rule
+# Nuzlocke 2.9.69
 
-The in-game selector is intentionally concise. The User Guide now contains the complete mechanical definition of every built-in profile and the common Difficulty engine.
+2.9.69 is a focused UI-contract correctness and Release Safety hotfix built strictly from sealed 2.9.68.
 
-Any future built-in profile change must update that full documentation; Release Safety checks for the reference.
+The presentation contract now keeps conditional trainer-party authority descriptive instead of coercing `nuzlocke_randomizer_when_enabled` to unconditional true. A new `gameplayAuthorityFor(surface)` query exposes the descriptor directly, while `presentationOwnsGameplay(surface)` reports only unconditional ownership.
 
-## Versioning
+The input-contract Release Safety check no longer hardcodes the obsolete shared UI API version 7; it guards the feature's own `inputContractVersion = 1` instead.
 
-- Nuzlocke: 2.8.72
-- Save Schema: 5
-- Compatibility API: 35
-- Diagnostics API: 1
-- Translation API: 2
-- Run History: 2
+No Runtime PASS is promoted by this build.
+
+# Nuzlocke 2.9.68
+
+2.9.68 is a focused Gen-II UI hotfix built strictly from sealed 2.9.67.
+
+Gold runtime testing exposed a crash at `classic_ui.lua:6568`: the Gen-II Nuzlocke utility-page title renderer calls `T.centerX(...)`, but the shared typography object exported `measure`, `fit`, `rightX`, and `wrap` without `centerX`. This build adds the missing helper to the shared typography contract and protects the consumer/definition pair with Release Safety.
+
+The earlier 2.9.67 `compatPublicCopy` Dev Report repair is preserved. No gameplay, save schema, Compatibility API, Randomizer algorithm, HGSS ownership, or UI input/presentation ownership behavior changes are included.
+
+# Nuzlocke 2.9.67
+
+2.9.67 is a focused runtime diagnostic hotfix built strictly from sealed 2.9.66.
+
+Yellow runtime testing confirmed that 2.9.66 loads and the ABANDON RUN flow works, but opening Dev Report crashed at `dev_diagnostics.lua:2448` because `compatPublicCopy` was referenced as a global after the diagnostics split. The helper already had a stable owner in `main.lua`; this build injects it explicitly into `dev_diagnostics.lua` and asserts the dependency at registration.
+
+A Release Safety tripwire now protects that dependency boundary. No gameplay, save-schema, Compatibility API, UI contract, HGSS compatibility ownership, or Randomizer behavior changes are included.
+
+# Nuzlocke 2.9.66
+
+2.9.66 is a focused presentation-ownership and compatibility hardening release built strictly from sealed 2.9.65.
+
+The Nuzlocke UI system now exposes presentation-ownership contract v1 (UI API 8). External Party, PC, Pokédex, Bag, Mart, battle-art/HUD and overworld renderers may own those visuals without acquiring Nuzlocke challenge or controller authority.
+
+HGSS Visual Overhaul 1.0.2 is now an explicit Yellow compatibility target. Its source was reviewed at the PartyMenu/ListMenu, battle-art, shiny-art and `BattleState.newTrainer` seams. Nuzlocke continues to own challenge legality, provenance/tracker state, gameplay transactions and Random Trainer party transformation when enabled.
+
+The Gen-I Random Trainer constructor wrapper now publishes an explicit shared-wrapper chaining contract and read-only health diagnostic. It supports either load order with presentation wrappers and does not require Nuzlocke to remain the outermost wrapper.
+
+No Runtime PASS is promoted by this source/static compatibility release.
+
+# Nuzlocke 2.9.65
+
+2.9.65 is a focused UI-contract hardening release built strictly from sealed 2.9.64.
+
+Nuzlocke-owned screens now publish a semantic input contract that distinguishes repeat-safe navigation/value stepping from edge-only activation/back behavior. Destructive confirmation is identified separately, so input-repeat/accessibility integrations can accelerate safe movement without being treated as owners of Nuzlocke actions.
+
+The contract is presentation-only. Nuzlocke does not synthesize held-input repeats or replace engine/native/external input timing.
+
+WizzStar HoldToScrollUI 1.1.0 is documented as a reviewed compatibility target based on its public repository/release behavior. Combined runtime testing and package-source review remain separate; no Runtime PASS is promoted by this build.
+
+No gameplay, save-schema, Compatibility API, Randomizer, or tracker-presentation behavior changes are included.
+
+# Nuzlocke 2.9.64
+
+2.9.64 is a focused compatibility-target refresh built strictly from sealed 2.9.63.
+
+Current reviewed presentation targets are advanced to Dramatic Shape 1.9.0, Battle Art Voxel Fork 1.10.0, and Battle Cinematics 1.2.4. Existing current targets PotatoVoxel 1.9.6, Voxel Ascendant 2.0.2, Terrarium 1.27.0-mobile, Dramaless Shape 2.0.3, and Flying Overhaul 1.2.1 remain unchanged.
+
+The compatibility registry now documents the active voxel renderers as distinct presentation owners with separate identities/conflict behavior. Battle Cinematics remains the external camera/director layer; renderer/environment ownership remains with the selected renderer/provider. Nuzlocke keeps challenge legality and state ownership.
+
+No Runtime PASS is promoted by this source/static compatibility refresh.
+
+# Nuzlocke 2.9.63
+
+2.9.63 is a focused load/correctness/compatibility hotfix built strictly from sealed 2.9.62.
+
+The fatal 2.9.62 Red/Gold load failure was traced to a second missing dependency from the earlier encounter-tracker split: `legacyCandidates` remained private to `encounter_tracker.lua` while `main.lua` passed an undefined name into ClassicUI. The tracker now exports its existing function and `main.lua` explicitly binds it before ClassicUI registration. Release Safety now checks the ClassicUI required-injection set rather than relying only on one-name tripwires.
+
+This build also restores the existing World Building T1/T2/T3 denial progression for banned battle healing/X Items while retaining the newer `{ context="battle", source="bag" }` metadata.
+
+Gen1Recomp source/documentation compatibility is reviewed through 0.2.40 (`0cf543d597ce84e4d847b2aba782f1bf2799fde0`). Mod API 2, upstream Save Format 5, and `>=0.2.24 <2.0.0` remain valid. Static/source review does not promote Runtime PASS; focused 0.2.40 battle and Gen-II party-item/Rare-Candy smoke remains required.
+
+# Nuzlocke 2.9.62
+
+Emergency Gen-I load hotfix. Yellow 2.9.61 runtime testing exposed a fatal `classic_ui requires GEN1_SEED_IDS` registration failure that prevented Nuzlocke from loading. The seeded-area table already had a stable owner in `encounter_tracker.lua`, but the owner did not export it, leaving later module dependency injection to resolve a nonexistent `_ENV` global. 2.9.62 exports and explicitly binds that stable table before ClassicUI/LateRuntime registration and adds a Release Safety tripwire.
+
+No Runtime PASS is claimed until Yellow is relaunched and Nuzlocke loads successfully.
+
+# Nuzlocke 2.9.62
+
+This is a focused release-blocking load hotfix for the Yellow 2.9.61 failure. The encounter tracker already owned `GEN1_SEED_IDS`, but that table was not exported during the 2.9.53 tracker split; `main.lua` therefore passed nil to ClassicUI and LateRuntime, causing the required dependency assertion to abort Nuzlocke loading.
+
+2.9.62 exports and explicitly binds the existing stable table before those consumers register, and adds a split-safety Release Safety guard. No Runtime PASS is promoted by static/package validation.
+
+# Nuzlocke 2.9.61
+
+This focused runtime-repair release addresses defects observed during Red testing without reopening the mostly-good encounter/area-log presentation. It repairs Randomizer Evolution Balance labels, normalized preset warnings, F. Token live reporting, randomized-starter history attribution, live Almanac randomizer reporting, NUZ MENU scrolling/order, END RUN/ABANDON selection, and battle-specific item-denial messaging.
+
+The encounter/area log cleanup is deliberately deferred to a later focused pass. No Runtime PASS is promoted by packaging/static validation alone.
+
+# Nuzlocke 2.9.60
+
+This build advances Nuzlocke's full Gen1Recomp source/documentation compatibility review through **0.2.39**. The release's new PresentSync/PresentProbe and revised VSync/FrameCap/FixedStep behavior are explicitly treated as engine-owned presentation pacing; Nuzlocke only exposes passive diagnostic status and does not interfere with the engine's timing or synchronization controls.
+
+The Gen-II mod API model and HiddenItems pickup signatures were revalidated. The unresolved Random Field Items issue is therefore still a runtime-diagnosis item rather than an identified 0.2.39 API break.
+
+No runtime certification is promoted by this source review.
+
+# Nuzlocke 2.9.59
+
+This release hardens Nuzlocke against the supplied Shiny Pokemon 1.2.41 maintained fork. It updates the explicit compatibility baseline, consumes Shiny's newer validation/lifecycle evidence when available, records cross-project audit freshness, expands the reviewed voxel/3D ownership matrix, and adds conservative no-double-recolor source ownership plus release-safety tripwires.
+
+The existing single-owner shiny architecture is preserved: a healthy external Shiny provider owns shiny generation/presentation; Nuzlocke consumes shiny identity for challenge policy and tracking. Standalone Nuzlocke behavior, shiny odds, Gen-II native ownership, and renderer/resource invalidation policy are not intentionally changed.
+
+No new runtime certification is claimed.
+
+# Nuzlocke 2.9.58
+
+This is a focused post-audit defect-repair release. It fixes a Random Trainers scope bug, AUTO compatibility provider fallback, and a Gen-II NUZ STATUS live-game lookup issue. It also corrects Randomizer algorithm-version diagnostics and adds regression coverage. Random Field Items are intentionally unchanged pending runtime evidence.
+
+No save schema or public API version changes are made, and this release does not claim new runtime certification.
+
+# 2.9.57
+
+- Fixed the PokemonIdentity future-save-schema mutation guard by threading `saveSchemaTooNew` through a live getter.
+- Added owner-aware Release Safety source routing and reconciled moved World Building, Forgiveness, compatibility, and DEV diagnostic checks.
+- Added source-owner readability and PokemonIdentity future-schema guard regression checks.
+- No gameplay feature, save-schema, public API, or Runtime PASS change.
+
+# Nuzlocke 2.9.57 — Evolution policy module
+
+2.9.56 is a strict child of exact packaged 2.9.55 (`8ee4efa0f4908f935cbd10f986f583dfd30b5c5a592eafe8687dba3cd9979dbb`).
+
+This build moves Evolution Limits and Trade Evolution QoL into the new `evolution_policy.lua` owner over the shared `evolution.check` seam. Randomizer evolution mappings, UI/config rendering, Pokemon identity/provenance, and acquisition policy remain outside the module. Mutable current-game state is resolved through a live getter.
+
+The protected package inventory intentionally advances to **37 files / 27 Lua modules plus `mod.card`**. Save Schema 5, Compatibility API 37, Diagnostics API 1, Translation API 2, Run History v2, and Randomizer algorithm v1 are unchanged. No new Runtime PASS is claimed.
+
+Further consolidation/relocation into Lua modules is paused after this build by user direction.

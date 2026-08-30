@@ -8,12 +8,176 @@ return function(mod, deps)
     local Strings = deps.Strings or function(v) return tostring(v) end
 
     local UI = {
-        apiVersion = 6,
+        apiVersion = 8,
+        presentationContractVersion = 1,
+        inputContractVersion = 1,
         build = true,
         composition = { classic = 160, wide = 304 },
         spacing = { edge = 8, row = 16, section = 8 },
         policies = {},
     }
+
+    -- Input semantics are descriptive contracts for Nuzlocke-owned screens.
+    -- They do not intercept engine input or alter another mod's repeat timing.
+    -- Consumers may use them to distinguish repeat-safe navigation/value
+    -- stepping from edge-only activation and destructive confirmation.
+    UI.inputModes = {
+        repeat_safe = "repeat_safe",
+        edge_only = "edge_only",
+        disabled = "disabled",
+    }
+
+    -- Presentation ownership contract. These values describe who is allowed
+    -- to render a surface; they never grant gameplay/controller authority.
+    UI.presentationOwners = {
+        nuzlocke = "nuzlocke",
+        engine = "engine",
+        external_allowed = "external_allowed",
+        compose = "compose",
+    }
+
+    UI.presentationSurfaces = {
+        nuzlocke_screens = {
+            presentation = "nuzlocke",
+            controller = "nuzlocke",
+            gameplayAuthority = false,
+        },
+        party = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        pc = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        pokedex = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        bag = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        mart = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        battle_art = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        battle_hud = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        overworld_render = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        list_menu = {
+            presentation = "compose",
+            controller = "engine",
+            gameplayAuthority = false,
+        },
+        trainer_party = {
+            presentation = "external_allowed",
+            controller = "engine",
+            gameplayAuthority = "nuzlocke_randomizer_when_enabled",
+        },
+    }
+
+    function UI.presentationPolicyFor(surface)
+        local key = tostring(surface or "")
+        local policy = UI.presentationSurfaces[key]
+        if type(policy) ~= "table" then
+            return {
+                presentation = UI.presentationOwners.engine,
+                controller = UI.presentationOwners.engine,
+                gameplayAuthority = false,
+            }
+        end
+        return {
+            presentation = policy.presentation,
+            controller = policy.controller,
+            gameplayAuthority = policy.gameplayAuthority,
+        }
+    end
+
+    function UI.externalPresentationAllowed(surface)
+        local policy = UI.presentationPolicyFor(surface)
+        return policy.presentation == UI.presentationOwners.external_allowed
+            or policy.presentation == UI.presentationOwners.compose
+    end
+
+    function UI.gameplayAuthorityFor(surface)
+        return UI.presentationPolicyFor(surface).gameplayAuthority
+    end
+
+    function UI.presentationOwnsGameplay(surface)
+        local authority = UI.gameplayAuthorityFor(surface)
+        -- This boolean helper reports only unconditional ownership. Conditional
+        -- descriptors such as "nuzlocke_randomizer_when_enabled" must remain
+        -- descriptive until the owning gameplay subsystem resolves its state.
+        return authority == true or authority == "nuzlocke"
+    end
+
+    UI.inputProfiles = {
+        navigation = {
+            vertical = "repeat_safe", horizontal = "disabled",
+            activate = "edge_only", back = "edge_only",
+            destructive = false,
+        },
+        values = {
+            vertical = "repeat_safe", horizontal = "repeat_safe",
+            activate = "edge_only", back = "edge_only",
+            destructive = false,
+        },
+        pager = {
+            vertical = "repeat_safe", horizontal = "repeat_safe",
+            activate = "edge_only", back = "edge_only",
+            destructive = false,
+        },
+        confirmation = {
+            vertical = "repeat_safe", horizontal = "disabled",
+            activate = "edge_only", back = "edge_only",
+            destructive = false,
+        },
+        destructive_confirmation = {
+            vertical = "repeat_safe", horizontal = "disabled",
+            activate = "edge_only", back = "edge_only",
+            destructive = true,
+        },
+        action = {
+            vertical = "disabled", horizontal = "disabled",
+            activate = "edge_only", back = "edge_only",
+            destructive = false,
+        },
+    }
+
+    local function normalizedInputPolicy(policy)
+        policy = type(policy) == "table" and policy or {}
+        local requestedProfile = policy.profile and tostring(policy.profile) or "navigation"
+        local profile = UI.inputProfiles[requestedProfile]
+        local resolvedProfile = profile and requestedProfile or "navigation"
+        profile = profile or UI.inputProfiles.navigation
+        return {
+            profile = resolvedProfile,
+            vertical = tostring(policy.vertical or profile.vertical),
+            horizontal = tostring(policy.horizontal or profile.horizontal),
+            activate = tostring(policy.activate or profile.activate),
+            back = tostring(policy.back or profile.back),
+            destructive = policy.destructive == true
+                or (policy.destructive == nil and profile.destructive == true),
+        }
+    end
 
     local function fallbackWidth(text)
         return #tostring(text or "") * 8
@@ -76,6 +240,15 @@ return function(mod, deps)
         function T.rightX(text, rightEdge)
             return math.floor((tonumber(rightEdge) or 0) - T.measure(text))
         end
+        function T.centerX(text, leftEdge, rightEdge)
+            leftEdge = tonumber(leftEdge) or 0
+            rightEdge = tonumber(rightEdge) or leftEdge
+            if rightEdge < leftEdge then
+                leftEdge, rightEdge = rightEdge, leftEdge
+            end
+            local width = T.measure(text)
+            return math.floor(leftEdge + ((rightEdge - leftEdge) - width) / 2)
+        end
         function T.wrap(text, budget)
             text = tostring(Strings(text or ""))
             budget = math.max(1, math.floor(tonumber(budget) or 1))
@@ -133,6 +306,7 @@ return function(mod, deps)
             mode = tostring(policy.mode or "classic"),
             role = policy.role and tostring(policy.role) or nil,
             inheritParent = policy.inheritParent == true,
+            input = normalizedInputPolicy(policy.input),
         }
         local wide = wideExports()
         if wide and type(wide.register) == "function" then
@@ -145,7 +319,48 @@ return function(mod, deps)
     end
 
     function UI.policyFor(screenId)
-        return UI.policies[tostring(screenId or "")] or { mode = "classic" }
+        return UI.policies[tostring(screenId or "")] or {
+            mode = "classic",
+            input = normalizedInputPolicy({ profile = "navigation" }),
+        }
+    end
+
+    function UI.inputPolicyFor(screenId)
+        local policy = UI.policyFor(screenId)
+        return policy.input or normalizedInputPolicy({ profile = "navigation" })
+    end
+
+    function UI.isRepeatSafe(screenId, axis)
+        local input = UI.inputPolicyFor(screenId)
+        axis = tostring(axis or ""):lower()
+        if axis == "up" or axis == "down" or axis == "vertical" then
+            return input.vertical == UI.inputModes.repeat_safe
+        end
+        if axis == "left" or axis == "right" or axis == "horizontal" then
+            return input.horizontal == UI.inputModes.repeat_safe
+        end
+        return false
+    end
+
+    function UI.requiresEdge(screenId, action)
+        local input = UI.inputPolicyFor(screenId)
+        action = tostring(action or "activate"):lower()
+        if action == "back" or action == "cancel" then
+            return input.back == UI.inputModes.edge_only
+        end
+        return input.activate == UI.inputModes.edge_only
+    end
+
+    function UI.isDestructive(screenId)
+        return UI.inputPolicyFor(screenId).destructive == true
+    end
+
+    function UI.applyInputContract(screen, screenId)
+        if type(screen) ~= "table" then return screen end
+        screenId = tostring(screenId or screen.screenId or "")
+        screen.nuzInputContractVersion = UI.inputContractVersion
+        screen.nuzInputPolicy = UI.inputPolicyFor(screenId)
+        return screen
     end
 
     function UI.layoutContext(state, requestedMode, parent)
@@ -490,15 +705,63 @@ return function(mod, deps)
     -- Rich list/report surfaces may use the 304-wide logical canvas when a host
     -- provides it. Small/destructive child flows remain centered and inherit
     -- their parent's presentation context where appropriate.
-    UI.registerPolicy("NuzlockeConfigScreen", { mode = "adaptive", role = "rules" })
-    UI.registerPolicy("NuzlockeTrackerScreen", { mode = "adaptive", role = "tracker" })
-    UI.registerPolicy("NuzlockeDevToolsScreen", { mode = "centered", role = "diagnostics" })
-    UI.registerPolicy("NuzlockeForgivenessItem", { mode = "centered", role = "forgiveness" })
-    UI.registerPolicy("NuzlockeForgivenessArea", { mode = "centered", role = "forgiveness_area" })
-    UI.registerPolicy("NuzlockeForgivenessRevive", { mode = "centered", role = "forgiveness_revive" })
-    UI.registerPolicy("NuzlockeLoadoutConfirm", { mode = "centered", role = "confirmation" })
-    UI.registerPolicy("NuzlockePokemonBanScreen", { mode = "centered", role = "picker" })
-    UI.registerPolicy("NuzlockeUiGalleryScreen", { mode = "adaptive", role = "ui_gallery" })
+    UI.registerPolicy("NuzlockeConfigScreen", {
+        mode = "adaptive", role = "rules", input = { profile = "values" } })
+    UI.registerPolicy("NuzlockeTrackerScreen", {
+        mode = "adaptive", role = "tracker", input = { profile = "pager" } })
+    UI.registerPolicy("NuzlockeDevToolsScreen", {
+        mode = "centered", role = "diagnostics", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeForgivenessItem", {
+        mode = "centered", role = "forgiveness", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeForgivenessArea", {
+        mode = "centered", role = "forgiveness_area", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeForgivenessRevive", {
+        mode = "centered", role = "forgiveness_revive", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeLoadoutConfirm", {
+        mode = "centered", role = "confirmation", input = { profile = "confirmation" } })
+    UI.registerPolicy("NuzlockePokemonBanScreen", {
+        mode = "centered", role = "picker", input = { profile = "values" } })
+    UI.registerPolicy("NuzlockeUiGalleryScreen", {
+        mode = "adaptive", role = "ui_gallery", input = { profile = "pager" } })
+
+    UI.registerPolicy("NuzlockeMenuScreen", {
+        mode = "adaptive", role = "menu", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeStatusListScreen", {
+        mode = "adaptive", role = "status", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeGoldStatusScreen", {
+        mode = "centered", role = "status", input = { profile = "pager" } })
+    UI.registerPolicy("NuzlockeTrainerCardScreen", {
+        mode = "centered", role = "status", input = { profile = "pager" } })
+    UI.registerPolicy("NuzlockeRunHistoryScreen", {
+        mode = "adaptive", role = "history", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeGraveyardScreen", {
+        mode = "adaptive", role = "graveyard", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeGraveyardMemorialScreen", {
+        mode = "centered", role = "memorial", input = { profile = "pager" } })
+    UI.registerPolicy("NuzlockeAlmanacScreen", {
+        mode = "adaptive", role = "almanac", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeAlmanacPageScreen", {
+        mode = "adaptive", role = "almanac_page", input = { profile = "pager" } })
+    UI.registerPolicy("NuzlockeCatchInfoScreen", {
+        mode = "centered", role = "catch_info", input = { profile = "pager" } })
+    UI.registerPolicy("NuzlockeLegacyRecoveryScreen", {
+        mode = "centered", role = "recovery", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeLoadoutChooser", {
+        mode = "centered", role = "loadout", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeManualClock", {
+        mode = "centered", role = "clock", input = { profile = "values" } })
+    UI.registerPolicy("NuzlockeModCompatScreen", {
+        mode = "adaptive", role = "compatibility", input = { profile = "values" } })
+    UI.registerPolicy("NuzlockeRareCandyMenu", {
+        mode = "centered", role = "rare_candy", input = { profile = "values" } })
+    UI.registerPolicy("NuzlockeDifficultyReview", {
+        mode = "adaptive", role = "difficulty_review", input = { profile = "pager" } })
+    UI.registerPolicy("NuzlockeEndRunScreen", {
+        mode = "centered", role = "run_lifecycle", input = { profile = "navigation" } })
+    UI.registerPolicy("NuzlockeAbandonConfirmScreen", {
+        mode = "centered", role = "destructive_confirmation",
+        input = { profile = "destructive_confirmation" } })
+
 
     mod.exports.nuzlocke_ui_system = UI
     return UI
