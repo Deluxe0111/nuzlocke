@@ -12,16 +12,15 @@ Other clauses remain honest [Soon] placeholders.
 | --- | --- | --- |
 | **DUPES CLAUSE** | `OFF`, `SPEC`, `FAM`, `SPLIT` | **[WIP]** (implemented in Lua; native evolution and edition tests needed) |
 | **SHINY CLAUSE** | `OFF`, `1`, `2`, `3`, `UNLIMITED` | **[WIP]** (implemented in Lua; in-game shiny validation needed) |
-| **SHINY RATE** | Planned NATIVE and increased-odds policies | **[Soon]**, inert |
-| **SHINY COLOURS** | Planned options for the mod's own shiny presentation | **[Soon]**, inert |
-| **SHINY INTRO** | Planned presentation override | **[Soon]**, inert |
+| **SHINY RATE** | NATIVE / 1/4096 / 1/1024 / 1/512 / 1/100 / 1/10 / ALWAYS | **[WIP]** (Lua tested; gameplay certification pending) |
 | **ROAMER CLAUSE** | OFF / SLOT; roaming species get independent catch slots without spending grass routes | **[WIP]** (mock tests pass; native game unverified) |
 | **EGG ENCOUNTER** | Planned received / hatched / gift-egg provenance | **[Soon]**, inert |
 | **ROUTE FORGIVENESS** | Planned Gym reward token and reopening/reviving behaviour | **[Soon]**, inert |
 
-The vanilla game may already have shiny colours/animations independent of
-Nuzlocke. **[Soon] refers to Nuzlocke-specific configurable controls**,
-not the existence of native shiny presentation.
+FireRed, LeafGreen and Hoenn already have native shiny palettes and battle
+intro effects. **Shiny Colours and Shiny Intro are removed from the Gen 3
+menu**, with the native effects left untouched. Their old Gen 1/2 settings
+and functionality remain unchanged.
 
 **Existing saves:** Both new CLAUSES settings default to OFF in Gen 3 to avoid
 retroactively blocking captures on earlier test saves. In contrast, the
@@ -79,6 +78,29 @@ The clause cannot bypass other mods' catch-rate denial or future absolute
 rules such as No Catching, species bans or Type Locke. The policy calls
 `next(...)` for permitted catches rather than forcing a capture.
 
+## Shiny Rate (new [WIP])
+
+The setting controls **rarity, not Shiny Clause capture exceptions**.
+Enhanced rates are applied once when a newly generated wild or standard static
+battle Pokémon appears, before catch eligibility is checked. Existing
+native shinies remain shiny. Additional probability is conditional on the
+native 1/8192 roll having failed, so total odds equal the selected rate rather
+than stacking two full rolls.
+
+The result is attached to the individual Pokémon (`isShiny`) instead of
+randomising inside each repeated `Pokemon.isShiny()` call. The native
+capture path copies the Pokémon's full fields; Nuzlocke also preserves the
+flag when the `pokemon.caught` event fires.
+
+Starter Pokémon, Eggs, gifts, trainers, scripted tutorial encounters and
+persistent roaming Pokémon are excluded until their stable acquisition
+identity can be certified. The master Nuzlocke enforcement switch does not
+turn this independent generation feature off.
+
+A recognised active `SHINY_POKEMON` provider takes precedence: the menu shows
+**EXTERNAL** and Nuzlocke makes no shiny-rate alterations. Additional
+third-party provider APIs must be reviewed before certification.
+
 ## API / compatibility
 
 - `gen3_clauses.lua` is separate from `gen3_core_rules.lua`: menus must
@@ -90,8 +112,10 @@ rules such as No Catching, species bans or Type Locke. The policy calls
 - `capturedSpecies`, `shinyExceptionsUsed` and `clauses` are added to the
   same backwards-compatible `gen3_classic_v1` save bucket; old records stay
   readable.
-- No `shiny.roll` override is installed. We should only modify shiny odds
-  after agreeing on ownership/interoperability with other shiny providers.
+- No `shiny.roll` override is installed: the approved Shiny Rate works on
+  the individual native wild battle Pokémon, with conditional probability.
+- The helper `gen3_shiny_rate.lua` exposes `externalProvider`, `modeLabel`,
+  `extraProbability` and one-time `apply` logic.
 - Roamer Clause listens for native `roamer.encountered` and native `roamer=true`,
   recording captures in `roamerClaims` rather than consuming `areas`. See
   [GEN3_CLAUSES_NEXT.md](GEN3_CLAUSES_NEXT.md) for proposed remaining clauses.
@@ -126,8 +150,9 @@ can themselves continue triggering Dupes Clause.
   consume a Shiny Clause exception.
 - [ ] **CL11** — Save and reload after captures. Dupes history, selected
   modes and exceptional shiny usage should persist.
-- [ ] **CL12** — Verify Shiny Rate/Colours/Intro, Egg and Forgiveness remain
-  [Soon]. Roamer Clause is [WIP] and can switch OFF/SLOT; see R01–R06 in the
+- [ ] **CL12** — Confirm Shiny Rate cycles all seven modes, native shiny
+  palettes/intros remain intact, and Eggs/Forgiveness remain [Soon].
+  Roamer Clause is [WIP] and supports OFF/SLOT; see R01–R06 in the
   [next milestone notes](GEN3_CLAUSES_NEXT.md).
 - [ ] **CL13** — In NUZ DEV, confirm **RESET CLAUSE COUNTS** clears the
   shiny exception counter and capture log, but does not erase actual party/PC
@@ -140,6 +165,8 @@ can themselves continue triggering Dupes Clause.
 ```bash
 lua5.1 tests/gen3_foundation_smoke.lua
 lua5.1 tests/gen3_clauses_smoke.lua
+lua5.1 tests/gen3_shiny_rate_smoke.lua
+lua5.1 tests/gen3_archive_smoke.lua
 ```
 
 The dedicated Gen 3 GitHub Actions workflow runs both tests. They confirm
