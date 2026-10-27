@@ -3,7 +3,11 @@ local Random = assert(loadfile("gen3_randomizer.lua"))()()
 local Pokemon = {
     keyName = function(id)
         return ({[1]="BULBASAUR",[4]="CHARMANDER",[7]="SQUIRTLE",
-            [16]="PIDGEY",[25]="PIKACHU"})[id]
+            [16]="PIDGEY",[25]="PIKACHU"})[tonumber(id)]
+    end,
+    speciesFromName = function(name)
+        return ({BULBASAUR=1,CHARMANDER=4,SQUIRTLE=7,
+            PIDGEY=16,PIKACHU=25})[name]
     end,
 }
 local saved = {}
