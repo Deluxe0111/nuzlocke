@@ -47,7 +47,7 @@ jobs:
         run: lua5.1 tests/gen3_new_core_smoke.lua
       - name: Run Gen 3 LEVELS cap and EXP edging smoke
         run: lua5.1 tests/gen3_levels_smoke.lua
-      - name: Run Gen 3 seeded Randomizer smoke
+      - name: Run Gen 3 seeded randomizer native hook smoke
         run: lua5.1 tests/gen3_randomizer_smoke.lua
       - name: Run isolated Gen 3 clauses policy smoke
         run: lua5.1 tests/gen3_clauses_smoke.lua
