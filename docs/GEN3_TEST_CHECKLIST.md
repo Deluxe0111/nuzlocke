@@ -14,6 +14,22 @@ This is the human-in-the-loop test plan for [PR #1](https://github.com/Deluxe011
 - [ ] **P02 — Prepare three disposable saves.** One for **A: catch rules**, one for **B: fainting**, one for **C: whiteouts**; separate save slots or independent backups are fine. Give yourself Master Balls, Poké Balls, Revives, and at least two Pokémon where useful. **Expected:** All tests can be restarted without risking progress.
 - [ ] **P03 — Record environment.** Note the exact Gen1Recomp build/commit and game/version (FireRed, LeafGreen, Ruby, Sapphire or Emerald). **Expected:** Results can be reproduced.
 
+## NUZ DEV test reset controls (optional, recommended)
+
+Before repeating encounter tests on the same route, open **Start → NUZ MENU →
+[WIP] NUZ DEV → ENABLE DEV MODE**, confirm, then use **RE-ARM CURRENT**.
+See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
+
+- [ ] **V01 — Enable dev tools.** Enable NUZ DEV and confirm. **Expected:** Available test controls; save marked as a development/test run.
+- [ ] **V02 — Re-arm current.** After consuming an area's first encounter, select RE-ARM CURRENT and confirm. **Expected:** The area's catch slot is open again, without touching actual caught Pokémon.
+- [ ] **V03 — Edit an area.** Use EDIT CURRENT AREA or EDIT ALL AREAS to mark one map OPEN, SPENT and CAUGHT. **Expected:** Area state and later catch decisions follow your edit.
+- [ ] **V04 — Cancel/global reset.** Try CLEAR ALL AREAS, cancel, confirm entries remain; repeat and confirm. **Expected:** All encounter records clear **only** after explicit confirmation.
+- [ ] **V05 — Inspect/export.** Open STATE INSPECTOR and PRINT DEBUG REPORT. **Expected:** Useful live values and `[NUZ DEV]` debug lines in the game console.
+- [ ] **V06 — Reset guard.** Attempt to clear run failure with an empty or fully fainted party. **Expected:** Refused. With a living party, manual un-fail is permitted, but no Pokémon is restored.
+- [ ] **V07 — Disable tools.** Disable NUZ DEV. **Expected:** Mutating features become inaccessible; permanent test-run marker remains.
+
+**Important:** Re-arming does not reverse an actual catch or return a Ball. For example, after completing E05, use V02 before testing E07 on the same map; otherwise use a new, unused route.
+
 ## A. Menu & rule-state smoke tests (save A)
 
 - [ ] **M01 — Open menu.** Press Start → NUZ MENU → NUZ RULES → CORE. **Expected:** No errors, readable labels, **exactly eight** CORE rules.
