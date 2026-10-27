@@ -91,8 +91,7 @@ persistence, NUZ DEV resets and other editions.
   caught using an available exception, but a normal Pokémon may not.
 - [ ] **L04 — Allowance accounting:** failed Balls do not spend a Shiny Clause
   allowance; a successful exceptional capture does.
-- [ ] **L05 — [Soon] handling:** unused shiny-rate/intro/colours, roamer,
-  egg and forgiveness options cannot enable nonexistent rules.
+- [ ] **L05 — [Soon] handling:** Egg and Forgiveness remain inert, Shiny Rate and Roamer are [WIP] and can be configured. Native shiny palettes/intro effects remain unchanged.
 - [ ] **L06 — Development reset:** NUZ DEV's RESET CLAUSE COUNTS requires
   confirmation and resets the shiny allowance count and captured-species log
   without altering party, boxes or graveyard.
