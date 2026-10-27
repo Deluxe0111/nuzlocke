@@ -394,6 +394,13 @@ return function(mod)
         summary = function()
             local saved = loadState()
             return { shinyExceptionsUsed = saved.shinyExceptionsUsed,
+                roamerClaims = (function()
+                    local count = 0
+                    for _, v in pairs(saved.roamerClaims or {}) do
+                        if v then count = count + 1 end
+                    end
+                    return count
+                end)(),
                 speciesRecorded = (function()
                     local count = 0
                     for _ in pairs(saved.capturedSpecies) do count = count + 1 end
@@ -426,7 +433,7 @@ return function(mod)
         api = 1,
         stage = "EXPERIMENTAL",
         features = { "first_wild_per_area", "optional_failed_encounters",
-            "gen3_dupes_clause", "gen3_shiny_clause",
+            "gen3_dupes_clause", "gen3_shiny_clause", "gen3_roamer_clause",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run" },
         state = function()
