@@ -4,7 +4,7 @@ local events, hooks, values = {}, {}, {}
 package.loaded["src.core.game3.pokemon"] = {
     speciesOf = function(mon) return tonumber(mon.species or mon.speciesId) end,
     name = function(species)
-        local names = { [16] = "Pidgey", [25] = "Pikachu" }
+        local names = { [16] = "PIDGEY", [25] = "PIKACHU" }
         return assert(names[tonumber(species)], "unknown mocked species")
     end,
 }
@@ -223,9 +223,9 @@ press("down")
 press("a")
 local memorial = mod.exports.gen3_menu.model()
 assert(memorial.title == "IN MEMORY")
-assert(memorial.rows[1] == "NAME: Pidgey")
-assert(memorial.rows[2] == "SPECIES: Pidgey")
-assert(memorial.rows[4] == "LOST AT: Route 1")
+assert(memorial.rows[1] == "POKEMON: Pidgey")
+assert(memorial.rows[2] == "LEVEL: 3")
+assert(memorial.rows[3] == "LOST AT: Route 1")
 press("b")
 press("b")
 press("b")
