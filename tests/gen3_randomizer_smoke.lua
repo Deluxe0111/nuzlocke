@@ -136,4 +136,39 @@ assert(invalid.speciesId==1)
 -- Non-Gen3 / Nuzlocke-off is irrelevant: randomiser operates independently.
 assert(not saves.gen3_classic_v1.enabled)
 assert(first.speciesId ~= 1)
-print("Gen3 randomiser policy and native wild/fishing/trainer hooks: PASS")
+local stack = {}
+package.loaded["src.ui.game3.stack"] = {
+    push = function(id, module) stack[#stack + 1] = {id=id,module=module} end,
+    pop = function(id)
+        assert(stack[#stack] and stack[#stack].id == id)
+        stack[#stack] = nil
+    end,
+}
+assert(mod.exports.gen3_menu.open(game))
+local function press(key)
+    local top=assert(stack[#stack])
+    top.module.handleInput({
+        wasPressed=function(_,button) return button==key end
+    })
+end
+press("a") -- NUZ RULES
+local cat=mod.exports.gen3_menu.catalog()
+local position
+for i,c in ipairs(cat) do if c.title=="RANDOMIZER" then position=i end end
+assert(position,"randomiser category remains in legacy catalog")
+for i=2,position do press("down") end
+press("a")
+local model=mod.exports.gen3_menu.model()
+assert(model.title=="RANDOMIZER"
+    and model.rows[1]:find("PRESET",1,true)
+    and model.rows[2]=="RANDOM WILD: ON"
+    and model.rows[3]=="RANDOM TRAINERS: ON",
+    "Randomiser menu must expose working settings")
+local soon=false
+for _,label in ipairs(model.rows) do
+    if label=="[Soon] Rndm Strtr" then soon=true end
+end
+assert(soon,"unimplemented starter randomiser must stay [Soon]")
+press("b");press("b");press("b")
+assert(#stack==0)
+print("Gen3 randomiser policy, native hooks and menu: PASS")
