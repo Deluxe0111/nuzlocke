@@ -62,7 +62,7 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 - [ ] **D01 — Permadeath ON, faint event.** Enable Nuzlocke and Permadeath. Let exactly one Pokémon faint during a trainer battle while another remains alive. **Expected:** It stays fainted and unavailable during the battle; no immediate party-array removal that breaks forced switching.
 - [ ] **D02 — Revives denied in battle.** While that first Pokémon remains fainted and battle continues, try Revive (or Max Revive). **Expected:** Revival is refused.
 - [ ] **D03 — Post-battle retirement.** Finish the battle. **Expected:** Only the fainted Pokémon disappears from the native party; the surviving Pokémon remains valid.
-- [ ] **D04 — Graveyard count.** Open GRAVEYARD and NUZ STATUS. **Expected:** One death entry, correct Pokémon identity/details where available, no duplicates.
+- [ ] **D04 — Graveyard details.** Open GRAVEYARD and NUZ STATUS. **Expected:** One death entry, a Pokémon name (nickname or species), readable species name and location (e.g. Pidgey / Route 1), correct level, no duplicates. Internal species/map IDs should not be the primary player-facing text.
 - [ ] **D05 — Permadeath OFF.** On a *fresh second faint*, disable Permadeath but keep Nuzlocke ON. **Expected:** Pokémon remains in the party after battle, isn't recorded as dead, and native revival items are usable.
 - [ ] **D06 — Re-enable Permadeath.** Turn Permadeath back ON and faint another Pokémon. **Expected:** The next death is enforced normally; previous recorded deaths are retained.
 - [ ] **D07 — Nuzlocke OFF.** Disable the master switch, faint a Pokémon in battle. **Expected:** Native Pokémon faint/revive behaviour; no Nuzlocke deletion or new graveyard record.
