@@ -8,10 +8,10 @@ return function()
         { key = "permadeath", label = "PERMADEATH", default = true, status = "working" },
         { key = "encounter_limit", label = "ONE PER AREA", default = true, status = "working" },
         { key = "failed_encounter", label = "FAILED ENCOUNTERS", default = true, status = "working" },
-        { key = "nickname_rule", label = "NICKNAME RULE", default = true, status = "soon" },
-        { key = "first_rival_forgiveness", label = "FIRST RIVAL MERCY", default = true, status = "soon" },
+        { key = "nickname_rule", label = "NICKNAME RULE", default = true, status = "wip" },
+        { key = "first_rival_forgiveness", label = "FIRST RIVAL MERCY", default = true, status = "wip" },
         { key = "whiteout_ends_run", label = "WHITEOUT ENDS RUN", default = true, status = "wip" },
-        { key = "pc_survivors_allowed", label = "PC SURVIVORS", default = false, status = "soon" },
+        { key = "pc_survivors_allowed", label = "PC SURVIVORS", default = false, status = "wip" },
     }
     local byKey = {}
     for _, rule in ipairs(RULES) do byKey[rule.key] = rule end
@@ -95,8 +95,7 @@ return function()
             and M.get(s, "failed_encounter") == true
     end
 
-    -- A battle whiteout takes precedence over PC survivors. Future Gen 3 PC
-    -- recovery will implement pc_survivors_allowed; do not silently turn it on.
+    -- A battle whiteout takes precedence over eligible PC survivors.
     function M.failedWhiteout(s, battleResult)
         local lost = battleResult == "lose"
             or battleResult == "whiteout" or battleResult == "blackout"
