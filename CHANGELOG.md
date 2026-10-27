@@ -1,3 +1,11 @@
+## 3.0.0-BETA — Generation 3 and Untamed compatibility
+
+- Promotes the package version to **3.0.0-BETA** while retaining Mod API 2 and Generation 1/2 save/runtime compatibility.
+- Adds the native Generation 3 CORE, CLAUSES, LEVELS, seeded wild/fishing/trainer RANDOMIZER, and player feedback / Graveyard / developer testing pages.
+- Integrates Nuzlocke Random Wild with Untamed Advanced's visible wandering Pokémon through the opt-in `untamed.owe.species` hook. The overworld sprite, battle, and caught Pokémon match.
+- Untamed Advanced credits **Deluxe0111** for the Nuzlocke compatibility integration. Its chain popup now reports the visible Pokémon (e.g. Feraligatr) while using the original native species slot only for repeat-spawn odds.
+- Preserves legacy 2.9.x release history below and keeps unported Gen 3 settings inactive. Full edition-by-edition ROM certification is still a separate task.
+
 ## 2.9.72
 
 - Normalizes Gen-II numeric item operands through the active item registry before Random Field Item classification, TM detection, persistence identity, and selection, then converts the chosen canonical item back to the native numeric index required by Gen-II pickup builders.
