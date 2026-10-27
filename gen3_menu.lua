@@ -156,15 +156,15 @@ return function(mod, api)
             if level then summary = summary .. " Lv" .. tostring(level) end
             rows[#rows + 1] = row(summary, nil, function()
                 local details = {
-                    "NAME: " .. name,
-                    "SPECIES: " .. species,
-                    "LEVEL: " .. (level and tostring(level) or "Unknown"),
-                    "LOST AT: " .. location,
+                    "POKEMON: " .. name,
                 }
                 if name ~= species then
-                    -- Useful if a player renamed their Pidgey to "Scout".
-                    details[#details + 1] = "NICKNAME: " .. name
+                    -- Don't repeat species/name unless there is a nickname.
+                    details[#details + 1] = "SPECIES: " .. species
                 end
+                details[#details + 1] =
+                    "LEVEL: " .. (level and tostring(level) or "Unknown")
+                details[#details + 1] = "LOST AT: " .. location
                 details[#details + 1] =
                     "CAUSE: " .. tostring(member.cause or "Fainted")
                 info("IN MEMORY", details)
