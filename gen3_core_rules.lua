@@ -59,8 +59,8 @@ return function()
         if definition.status == "soon" then return false, "not_implemented" end
         if type(value) ~= "boolean" then return false, "boolean_required" end
         s = M.normalise(s)
+        if s.failed then return false, "run_failed" end
         if key == "nuzlocke_enabled" then
-            if s.failed and value then return false, "run_failed" end
             s.enabled = value
         else
             s.rules[key] = value
