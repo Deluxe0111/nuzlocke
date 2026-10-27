@@ -107,6 +107,49 @@ six roamer-specific tests is [R01–R06](GEN3_CLAUSES_NEXT.md).
 - [ ] **R02 — Catch later.** Encounter the same roamer on a second route and catch it. The roamer's species slot closes but the second route's grass slot remains available.
 - [ ] **R03 — Stable results.** Save and load; the roamer claim remains closed. NUZ DEV clause reset clears the debug claim only, not the actual Pokémon.
 
+## Shiny Rate & future Forgiveness archive
+
+Use a **disposable save** and the new [Shiny Rate contract](GEN3_CLAUSES_NEXT.md)
+for the scope and provider-ownership decisions. The 1/8192 native chance is
+not something you can validate with a handful of normal encounters; use
+**ALWAYS** to verify the enhancement path deterministically.
+
+- [ ] **SR01 — Six-entry CLAUSES menu.** Open CLAUSES. **Expected:** Dupes,
+  Shiny Clause, Shiny Rate, Roamer Clause, Egg Encounter and Route Forgiveness.
+  Shiny Colours and Shiny Intro should **not** appear; original Gen 3
+  shiny palettes/animations are unchanged.
+- [ ] **SR02 — ALWAYS on a fresh wild encounter.** Set Shiny Rate ALWAYS.
+  Enter a new normal wild battle. **Expected:** The Pokémon is visibly shiny
+  even without any Shiny Clause catch allowance.
+- [ ] **SR03 — Saved individual shiny.** Catch that enhanced shiny and save,
+  then restart and view its summary/party sprite. **Expected:** It remains
+  shiny, with the same personality, species and original IVs/stats.
+- [ ] **SR04 — Master OFF doesn't suppress odds.** Switch Nuzlocke OFF but
+  leave Shiny Rate ALWAYS; encounter a new wild Pokémon. **Expected:** Still
+  shiny; the independent difficulty/visual configuration does not depend on
+  hardcore enforcement.
+- [ ] **SR05 — No trainer/tutorial boost.** Battle a trainer, and, if
+  available, check a scripted tutorial battle. **Expected:** Shiny Rate
+  doesn't artificially change the opponent's or tutorial Pokémon's identity.
+- [ ] **SR06 — Roamer exclusion.** If available, test a persistent roaming
+  Pokémon while Shiny Rate ALWAYS. **Expected:** The enhanced rate does not
+  randomly change that same roamer's shiny identity between encounters.
+- [ ] **SR07 — External ownership.** If a compatible external shiny provider
+  is active, open Shiny Rate. **Expected:** EXTERNAL is displayed; selecting
+  it doesn't alter that provider's rate or stack another roll.
+- [ ] **SR08 — Native mode.** Set Shiny Rate back to NATIVE. **Expected:**
+  No forced-shiny behaviour on normal non-shiny Pokémon.
+- [ ] **AR01 — Death archives.** Let a new Pokémon faint and open the Graveyard.
+  **Expected:** The existing readable memorial remains correct; archived
+  Pokémon data is retained for future recovery but no revival option appears.
+- [ ] **AR02 — Legacy deaths.** Reopen an older graveyard entry without the
+  complete archive. **Expected:** It still shows species, level, nickname (if
+  stored) and location, but does **not** offer approximate restoration.
+
+**Egg Encounter and Route Forgiveness remain [Soon].** It is a known pending
+feature—not a failure—that the UI cannot enable Egg counting or redeem
+Forgiveness Tokens yet.
+
 ## E. Compatibility & known pending features
 
 - [ ] **C01 — Gen 1 regression.** If you have an original Red/Blue/Yellow setup, open the original Nuzlocke UI. **Expected:** Established Gen 1 menu and rules unchanged.
