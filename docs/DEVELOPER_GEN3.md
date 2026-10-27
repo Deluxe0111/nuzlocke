@@ -53,6 +53,8 @@ A productive VS Code workspace has the two folders side by side:
 | `gen3_runtime.lua` | Our **current Gen 3 gameplay adapter**. Subscribes to encounters, catches, faints and battle end; delegates policy to the CORE rule registry. |
 | `gen3_core_rules.lua` | Our **CORE rule contract**. Eight stable rule IDs, defaults, support status, configuration validation and pure catch/whiteout decisions. |
 | `gen3_menu.lua` | Our **current Gen 3 UI**. Presents NUZ MENU, reads CORE rules from the registry and shows all remaining Gen 1/2 rules as planned features. |
+| `gen3_dev.lua` | Developer-only save-local area editor and recovery utilities. All mutations require deliberate opt-in and are recorded in the test-run audit trail. |
+| `docs/GEN3_NUZ_DEV.md` | Developer-menu controls, constraints and the route re-arm testing workflow. |
 | `docs/GEN3_CORE_SPEC.md` | Approved eight-rule behaviour, whiteout versus PC precedence, and phased implementation plan. |
 | `tests/gen3_foundation_smoke.lua` | Mocked tests for Gen 3 gameplay and menu wiring. |
 | `docs/GEN3_PORT.md` | Gen 3 feature scope, known gaps and manual in-game test plan. |
