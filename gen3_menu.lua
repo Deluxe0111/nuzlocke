@@ -217,7 +217,7 @@ return function(mod, api)
                     return label .. ": " ..
                         (Core.get(state(), key) and "ON" or "OFF")
                 end
-                rows[#rows + 1] = row(updateLabel(), status == "wip" and "wip" or nil,
+                rows[#rows + 1] = row(updateLabel(), nil,
                     function()
                         local fresh = state()
                         local ok, reason = Core.set(fresh, key,
@@ -310,7 +310,7 @@ return function(mod, api)
                     and ShinyRate.externalProvider(mod) or nil
                 rows[#rows + 1] = row(d.label .. ": " ..
                     (external and "EXTERNAL" or Clauses.label(state(), d.key)),
-                    "wip", function()
+                    nil, function()
                     if external then
                         info("SHINY PROVIDER", {
                             "EXTERNAL SHINY MOD",
@@ -335,8 +335,8 @@ return function(mod, api)
                 end)
             end
         end
-        rows[#rows + 1] = row("EGG HISTORY", "wip", eggHistory)
-        rows[#rows + 1] = row("REDEEM TOKEN", "wip", openForgiveness)
+        rows[#rows + 1] = row("EGG HISTORY", nil, eggHistory)
+        rows[#rows + 1] = row("REDEEM TOKEN", nil, openForgiveness)
         return rows
     end
 
