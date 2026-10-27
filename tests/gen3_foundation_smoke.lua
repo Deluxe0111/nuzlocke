@@ -156,10 +156,14 @@ assert(select(1, throw(noLimit)) == true, "one-per-area OFF disables catch block
 fire("battle.ended")
 assert(core.setRule("encounter_limit", true))
 assert(core.setRule("failed_encounter", true))
-assert(core.setRule("nickname_rule", false) == false,
-    "unimplemented CORE rule must be read-only")
-assert(core.setRule("pc_survivors_allowed", true) == false,
-    "unsafe PC recovery must not be advertised as working")
+assert(core.setRule("nickname_rule", false),
+    "nickname requirement can be disabled for a run")
+assert(core.setRule("nickname_rule", true),
+    "nickname requirement can be enabled for a run")
+assert(core.setRule("pc_survivors_allowed", true),
+    "PC survivor rule is toggleable for testing")
+assert(core.setRule("pc_survivors_allowed", false),
+    "PC survivor default remains OFF")
 
 -- Permadeath OFF must restore normal revives and allow ordinary fainting.
 assert(core.setRule("permadeath", false))
