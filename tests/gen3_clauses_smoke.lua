@@ -15,13 +15,21 @@ package.loaded["src.core.game3.pokemon"] = {
 }
 local Clauses = assert(loadfile("gen3_clauses.lua"))()()
 local s = { areas = {}, graveyard = {}, capturedSpecies = {} }
-assert(#Clauses.descriptors() == 8, "Gen 3 clauses should have eight items")
+assert(#Clauses.descriptors() == 6, "Gen 3 removes redundant shiny visuals")
 assert(Clauses.get(s, "dupes_mode") == 0, "new games default dupes OFF")
 assert(Clauses.get(s, "shiny_clause") == 0, "new games default shiny OFF")
 assert(Clauses.set(s, "gen3_egg_encounter_mode", 2) == false,
     "unimplemented egg policy must not be selectable")
-assert(Clauses.set(s, "shiny_rate_mode", 1) == false,
-    "unimplemented shiny rate cannot silently be enabled")
+assert(Clauses.set(s, "shiny_rate_mode", 1),
+    "Shiny Rate modes are now selectable")
+assert(Clauses.get(s, "shiny_rate_mode") == 1)
+assert(Clauses.set(s, "shiny_rate_mode", 6))
+assert(Clauses.label(s, "shiny_rate_mode") == "ALWAYS")
+assert(Clauses.set(s, "shiny_rate_mode", 7) == false,
+    "out-of-range enhanced shiny odds must be rejected")
+assert(Clauses.get(s, "shiny_colors") == nil
+    and Clauses.get(s, "shiny_intro") == nil,
+    "redundant native shiny visual controls are removed")
 assert(Clauses.set(s, "dupes_mode", 42) == false,
     "invalid mode must be rejected")
 Clauses.noteCaught(s, 134, false) -- previously caught Vaporeon
