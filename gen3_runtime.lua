@@ -18,6 +18,7 @@ return function(mod)
     local Core = readModule("gen3_core_rules.lua")()
     local Clauses = readModule("gen3_clauses.lua")()
     local ShinyRate = readModule("gen3_shiny_rate.lua")()
+    local Archive = readModule("gen3_archive.lua")()
     local Display = readModule("gen3_display.lua")()
     local currentArea
     local activeBattle
@@ -106,8 +107,10 @@ return function(mod)
                 and (mon.nuzlockeDead == true
                     or (deathEnabled and (tonumber(mon.hp) or 0) <= 0)) then
                 if not mon.nuzlockeDeathRecorded then
-                    s.graveyard[#s.graveyard + 1] =
-                        Display.memorial(mon, areaNow(), "Fainted in battle")
+                    local entry = Display.memorial(mon, areaNow(),
+                        "Fainted in battle")
+                    entry.archive, entry.archiveComplete = Archive.snapshot(mon)
+                    s.graveyard[#s.graveyard + 1] = entry
                 end
                 table.remove(party, i)
                 modified = true
@@ -137,6 +140,7 @@ return function(mod)
         if battleDeaths.seen[slot] then return end
         local mon = party[slot]
         if mon.isEgg then return end
+        local archived, complete = Archive.snapshot(mon)
         battleDeaths.seen[slot] = true
         battleDeaths.pending[#battleDeaths.pending + 1] = { mon = mon, slot = slot }
         -- Capture before the next forced-switch/revive decision. Existing
@@ -144,8 +148,10 @@ return function(mod)
         mon.nuzlockeDead = true
         battler.mon.nuzlockeDead = true
         local s = loadState()
-        s.graveyard[#s.graveyard + 1] =
-            Display.memorial(mon, areaNow(), "Fainted in battle")
+        local entry = Display.memorial(mon, areaNow(), "Fainted in battle")
+        entry.archive = archived
+        entry.archiveComplete = complete
+        s.graveyard[#s.graveyard + 1] = entry
         writeState(s)
     end
 
