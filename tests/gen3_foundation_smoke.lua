@@ -487,10 +487,9 @@ press("a")
 assert(mod.exports.gen3_clauses.getMode("shiny_rate_mode") == 1,
     "Shiny Rate cycles through supported real modes")
 assert(mod.exports.gen3_menu.model().rows[3] == "[WIP] SHINY RATE: 1/4096")
-press("b")
-press("b")
-press("b")
-press("b")
+press("b") -- CLAUSES -> RULES
+press("b") -- RULES -> NUZ MENU
+press("b") -- NUZ MENU -> game
 
 -- Native Gen 3 roamer: don't spend an area when the roaming Pokémon
 -- flees, then close only its species slot when eventually caught.
