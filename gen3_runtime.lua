@@ -5,6 +5,7 @@ return function(mod)
     local KEY = "gen3_classic_v1"
     local currentArea
     local activeBattle
+    local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
 
     local function loadState()
         local s = mod.save:get(KEY, {})
@@ -45,23 +46,59 @@ return function(mod)
         return s.enabled and not s.failed
     end
 
+    -- Game 3 battles operate on *copies* of session.party. Never table.remove
+    -- from battle.playerParty while a fight is running: partyIndex values drive
+    -- forced switches, two active battlers and end-of-battle writeback.
+    local function samePokemon(a, b, indexMatches)
+        if type(a) ~= "table" or type(b) ~= "table" then return false end
+        local pa, pb = a.personality, b.personality
+        local sa, sb = a.species or a.speciesId, b.species or b.speciesId
+        if pa ~= nil and pb ~= nil then
+            return pa == pb and tostring(sa) == tostring(sb)
+        end
+        return indexMatches and tostring(sa) == tostring(sb)
+            and tostring(a.nickname or a.name or "") == tostring(b.nickname or b.name or "")
+    end
+
     local function retireFainted()
         local s = loadState()
-        if not s.enabled or s.failed then return end
+        if not s.enabled then return end
         local native = session()
         local party = native and native.party
         if type(party) ~= "table" then return end
+
+        -- A faint event has already committed the death to mod.save. Match the
+        -- event's battle-party copy back to its native session counterpart,
+        -- including selected-party/subset battles where slot numbers differ.
+        if battleDeaths and type(battleDeaths.pending) == "table" then
+            local claimed = {}
+            for _, death in ipairs(battleDeaths.pending) do
+                for index, mon in ipairs(party) do
+                    if not claimed[index] and samePokemon(death.mon, mon,
+                        index == death.slot and not battleDeaths.partySubset) then
+                        mon.nuzlockeDead = true
+                        mon.nuzlockeDeathRecorded = true
+                        mon.hp = 0
+                        claimed[index] = true
+                        break
+                    end
+                end
+            end
+        end
+
         local modified = false
         for i = #party, 1, -1 do
             local mon = party[i]
             if type(mon) == "table" and mon.isEgg ~= true
-                and (tonumber(mon.hp) or 0) <= 0 then
-                s.graveyard[#s.graveyard + 1] = {
-                    species = mon.species or mon.speciesId,
-                    nickname = mon.nickname or mon.name,
-                    level = mon.level,
-                    area = areaNow(),
-                }
+                and (mon.nuzlockeDead == true or (tonumber(mon.hp) or 0) <= 0) then
+                if not mon.nuzlockeDeathRecorded then
+                    s.graveyard[#s.graveyard + 1] = {
+                        species = mon.species or mon.speciesId,
+                        nickname = mon.nickname or mon.name,
+                        level = mon.level,
+                        area = areaNow(),
+                    }
+                end
                 table.remove(party, i)
                 modified = true
             end
@@ -72,6 +109,82 @@ return function(mod)
         end
     end
 
+    local function recordBattleFaint(ev)
+        if not isActive() or type(ev) ~= "table" then return end
+        local battler = ev.battler
+        if type(battler) ~= "table" or
+            (ev.sideName ~= "player" and battler.side ~= "player") then return end
+        local battle = ev.battle
+        local party = battle and battle.playerParty
+        local slot = tonumber(battler.partyIndex)
+        if type(party) ~= "table" or not slot or not party[slot] then return end
+        if not battleDeaths or battleDeaths.battle ~= battle then
+            battleDeaths = { battle = battle, pending = {}, seen = {} }
+        end
+        if battleDeaths.seen[slot] then return end
+        local mon = party[slot]
+        if mon.isEgg then return end
+        battleDeaths.seen[slot] = true
+        battleDeaths.pending[#battleDeaths.pending + 1] = { mon = mon, slot = slot }
+        -- Capture before the next forced-switch/revive decision. Existing
+        -- battle/UI references remain intact; the mon is now irrevocably dead.
+        mon.nuzlockeDead = true
+        battler.mon.nuzlockeDead = true
+        local s = loadState()
+        s.graveyard[#s.graveyard + 1] = {
+            species = mon.species or mon.speciesId,
+            nickname = mon.nickname or mon.name,
+            level = mon.level,
+            area = areaNow(),
+        }
+        writeState(s)
+    end
+
+    -- The native battle-item UI and the actual item transaction are distinct.
+    -- Block revival at BOTH points; preventing the party menu option alone
+    -- would allow another caller to bypass the rule.
+    local function installReviveGuard()
+        local okB, BattleItems = pcall(require, "src.core.game3.battle.items")
+        local okD, ItemsData = pcall(require, "src.core.game3.items_data")
+        local okU, ItemUse = pcall(require, "src.core.game3.item_use")
+        if not (okB and okD and okU and type(BattleItems) == "table"
+            and type(ItemsData) == "table" and type(ItemUse) == "table") then
+            return false
+        end
+        if BattleItems.__nuzlockeGen3GuardOwner == mod then return true end
+        if type(BattleItems.canUseOn) ~= "function"
+            or type(BattleItems.use) ~= "function" then return false end
+        local originalCanUse, originalUse = BattleItems.canUseOn, BattleItems.use
+
+        local function isRevive(itemId, nativeSession)
+            local okKind, kind = pcall(ItemsData.medicineKind, itemId)
+            if okKind and kind == "revive" then return true end
+            local okField, field = pcall(ItemUse.fieldUseKind,
+                itemId, nativeSession, true)
+            return okField and field == "revive"
+        end
+
+        BattleItems.canUseOn = function(st, itemId, partySlot, mon, moveSlot)
+            if isActive() and isRevive(itemId, st and st.session) then
+                return false, "Nuzlocke: No revives."
+            end
+            return originalCanUse(st, itemId, partySlot, mon, moveSlot)
+        end
+
+        BattleItems.use = function(st, adapter, bag, nativeSession, itemId, ...)
+            if isActive() and isRevive(itemId, nativeSession) then
+                local message = "Nuzlocke: No revives."
+                if adapter and type(adapter.say) == "function" then
+                    adapter:say(message)
+                end
+                return "error", { message }, false, false
+            end
+            return originalUse(st, adapter, bag, nativeSession, itemId, ...)
+        end
+        BattleItems.__nuzlockeGen3GuardOwner = mod
+        return true
+    end
+
     -- Gen 3's map.entered uses a native map ID, not a Gen 1 map name.
     mod.events:on("map.entered", function(ev)
         currentArea = type(ev) == "table" and areaKey(ev.mapId) or nil
@@ -80,16 +193,21 @@ return function(mod)
     mod.events:on("save.loaded", function()
         currentArea = nil
         activeBattle = nil
+        battleDeaths = nil
     end)
     mod.events:on("save.created", function()
         currentArea = nil
         activeBattle = nil
+        battleDeaths = nil
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
     -- Tutorial battles and scripted trainer battles do not claim an area.
     mod.events:on("battle.started", function(ev)
         activeBattle = nil
+        battleDeaths = nil
+        -- Install after the engine's battle modules exist, before any item turn.
+        installReviveGuard()
         if not isActive() or type(ev) ~= "table" or ev.kind ~= "wild" then return end
         local key = areaNow()
         if not key then return end -- fail open rather than block unknown maps
@@ -123,11 +241,16 @@ return function(mod)
         end
     end)
 
-    -- The native Gen 3 battle bridge writes party HP back before battle.ended.
-    -- Remove zero-HP party members then, avoiding mid-battle state corruption.
+    -- The engine emits this while the faint is being announced, before the
+    -- forced-switch UI. Death is immediate; array compaction is deferred.
+    mod.events:on("battle.fainted", recordBattleFaint)
+
+    -- The native battle bridge writes back party HP before battle.ended.
+    -- Compact party arrays only then, after the engine no longer needs indices.
     mod.events:on("battle.ended", function()
         retireFainted()
         activeBattle = nil
+        battleDeaths = nil
     end)
 
     -- This is a deliberately small in-game toggle; other Nuzlocke rule settings
@@ -162,7 +285,7 @@ return function(mod)
     mod.exports.gen3_classic = {
         api = 1,
         stage = "EXPERIMENTAL",
-        features = { "first_wild_per_area", "post_battle_permadeath" },
+        features = { "first_wild_per_area", "immediate_faint_death", "revive_denial", "post_battle_retirement" },
         state = function()
             local s = loadState()
             return { enabled = s.enabled, failed = s.failed,
