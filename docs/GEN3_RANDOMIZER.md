@@ -93,6 +93,51 @@ on source key, original Pokémon, settings, seed, algorithm, and ROM data.
 - There is currently no safe mid-run configuration reset/migration.
 - This is an experimental native-Gen 3 feature. Gen 1/2 paths are unchanged.
 
+## Untamed-Advanced visible wild Pokémon
+
+Untamed-Advanced's wandering Pokémon bypass the native Gen 3
+`encounter.species` hook. The new optional `untamed.owe.species`
+integration randomises these **before the visible sprite, cry, and battle
+Pokémon are constructed**, so the species seen roaming matches the one
+fought and caught. It uses existing **Random Wild**, run seed, Gen 3
+species pool/generation filter and encounter balance; there is no
+separate overworld toggle.
+
+Mapping keys include an `OWE` discriminator, map ID, land/water
+terrain and original wild species (not spawn coordinates). Thus the
+same authored Pokémon on the same route retains the same random
+appearance on subsequent spawns, without changing the existing random
+step or fishing mappings.
+
+Only normal generated wild OWEs are eligible. Untamed protects roamers,
+Feebas, mass outbreaks and manually scripted wilds, and validates
+sprite availability before using a replacement. Followers are not
+randomised. Untamed also retains the original source species for its
+encounter-chaining logic.
+
+**Both updated mods must be installed**. Updating Nuzlocke alone cannot
+alter wandering species created internally by older Untamed builds.
+The integration is safe when Untamed is absent (no hook caller).
+
+### Untamed ROM regression checks
+
+- [ ] **U01:** Enable Random Wild with a fixed seed. Ordinary wandering
+      land/water Pokémon should change species.
+- [ ] **U02:** Walk into a randomised sprite. The battle opponent (and a
+      successful capture) must be the same species as the visible sprite.
+- [ ] **U03:** Leave/re-enter a route and reload. For the same authored
+      source, the same random species should appear regardless of tile.
+- [ ] **U04:** On a fresh run, set Random Wild OFF. Wandering wild species
+      should be the native authored Pokémon.
+- [ ] **U05:** Verify Nuzlocke One Per Area, Failed Encounters, Dupes and
+      Permadeath also work against wandering opponents.
+- [ ] **U06:** Roamers, Feebas/outbreaks and player followers remain
+      untouched. Test wandering encounter chaining.
+- [ ] **U07:** Run without Untamed installed: ordinary grass/fishing
+      randomisation still behaves as before.
+- [ ] **U08:** Repeat representative checks on FRLG, Ruby/Sapphire and
+      Emerald using disposable saves.
+
 ## ROM regression checklist (back-up/disposable save)
 
 - [ ] **R01:** With Nuzlocke OFF but Random Wild ON and seed 12345678,
