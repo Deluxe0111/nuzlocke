@@ -52,7 +52,9 @@ A productive VS Code workspace has the two folders side by side:
 | `entry.lua` | Dispatch. Gen 1/2 runs legacy `main.lua`; Gen 3 runs `gen3_runtime.lua`. |
 | `gen3_runtime.lua` | Our **current Gen 3 gameplay adapter**. Subscribes to encounters, catches, faints and battle end; delegates policy to the CORE rule registry. |
 | `gen3_core_rules.lua` | Our **CORE rule contract**. Eight stable rule IDs, defaults, support status, configuration validation and pure catch/whiteout decisions. |
-| `gen3_clauses.lua` | Gen 3 Dupes Clause (SPEC/FAM/SPLIT), Shiny Clause allowances and the inert roadmap of additional Gen 3 clauses. |
+| `gen3_clauses.lua` | Gen 3 Dupes Clause, Shiny Clause allowances, Shiny Rate settings, Roamer Clause and the approved Egg/Forgiveness roadmap. |
+| `gen3_shiny_rate.lua` | One-time wild/static shiny generation; honours a verified external shiny provider. |
+| `gen3_archive.lua` | Complete Pokémon snapshots for new deaths, preparing for safe Route Forgiveness without reviving approximate legacy records. |
 | `docs/GEN3_CLAUSES.md` | Clause modes, compatibility limitations and fourteen manual test cases. |
 | `gen3_menu.lua` | Our **current Gen 3 UI**. Presents NUZ MENU, reads CORE rules from the registry and shows all remaining Gen 1/2 rules as planned features. |
 | `gen3_dev.lua` | Developer-only save-local area editor and recovery utilities. All mutations require deliberate opt-in and are recorded in the test-run audit trail. |
