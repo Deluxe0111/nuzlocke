@@ -155,6 +155,18 @@ return function(api)
         return true
     end
 
+    -- Clear only clause bookkeeping for repeatable tests. Pokémon physically
+    -- present in the party or boxes, or memorialised in the graveyard, still
+    -- count towards Dupes: this does NOT erase the Pokémon's existence.
+    function M.clearClauseHistory()
+        local s, err = guard()
+        if not s then return false, err end
+        s.capturedSpecies = {}
+        s.shinyExceptionsUsed = 0
+        audit(s, "CLAUSE COUNTERS RESET")
+        return true
+    end
+
     -- Useful for attaching a compact snapshot to bug reports from the game's
     -- console. Never dumps raw save data or Pokémon ownership identifiers.
     function M.printReport()
