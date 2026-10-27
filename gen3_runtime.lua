@@ -743,6 +743,26 @@ return function(mod)
         return applied
     end)
 
+    -- Native normal wild encounter selection, after vanilla table roll.
+    mod.hooks:wrap("encounter.species", function(next, enc, ctx)
+        local source = next(enc, ctx)
+        local r = Randomizer.get(loadState())
+        if not r.wild or r.seed == 0 then return source end
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return source end
+        return Randomizer.wild(loadState(), source, ctx, Pokemon)
+    end)
+
+    -- Native trainer party composition; preserve authored levels/slots.
+    mod.hooks:wrap("trainer.party", function(next, trainerClass, trainerId, party)
+        local composed = next(trainerClass, trainerId, party)
+        local r = Randomizer.get(loadState())
+        if not r.trainers or r.seed == 0 then return composed end
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return composed end
+        return Randomizer.trainers(loadState(), composed, trainerId, Pokemon)
+    end)
+
     mod.hooks:wrap("catch.rate", function(next, ball, mon, species, ctx)
         local battle = activeBattle
         if not isActive() or not battle or type(ctx) ~= "table"
