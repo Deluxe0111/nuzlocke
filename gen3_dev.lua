@@ -106,6 +106,9 @@ return function(api)
             map = getCurrentArea(),
             areasSpent = spent, areasOpen = open, areasCaught = caught,
             deaths = #(s.graveyard or {}),
+            dupesMode = s.clauses and s.clauses.dupes_mode or 0,
+            shinyMode = s.clauses and s.clauses.shiny_clause or 0,
+            shinyUsed = s.shinyExceptionsUsed or 0,
             edits = d.edits,
             tainted = d.tainted,
             lastAction = d.lastAction,
@@ -183,6 +186,9 @@ return function(api)
             .. " AREA_OPEN=" .. tostring(view.areasOpen)
             .. " AREA_CAUGHT=" .. tostring(view.areasCaught)
             .. " EDITS=" .. tostring(view.edits))
+        print("[NUZ DEV] DUPES_MODE=" .. tostring(view.dupesMode)
+            .. " SHINY_CLAUSE=" .. tostring(view.shinyMode)
+            .. " SHINY_USED=" .. tostring(view.shinyUsed))
         for _, area in ipairs(M.areas()) do
             print("[NUZ DEV] AREA " .. area.key
                 .. " SPENT=" .. tostring(area.spent)
