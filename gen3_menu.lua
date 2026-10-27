@@ -8,6 +8,7 @@ return function(mod, api)
     local engineGame
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
+    local Display = assert(api.display, "Gen 3 menu needs species and location labels")
 
     -- Mirrored from rule_catalog.lua in the established Gen 1/2 mod.
     -- A catalog row is not evidence of Gen 3 runtime support.
@@ -121,12 +122,13 @@ return function(mod, api)
             local didCatch = type(entry) == "table" and entry.caught
             local spent = Core.areaSpent(entry)
             local id = key
+            local place = Display.areaName(id)
             rows[#rows + 1] = row((didCatch and "C " or
-                (spent and "- " or "* ")) .. key, nil,
+                (spent and "- " or "* ")) .. place, nil,
                 function() info("AREA DETAIL", {
-                    "MAP: " .. id,
+                    "LOCATION: " .. place,
                     didCatch and "CAUGHT: YES" or "CAUGHT: NO",
-                    spent and "ATTEMPT USED" or "SLOT STILL OPEN",
+                    spent and "ENCOUNTER USED" or "CATCH STILL OPEN",
                     "ATTEMPTS: " .. tostring(entry.attempts or 1),
                 }) end)
         end
@@ -139,16 +141,33 @@ return function(mod, api)
     local function showGraveyard()
         local s = state()
         local rows = {}
-        for i, entry in ipairs(s.graveyard) do
+        for _, entry in ipairs(s.graveyard) do
             local member = entry
-            local name = tostring(entry.nickname or entry.species or "UNKNOWN")
-            rows[#rows + 1] = row(name, nil, function()
-                info("IN MEMORY", {
-                    "SPECIES: " .. tostring(member.species or "?"),
-                    "LEVEL: " .. tostring(member.level or "?"),
-                    "MAP: " .. tostring(member.area or "?"),
-                    "DEATH RECORDED",
-                })
+            local species = Display.speciesName(member)
+            local name = Display.pokemonName(member)
+            local location = Display.areaName(member.area)
+            if location == "Unknown location"
+                and type(member.areaName) == "string"
+                and member.areaName ~= "" then
+                location = member.areaName
+            end
+            local level = tonumber(member.level)
+            local summary = name
+            if level then summary = summary .. " Lv" .. tostring(level) end
+            rows[#rows + 1] = row(summary, nil, function()
+                local details = {
+                    "NAME: " .. name,
+                    "SPECIES: " .. species,
+                    "LEVEL: " .. (level and tostring(level) or "Unknown"),
+                    "LOST AT: " .. location,
+                }
+                if name ~= species then
+                    -- Useful if a player renamed their Pidgey to "Scout".
+                    details[#details + 1] = "NICKNAME: " .. name
+                end
+                details[#details + 1] =
+                    "CAUSE: " .. tostring(member.cause or "Fainted")
+                info("IN MEMORY", details)
             end)
         end
         if #rows == 0 then rows[1] = row("NO FALLEN POKEMON") end
