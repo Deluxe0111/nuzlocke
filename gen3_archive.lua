@@ -24,8 +24,10 @@ return function()
                 budget = budget - 1
                 if budget < 0 then complete = false; break end
                 local kt = type(key)
-                if (kt == "string" or kt == "number")
-                    and not (depth == 0 and FORBIDDEN[key]) then
+                if depth == 0 and FORBIDDEN[key] then
+                    -- These are intentionally omitted; the archive remains
+                    -- complete when no actual Pokémon data was discarded.
+                elseif kt == "string" or kt == "number" then
                     local valueCopy = copy(entry, depth + 1)
                     if valueCopy ~= nil then result[key] = valueCopy end
                 else
