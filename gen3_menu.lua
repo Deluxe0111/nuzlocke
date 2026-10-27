@@ -7,6 +7,7 @@ return function(mod, api)
     local pages = {}
     local engineGame
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
+    local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
 
     -- Mirrored from rule_catalog.lua in the established Gen 1/2 mod.
     -- A catalog row is not evidence of Gen 3 runtime support.
@@ -57,8 +58,21 @@ return function(mod, api)
         return { title = tostring(title), rows = rows or {}, index = 1, scroll = 0 }
     end
 
-    local function present(title, rows)
-        pages[#pages + 1] = page(title, rows)
+    local function present(title, rows, refresh)
+        local p = page(title, rows)
+        p.refresh = refresh
+        pages[#pages + 1] = p
+    end
+
+    local function popPage()
+        if #pages <= 1 then return end
+        pages[#pages] = nil
+        local p = pages[#pages]
+        if p and p.refresh then
+            p.rows = p.refresh()
+            p.index = math.max(1, math.min(p.index, #p.rows))
+            p.scroll = math.min(p.scroll, math.max(0, #p.rows - VISIBLE))
+        end
     end
 
     local function info(title, lines)
@@ -226,15 +240,153 @@ return function(mod, api)
         present("NUZ RULES", rows)
     end
 
-    local function showDevTools()
-        local s = state()
-        info("DEV TOOLS", {
-            "[WIP] LIVE COUNTERS",
-            "AREAS: " .. count(s.areas),
-            "DEATHS: " .. #s.graveyard,
-            "MODE: " .. (s.enabled and "ON" or "OFF"),
-            "SOURCE: GEN3",
+    -- Nuz Dev is intentionally independent from gameplay rules. It edits
+    -- *Nuzlocke records only*, not party/PC Pokémon, and leaves an audit trail.
+    local function confirmDev(label, description, apply)
+        present("CONFIRM EDIT", {
+            row("YES: " .. label, nil, function()
+                local ok, reason = apply()
+                popPage()
+                if not ok then
+                    info("EDIT BLOCKED", {
+                        tostring(reason or "UNKNOWN ERROR"),
+                        "NO DATA CHANGED",
+                    })
+                end
+            end),
+            row("CANCEL", nil, popPage),
+            row(description or "TEST SAVE ONLY"),
+            row("SAVE FLAGGED AS DEV"),
         })
+    end
+
+    local function showDevInspector()
+        local d = Dev.inspect()
+        info("NUZ DEV STATUS", {
+            "AREA: " .. tostring(d.map or "UNKNOWN"),
+            "PARTY: " .. tostring(d.party),
+            "USED: " .. tostring(d.areasSpent),
+            "OPEN: " .. tostring(d.areasOpen),
+            "CAUGHT: " .. tostring(d.areasCaught),
+            "DEATHS: " .. tostring(d.deaths),
+            "RUN: " .. (d.failed and "LOST" or "ACTIVE"),
+            "MOD: " .. (d.enabled and "ON" or "OFF"),
+            "EDITS: " .. tostring(d.edits),
+            d.tainted and "DEV RUN: YES" or "DEV RUN: NO",
+        })
+    end
+
+    local function showDevRules()
+        local items = {}
+        local currentState = state()
+        for _, descriptor in ipairs(Core.descriptors()) do
+            local desc = descriptor
+            items[#items + 1] = row(desc.label, desc.status == "soon" and "soon" or nil,
+                function()
+                    info("RULE DETAIL", {
+                        desc.key,
+                        "VALUE: " .. (Core.get(currentState, desc.key) and "ON" or "OFF"),
+                        "STATE: " .. desc.status:upper(),
+                    })
+                end)
+        end
+        present("RULE INSPECT", items)
+    end
+
+    local function areaRows(key)
+        local entry = state().areas[key]
+        local status = entry == nil and "UNRECORDED"
+            or (entry.caught and "CAUGHT")
+            or (Core.areaSpent(entry) and "SPENT" or "OPEN")
+        return {
+            row("MAP: " .. key),
+            row("STATE: " .. status),
+            row("MARK OPEN", nil, function()
+                confirmDev("OPEN", "RE-ARM CATCH", function()
+                    return Dev.setArea(key, "open")
+                end)
+            end),
+            row("MARK SPENT", nil, function()
+                confirmDev("SPENT", "BLOCK CATCH", function()
+                    return Dev.setArea(key, "spent")
+                end)
+            end),
+            row("MARK CAUGHT", nil, function()
+                confirmDev("CAUGHT", "FAKE CLAIM", function()
+                    return Dev.setArea(key, "caught")
+                end)
+            end),
+            row("CLEAR ENTRY", nil, function()
+                confirmDev("CLEAR", "REMOVE RECORD", function()
+                    return Dev.setArea(key, "clear")
+                end)
+            end),
+        }
+    end
+
+    local function openAreaEditor(key)
+        if not key then
+            return info("NO CURRENT MAP", {
+                "ENTER AN OVERWORLD MAP",
+                "AND REOPEN NUZ DEV",
+            })
+        end
+        present("EDIT AREA", areaRows(key), function() return areaRows(key) end)
+    end
+
+    local function listAreaRows()
+        local out = {}
+        for _, entry in ipairs(Dev.areas()) do
+            local key = entry.key
+            local marker = entry.caught and "C" or (entry.spent and "X" or "O")
+            out[#out + 1] = row(marker .. " " .. key, nil, function()
+                openAreaEditor(key)
+            end)
+        end
+        if #out == 0 then out[1] = row("NO RECORDED AREAS") end
+        return out
+    end
+
+    local function showDevAreas()
+        present("EDIT ALL AREAS", listAreaRows(), listAreaRows)
+    end
+
+    local function devRows()
+        local d = Dev.status()
+        if not d.enabled then
+            return {
+                row("ENABLE DEV MODE", nil, function()
+                    confirmDev("ENABLE", "TEST MODE ONLY", Dev.enable)
+                end),
+                row("MODIFIES NUZ RECORDS"),
+                row("NOT THE POKEMON PARTY"),
+                row(d.tainted and "SAVE ALREADY FLAGGED" or "SAVE WILL BE FLAGGED"),
+            }
+        end
+        return {
+            row("CURRENT AREA", nil, function()
+                openAreaEditor(Dev.currentArea())
+            end),
+            row("EDIT ALL AREAS", nil, showDevAreas),
+            row("CLEAR ALL AREAS", nil, function()
+                confirmDev("CLEAR ALL", "ALL CATCH RECORDS", Dev.clearAllAreas)
+            end),
+            row("STATE INSPECTOR", nil, showDevInspector),
+            row("RULE INSPECTOR", nil, showDevRules),
+            row("CLEAR GRAVEYARD", nil, function()
+                confirmDev("CLEAR DEAD", "NO POKEMON RESTORED", Dev.clearGraveyard)
+            end),
+            row("CLEAR RUN FAILURE", nil, function()
+                confirmDev("CLEAR LOSS", "NEEDS LIVING PARTY", Dev.clearFailed)
+            end),
+            row("DISABLE DEV MODE", nil, function()
+                confirmDev("DISABLE", "SAVE STAYS FLAGGED", Dev.disable)
+            end),
+        }
+    end
+
+    local function showDevTools()
+        present("NUZ DEV", devRows(), devRows)
     end
 
     local function home()
@@ -249,7 +401,7 @@ return function(mod, api)
             row("MOD COMPAT", "soon", function()
                 disabledFeature("MOD COMPAT", "compat")
             end),
-            row("DEV TOOLS", "wip", showDevTools),
+            row("NUZ DEV", "wip", showDevTools),
             row("END RUN", "soon", function()
                 disabledFeature("END RUN", "end_run")
             end),
@@ -278,7 +430,7 @@ return function(mod, api)
 
     local function back()
         if #pages > 1 then
-            pages[#pages] = nil
+            popPage()
         else
             pages = {}
             engineGame = nil
