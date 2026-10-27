@@ -29,7 +29,7 @@ return function()
         if type(flags) ~= "table" then return nil end
         local badges = {}
         for i, flag in ipairs(FLAGS) do
-            badges[i] = flags[flag] == true or flags[tostring(flag)] == true
+            badges[i] = not not (flags[flag] or flags[tostring(flag)])
         end
         return badges
     end
@@ -38,11 +38,13 @@ return function()
     -- Previously acquired badges never pay retroactively.
     function M.initialise(s, mode, badges)
         local f = state(s)
-        if f.initialised then return false end
-        f.initialised = true
-        if mode == 2 then f.tokens = f.tokens + 1 end
-        if type(badges) == "table" then
+        if not f.initialised then
+            f.initialised = true
+            if mode == 2 then f.tokens = f.tokens + 1 end
+        end
+        if type(badges) == "table" and not f.baselined then
             for i = 1, 8 do if badges[i] then f.badges[i] = true end end
+            f.baselined = true
         end
         return true
     end
@@ -56,6 +58,10 @@ return function()
             return 0
         end
         if type(badges) ~= "table" then return 0 end
+        if not f.baselined then
+            M.initialise(s, mode, badges)
+            return 0
+        end
         local earned = 0
         for i = 1, 8 do
             if badges[i] and not f.badges[i] then
