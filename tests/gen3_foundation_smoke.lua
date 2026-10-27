@@ -1,5 +1,24 @@
 -- Mocked Gen 3 event/API smoke: no ROM or Gen1Recomp installation required.
 local events, hooks, values = {}, {}, {}
+-- ROM-backed native name resolver stubs: assert UI does not print numeric IDs.
+package.loaded["src.core.game3.pokemon"] = {
+    speciesOf = function(mon) return tonumber(mon.species or mon.speciesId) end,
+    name = function(species)
+        local names = { [16] = "Pidgey", [25] = "Pikachu" }
+        return assert(names[tonumber(species)], "unknown mocked species")
+    end,
+}
+package.loaded["src.import.gba.map_sections_extract"] = {
+    getInfo = function(_, mapId)
+        local n = type(mapId) == "string" and
+            mapId:match("^FR_ROUTE_(%d+)$") or nil
+        if n then
+            return { resolved = true, rawName = "ROUTE " .. n,
+                name = "ROUTE " .. n }
+        end
+        return { resolved = false, rawName = "PALLET TOWN" }
+    end,
+}
 local uiStack = { top = nil }
 package.loaded["src.ui.game3.stack"] = {
     push = function(id, module) uiStack.top = { id = id, module = module } end,
@@ -184,7 +203,34 @@ game.session.party[1].hp = 13 -- simulate a mid-battle revive / heal bypass
 fire("battle.ended")
 assert(#game.session.party == 0, "fainted mon removed despite later HP gain")
 assert(#values.gen3_classic_v1.graveyard == 1, "death not duplicated at cleanup")
+assert(values.gen3_classic_v1.graveyard[1].speciesName == "Pikachu",
+    "new memorial records keep the native species name")
+assert(values.gen3_classic_v1.graveyard[1].areaName == "Route 3",
+    "new memorial records keep readable native location")
 assert(mod.exports.gen3_classic.state().failed, "empty party loses run")
+
+-- Migration/display test: pre-existing saves store only species=16 and
+-- area=FR_ROUTE_1, yet should render Pidgey at Route 1.
+local historic = { species = 16, level = 3, area = "FR_ROUTE_1" }
+table.insert(values.gen3_classic_v1.graveyard, historic)
+openMenu()
+for _ = 1, 3 do press("down") end -- GRAVEYARD
+press("a")
+assert(mod.exports.gen3_menu.model().title == "GRAVEYARD")
+assert(mod.exports.gen3_menu.model().rows[1] == "Starter Lv5")
+assert(mod.exports.gen3_menu.model().rows[2] == "Pidgey Lv3")
+press("down")
+press("a")
+local memorial = mod.exports.gen3_menu.model()
+assert(memorial.title == "IN MEMORY")
+assert(memorial.rows[1] == "NAME: Pidgey")
+assert(memorial.rows[2] == "SPECIES: Pidgey")
+assert(memorial.rows[4] == "LOST AT: Route 1")
+press("b")
+press("b")
+press("b")
+table.remove(values.gen3_classic_v1.graveyard) -- restore original one-death record
+
 toggle("NUZLOCKE: ON", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().failed, "failure cannot be cleared")
 assert(core.setRule("nuzlocke_enabled", false) == false,
