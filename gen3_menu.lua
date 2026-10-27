@@ -240,6 +240,63 @@ return function(mod, api)
         return rows
     end
 
+    local function eggHistory()
+        local rows, history = {}, state().eggHistory or {}
+        for i = #history, math.max(1, #history - 19), -1 do
+            local item = history[i]
+            local species = Display.speciesName({ species = item.species })
+            rows[#rows + 1] = row(species .. " " .. tostring(item.status), nil,
+                function() info("EGG DETAIL", {
+                    "POKEMON: " .. species,
+                    "HATCH: " .. Display.areaName(item.location),
+                    "STATUS: " .. tostring(item.status),
+                }) end)
+        end
+        if #rows == 0 then rows[1] = row("NO EGGS TRACKED") end
+        present("EGG HISTORY", rows)
+    end
+
+    local function forgivenessRows()
+        local saved = state()
+        local rows = { row("TOKENS: " .. Forgiveness.balance(saved)) }
+        if Clauses.get(saved, "route_forgiveness") == 0 then
+            rows[#rows + 1] = row("CLAUSE OFF")
+            return rows
+        end
+        local ids = {}
+        for id in pairs(saved.areas or {}) do
+            if Forgiveness.canReopen(saved, id) then ids[#ids + 1] = id end
+        end
+        table.sort(ids)
+        for _, id in ipairs(ids) do
+            local target = id
+            rows[#rows + 1] = row(Display.areaName(id), nil, function()
+                present("CONFIRM TOKEN", {
+                    row("YES: REOPEN", nil, function()
+                        local latest = state()
+                        if Forgiveness.reopen(latest, target) then
+                            api.setState(latest)
+                        end
+                        popPage()
+                    end),
+                    row("CANCEL", nil, popPage),
+                    row("COST: 1 TOKEN"),
+                })
+            end)
+        end
+        if #ids == 0 then rows[#rows + 1] = row("NO FAILED ROUTES") end
+        rows[#rows + 1] = row("REVIVE POKEMON", "soon",
+            function() info("RECOVERY PENDING", {
+                "ARCHIVE SUPPORTED", "PC RECOVERY NOT READY",
+                "NO TOKEN SPENT",
+            }) end)
+        return rows
+    end
+
+    local function openForgiveness()
+        present("FORGIVENESS", forgivenessRows(), forgivenessRows)
+    end
+
     local function clausesRows()
         local rows = {}
         for _, descriptor in ipairs(Clauses.descriptors()) do
