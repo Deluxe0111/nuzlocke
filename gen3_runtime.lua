@@ -24,13 +24,14 @@ return function(mod)
     local Display = readModule("gen3_display.lua")()
     local Extra = readModule("gen3_extra_core.lua")()
     local Levels = readModule("gen3_levels.lua")()
+    local Notices = readModule("gen3_notices.lua")()
     local currentArea
     local activeBattle
     local pendingRoamer
     local battleInProgress = false
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
     local mercyBattle
-
+    local expReports = setmetatable({}, { __mode = "k" })
     local function loadState()
         local s = Core.normalise(mod.save:get(KEY, {}))
         return Clauses.normalise(s)
@@ -96,6 +97,42 @@ return function(mod)
         return Levels.cap(saved or loadState(), session(),
             Forgiveness.badges(session()))
     end
+    local function notify(code, message, inBattle)
+        local saved = loadState()
+        if Notices.add(saved, code, message) then writeState(saved) end
+        if inBattle then Notices.battle(message) end
+    end
+    local function isCandyCapped(native, mon)
+        local saved = loadState()
+        if not Core.active(saved) or type(mon) ~= "table" then return false end
+        local cap = levelCap(saved)
+        return cap ~= nil and (tonumber(mon.level) or 1) >= cap, cap
+    end
+    local function candyMessage(cap)
+        return "Nuzlocke: Level cap Lv " .. tostring(cap)
+            .. " reached. RARE CANDY cannot be used."
+    end
+
+    -- The authoritative overworld path is ItemUse.useField -> item.use.
+    -- Guard before native consumption. A direct useRareCandy wrapper alone
+    -- cannot intercept all Gen 3 bag / RSE item paths.
+    mod.hooks:wrap("item.use", function(next, game, unused, itemId,
+            partySlot, bag)
+        local native = session()
+        local ok, ItemUse = pcall(require, "src.core.game3.item_use")
+        if ok and type(ItemUse) == "table"
+            and type(ItemUse.fieldUseKind) == "function"
+            and ItemUse.fieldUseKind(itemId, native) == "level" then
+            local mon = native and native.party and native.party[partySlot]
+            local denied, cap = isCandyCapped(native, mon)
+            if denied then
+                local message = candyMessage(cap)
+                notify("LEVEL_CAP_ITEM", message, false)
+                return false, "noeffect", message
+            end
+        end
+        return next(game, unused, itemId, partySlot, bag)
+    end)
     local function installCandyGuard()
         local ok, ItemUse = pcall(require, "src.core.game3.item_use")
         if not ok or type(ItemUse) ~= "table"
@@ -103,13 +140,11 @@ return function(mod)
         if ItemUse.__nuzGen3CandyOwner == mod then return true end
         local original = ItemUse.useRareCandy
         ItemUse.useRareCandy = function(native, mon, ...)
-            local saved = loadState()
-            if Core.active(saved) then
-                local cap = levelCap(saved)
-                if cap and type(mon) == "table"
-                    and (tonumber(mon.level) or 1) >= cap then
-                    return false, "no_effect", "The level cap blocks that RARE CANDY."
-                end
+            local denied, cap = isCandyCapped(native, mon)
+            if denied then
+                local message = candyMessage(cap)
+                notify("LEVEL_CAP_ITEM", message, false)
+                return false, "no_effect", message
             end
             return original(native, mon, ...)
         end
@@ -197,6 +232,13 @@ return function(mod)
             end
         end
         if modified or s.failed then writeState(s) end
+        if s.failed then
+            notify("RUN_FAILED", "Nuzlocke run ended. See NUZ STATUS.", false)
+        elseif modified and #party > 0 and
+            Core.enforced(s, "pc_survivors_allowed") then
+            notify("PC_SURVIVOR",
+                "Party empty: a living PC survivor joined your team.", false)
+        end
     end
 
     local function recordBattleFaint(ev)
@@ -229,6 +271,8 @@ return function(mod)
         entry.archiveComplete = complete
         s.graveyard[#s.graveyard + 1] = entry
         writeState(s)
+        notify("PERMADEATH", Notices.name(mon, Display)
+            .. " fainted. Permadeath: added to the Graveyard.", true)
     end
 
     -- The native battle-item UI and the actual item transaction are distinct.
@@ -311,6 +355,8 @@ return function(mod)
             for k, v in pairs(opts) do wrapped[k] = v end
             local function validated(nick)
                 if not Extra.customName(nick, speciesName) then
+                    notify("NICKNAME_REQUIRED",
+                        "Nickname Rule: enter a name different from the species.", false)
                     return open(wrapped)
                 end
                 return opts.onDone(nick)
@@ -353,6 +399,13 @@ return function(mod)
             Extra.auditNicknames(saved, session(), Display)
         end
         writeState(saved)
+        if mode ~= 0 then
+            local name = type(ev) == "table"
+                and type(ev.mon) == "table"
+                and Notices.name(ev.mon, Display) or "The hatched Pokemon"
+            notify("EGG_ENCOUNTER", name .. " hatched. Egg Encounter: "
+                .. tostring(reason or (valid and "accepted" or "not eligible")) .. ".", false)
+        end
     end)
 
     -- Fires before the native Gen 3 wild battle is started. Useful even if
@@ -400,6 +453,8 @@ return function(mod)
             starting.firstRivalMercyConsumed = true
             mercyBattle = ev.battle
             writeState(starting)
+            notify("RIVAL_MERCY",
+                "First Rival Mercy: fainting here will not count as a death.", true)
         end
         local announcedRoamer = pendingRoamer
         pendingRoamer = nil -- the next battle is the only possible match
@@ -482,8 +537,16 @@ return function(mod)
             or type(Experience.expForLevel) ~= "function" then
             return awarded
         end
+        local cap = levelCap(saved)
+        local beforeBank = Levels.banked(saved, ctx.mon)
         local applied = Levels.adjust(saved, ctx.mon, awarded,
-            levelCap(saved), Experience.expForLevel)
+            cap, Experience.expForLevel)
+        expReports[ctx.mon] = {
+            awarded = tonumber(awarded) or 0, applied = applied,
+            bankBefore = beforeBank,
+            edging = Levels.get(saved, "exp_edging") == true,
+            cap = cap,
+        }
         writeState(saved)
         return applied
     end)
@@ -505,12 +568,47 @@ return function(mod)
             and (Clauses.isShiny(mon) or battle.shiny)
         if blockedByRoamer
             or ((blockedByArea or blockedByDupe) and not exception) then
+            battle.pendingCatchReason = Notices.catchReason({
+                roamer = blockedByRoamer, roamerOpen = battle.roamerOpen,
+                duplicate = blockedByDupe, areaEligible = not blockedByArea,
+            })
+            if blockedByArea and not blockedByDupe and not blockedByRoamer then
+                battle.pendingCatchReason = "One Per Area: " ..
+                    Display.areaName(battle.area) .. " encounter already used."
+            end
             return false, 0
         end
         local caught, shakes = next(ball, mon, species, ctx)
         -- A failed Ball never consumes a Shiny Clause allowance.
         if caught and exception then battle.exception = true end
         return caught, shakes
+    end)
+
+    -- The ball roll runs before native throw/breakout presentation. Tell the
+    -- player the rule reason after the ball-thrown event, not on each RNG call.
+    mod.events:on("battle.ball_thrown", function(ev)
+        local battle = activeBattle
+        if not battle or type(ev) ~= "table"
+            or ev.battle ~= battle.battle then return end
+        local reason = battle.pendingCatchReason
+        battle.pendingCatchReason = nil
+        if reason then notify("CATCH_DENIED", reason, true) end
+    end)
+
+    mod.events:on("battle.exp_gained", function(ev)
+        if type(ev) ~= "table" or type(ev.mon) ~= "table" then return end
+        local report = expReports[ev.mon]
+        expReports[ev.mon] = nil
+        if report and report.cap then
+            local msg = Notices.expText(
+                Notices.name(ev.mon, Display), report, report.cap)
+            if msg then notify("EXP_CAP", msg, true) end
+        elseif report and report.bankBefore > 0
+            and report.applied > report.awarded then
+            local msg = Notices.expText(
+                Notices.name(ev.mon, Display), report, "NONE")
+            if msg then notify("EXP_RELEASE", msg, true) end
+        end
     end)
 
     mod.events:on("pokemon.caught", function(ev)
@@ -542,6 +640,13 @@ return function(mod)
             end
         end
         writeState(s)
+        if activeBattle.exception then
+            notify("SHINY_EXCEPTION",
+                "Shiny Clause: an extra catch was allowed.", true)
+        elseif activeBattle.roamer then
+            notify("ROAMER_CAUGHT",
+                "Roamer Clause: this Pokemon's roaming slot is used.", true)
+        end
     end)
 
     -- The engine emits this while the faint is being announced, before the
@@ -555,7 +660,17 @@ return function(mod)
             type(ev) == "table" and ev.battle or nil)
         if type(ev) == "table" and ev.result == "win" then
             local saved = loadState()
-            if Levels.noteWin(saved, session(), ev.battle) then writeState(saved) end
+            local oldCap = levelCap(saved)
+            if Levels.noteWin(saved, session(), ev.battle) then
+                writeState(saved)
+                local nextCap = levelCap(saved)
+                if nextCap ~= oldCap then
+                    notify("LEVEL_CAP_ADVANCED",
+                        nextCap and ("Next Nuzlocke level cap: Lv "
+                        .. nextCap .. ".") or
+                        "League cleared: level cap lifted.", false)
+                end
+            end
         end
         activeBattle = nil
         battleInProgress = false
@@ -573,7 +688,9 @@ return function(mod)
         inBattle = function() return battleInProgress end,
         areaSpent = Core.areaSpent,
     })
-    local Gen3Menu = readModule("gen3_menu.lua")(mod, {
+    local Gen3Menu = readModule("gen3_menu.lua")(mod, { 
+        notices = function() return Notices.history(loadState()) end,
+        notify = notify,
         getState = loadState, setState = writeState,
         core = Core, clauses = Clauses, shinyRate = ShinyRate,
         eggs = Eggs, forgiveness = Forgiveness,
@@ -625,6 +742,10 @@ return function(mod)
     end)
 
     mod.exports.gen3_menu = Gen3Menu
+    mod.exports.gen3_notices = {
+        api = Notices.api,
+        history = function() return Notices.history(loadState()) end,
+    }
     mod.exports.gen3_levels = {
         api = Levels.api, schema = Levels.schema,
         scopes = Levels.scopes,
