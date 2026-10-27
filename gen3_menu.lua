@@ -416,6 +416,17 @@ return function(mod, api)
         present("EDIT RNG SEED", editorRows(), editorRows)
     end
 
+    local function randomError(reason)
+        if reason == "locked_after_first_randomised_result" then
+            return info("RNG LOCKED", {
+                "RANDOMISER ALREADY USED",
+                "KEEP THIS RUN SEED",
+                "NEW SAVE TO RECONFIGURE",
+            })
+        end
+        info("RNG ERROR", { tostring(reason or "Unknown error") })
+    end
+
     local function randomRows()
         local config = Randomizer
         local rows = {}
@@ -425,7 +436,7 @@ return function(mod, api)
                 .. tostring(options[value + 1]), nil, function()
                 local ok, reason = config.set(key, (value + 1) % #options)
                 if ok then current().rows = randomRows()
-                else info("RNG LOCKED", { tostring(reason) }) end
+                else randomError(reason) end
             end)
         end
         local function toggle(key, label)
@@ -434,7 +445,7 @@ return function(mod, api)
                 .. (on and "ON" or "OFF"), nil, function()
                 local ok, reason = config.set(key, not on)
                 if ok then current().rows = randomRows()
-                else info("RNG LOCKED", { tostring(reason) }) end
+                else randomError(reason) end
             end)
         end
         cycle("randomizer_preset", "PRESET", {
