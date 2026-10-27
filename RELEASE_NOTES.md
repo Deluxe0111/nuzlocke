@@ -1,3 +1,17 @@
+# Nuzlocke v3.0.0-BETA — Generation 3 beta
+
+This beta brings the Nuzlocke rule system to Generation 3 (FireRed, LeafGreen, Ruby, Sapphire and Emerald), while retaining the legacy Gen 1/2 runtime.
+
+**Included:** eight CORE rules, Gen 3 encounter clauses, level caps and EXP Edging, reproducible wild and trainer randomisation, persistent rule notices, Graveyard, Nickname Tasks and Nuz Dev tools.
+
+**Untamed Advanced integration:** When both compatible mods are installed, Random Wild changes the visibly wandering Pokémon as well as normal wild/fishing encounters. The roaming sprite, battle and capture agree. Encounter-chain popups display the Pokémon actually defeated; the original encounter slot is used internally only for the bonus spawn source.
+
+**Versioning:** GitHub release tag `v3.0.0-BETA`; installed manifest version `3.0.0-BETA`. This remains an explicitly beta build, not a fully ROM-certified stable Gen 3 release. The Gen 1/2 save schema and Mod API 2 are not bumped.
+
+See [README](README.md), [Gen 3 overview](docs/GEN3_PORT.md), [Gen 3 Randomiser](docs/GEN3_RANDOMIZER.md) and the [test checklist](docs/GEN3_TEST_CHECKLIST.md).
+
+---
+
 # Nuzlocke 2.9.72 — Randomizer tracing and shiny isolation
 
 2.9.72 is a focused runtime-repair/diagnostic build from exact sealed 2.9.71. It addresses the confirmed Gen-II numeric item-reference mismatch, removes legal Random Shop no-op selections, exposes the existing Random Trainer pipeline end-to-end, and prevents Nuzlocke shiny recoloring from mutating shared engine ImageData.
