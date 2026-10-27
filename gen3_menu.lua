@@ -364,7 +364,17 @@ return function(mod, api)
             }
         end
         return {
-            row("CURRENT AREA", nil, function()
+            row("RE-ARM CURRENT", nil, function()
+                local key = Dev.currentArea()
+                if not key then
+                    info("NO CURRENT MAP", { "ENTER AN OVERWORLD MAP" })
+                    return
+                end
+                confirmDev("RE-ARM", "SLOT OPEN AGAIN", function()
+                    return Dev.setArea(key, "open")
+                end)
+            end),
+            row("EDIT CURRENT AREA", nil, function()
                 openAreaEditor(Dev.currentArea())
             end),
             row("EDIT ALL AREAS", nil, showDevAreas),
@@ -373,6 +383,17 @@ return function(mod, api)
             end),
             row("STATE INSPECTOR", nil, showDevInspector),
             row("RULE INSPECTOR", nil, showDevRules),
+            row("PRINT DEBUG REPORT", nil, function()
+                local ok, err = Dev.printReport()
+                if ok then
+                    info("REPORT PRINTED", {
+                        "SEE GAME CONSOLE",
+                        "SEARCH FOR [NUZ DEV]",
+                    })
+                else
+                    info("REPORT BLOCKED", { tostring(err) })
+                end
+            end),
             row("CLEAR GRAVEYARD", nil, function()
                 confirmDev("CLEAR DEAD", "NO POKEMON RESTORED", Dev.clearGraveyard)
             end),
