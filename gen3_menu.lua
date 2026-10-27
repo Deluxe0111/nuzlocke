@@ -189,10 +189,9 @@ return function(mod, api)
                             -- without pushing a second screen.
                             current().rows = coreRows()
                         elseif reason == "run_failed" then
-                            info("RUN FINISHED", {
-                                "RULES ARE LOCKED",
-                                "THE RUN IS LOST",
-                            })
+                            -- Stay on the same page; the visible value cannot
+                            -- be changed on a failed run.
+                            return
                         else
                             disabledFeature(label, key)
                         end
