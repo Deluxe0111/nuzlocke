@@ -135,19 +135,26 @@ return function(mod)
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
         local rows = next(g, items)
         if type(rows) ~= "table" or not (g and g.session) then return rows end
-        local state = loadState()
-        local label = state.failed and "NUZ: RUN LOST"
-            or (state.enabled and "NUZLOCKE: ON" or "NUZLOCKE: OFF")
-        rows[#rows + 1] = {
+        local function labelFor(state)
+            -- The native GBA menu has a narrow label column.
+            return state.failed and "NUZ: LOST"
+                or (state.enabled and "NUZ: ON" or "NUZ: OFF")
+        end
+        local row = {
             id = "nuzlocke_gen3_classic",
-            label = label,
-            onSelect = function()
-                local s = loadState()
-                if s.failed then return end -- failure cannot be undone in-run
+            label = labelFor(loadState()),
+        }
+        row.onSelect = function()
+            local s = loadState()
+            if not s.failed then
                 s.enabled = not s.enabled
                 writeState(s)
-            end,
-        }
+            end
+            -- StartMenu draws the same entry table until it closes; update
+            -- the live label so a player gets instant ON/OFF feedback.
+            row.label = labelFor(s)
+        end
+        rows[#rows + 1] = row
         return rows
     end)
 
