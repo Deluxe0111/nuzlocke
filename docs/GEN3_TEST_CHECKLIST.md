@@ -97,6 +97,17 @@ persistence, NUZ DEV resets and other editions.
   confirmation and resets the shiny allowance count and captured-species log
   without altering party, boxes or graveyard.
 
+## Roamer Clause (currently [WIP])
+
+Requires an active roaming legendary, so use a disposable late-game save.
+The Gen 3 engine emits `roamer.encountered` when supported, but the result
+still needs confirmation in real FireRed / Hoenn gameplay. The full set of
+six roamer-specific tests is [R01–R06](GEN3_CLAUSES_NEXT.md).
+
+- [ ] **R01 — Flee without spending route.** ROAMER SLOT + Failed Encounters ON. Flee a native roaming encounter; the normal route remains open.
+- [ ] **R02 — Catch later.** Encounter the same roamer on a second route and catch it. The roamer's species slot closes but the second route's grass slot remains available.
+- [ ] **R03 — Stable results.** Save and load; the roamer claim remains closed. NUZ DEV clause reset clears the debug claim only, not the actual Pokémon.
+
 ## E. Compatibility & known pending features
 
 - [ ] **C01 — Gen 1 regression.** If you have an original Red/Blue/Yellow setup, open the original Nuzlocke UI. **Expected:** Established Gen 1 menu and rules unchanged.
