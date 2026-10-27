@@ -58,9 +58,16 @@ return function()
         end
         return #result > 0 and result or nil
     end
-    local function safeSpecies(Pokemon, id)
-        if type(Pokemon) ~= "table" then return false end
-        if type(Pokemon.keyName) ~= "function" then return false end
+    local function safeSpecies(Pokemon, ref)
+        if type(Pokemon) ~= "table"
+            or type(Pokemon.keyName) ~= "function" then return false end
+        local id = tonumber(ref)
+        if not id and type(ref) == "string"
+            and type(Pokemon.speciesFromName) == "function" then
+            local converted, resolved = pcall(Pokemon.speciesFromName, ref)
+            if converted then id = tonumber(resolved) end
+        end
+        if not id then return false end
         local ok, name = pcall(Pokemon.keyName, id)
         return ok and type(name) == "string" and name ~= ""
     end
