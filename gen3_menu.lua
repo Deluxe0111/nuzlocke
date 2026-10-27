@@ -394,7 +394,7 @@ return function(mod, api)
             -- policy rows still distinguish unsupported mechanics.
             local active = c.title == "CORE" or c.title == "CLAUSES"
                 or c.title == "LEVELS"
-            rows[#rows + 1] = row(c.title, active and nil or "soon", function()
+            rows[#rows + 1] = row(c.title, active and "working" or "soon", function()
                 present(c.title, categoryRows(c),
                     active and function() return categoryRows(c) end or nil)
             end)
