@@ -15,7 +15,7 @@ return function()
         { key = "shiny_intro", label = "SHINY INTRO", default = true,
           status = "soon", options = {"OFF", "ON"} },
         { key = "gen3_roamer_clause", label = "ROAMER CLAUSE", default = 0,
-          status = "soon", options = {"OFF", "SLOT"} },
+          status = "wip", options = {"OFF", "SLOT"} },
         { key = "gen3_egg_encounter_mode", label = "EGG ENCOUNTER", default = 0,
           status = "soon", options = {"OFF", "RECEIVED", "HATCHED", "GIFT"} },
         { key = "route_forgiveness", label = "ROUTE FORGIVENESS", default = 0,
@@ -37,6 +37,7 @@ return function()
     function M.normalise(s)
         if type(s.clauses) ~= "table" then s.clauses = {} end
         if type(s.capturedSpecies) ~= "table" then s.capturedSpecies = {} end
+        if type(s.roamerClaims) ~= "table" then s.roamerClaims = {} end
         if type(s.shinyExceptionsUsed) ~= "number" then
             s.shinyExceptionsUsed = 0
         end
@@ -232,6 +233,31 @@ return function()
             if success then return result == true end
         end
         return mon.isShiny == true
+    end
+
+    -- Gen 3 roamers (legendary dogs and Lati@s) have persistent individuals
+    -- whose location changes naturally. Do not waste the route's encounter
+    -- on an encounter that moves away: a caught roamer consumes only its
+    -- species-specific slot.
+    function M.roamerActive(s)
+        return M.get(s, "gen3_roamer_clause") == 1
+    end
+
+    function M.roamerAvailable(s, rawSpecies)
+        M.normalise(s)
+        if not M.roamerActive(s) then return false end
+        local id = numericSpecies(rawSpecies)
+        return id ~= nil and s.roamerClaims[tostring(id)] ~= true
+    end
+
+    function M.claimRoamer(s, rawSpecies)
+        M.normalise(s)
+        if not M.roamerActive(s) then return false end
+        local id = numericSpecies(rawSpecies)
+        if not id then return false end
+        if s.roamerClaims[tostring(id)] == true then return false end
+        s.roamerClaims[tostring(id)] = true
+        return true
     end
 
     function M.canUseShinyException(s)
