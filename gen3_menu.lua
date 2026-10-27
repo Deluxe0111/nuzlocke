@@ -6,6 +6,7 @@ return function(mod, api)
     local VISIBLE = 6
     local pages = {}
     local engineGame
+    local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
 
     -- Mirrored from rule_catalog.lua in the established Gen 1/2 mod.
     -- A catalog row is not evidence of Gen 3 runtime support.
@@ -85,8 +86,10 @@ return function(mod, api)
             "MODE: " .. (s.enabled and "ON" or "OFF"),
             "AREAS: " .. count(s.areas),
             "DEATHS: " .. #s.graveyard,
-            "CATCH: PER MAP",
-            "DEATH: IMMEDIATE",
+            "CATCH: " .. (Core.get(s, "encounter_limit")
+                and "PER MAP" or "UNLIMITED"),
+            "DEATH: " .. (Core.get(s, "permadeath")
+                and "IMMEDIATE" or "OFF"),
             "B: RETURN",
         })
     end
@@ -97,17 +100,20 @@ return function(mod, api)
         for key in pairs(s.areas) do ids[#ids + 1] = tostring(key) end
         table.sort(ids)
         local rows = {}
-        rows[#rows + 1] = row("AREA MAP: [WIP]", "wip", nil,
+        rows[#rows + 1] = row("AREA MAP", "wip", nil,
             "Uses native map IDs. Cave floors are not grouped yet.")
         for _, key in ipairs(ids) do
             local entry = s.areas[key]
             local didCatch = type(entry) == "table" and entry.caught
+            local spent = Core.areaSpent(entry)
             local id = key
-            rows[#rows + 1] = row((didCatch and "C " or "- ") .. key, nil,
+            rows[#rows + 1] = row((didCatch and "C " or
+                (spent and "- " or "* ")) .. key, nil,
                 function() info("AREA DETAIL", {
                     "MAP: " .. id,
                     didCatch and "CAUGHT: YES" or "CAUGHT: NO",
-                    "ATTEMPT USED",
+                    spent and "ATTEMPT USED" or "SLOT STILL OPEN",
+                    "ATTEMPTS: " .. tostring(entry.attempts or 1),
                 }) end)
         end
         if #ids == 0 then
@@ -144,44 +150,56 @@ return function(mod, api)
         })
     end
 
+    -- Display and edit from one source of truth, never a duplicated list.
+    -- A [Soon] row is intentionally read-only even if a default is stored.
     local function coreRows()
         local s = state()
-        return {
-            row("NUZLOCKE: " .. (s.enabled and "ON" or "OFF"), nil, function()
-                local v = state()
-                if not v.failed then
-                    v.enabled = not v.enabled
-                    api.setState(v)
-                end
-                local p = current()
-                -- Retain focus after refreshing the live rule label.
-                p.rows = coreRows()
-            end),
-            row("PERMADEATH: ON", nil, function()
-                info("PERMADEATH", { "WORKING IN GEN 3",
-                    "DEATH AT FAINT", "REMOVED AFTER BATTLE",
-                    "REVIVES BLOCKED" })
-            end),
-            row("ONE PER AREA: ON", nil, function()
-                info("ENCOUNTERS", { "WORKING IN GEN 3",
-                    "FIRST WILD BATTLE", "PER NATIVE MAP ID",
-                    "REPEAT CATCH BLOCKED" })
-            end),
-            row("NO REVIVES: ON", nil, function()
-                info("NO REVIVES", { "WORKING IN GEN 3",
-                    "BLOCKS BATTLE REVIVES",
-                    "FIELD USE: [WIP]" })
-            end),
-            row("FIRST RIVAL MERCY", "soon", function()
-                disabledFeature("First Rival Mercy", "first_rival_forgiveness")
-            end),
-            row("FAILED ENCOUNTERS", "soon", function()
-                disabledFeature("Failed Encounters", "failed_encounter")
-            end),
-            row("NICKNAME RULE", "soon", function()
-                disabledFeature("Nickname", "nickname_rule")
-            end),
+        local rows = {}
+        local labels = {
+            nuzlocke_enabled = "NUZLOCKE",
+            permadeath = "PERMADEATH",
+            encounter_limit = "ONE PER AREA",
+            failed_encounter = "FAILED ENC.",
+            nickname_rule = "NICKNAME",
+            first_rival_forgiveness = "RIVAL MERCY",
+            whiteout_ends_run = "WHITEOUT FAILS",
+            pc_survivors_allowed = "PC SURVIVORS",
         }
+        for _, desc in ipairs(Core.descriptors()) do
+            local key = desc.key
+            local label = labels[key] or desc.label
+            local status = desc.status
+            if status == "soon" then
+                rows[#rows + 1] = row(label, "soon", function()
+                    disabledFeature(label, key)
+                end)
+            else
+                local function updateLabel()
+                    return label .. ": " ..
+                        (Core.get(state(), key) and "ON" or "OFF")
+                end
+                rows[#rows + 1] = row(updateLabel(), status == "wip" and "wip" or nil,
+                    function()
+                        local fresh = state()
+                        local ok, reason = Core.set(fresh, key,
+                            not Core.get(fresh, key))
+                        if ok then
+                            api.setState(fresh)
+                            -- Update the displayed label at the same cursor
+                            -- without pushing a second screen.
+                            current().rows = coreRows()
+                        elseif reason == "run_failed" then
+                            info("RUN FINISHED", {
+                                "RULES ARE LOCKED",
+                                "THE RUN IS LOST",
+                            })
+                        else
+                            disabledFeature(label, key)
+                        end
+                    end)
+            end
+        end
+        return rows
     end
 
     local function categoryRows(category)
