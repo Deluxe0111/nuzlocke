@@ -50,8 +50,10 @@ A productive VS Code workspace has the two folders side by side:
 | --- | --- |
 | `manifest.json` | Mod identity, targeted games, API compatibility, permissions and entry path. |
 | `entry.lua` | Dispatch. Gen 1/2 runs legacy `main.lua`; Gen 3 runs `gen3_runtime.lua`. |
-| `gen3_runtime.lua` | Our **current Gen 3 gameplay code**. Subscribes to encounters, catches, faints, battle end; manages save-local state. |
-| `gen3_menu.lua` | Our **current Gen 3 UI**. Presents NUZ MENU and its categories and tags from the original rules list. |
+| `gen3_runtime.lua` | Our **current Gen 3 gameplay adapter**. Subscribes to encounters, catches, faints and battle end; delegates policy to the CORE rule registry. |
+| `gen3_core_rules.lua` | Our **CORE rule contract**. Eight stable rule IDs, defaults, support status, configuration validation and pure catch/whiteout decisions. |
+| `gen3_menu.lua` | Our **current Gen 3 UI**. Presents NUZ MENU, reads CORE rules from the registry and shows all remaining Gen 1/2 rules as planned features. |
+| `docs/GEN3_CORE_SPEC.md` | Approved eight-rule behaviour, whiteout versus PC precedence, and phased implementation plan. |
 | `tests/gen3_foundation_smoke.lua` | Mocked tests for Gen 3 gameplay and menu wiring. |
 | `docs/GEN3_PORT.md` | Gen 3 feature scope, known gaps and manual in-game test plan. |
 | `main.lua` | Large established Gen 1/2 composition root. Loads split modules and wires mature rule hooks/UI. **Do not start by editing this** for Gen 3. |
@@ -92,6 +94,7 @@ Gen1Recomp loads manifest.json
            +-- 1 or 2 -> main.lua (original full mod)
            |
            +-- 3 -> gen3_runtime.lua
+                       |-- gen3_core_rules.lua: CORE policy/defaults/API
                        |-- mod.save: persistent gen3_classic_v1 bucket
                        |-- mod.events:on: game/battle notifications
                        |-- mod.hooks:wrap: catch.rate + start menu
@@ -128,9 +131,10 @@ after battle writeback.
 
 The new Gen 3 `NUZ MENU` mirrors the top-level Gen 1/2 structure:
 
-- **NUZ RULES [WIP]**: live Nuzlocke toggle, enforced permadeath, area catch
-  restriction and no-revive status; the remaining original rule-catalog rows
-  are visible but marked **[Soon]**.
+- **NUZ RULES [WIP]**: eight approved CORE rules. Nuzlocke, Permadeath,
+  One Per Area, Failed Encounters are working switches; Whiteout Ends Run
+  is [WIP]; Nickname, Rival Mercy and PC Survivors stay [Soon].
+  All other original rule-catalog rows remain discoverable, but [Soon].
 - **ENC TRACKER [WIP]**: real claimed-map list and capture indicator; canonical
   combined locations and full tracker UI are pending.
 - **NUZ STATUS**: working current mode, claimed-area/death counts and state.
