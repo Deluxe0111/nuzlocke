@@ -107,6 +107,55 @@ fire("battle.started", { battle = newAreaBattle, kind = "wild" })
 assert(select(1, throw(newAreaBattle)) == true, "new area allowed")
 fire("battle.ended")
 
+-- Failed Encounters OFF: a failed attempt does not claim the route; after a
+-- successful catch, the route becomes committed even with failure mode OFF.
+local core = mod.exports.gen3_core
+assert(core.schema == 1 and #core.definitions() == 8, "eight approved CORE rules")
+assert(core.setRule("failed_encounter", false))
+game.session.map = "FR_ROUTE_3"
+fire("map.entered", { mapId = "FR_ROUTE_3" })
+local try1 = {}
+fire("battle.started", { battle = try1, kind = "wild" })
+assert(select(1, throw(try1)) == true, "first attempt allowed")
+fire("battle.ended")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == false,
+    "failed catch must not consume the area")
+local try2 = {}
+fire("battle.started", { battle = try2, kind = "wild" })
+assert(select(1, throw(try2)) == true, "second attempt allowed when failures OFF")
+fire("pokemon.caught", { battle = try2 })
+fire("battle.ended")
+local try3 = {}
+fire("battle.started", { battle = try3, kind = "wild" })
+assert(select(1, throw(try3)) == false, "successful catch closes area")
+fire("battle.ended")
+assert(core.setRule("encounter_limit", false))
+local noLimit = {}
+fire("battle.started", { battle = noLimit, kind = "wild" })
+assert(select(1, throw(noLimit)) == true, "one-per-area OFF disables catch block")
+fire("battle.ended")
+assert(core.setRule("encounter_limit", true))
+assert(core.setRule("failed_encounter", true))
+assert(core.setRule("nickname_rule", false) == false,
+    "unimplemented CORE rule must be read-only")
+assert(core.setRule("pc_survivors_allowed", true) == false,
+    "unsafe PC recovery must not be advertised as working")
+
+-- Permadeath OFF must restore normal revives and allow ordinary fainting.
+assert(core.setRule("permadeath", false))
+local safeMon = { species = 25, personality = 7421, hp = 0, level = 5 }
+local safeBattle = { playerParty = { safeMon } }
+fire("battle.started", { battle = safeBattle, kind = "trainer" })
+fire("battle.fainted", { battle = safeBattle, sideName = "player",
+    battler = { side = "player", partyIndex = 1, mon = safeMon } })
+assert(#values.gen3_classic_v1.graveyard == 0 and not safeMon.nuzlockeDead,
+    "permadeath OFF does not mark death")
+fire("battle.ended")
+assert(#game.session.party == 1, "permadeath OFF preserves party")
+assert(fakeBattleItems.canUseOn({}, "REVIVE", 1, safeMon),
+    "revive item becomes usable with permadeath OFF")
+assert(core.setRule("permadeath", true))
+
 assert(fakeBattleItems.canUseOn({}, "REVIVE", 1, game.session.party[1]) == false,
     "revival should be denied by target-selection UI")
 local dummyAdapter = { say = function(_, text) assert(text:find("No revives")) end }
@@ -138,4 +187,32 @@ assert(#values.gen3_classic_v1.graveyard == 1, "death not duplicated at cleanup"
 assert(mod.exports.gen3_classic.state().failed, "empty party loses run")
 toggle("NUZLOCKE: ON", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().failed, "failure cannot be cleared")
+assert(core.setRule("nuzlocke_enabled", false) == false,
+    "failed-run config remains sealed")
+
+-- Whiteout has higher priority than healthy reserve Pokémon in the PC;
+-- switching it OFF allows the native loss outcome when the party survives.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+    rules = { whiteout_ends_run = true, permadeath = true }
+}
+game.session.party = {
+    { species = 1, personality = 77, hp = 12, level = 5 },
+}
+game.session.storage = {
+    boxes = { { mons = { { species = 4, hp = 11, level = 5 } } } },
+}
+local losing = {}
+fire("battle.started", { battle = losing, kind = "trainer" })
+fire("battle.ended", { result = "lose" })
+assert(values.gen3_classic_v1.failed, "whiteout ends run despite PC reserves")
+
+values.gen3_classic_v1.failed = false
+assert(core.setRule("whiteout_ends_run", false))
+local forgivenLoss = {}
+fire("battle.started", { battle = forgivenLoss, kind = "trainer" })
+fire("battle.ended", { result = "lose" })
+assert(not values.gen3_classic_v1.failed,
+    "whiteout OFF does not by itself end a surviving-party run")
+
 print("Gen3 experimental Nuzlocke smoke PASS")
