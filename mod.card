@@ -1,10 +1,11 @@
 return {
-  summary = "Configurable Nuzlocke enforcement, tracking, variants, difficulty, randomizer, World Building, compatibility, and QoL for R/B/Y, beta Gold/Silver, and alpha Crystal.",
-  author = "bryanthaboi (updated by Stone696)",
-  contact = "https://github.com/Stone696/nuzlocke",
+  summary = "Nuzlocke v3.0.0-BETA: configurable challenge rules for Generations 1–3, including Gen 3 level caps, clauses, seeded randomisation and Untamed overworld integration.",
+  author = "bryanthaboi, Stone696 and Deluxe0111",
+  contact = "https://github.com/Deluxe0111/nuzlocke",
   tags = { "ruleset", "hardcore", "quality-of-life", "ui" },
   differences = {
     changed = {
+      "v3.0.0-BETA introduces Generation 3 CORE, CLAUSES, LEVELS and RANDOMIZER, player notices, Graveyard/Dev tools and Untamed Advanced overworld wild compatibility; special chaining follows visible species.",
       "2.9.72 normalizes Gen-II item references, prevents legal Random Shop no-ops, exposes trainer boundary traces, and isolates shiny recoloring from shared engine ImageData; runtime retest required.",
       "2.9.71 repairs Gen-I Random Field Items by moving visible pickup composition to the public world.talk hook, adds focused hook/pipeline diagnostics, and preserves native pickup behavior; runtime retest is required.",
       "2.9.70 advances the Gen1Recomp source-review baseline to 0.2.41 and fixes normalized input-profile fallback metadata so reported profile identity matches resolved behavior; no gameplay or schema contract changes.",
