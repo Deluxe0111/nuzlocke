@@ -44,6 +44,7 @@ debug override, not a clean replay of the earlier game state.
 | **RULE INSPECTOR** | Displays the eight CORE rule IDs, effective boolean settings and implementation statuses |
 | **PRINT DEBUG REPORT** | Writes a compact map/rule/run/area summary into the running game's console, prefixed `[NUZ DEV]` |
 | **RESET CLAUSE COUNTS** | Resets Shiny Clause exception usage, captured-species history and roamer claims; party/PC Pokémon and legacy graveyard evidence remain unchanged |
+| **ADD TEST TOKEN** | Grants one Route Forgiveness token after confirmation; requires DEV mode and permanently flags the test run |
 | **CLEAR GRAVEYARD** | Clears Nuzlocke memorial entries **without restoring permanently removed Pokémon** |
 | **CLEAR RUN FAILURE** | Resets Nuzlocke's lost flag **only if a living, non-Egg party Pokémon remains**; does not revive or recreate anything |
 | **DISABLE DEV MODE** | Locks all editing operations again; the test-save taint remains recorded |
