@@ -47,7 +47,8 @@ assert(R.replace(recovered, P, "ENCOUNTERS",
 assert(R.replace(recovered, P, "TRAINERS", "RIVAL:326:1:1", 1) == b,
     "trainer stream must not depend on wild stream order")
 local other = {randomizer = {
-    randomizer_seed = 12345678, random_encounter_tables=true }}
+    randomizer_seed = 12345678, random_encounter_tables=true,
+    random_encounter_balance=1 }}
 assert(R.replace(other, P, "ENCOUNTERS", "FR_ROUTE_1:GRASS:1:5", 1)
     == R.replace(recovered, P, "ENCOUNTERS", "FR_ROUTE_1:GRASS:1:5", 1),
     "trainer ON/OFF must not perturb encounters")
