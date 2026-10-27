@@ -77,13 +77,33 @@ Do these on separate save copies. **PC Survivors Allowed is still [Soon]**; do n
 - [ ] **W03 — Whiteout OFF, no PC rescue yet.** On another save, disable `WHITEOUT FAILS`, leave `PC SURVIVORS` unavailable, then lose all party Pokémon. **Expected for current WIP:** An empty party still fails the run. Turning whiteout failure OFF **alone does not make PC rescue work**.
 - [ ] **W04 — PC box unchanged.** After a whiteout, inspect the PC/storage if the game permits it. **Expected:** Nuzlocke has not removed or marked otherwise healthy boxed Pokémon as dead.
 
+## CLAUSES milestone — Dupes / Shiny exceptions
+
+Run the separate **[Gen 3 CLAUSES test matrix](GEN3_CLAUSES.md)**, which has
+14 detailed checks covering SPEC/FAM/SPLIT, shiny allowances, save
+persistence, NUZ DEV resets and other editions.
+
+- [ ] **L01 — Dupes SPEC:** catch an owned species on a new route; it must be
+  blocked **without spending** that route's normal catch.
+- [ ] **L02 — Dupes FAM/SPLIT:** verify Caterpie-line evolutions count as
+  one family, while branching Eevee evolutions differ under SPLIT.
+- [ ] **L03 — Shiny exception:** on a spent route, an eligible shiny may be
+  caught using an available exception, but a normal Pokémon may not.
+- [ ] **L04 — Allowance accounting:** failed Balls do not spend a Shiny Clause
+  allowance; a successful exceptional capture does.
+- [ ] **L05 — [Soon] handling:** unused shiny-rate/intro/colours, roamer,
+  egg and forgiveness options cannot enable nonexistent rules.
+- [ ] **L06 — Development reset:** NUZ DEV's RESET CLAUSE COUNTS requires
+  confirmation and resets the shiny allowance count and captured-species log
+  without altering party, boxes or graveyard.
+
 ## E. Compatibility & known pending features
 
 - [ ] **C01 — Gen 1 regression.** If you have an original Red/Blue/Yellow setup, open the original Nuzlocke UI. **Expected:** Established Gen 1 menu and rules unchanged.
 - [ ] **C02 — Gen 2 regression.** If you have Gold/Silver/Crystal configured, open its Nuzlocke UI. **Expected:** Established Gen 2 menu unaffected.
 - [ ] **C03 — Second Gen 3 edition.** Repeat **M01, E01–E03 and D01–D03** in another edition (ideally Emerald after FireRed). **Expected:** Same basic results; record the exact edition.
 - [ ] **C04 — Double battle stress test.** If convenient, faint one player Pokémon during a native double battle. **Expected:** Forced switching does not crash or shift the wrong party slot; death is recorded exactly once.
-- [ ] **C05 — Unsupported rules remain inert.** Inspect Nickname, First Rival Mercy, PC Survivors, Gifts, Dupes/Shinies, Randomiser and other [Soon] items. **Expected:** They are visibly labelled pending and cannot claim active enforcement.
+- [ ] **C05 — Unsupported rules remain inert.** Inspect Nickname, First Rival Mercy, PC Survivors, Gifts, shiny-rate controls, Randomiser and other [Soon] items. **Expected:** They are visibly labelled pending and cannot claim active enforcement.
 
 ### Current known limitations (not automatic regressions)
 
