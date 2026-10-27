@@ -79,9 +79,14 @@ return function()
     end
     local CLEAR_FLAGS = { firered = 0x82C, leafgreen = 0x82C,
         ruby = 0x804, sapphire = 0x804, emerald = 0x864 }
-    local function clearedGame(native, edition)
-        local id = CLEAR_FLAGS[edition]
-        if not id then return false end
+    local LEAGUE_FLAGS = {
+        firered = { 0x4B8, 0x4B9, 0x4BA, 0x4BB },
+        ruby = { 0x4DD, 0x4DE, 0x4DF, 0x4E0 },
+        emerald = { 0x4FB, 0x4FC, 0x4FD, 0x4FE },
+    }
+    LEAGUE_FLAGS.leafgreen = LEAGUE_FLAGS.firered
+    LEAGUE_FLAGS.sapphire = LEAGUE_FLAGS.ruby
+    local function nativeFlags(native)
         local flags = native and native.flags
         local space = package.loaded["src.core.game3.scripting.space"]
         if type(space) == "table" and type(space.getStore) == "function" then
@@ -89,9 +94,20 @@ return function()
             if ok and type(store) == "table"
                 and type(store.flags) == "table" then flags = store.flags end
         end
-        return type(flags) == "table" and
-            (flags[id] == true or flags[tostring(id)] == true
-                or flags["FLAG_SYS_GAME_CLEAR"] == true) or false
+        return type(flags) == "table" and flags or {}
+    end
+    local function hasFlag(flags, id)
+        return flags[id] == true or flags[tostring(id)] == true
+    end
+    local function nativeLeagueProgress(native, edition)
+        local flags = nativeFlags(native)
+        if hasFlag(flags, CLEAR_FLAGS[edition])
+            or flags.FLAG_SYS_GAME_CLEAR == true then return 5 end
+        local won = 0
+        for _, id in ipairs(LEAGUE_FLAGS[edition] or {}) do
+            if hasFlag(flags, id) then won = won + 1 else break end
+        end
+        return won
     end
 
     local function completed(wins)
@@ -121,8 +137,8 @@ return function()
         if levels.scope == 1 then return nil, "GYMS COMPLETE" end
         -- Detect already-completed native saves even when this Nuzlocke
         -- feature was enabled after beating the Champion.
-        local progress = clearedGame(native, id)
-            and 5 or completed(levels.wins)
+        local progress = math.max(completed(levels.wins),
+            nativeLeagueProgress(native, id))
         if progress < 4 then
             return edition.league[progress + 1], "ELITE " .. (progress + 1)
         end
