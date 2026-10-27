@@ -82,6 +82,9 @@ local boxed = { species = lead.species, personality = lead.personality,
 assert(Levels.adjust(edging, lead, 500, 5, threshold) == 0)
 assert(Levels.banked(edging, boxed) == 500,
     "bank is identity based across PC movement")
+boxed.species = 26 -- evolve without losing personality or original trainer
+assert(Levels.banked(edging, boxed) == 500,
+    "evolving must not orphan saved EXP bank")
 assert(Levels.set(edging, "exp_edging", false))
 assert(Levels.adjust(edging, lead, 40, 5, threshold) == 0)
 assert(Levels.banked(edging, lead) == 500, "OFF preserves dormant bank")
