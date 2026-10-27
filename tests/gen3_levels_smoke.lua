@@ -104,6 +104,13 @@ package.loaded["src.core.game3.battle.experience"] = {
 local candies = 0
 package.loaded["src.core.game3.item_use"] = {
     useRareCandy = function() candies = candies + 1; return true end,
+    fieldUseKind = function(id)
+        return id == 68 and "level" or "heal"
+    end,
+}
+local shown = {}
+package.loaded["src.core.game3.battle.ui"] = {
+    push = function(line) shown[#shown + 1] = line end,
 }
 package.loaded["src.core.game3.pokemon"] = {
     speciesOf = function(m) return m.species end,
@@ -148,14 +155,31 @@ local exp = hooks["exp.gain"](function()
 end, { mon = original, battle = battle })
 assert(exp == 49 and composed == 1, "native EXP clamps to Brock cap")
 assert(api.getBank(original) == 151)
+events["battle.exp_gained"]({mon = original, gained = exp})
+assert(#shown > 0 and shown[#shown]:find("151 EXP banked", 1, true),
+    "battle should explain the capped EXP")
 assert(package.loaded["src.core.game3.item_use"].useRareCandy(session, original) == false,
     "Rare Candy blocked at cap")
 assert(candies == 0)
+-- Real field use goes through the item.use mod hook, before item depletion.
+local nativeUses = 0
+local function nextItem()
+    nativeUses = nativeUses + 1
+    return true, "level", "Levelled up"
+end
+local used, kind, reason = hooks["item.use"](nextItem, game, nil, 68, 1, {})
+assert(used == false and kind == "noeffect" and
+    reason:find("Lv 14", 1, true) and nativeUses == 0,
+    "Rare Candy transaction must fail before native use/consumption")
+assert(mod.exports.gen3_notices.history()[#mod.exports.gen3_notices.history()].code
+    == "LEVEL_CAP_ITEM", "denied item explained in notice history")
 events["battle.ended"]({ battle = battle, result = "win" })
 session.flags[0x820] = true
 original.level, original.exp = 15, 1500
 assert(package.loaded["src.core.game3.item_use"].useRareCandy(session, original) == true)
 assert(candies == 1, "Candy delegates below next cap")
+local okItem = hooks["item.use"](nextItem, game, nil, 68, 1, {})
+assert(okItem and nativeUses == 1, "field use below cap delegates")
 local after = hooks["exp.gain"](function() return 25 end,
     { mon = original })
 assert(after == 176 and api.getBank(original) == 0,

@@ -8,6 +8,7 @@ on:
       - 'gen3_core_rules.lua'
       - 'gen3_extra_core.lua'
       - 'gen3_levels.lua'
+      - 'gen3_notices.lua'
       - 'gen3_menu.lua'
       - 'gen3_dev.lua'
       - 'gen3_display.lua'

@@ -276,6 +276,11 @@ return function(mod, api)
                         local latest = state()
                         if Forgiveness.reopen(latest, target) then
                             api.setState(latest)
+                            if api.notify then
+                                api.notify("ROUTE_FORGIVEN",
+                                    "Route Forgiveness: " .. Display.areaName(target)
+                                    .. " reopened. One token spent.", false)
+                            end
                         end
                         popPage()
                     end),
@@ -619,6 +624,41 @@ return function(mod, api)
         present("NICKNAME TASKS", tasksRows(), tasksRows)
     end
 
+    -- Readable on a 240x160 screen: details must wrap instead of being
+    -- truncated to a single 181px row.
+    local function noticeLines(message)
+        local lines, line = {}, ""
+        for word in tostring(message or ""):gmatch("%S+") do
+            if #line > 0 and #line + #word + 1 > 25 then
+                lines[#lines + 1] = line
+                line = word
+            else
+                line = line == "" and word or (line .. " " .. word)
+            end
+        end
+        if line ~= "" then lines[#lines + 1] = line end
+        return lines
+    end
+    local function showNotices()
+        local function noticeRows()
+            local history = api.notices and api.notices() or {}
+            local rows = {}
+            for i = #history, math.max(1, #history - 29), -1 do
+                local event = history[i]
+                if type(event) == "table" then
+                    local text = tostring(event.text or "")
+                    local code = tostring(event.code or "NOTICE")
+                    rows[#rows + 1] = row(code, nil, function()
+                        info("NUZ NOTICE", noticeLines(text))
+                    end)
+                end
+            end
+            if #rows == 0 then rows[1] = row("NO NOTICES YET") end
+            return rows
+        end
+        present("NUZ NOTICES", noticeRows(), noticeRows)
+    end
+
     local function home()
         present("NUZ MENU", {
             row("NUZ RULES", "wip", showRules),
@@ -636,6 +676,7 @@ return function(mod, api)
             row("END RUN", "soon", function()
                 disabledFeature("END RUN", "end_run")
             end),
+            row("NUZ NOTICES", nil, showNotices),
         })
     end
 
