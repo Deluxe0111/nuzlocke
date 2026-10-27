@@ -31,6 +31,18 @@ assert(select(1, Levels.cap(r, ruby, flags(7))) == 43)
 assert(select(1, Levels.cap(r, emerald, flags(7))) == 46)
 assert(Levels.set(r, "level_cap_scope", 2))
 assert(select(1, Levels.cap(r, fr, flags(8))) == 54)
+local recovered = { levels = {scope=3} }
+assert(select(1, Levels.cap(recovered, {
+    version="emerald", flags = {[0x4FB]=true, [0x4FC]=true}
+}, flags(8))) == 53, "native E4 flags restore prior progress")
+assert(select(1, Levels.cap(recovered, {
+    version="firered", flags = {[0x82C]=true}
+}, flags(8))) == nil, "native game-clear flag removes Champion cap")
+assert(Levels.setPostgameCap(recovered, 75))
+assert(Levels.set(recovered, "level_cap_scope", 4))
+assert(select(1, Levels.cap(recovered, {
+    version="ruby", flags = {[0x804]=true}
+}, flags(8))) == 75, "completed save honours postgame provider")
 assert(not Levels.noteWin(r, fr, {trainerId=411}),
     "cannot skip Lorelei")
 assert(Levels.noteWin(r, fr, { trainerId = 410 }))
