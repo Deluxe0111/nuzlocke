@@ -166,10 +166,12 @@ return function()
     end
     function M.identity(mon)
         if type(mon) ~= "table" or mon.personality == nil then return nil end
-        local sp = mon.species or mon.speciesId
-        if sp == nil then return nil end
-        return tostring(sp) .. ":" .. tostring(mon.personality)
-            .. ":" .. tostring(mon.otId or mon.trainerId or "")
+        -- Species must NOT be in the key: evolution must not lose EXP bank.
+        -- Personality + original trainer IDs remain stable across evolution,
+        -- PC movement, and native save/load.
+        return tostring(mon.personality) .. ":"
+            .. tostring(mon.otId or mon.trainerId or "") .. ":"
+            .. tostring(mon.otSecretId or "")
     end
     -- A single transaction: base award + existing personal bank, limited to
     -- EXP threshold for cap+1 minus one. The overflow is banked if edging ON.
