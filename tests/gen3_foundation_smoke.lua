@@ -397,4 +397,80 @@ assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
 press("b") -- back to NUZ MENU
 press("b") -- close menu
 
+-- Integration: repeated Pokémon are rejected without spending an unused
+-- area's first chance; shiny exceptions bypass Dupes/area only when successful.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+    rules = { failed_encounter = true, encounter_limit = true },
+}
+game.session.party = {
+    { species = 25, personality = 7421, hp = 21, level = 5 },
+}
+assert(mod.exports.gen3_clauses.setMode("dupes_mode", 1))
+assert(mod.exports.gen3_clauses.setMode("shiny_clause", 1))
+game.session.map = "FR_ROUTE_6"
+fire("map.entered", { mapId = "FR_ROUTE_6" })
+local dupeBattle = { enemy = { mon = { species = 25, isShiny = false } } }
+fire("battle.started", { battle = dupeBattle, kind = "wild",
+    speciesId = 25 })
+assert(select(1, throw(dupeBattle)) == false,
+    "owned species denied by Dupes Clause")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_6 == nil,
+    "rejected duplicate must not use the encounter")
+fire("battle.ended")
+local normalBattle = { enemy = { mon = { species = 16, isShiny = false } } }
+fire("battle.started", { battle = normalBattle, kind = "wild",
+    speciesId = 16 })
+assert(select(1, throw(normalBattle)) == true,
+    "unrelated species still available")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_6.spent,
+    "eligible encounter consumes the route normally")
+fire("battle.ended")
+local shinyBattle = { enemy = { mon = { species = 25, isShiny = true } } }
+fire("battle.started", { battle = shinyBattle, kind = "wild",
+    speciesId = 25 })
+local allowed, _, invoked = hooks["catch.rate"](function()
+    return true, 4
+end, "MASTER_BALL", shinyBattle.enemy.mon, {}, { battle = shinyBattle })
+assert(allowed and not not allowed, "shiny exception bypasses spent duplicate")
+fire("pokemon.caught", { battle = shinyBattle, speciesId = 25,
+    mon = shinyBattle.enemy.mon })
+assert(mod.exports.gen3_clauses.summary().shinyExceptionsUsed == 1,
+    "successful exceptional catch consumes exactly one allowance")
+fire("battle.ended")
+local secondShiny = { enemy = { mon = { species = 25, isShiny = true } } }
+fire("battle.started", { battle = secondShiny, kind = "wild",
+    speciesId = 25 })
+assert(select(1, throw(secondShiny)) == false,
+    "one-time shiny exception cannot be reused")
+fire("battle.ended")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_6.caught ~= true,
+    "shiny exception must not falsely mark a normal area catch")
+
+-- CLAUSES menu cycle and unsupported entries visibly remain inert.
+openMenu()
+press("a") -- NUZ RULES
+press("down") -- CLAUSES
+press("a")
+local clausesMenu = mod.exports.gen3_menu.model()
+assert(clausesMenu.title == "CLAUSES" and #clausesMenu.rows == 8,
+    "Gen 3 clause menu excludes Gold-only contest and includes all planned rows")
+assert(clausesMenu.rows[1] == "[WIP] DUPES CLAUSE: SPEC")
+assert(clausesMenu.rows[2] == "[WIP] SHINY CLAUSE: 1")
+press("a") -- SPEC -> FAM
+assert(mod.exports.gen3_clauses.getMode("dupes_mode") == 2)
+assert(mod.exports.gen3_menu.model().rows[1] == "[WIP] DUPES CLAUSE: FAM")
+press("down") -- shiny clause
+press("a") -- 1 -> 2
+assert(mod.exports.gen3_clauses.getMode("shiny_clause") == 2)
+press("down") -- shiny rate
+assert(mod.exports.gen3_menu.model().rows[3] == "[Soon] SHINY RATE")
+press("a")
+assert(mod.exports.gen3_clauses.getMode("shiny_rate_mode") == 0,
+    "Soon clauses cannot alter state")
+press("b")
+press("b")
+press("b")
+press("b")
+
 print("Gen3 experimental Nuzlocke smoke PASS")
