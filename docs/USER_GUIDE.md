@@ -1,7 +1,7 @@
-<!-- Current build: 2.9.72 -->
-# Nuzlocke User Guide — 2.9.72
+<!-- Legacy Generation 1/2 reference: Nuzlocke 2.9.72 -->
+# Legacy Generation 1/2 User Guide — 2.9.72
 
-> Current documentation baseline: **Nuzlocke 2.9.72**.
+> This is the retained historical Generation 1/2 guide. For the current **v3.0.0-BETA** and Generation 3 options, see the [main README](../README.md) and [Gen 3 overview](GEN3_PORT.md).
 
 ## Supported games and confidence
 
