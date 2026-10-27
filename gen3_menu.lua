@@ -624,6 +624,21 @@ return function(mod, api)
         present("NICKNAME TASKS", tasksRows(), tasksRows)
     end
 
+    -- Readable on a 240x160 screen: details must wrap instead of being
+    -- truncated to a single 181px row.
+    local function noticeLines(message)
+        local lines, line = {}, ""
+        for word in tostring(message or ""):gmatch("%S+") do
+            if #line > 0 and #line + #word + 1 > 25 then
+                lines[#lines + 1] = line
+                line = word
+            else
+                line = line == "" and word or (line .. " " .. word)
+            end
+        end
+        if line ~= "" then lines[#lines + 1] = line end
+        return lines
+    end
     local function showNotices()
         local function noticeRows()
             local history = api.notices and api.notices() or {}
@@ -634,7 +649,7 @@ return function(mod, api)
                     local text = tostring(event.text or "")
                     local code = tostring(event.code or "NOTICE")
                     rows[#rows + 1] = row(code, nil, function()
-                        info("NUZ NOTICE", { text })
+                        info("NUZ NOTICE", noticeLines(text))
                     end)
                 end
             end
