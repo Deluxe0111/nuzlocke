@@ -472,7 +472,7 @@ press("a") -- NUZ RULES
 press("down") -- CLAUSES
 press("a")
 local clausesMenu = mod.exports.gen3_menu.model()
-assert(clausesMenu.title == "CLAUSES" and #clausesMenu.rows == 6,
+assert(clausesMenu.title == "CLAUSES" and #clausesMenu.rows == 8,
     "Gen 3 clause menu excludes Gold-only contest and includes all planned rows")
 assert(clausesMenu.rows[1] == "[WIP] DUPES CLAUSE: SPEC")
 assert(clausesMenu.rows[2] == "[WIP] SHINY CLAUSE: 1")
