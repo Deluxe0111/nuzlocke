@@ -68,7 +68,17 @@ return function(mod)
     local function nicknameTasks()
         local saved = loadState()
         if not Core.enforced(saved, "nickname_rule") then return {} end
+        local previous = saved.nicknamePending or {}
         local tasks = Extra.auditNicknames(saved, session(), Display)
+        local newlyPending = 0
+        for _, item in ipairs(tasks) do
+            if not previous[item.id] then newlyPending = newlyPending + 1 end
+        end
+        if newlyPending > 0 then
+            Notices.add(saved, "NICKNAME_TASKS",
+                tostring(newlyPending) .. " Pokemon need a nickname. "
+                .. "Open NUZ MENU > NICKNAME TASKS.")
+        end
         writeState(saved)
         return tasks
     end
@@ -85,6 +95,11 @@ return function(mod)
         local baselined = f and f.baselined
         local earned = Forgiveness.observe(saved, mode,
             Forgiveness.badges(session()))
+        if earned > 0 then
+            Notices.add(saved, "FORGIVENESS_EARNED",
+                "Route Forgiveness: earned " .. tostring(earned)
+                .. " token(s) from new Gym badges.")
+        end
         if earned > 0 or not already or
             (saved.forgiveness and saved.forgiveness.tokens ~= before)
             or (saved.forgiveness and
@@ -101,6 +116,25 @@ return function(mod)
         local saved = loadState()
         if Notices.add(saved, code, message) then writeState(saved) end
         if inBattle then Notices.battle(message) end
+    end
+    local function refreshCapNotice()
+        local saved = loadState()
+        if not Core.active(saved)
+            or (Levels.get(saved, "level_cap_scope") or 0) == 0 then return end
+        local cap, stage = levelCap(saved)
+        local levels = saved.levels
+        local marker = tostring(cap or "-") .. ":" .. tostring(stage or "")
+        if levels.lastObservedCap ~= marker then
+            if levels.lastObservedCap ~= nil then
+                local text = cap
+                    and ("Level Cap: next boss allows Lv " .. cap
+                        .. " (" .. tostring(stage) .. ").")
+                    or "Level Cap: current scope is complete; cap lifted."
+                Notices.add(saved, "LEVEL_CAP_CHANGED", text)
+            end
+            levels.lastObservedCap = marker
+            writeState(saved)
+        end
     end
     local function isCandyCapped(native, mon)
         local saved = loadState()
@@ -373,6 +407,7 @@ return function(mod)
         currentArea = type(ev) == "table" and areaKey(ev.mapId) or nil
         pendingRoamer = nil -- never match a roamer across unrelated maps
         refreshForgiveness()
+        refreshCapNotice()
         nicknameTasks()
         installCandyGuard()
     end)
@@ -522,6 +557,17 @@ return function(mod)
             roamer = roamer, roamerOpen = roamerOpen,
             roamerSpecies = spId,
         }
+        if eligible and not roamer and Core.get(s, "encounter_limit") then
+            if Core.shouldSpendOnStart(s) then
+                notify("ENCOUNTER_SPENT",
+                    "Failed Encounters: " .. Display.areaName(key)
+                    .. " encounter spent, even if the Pokemon escapes.", true)
+            else
+                notify("ENCOUNTER_OPEN",
+                    "One Per Area: " .. Display.areaName(key)
+                    .. " encounter is available until captured.", true)
+            end
+        end
     end)
 
     -- Gen 3's catch.rate wraps vanilla and returns (caught, shakes).
@@ -640,6 +686,12 @@ return function(mod)
             end
         end
         writeState(s)
+        if activeBattle.eligible and not activeBattle.roamer
+            and not activeBattle.exception and Core.get(s, "encounter_limit") then
+            notify("ENCOUNTER_CAUGHT", "One Per Area: "
+                .. Display.areaName(activeBattle.area)
+                .. " capture recorded. This area's slot is now used.", true)
+        end
         if activeBattle.exception then
             notify("SHINY_EXCEPTION",
                 "Shiny Clause: an extra catch was allowed.", true)
@@ -660,22 +712,15 @@ return function(mod)
             type(ev) == "table" and ev.battle or nil)
         if type(ev) == "table" and ev.result == "win" then
             local saved = loadState()
-            local oldCap = levelCap(saved)
             if Levels.noteWin(saved, session(), ev.battle) then
                 writeState(saved)
-                local nextCap = levelCap(saved)
-                if nextCap ~= oldCap then
-                    notify("LEVEL_CAP_ADVANCED",
-                        nextCap and ("Next Nuzlocke level cap: Lv "
-                        .. nextCap .. ".") or
-                        "League cleared: level cap lifted.", false)
-                end
             end
         end
         activeBattle = nil
         battleInProgress = false
         battleDeaths = nil
         mercyBattle = nil
+        refreshCapNotice()
         nicknameTasks()
     end)
 
@@ -720,6 +765,8 @@ return function(mod)
                 end
                 mon.nickname = name
                 nicknameTasks()
+                notify("NICKNAME_SET", "Nickname Rule: "
+                    .. Notices.name(mon, Display) .. " has been named.", false)
                 return true
             end,
         },
