@@ -335,6 +335,8 @@ return function(mod, api)
                 end)
             end
         end
+        rows[#rows + 1] = row("EGG HISTORY", "wip", eggHistory)
+        rows[#rows + 1] = row("REDEEM TOKEN", "wip", openForgiveness)
         return rows
     end
 
