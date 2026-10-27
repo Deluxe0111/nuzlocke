@@ -15,9 +15,9 @@ return function()
         { key = "gen3_roamer_clause", label = "ROAMER CLAUSE", default = 0,
           status = "wip", options = {"OFF", "SLOT"} },
         { key = "gen3_egg_encounter_mode", label = "EGG ENCOUNTER", default = 0,
-          status = "soon", options = {"OFF", "RECEIVED", "HATCHED", "GIFT"} },
+          status = "wip", options = {"OFF", "RECEIVED", "HATCHED", "GIFT"} },
         { key = "route_forgiveness", label = "ROUTE FORGIVENESS", default = 0,
-          status = "soon", options = {"OFF", "EARN", "START 1"} },
+          status = "wip", options = {"OFF", "EARN", "START 1"} },
     }
     local byKey = {}
     for _, d in ipairs(DEFINITIONS) do byKey[d.key] = d end
