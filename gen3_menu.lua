@@ -534,6 +534,9 @@ return function(mod, api)
             row("DISABLE DEV MODE", nil, function()
                 confirmDev("DISABLE", "SAVE STAYS FLAGGED", Dev.disable)
             end),
+            row("ADD TEST TOKEN", nil, function()
+                confirmDev("GRANT TOKEN", "DEV RUN ONLY", Dev.grantTestToken)
+            end),
         }
     end
 
