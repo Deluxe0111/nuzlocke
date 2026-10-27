@@ -106,6 +106,9 @@ return function(mod, api)
                 and "PER MAP" or "UNLIMITED"),
             "DEATH: " .. (Core.get(s, "permadeath")
                 and "IMMEDIATE" or "OFF"),
+            "DUPES: " .. Clauses.label(s, "dupes_mode"),
+            "SHINY: " .. Clauses.label(s, "shiny_clause"),
+            "SHINY USED: " .. tostring(s.shinyExceptionsUsed or 0),
             "B: RETURN",
         })
     end
@@ -434,6 +437,10 @@ return function(mod, api)
             end),
             row("STATE INSPECTOR", nil, showDevInspector),
             row("RULE INSPECTOR", nil, showDevRules),
+            row("RESET CLAUSE COUNTS", nil, function()
+                confirmDev("RESET CLAUSES", "KEEP REAL POKEMON",
+                    Dev.clearClauseHistory)
+            end),
             row("PRINT DEBUG REPORT", nil, function()
                 local ok, err = Dev.printReport()
                 if ok then
