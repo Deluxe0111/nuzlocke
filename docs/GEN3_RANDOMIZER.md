@@ -1,4 +1,4 @@
-# Gen 3 Randomiser — first working slice
+# Gen 3 Randomiser — v3.0.0-BETA
 
 The native Gen 3 Nuzlocke menu now exposes a deterministic species
 randomiser for **wild step encounters, fishing, and trainer parties**.
@@ -112,8 +112,12 @@ step or fishing mappings.
 Only normal generated wild OWEs are eligible. Untamed protects roamers,
 Feebas, mass outbreaks and manually scripted wilds, and validates
 sprite availability before using a replacement. Followers are not
-randomised. Untamed also retains the original source species for its
-encounter-chaining logic.
+randomised. Untamed's encounter-chain **name and count follow the actual visible
+species defeated**, not the underlying authored encounter slot. For
+example, defeating Feraligatr from a native Rattata slot shows
+**Feraligatr chain x3**, not Rattata. Untamed retains the original
+Rattata slot only for the weighted repeated-spawn source. This
+corrected chaining behaviour requires the updated Untamed build.
 
 **Both updated mods must be installed**. Updating Nuzlocke alone cannot
 alter wandering species created internally by older Untamed builds.
