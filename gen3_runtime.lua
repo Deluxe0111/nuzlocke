@@ -23,6 +23,7 @@ return function(mod)
     local Forgiveness = readModule("gen3_forgiveness.lua")()
     local Display = readModule("gen3_display.lua")()
     local Extra = readModule("gen3_extra_core.lua")()
+    local Levels = readModule("gen3_levels.lua")()
     local currentArea
     local activeBattle
     local pendingRoamer
@@ -89,6 +90,31 @@ return function(mod)
                 saved.forgiveness.baselined ~= baselined) then
             writeState(saved)
         end
+    end
+
+    local function levelCap(saved)
+        return Levels.cap(saved or loadState(), session(),
+            Forgiveness.badges(session()))
+    end
+    local function installCandyGuard()
+        local ok, ItemUse = pcall(require, "src.core.game3.item_use")
+        if not ok or type(ItemUse) ~= "table"
+            or type(ItemUse.useRareCandy) ~= "function" then return false end
+        if ItemUse.__nuzGen3CandyOwner == mod then return true end
+        local original = ItemUse.useRareCandy
+        ItemUse.useRareCandy = function(native, mon, ...)
+            local saved = loadState()
+            if Core.active(saved) then
+                local cap = levelCap(saved)
+                if cap and type(mon) == "table"
+                    and (tonumber(mon.level) or 1) >= cap then
+                    return false, "no_effect", "The level cap blocks that RARE CANDY."
+                end
+            end
+            return original(native, mon, ...)
+        end
+        ItemUse.__nuzGen3CandyOwner = mod
+        return true
     end
 
     -- Shared after-change hook for the menu and versioned public API.
@@ -302,6 +328,7 @@ return function(mod)
         pendingRoamer = nil -- never match a roamer across unrelated maps
         refreshForgiveness()
         nicknameTasks()
+        installCandyGuard()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -365,6 +392,7 @@ return function(mod)
         -- Install after the engine's battle modules exist, before any item turn.
         installReviveGuard()
         installNicknameGuard()
+        installCandyGuard()
         local starting = loadState()
         if Core.enforced(starting, "first_rival_forgiveness")
             and not starting.firstRivalMercyConsumed
@@ -443,6 +471,23 @@ return function(mod)
 
     -- Gen 3's catch.rate wraps vanilla and returns (caught, shakes).
     -- This does not modify normal encounters or trainer battles.
+    -- Compose EXP once, then cap it before native Experience.apply.
+    mod.hooks:wrap("exp.gain", function(next, ctx)
+        local awarded = next(ctx)
+        local saved = loadState()
+        if not Core.active(saved) or type(ctx) ~= "table"
+            or type(ctx.mon) ~= "table" then return awarded end
+        local ok, Experience = pcall(require, "src.core.game3.battle.experience")
+        if not ok or type(Experience) ~= "table"
+            or type(Experience.expForLevel) ~= "function" then
+            return awarded
+        end
+        local applied = Levels.adjust(saved, ctx.mon, awarded,
+            levelCap(saved), Experience.expForLevel)
+        writeState(saved)
+        return applied
+    end)
+
     mod.hooks:wrap("catch.rate", function(next, ball, mon, species, ctx)
         local battle = activeBattle
         if not isActive() or not battle or type(ctx) ~= "table"
@@ -508,6 +553,10 @@ return function(mod)
     mod.events:on("battle.ended", function(ev)
         retireFainted(type(ev) == "table" and ev.result or nil,
             type(ev) == "table" and ev.battle or nil)
+        if type(ev) == "table" and ev.result == "win" then
+            local saved = loadState()
+            if Levels.noteWin(saved, session(), ev.battle) then writeState(saved) end
+        end
         activeBattle = nil
         battleInProgress = false
         battleDeaths = nil
@@ -530,6 +579,20 @@ return function(mod)
         eggs = Eggs, forgiveness = Forgiveness,
         onClauseChanged = onClauseChanged,
         dev = Dev, display = Display,
+        levels = {
+            get = function(key) return Levels.get(loadState(), key) end,
+            set = function(key, value)
+                local saved = loadState()
+                local ok, reason = Levels.set(saved, key, value)
+                if ok then writeState(saved) end
+                return ok, reason
+            end,
+            cap = function() return levelCap() end,
+            banked = function(mon) return Levels.banked(loadState(), mon) end,
+            currentParty = function()
+                return (session() and session().party) or {}
+            end,
+        },
         nickname = {
             pending = nicknameTasks,
             rename = function(mon, name)
@@ -554,6 +617,7 @@ return function(mod)
             label = "NUZ MENU",
             onSelect = function()
                 refreshForgiveness()
+                installCandyGuard()
                 Gen3Menu.open(g)
             end,
         })
@@ -561,6 +625,25 @@ return function(mod)
     end)
 
     mod.exports.gen3_menu = Gen3Menu
+    mod.exports.gen3_levels = {
+        api = Levels.api, schema = Levels.schema,
+        scopes = Levels.scopes,
+        getRule = function(key) return Levels.get(loadState(), key) end,
+        getCurrentCap = function() return levelCap() end,
+        getBank = function(mon) return Levels.banked(loadState(), mon) end,
+        setRule = function(key, value)
+            local saved = loadState()
+            local ok, reason = Levels.set(saved, key, value)
+            if ok then writeState(saved) end
+            return ok, reason
+        end,
+        setPostgameCap = function(value)
+            local saved = loadState()
+            local ok, reason = Levels.setPostgameCap(saved, value)
+            if ok then writeState(saved) end
+            return ok, reason
+        end,
+    }
     -- Read-only diagnostic API. Mutators stay internal to the developer menu.
     mod.exports.gen3_clauses = {
         api = 1, schema = Clauses.schema,
@@ -635,7 +718,8 @@ return function(mod)
             "gen3_route_forgiveness_wip",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
-            "pc_survivors_wip", "nickname_requirement_wip" },
+            "pc_survivors_wip", "nickname_requirement_wip",
+            "gym_league_level_caps", "exp_edging" },
         state = function()
             local s = loadState()
             return { enabled = s.enabled, failed = s.failed,
