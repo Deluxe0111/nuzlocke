@@ -70,10 +70,13 @@ return function(mod)
         local f = saved.forgiveness
         local before = f and f.tokens or 0
         local already = f and f.initialised
+        local baselined = f and f.baselined
         local earned = Forgiveness.observe(saved, mode,
             Forgiveness.badges(session()))
         if earned > 0 or not already or
-            (saved.forgiveness and saved.forgiveness.tokens ~= before) then
+            (saved.forgiveness and saved.forgiveness.tokens ~= before)
+            or (saved.forgiveness and
+                saved.forgiveness.baselined ~= baselined) then
             writeState(saved)
         end
     end
