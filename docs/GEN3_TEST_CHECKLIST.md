@@ -34,10 +34,28 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 
 - [ ] **M01 — Open menu.** Press Start → NUZ MENU → NUZ RULES → CORE. **Expected:** No errors, readable labels, **exactly eight** CORE rules.
 - [ ] **M02 — Supported labels.** Inspect Nuzlocke Enabled, Permadeath, One Per Area and Failed Encounters. **Expected:** Each shows an accurate ON/OFF state and can be changed independently.
-- [ ] **M03 — Partial/placeholder labels.** Inspect Whiteout Ends Run, Nickname, First Rival Mercy and PC Survivors. **Expected:** Whiteout is **[WIP]** and toggleable; the latter three show **[Soon]** and cannot activate a nonexistent rule.
+- [ ] **M03 — Partial/placeholder labels.** Inspect Whiteout Ends Run, Nickname, First Rival Mercy and PC Survivors. **Expected:** Whiteout, Nickname, First Rival Mercy and PC Survivors are all **[WIP]** and toggleable; the three new rules require actual gameplay certification.
 - [ ] **M04 — Navigation.** Scroll through CORE, back to NUZ RULES, open some other categories, then back to NUZ MENU and the game. **Expected:** Scrolling, cursor, A/B and reopening all work; no clipped/unreadable menu entries or stuck overlays.
 - [ ] **M05 — Master toggle.** Switch NUZLOCKE OFF → ON → OFF → ON. **Expected:** Label changes immediately; rule values in other rows do not reset.
 - [ ] **M06 — Save persistence.** Enable Nuzlocke, change one rule, save **in game**, restart and reopen the menu. **Expected:** Master switch and saved rule values persist.
+
+## A2. New CORE clauses (disposable saves; WIP)
+
+- [ ] **N01 — Catch naming.** With Nickname Rule ON, catch a wild Pokémon. **Expected:** The game opens native naming directly; declining is not offered.
+- [ ] **N02 — Reject default.** Submit an empty name or exact species name. **Expected:** Native naming reopens; a custom name finishes normally.
+- [ ] **N03 — Gift/trade/Egg.** Acquire each without a naming prompt, then open NUZ MENU → NICKNAME TASKS. **Expected:** Unnamed acquisitions appear, including those in a PC box. Rename them and confirm they disappear.
+- [ ] **N04 — Persist.** Save and reload after naming a Pokémon and after leaving one name pending. **Expected:** Correct nicknames and pending entries remain consistent.
+- [ ] **R01 — First rival, Kanto.** In a NEW FireRed or LeafGreen run, enable mercy before the Oak Lab rival battle and let your starter faint. **Expected:** No death/graveyard entry and no Nuzlocke failure; the native story proceeds.
+- [ ] **R02 — Mercy consumed.** Win the opening rival battle, then revisit later rival battles. **Expected:** The opening fight consumes mercy on start, whether won or lost; later fainting is permanent.
+- [ ] **R03 — Hoenn editions.** Repeat R01–R02 for Ruby, Sapphire and Emerald, changing starter matchups. **Expected:** Only Route 103's opening rival fight is exempt.
+- [ ] **C01 — PC recovery.** With Whiteout Ends Run OFF and PC Survivors ON, box a healthy spare, then let the party wipe. **Expected:** One eligible living boxed Pokémon moves into the now-empty party; the run continues.
+- [ ] **C02 — Whiteout priority.** Enable both Whiteout Ends Run and PC Survivors, then lose with a living reserve boxed. **Expected:** Run fails regardless; the reserve remains boxed.
+- [ ] **C03 — No survivors.** Wipe with only Eggs, dead/fainted or ineligible boxed Pokémon. **Expected:** Run fails; no Pokémon is revived or cloned.
+- [ ] **C04 — Recovery persistence.** Save and reload after C01. **Expected:** Rescued Pokémon exists exactly once, in the party, absent from its old box.
+
+**Known WIP limitation:** Unresolved gift/trade/Egg nicknames are tracked and can
+be renamed, but are not yet prevented from battling. All checks above need
+real game testing; passing a mocked Lua smoke does not certify them.
 
 ## B. Encounter rules (save A, Nuzlocke ON)
 

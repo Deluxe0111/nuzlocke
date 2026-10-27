@@ -22,11 +22,13 @@ return function(mod)
     local Eggs = readModule("gen3_eggs.lua")()
     local Forgiveness = readModule("gen3_forgiveness.lua")()
     local Display = readModule("gen3_display.lua")()
+    local Extra = readModule("gen3_extra_core.lua")()
     local currentArea
     local activeBattle
     local pendingRoamer
     local battleInProgress = false
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
+    local mercyBattle
 
     local function loadState()
         local s = Core.normalise(mod.save:get(KEY, {}))
@@ -59,6 +61,14 @@ return function(mod)
 
     local function isActive()
         return Core.active(loadState())
+    end
+
+    local function nicknameTasks()
+        local saved = loadState()
+        if not Core.enforced(saved, "nickname_rule") then return {} end
+        local tasks = Extra.auditNicknames(saved, session(), Display)
+        writeState(saved)
+        return tasks
     end
 
     -- Badge flags are saved in native script state; refresh when the player
@@ -103,9 +113,10 @@ return function(mod)
             and tostring(a.nickname or a.name or "") == tostring(b.nickname or b.name or "")
     end
 
-    local function retireFainted(outcome)
+    local function retireFainted(outcome, endedBattle)
         local s = loadState()
         if not Core.active(s) then return end
+        if mercyBattle ~= nil and endedBattle == mercyBattle then return end
         local native = session()
         local party = native and native.party
         if type(party) ~= "table" then return end
@@ -146,17 +157,26 @@ return function(mod)
                 modified = true
             end
         end
-        -- Whiteout ends the run even when reserve Pokémon remain in the PC.
-        -- PC-survivor recovery stays [Soon] until a safe empty-party recovery
-        -- path exists in both Kanto and Hoenn. Do not delete user saves.
-        if Core.failedWhiteout(s, outcome) then s.failed = true end
-        if #party == 0 then s.failed = true end
+        -- A whiteout failure outranks PC rescue. Never revive the dead:
+        -- move one existing living resident into an empty native party only
+        -- after battle writeback and faint retirement are finished.
+        if Core.failedWhiteout(s, outcome) then
+            s.failed = true
+        elseif #party == 0 then
+            if Core.enforced(s, "pc_survivors_allowed")
+                and Extra.rescueFromPc(s, native) then
+                modified = true
+            else
+                s.failed = true
+            end
+        end
         if modified or s.failed then writeState(s) end
     end
 
     local function recordBattleFaint(ev)
         if not Core.enforced(loadState(), "permadeath")
             or type(ev) ~= "table" then return end
+        if mercyBattle ~= nil and ev.battle == mercyBattle then return end
         local battler = ev.battler
         if type(battler) ~= "table" or
             (ev.sideName ~= "player" and battler.side ~= "player") then return end
@@ -232,11 +252,56 @@ return function(mod)
         return true
     end
 
+    -- Native catch prompts cannot be skipped when Nickname Rule is ON.
+    -- The guarded naming screen repeats until a non-default name is given.
+    -- The safe overworld task list handles gifts, trades and hatches.
+    local function installNicknameGuard()
+        local okU, Ui = pcall(require, "src.core.game3.battle.ui")
+        local okN, Naming = pcall(require, "src.ui.game3.naming")
+        if not (okU and okN and type(Ui) == "table"
+            and type(Naming) == "table"
+            and type(Ui.askYesNo) == "function"
+            and type(Naming.open) == "function") then return false end
+        if Ui.__nuzGen3NicknameOwner == mod then return true end
+        local ask = Ui.askYesNo
+        local open = Naming.open
+        Ui.askYesNo = function(prompt, callback, ...)
+            local battle = package.loaded["src.core.game3.battle"]
+            if Core.enforced(loadState(), "nickname_rule")
+                and battle and battle._phase == "catch_nickname_prompt"
+                and type(callback) == "function" then
+                return callback(true)
+            end
+            return ask(prompt, callback, ...)
+        end
+        Naming.open = function(opts)
+            if type(opts) ~= "table" or opts.template ~= "CAUGHT_MON"
+                or not Core.enforced(loadState(), "nickname_rule")
+                or type(opts.onDone) ~= "function" then
+                return open(opts)
+            end
+            local speciesName = Display.speciesName({ species = opts.species })
+            local wrapped = {}
+            for k, v in pairs(opts) do wrapped[k] = v end
+            local function validated(nick)
+                if not Extra.customName(nick, speciesName) then
+                    return open(wrapped)
+                end
+                return opts.onDone(nick)
+            end
+            wrapped.onDone = validated
+            return open(wrapped)
+        end
+        Ui.__nuzGen3NicknameOwner = mod
+        return true
+    end
+
     -- Gen 3's map.entered uses a native map ID, not a Gen 1 map name.
     mod.events:on("map.entered", function(ev)
         currentArea = type(ev) == "table" and areaKey(ev.mapId) or nil
         pendingRoamer = nil -- never match a roamer across unrelated maps
         refreshForgiveness()
+        nicknameTasks()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -257,6 +322,9 @@ return function(mod)
                 status = reason, origin = ev.egg and ev.egg.nuzEggOrigin,
             }
         end
+        if Core.enforced(saved, "nickname_rule") then
+            Extra.auditNicknames(saved, session(), Display)
+        end
         writeState(saved)
     end)
 
@@ -276,6 +344,7 @@ return function(mod)
         pendingRoamer = nil
         battleInProgress = false
         battleDeaths = nil
+        mercyBattle = nil
     end)
     mod.events:on("save.created", function()
         currentArea = nil
@@ -283,6 +352,7 @@ return function(mod)
         pendingRoamer = nil
         battleInProgress = false
         battleDeaths = nil
+        mercyBattle = nil
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -291,8 +361,18 @@ return function(mod)
         activeBattle = nil
         battleInProgress = true
         battleDeaths = nil
+        mercyBattle = nil
         -- Install after the engine's battle modules exist, before any item turn.
         installReviveGuard()
+        installNicknameGuard()
+        local starting = loadState()
+        if Core.enforced(starting, "first_rival_forgiveness")
+            and not starting.firstRivalMercyConsumed
+            and Extra.openingRival(ev, session()) then
+            starting.firstRivalMercyConsumed = true
+            mercyBattle = ev.battle
+            writeState(starting)
+        end
         local announcedRoamer = pendingRoamer
         pendingRoamer = nil -- the next battle is the only possible match
         -- Shiny Rate is a gameplay-independent generation setting (like
@@ -426,10 +506,13 @@ return function(mod)
     -- The native battle bridge writes back party HP before battle.ended.
     -- Compact party arrays only then, after the engine no longer needs indices.
     mod.events:on("battle.ended", function(ev)
-        retireFainted(type(ev) == "table" and ev.result or nil)
+        retireFainted(type(ev) == "table" and ev.result or nil,
+            type(ev) == "table" and ev.battle or nil)
         activeBattle = nil
         battleInProgress = false
         battleDeaths = nil
+        mercyBattle = nil
+        nicknameTasks()
     end)
 
     -- Gen 3 is API 2 in this fork, and API 3's mod.ui.push uses a different
@@ -447,6 +530,19 @@ return function(mod)
         eggs = Eggs, forgiveness = Forgiveness,
         onClauseChanged = onClauseChanged,
         dev = Dev, display = Display,
+        nickname = {
+            pending = nicknameTasks,
+            rename = function(mon, name)
+                if not Core.enforced(loadState(), "nickname_rule")
+                    or type(mon) ~= "table"
+                    or not Extra.customName(name, Display.speciesName(mon)) then
+                    return false
+                end
+                mon.nickname = name
+                nicknameTasks()
+                return true
+            end,
+        },
     })
 
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
@@ -521,7 +617,10 @@ return function(mod)
         setRule = function(key, value)
             local state = loadState()
             local ok, err = Core.set(state, key, value)
-            if ok then writeState(state) end
+            if ok then
+                writeState(state)
+                if key == "nickname_rule" and value then nicknameTasks() end
+            end
             return ok, err
         end,
     }
@@ -535,7 +634,8 @@ return function(mod)
             "gen3_shiny_rate", "gen3_eggs_wip",
             "gen3_route_forgiveness_wip",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
-            "whiteout_ends_run" },
+            "whiteout_ends_run", "first_rival_mercy_wip",
+            "pc_survivors_wip", "nickname_requirement_wip" },
         state = function()
             local s = loadState()
             return { enabled = s.enabled, failed = s.failed,

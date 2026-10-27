@@ -6,6 +6,7 @@ on:
       - 'entry.lua'
       - 'gen3_runtime.lua'
       - 'gen3_core_rules.lua'
+      - 'gen3_extra_core.lua'
       - 'gen3_menu.lua'
       - 'gen3_dev.lua'
       - 'gen3_display.lua'
@@ -21,6 +22,7 @@ on:
       - 'tests/gen3_clauses_smoke.lua'
       - 'manifest.json'
       - 'tests/gen3_foundation_smoke.lua'
+      - 'tests/gen3_new_core_smoke.lua'
       - '.github/workflows/gen3-smoke.yml'
   workflow_dispatch:
 
@@ -36,6 +38,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lua5.1
       - name: Run isolated Gen 3 hook/state smoke
         run: lua5.1 tests/gen3_foundation_smoke.lua
+      - name: Run nickname, rival and PC survivors smoke
+        run: lua5.1 tests/gen3_new_core_smoke.lua
       - name: Run isolated Gen 3 clauses policy smoke
         run: lua5.1 tests/gen3_clauses_smoke.lua
       - name: Run stable shiny-rate policy smoke
