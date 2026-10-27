@@ -378,17 +378,44 @@ return function(mod, api)
 
     -- Randomiser phase 1. Only working controls are enabled; remaining
     -- Gen 1/2 settings remain explicitly visible but inactive.
+    local function openSeedEditor()
+        local function seedRows()
+            local r = api.randomizer.get()
+            local digits = string.format("%08d", r.seed or 0)
+            local rows = {
+                row("CURRENT: " .. digits),
+            }
+            for position = 1, 8 do
+                local index = position
+                rows[#rows + 1] = row(
+                    "DIGIT " .. index .. ": " .. digits:sub(index, index), nil,
+                    function()
+                        local currentDigits = string.format("%08d",
+                            api.randomizer.get().seed or 0)
+                        local digit = tonumber(currentDigits:sub(index, index)) or 0
+                        local updated = currentDigits:sub(1, index - 1)
+                            .. tostring((digit + 1) % 10)
+                            .. currentDigits:sub(index + 1)
+                        if api.randomizer.set("seed", tonumber(updated)) then
+                            current().rows = seedRows()
+                        end
+                    end)
+            end
+            rows[#rows + 1] = row("CLEAR SEED", nil, function()
+                if api.randomizer.set("seed", 0) then
+                    current().rows = seedRows()
+                end
+            end)
+            return rows
+        end
+        present("EDIT RNG SEED", seedRows(), seedRows)
+    end
+
     local function randomizerRows()
         local r = api.randomizer and api.randomizer.get() or {}
         local rows = {
-            row("SEED: " .. string.format("%08d", r.seed or 0), nil, function()
-                local seed = (tonumber(r.seed) or 0) + 1
-                if seed == 1 then seed = 24681357 end
-                if seed > 99999999 then seed = 1 end
-                if api.randomizer.set("seed", seed) then
-                    current().rows = randomizerRows()
-                end
-            end),
+            row("SEED: " .. string.format("%08d", r.seed or 0),
+                nil, openSeedEditor),
             row("WILD: " .. (r.wild and "ON" or "OFF"), nil, function()
                 if api.randomizer.set("wild", not r.wild) then
                     current().rows = randomizerRows()
@@ -400,7 +427,7 @@ return function(mod, api)
                 end
             end),
             row("SEED 00000000 = OFF"),
-            row("EDIT SEED VIA MOD API"),
+            row("A ON SEED TO EDIT"),
         }
         for _, item in ipairs(CATALOG) do
             if item.title == "RANDOMIZER" then
