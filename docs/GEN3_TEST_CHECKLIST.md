@@ -150,6 +150,30 @@ not something you can validate with a handful of normal encounters; use
 feature—not a failure—that the UI cannot enable Egg counting or redeem
 Forgiveness Tokens yet.
 
+## Egg Encounter & Route Forgiveness
+
+See [GEN3_EGGS_FORGIVENESS.md](GEN3_EGGS_FORGIVENESS.md) for the full
+twelve-case checklist and exact [WIP] limitations.
+
+- [ ] **EG01 — Receipt claim:** With RECEIVED selected, tag an Egg on Route A
+  then hatch on Route B. The A encounter slot is spent *at hatch*.
+- [ ] **EG02 — Hatch claim:** With HATCHED selected, the hatch location's
+  encounter slot is spent when the Egg hatches.
+- [ ] **EG03 — Occupied area:** Hatching into an already spent area records
+  the Pokémon as INELIGIBLE without deleting it; using the Pokémon in battle
+  is **not enforced yet**.
+- [ ] **FG01 — Starting token:** START 1 grants a single token once; toggling
+  it or restarting does not grant another.
+- [ ] **FG02 — Badge reward:** A new Gym Badge after enabling grants one
+  token, not multiple tokens on map transitions.
+- [ ] **FG03 — Route redemption:** Spend one token to reopen a failed route.
+  Test CANCEL first, then YES; caught routes and previously forgiven routes
+  cannot be reopened again.
+- [ ] **FG04 — Development testing:** NUZ DEV → ADD TEST TOKEN grants one
+  test token after confirmation, leaving the test-run marker set.
+- [ ] **FG05 — Recovery limitation:** The Pokémon-revival option remains
+  [Soon] and must never spend a token.
+
 ## E. Compatibility & known pending features
 
 - [ ] **C01 — Gen 1 regression.** If you have an original Red/Blue/Yellow setup, open the original Nuzlocke UI. **Expected:** Established Gen 1 menu and rules unchanged.
