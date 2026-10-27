@@ -1,0 +1,24 @@
+name: Gen 3 foundation smoke
+
+on:
+  pull_request:
+    paths:
+      - 'entry.lua'
+      - 'gen3_runtime.lua'
+      - 'manifest.json'
+      - 'tests/gen3_foundation_smoke.lua'
+      - '.github/workflows/gen3-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gen3-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1
+        run: sudo apt-get update && sudo apt-get install -y lua5.1
+      - name: Run isolated Gen 3 hook/state smoke
+        run: lua5.1 tests/gen3_foundation_smoke.lua
