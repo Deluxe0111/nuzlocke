@@ -9,6 +9,7 @@ return function(mod, api)
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
+    local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
     local Display = assert(api.display, "Gen 3 menu needs species and location labels")
 
@@ -266,6 +267,7 @@ return function(mod, api)
                     local nextValue = (value + 1) % #d.options
                     local ok, reason = Clauses.set(currentState, d.key, nextValue)
                     if ok then
+                        if api.onClauseChanged then api.onClauseChanged(currentState, d.key) end
                         api.setState(currentState)
                         current().rows = clausesRows()
                     elseif reason == "run_failed" then
