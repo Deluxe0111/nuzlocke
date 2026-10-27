@@ -11,7 +11,7 @@ local P = {
     stats = function(id)
         if not names[id] then return nil end
         local n = ({48, 49, 80, 82, 49, 30})[id]
-        return {n,n,n,n,n,n}
+        return {hp=n,atk=n,def=n,spe=n,spa=n,spd=n}
     end,
 }
 local saved = {}
