@@ -19,6 +19,8 @@ return function(mod)
     local Clauses = readModule("gen3_clauses.lua")()
     local ShinyRate = readModule("gen3_shiny_rate.lua")()
     local Archive = readModule("gen3_archive.lua")()
+    local Eggs = readModule("gen3_eggs.lua")()
+    local Forgiveness = readModule("gen3_forgiveness.lua")()
     local Display = readModule("gen3_display.lua")()
     local currentArea
     local activeBattle
@@ -57,6 +59,31 @@ return function(mod)
 
     local function isActive()
         return Core.active(loadState())
+    end
+
+    -- Badge flags are saved in native script state; refresh when the player
+    -- moves or opens Nuzlocke, not by polling each frame.
+    local function refreshForgiveness()
+        local saved = loadState()
+        local mode = Clauses.get(saved, "route_forgiveness")
+        if mode == 0 then return end
+        local f = saved.forgiveness
+        local before = f and f.tokens or 0
+        local already = f and f.initialised
+        local earned = Forgiveness.observe(saved, mode,
+            Forgiveness.badges(session()))
+        if earned > 0 or not already or
+            (saved.forgiveness and saved.forgiveness.tokens ~= before) then
+            writeState(saved)
+        end
+    end
+
+    -- Shared after-change hook for the menu and versioned public API.
+    local function onClauseChanged(saved, key)
+        if key == "route_forgiveness" then
+            Forgiveness.initialise(saved,
+                Clauses.get(saved, key), Forgiveness.badges(session()))
+        end
     end
 
     -- Game 3 battles operate on *copies* of session.party. Never table.remove
@@ -206,6 +233,28 @@ return function(mod)
     mod.events:on("map.entered", function(ev)
         currentArea = type(ev) == "table" and areaKey(ev.mapId) or nil
         pendingRoamer = nil -- never match a roamer across unrelated maps
+        refreshForgiveness()
+    end)
+
+    mod.events:on("breeding.egg_created", function(ev)
+        local s = loadState()
+        Eggs.created(s, ev, areaNow())
+        -- Provenance attaches directly to the egg; save-local fields are not
+        -- spent until the actual hatch event confirms an acquired Pokemon.
+    end)
+    mod.events:on("egg.hatched", function(ev)
+        if not isActive() then return end
+        local saved = loadState()
+        local mode = Clauses.get(saved, "gen3_egg_encounter_mode")
+        local valid, reason = Eggs.hatched(saved, ev, areaNow(), mode)
+        if type(ev) == "table" and type(ev.mon) == "table" then
+            saved.eggHistory = saved.eggHistory or {}
+            saved.eggHistory[#saved.eggHistory + 1] = {
+                species = ev.species, location = areaNow(),
+                status = reason, origin = ev.egg and ev.egg.nuzEggOrigin,
+            }
+        end
+        writeState(saved)
     end)
 
     -- Fires before the native Gen 3 wild battle is started. Useful even if
@@ -392,6 +441,8 @@ return function(mod)
     local Gen3Menu = readModule("gen3_menu.lua")(mod, {
         getState = loadState, setState = writeState,
         core = Core, clauses = Clauses, shinyRate = ShinyRate,
+        eggs = Eggs, forgiveness = Forgiveness,
+        onClauseChanged = onClauseChanged,
         dev = Dev, display = Display,
     })
 
@@ -403,6 +454,7 @@ return function(mod)
             id = "nuzlocke.gen3.menu",
             label = "NUZ MENU",
             onSelect = function()
+                refreshForgiveness()
                 Gen3Menu.open(g)
             end,
         })
@@ -426,12 +478,17 @@ return function(mod)
             end
             local saved = loadState()
             local ok, reason = Clauses.set(saved, key, value)
-            if ok then writeState(saved) end
+            if ok then
+                onClauseChanged(saved, key)
+                writeState(saved)
+            end
             return ok, reason
         end,
         summary = function()
             local saved = loadState()
             return { shinyExceptionsUsed = saved.shinyExceptionsUsed,
+                forgivenessTokens = Forgiveness.balance(saved),
+                eggsTracked = #(saved.eggHistory or {}),
                 roamerClaims = (function()
                     local count = 0
                     for _, v in pairs(saved.roamerClaims or {}) do
@@ -472,7 +529,8 @@ return function(mod)
         stage = "EXPERIMENTAL",
         features = { "first_wild_per_area", "optional_failed_encounters",
             "gen3_dupes_clause", "gen3_shiny_clause", "gen3_roamer_clause",
-            "gen3_shiny_rate",
+            "gen3_shiny_rate", "gen3_eggs_wip",
+            "gen3_route_forgiveness_wip",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run" },
         state = function()
