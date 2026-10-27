@@ -12,6 +12,10 @@ on:
       - 'gen3_clauses.lua'
       - 'gen3_shiny_rate.lua'
       - 'gen3_archive.lua'
+      - 'gen3_eggs.lua'
+      - 'gen3_forgiveness.lua'
+      - 'tests/gen3_eggs_smoke.lua'
+      - 'tests/gen3_forgiveness_smoke.lua'
       - 'tests/gen3_shiny_rate_smoke.lua'
       - 'tests/gen3_archive_smoke.lua'
       - 'tests/gen3_clauses_smoke.lua'
@@ -38,3 +42,7 @@ jobs:
         run: lua5.1 tests/gen3_shiny_rate_smoke.lua
       - name: Run full-Pokemon archive smoke
         run: lua5.1 tests/gen3_archive_smoke.lua
+      - name: Run Egg Encounter provenance smoke
+        run: lua5.1 tests/gen3_eggs_smoke.lua
+      - name: Run Route Forgiveness policy smoke
+        run: lua5.1 tests/gen3_forgiveness_smoke.lua
