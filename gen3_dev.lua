@@ -109,6 +109,13 @@ return function(api)
             dupesMode = s.clauses and s.clauses.dupes_mode or 0,
             shinyMode = s.clauses and s.clauses.shiny_clause or 0,
             shinyUsed = s.shinyExceptionsUsed or 0,
+            roamersClaimed = (function()
+                local n = 0
+                for _, claimed in pairs(s.roamerClaims or {}) do
+                    if claimed then n = n + 1 end
+                end
+                return n
+            end)(),
             edits = d.edits,
             tainted = d.tainted,
             lastAction = d.lastAction,
@@ -166,6 +173,7 @@ return function(api)
         if not s then return false, err end
         s.capturedSpecies = {}
         s.shinyExceptionsUsed = 0
+        s.roamerClaims = {}
         audit(s, "CLAUSE COUNTERS RESET")
         return true
     end
@@ -188,7 +196,8 @@ return function(api)
             .. " EDITS=" .. tostring(view.edits))
         print("[NUZ DEV] DUPES_MODE=" .. tostring(view.dupesMode)
             .. " SHINY_CLAUSE=" .. tostring(view.shinyMode)
-            .. " SHINY_USED=" .. tostring(view.shinyUsed))
+            .. " SHINY_USED=" .. tostring(view.shinyUsed)
+            .. " ROAMER_CLAIMS=" .. tostring(view.roamersClaimed))
         for _, area in ipairs(M.areas()) do
             print("[NUZ DEV] AREA " .. area.key
                 .. " SPENT=" .. tostring(area.spent)
