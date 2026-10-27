@@ -56,9 +56,8 @@ return function()
         -- No starters, gifts, Eggs, trainers, tutorials, frontier/link, or
         -- persistent roamers (whose identity would change between battles).
         if st.link or st.oldManTutorial or st.pokedude
-            or st.firstBattle or st.safari and st.kinds
-                and st.kinds.tutorial
-            or st.roamer or st.enemy.mon.roamer then return false end
+            or st.firstBattle or st.roamer or st.enemy.mon.roamer
+            or (st.foe and st.foe.roamer) then return false end
         if type(st.kinds) == "table" and
             (st.kinds.tutorial or st.kinds.link or st.kinds.recordedLink)
             then return false end
