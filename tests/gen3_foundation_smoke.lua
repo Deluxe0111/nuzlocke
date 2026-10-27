@@ -1,5 +1,13 @@
 -- Mocked Gen 3 event/API smoke: no ROM or Gen1Recomp installation required.
 local events, hooks, values = {}, {}, {}
+local uiStack = { top = nil }
+package.loaded["src.ui.game3.stack"] = {
+    push = function(id, module) uiStack.top = { id = id, module = module } end,
+    pop = function(id)
+        assert(uiStack.top and uiStack.top.id == id, "wrong menu popped")
+        uiStack.top = nil
+    end,
+}
 local fakeBattleItems = {
     canUseOn = function() return true end,
     use = function() return "heal", {}, true, false end,
@@ -27,6 +35,13 @@ local mod = {
     events = { on = function(_, n, f) events[n] = f end },
     hooks = { wrap = function(_, n, f) hooks[n] = f end },
     exports = {},
+    read = function(_, path)
+        local handle = io.open(path, "rb")
+        if not handle then return nil, "file missing: " .. path end
+        local text = handle:read("*a")
+        handle:close()
+        return text
+    end,
 }
 assert(loadfile("gen3_runtime.lua")()(mod) == nil)
 local function fire(n, v) assert(events[n], n)(v) end
@@ -39,15 +54,39 @@ local function throw(battle)
     return caught, shakes, invoked
 end
 assert(not mod.exports.gen3_classic.state().enabled, "opt in is required")
-local function toggle(expectBefore, expectAfter)
-    local rows = hooks["ui.start_menu.items"](function(_, items) return items end, game, {})
-    local row = rows[#rows]
-    assert(row.label == expectBefore, "incorrect initial menu label: " .. tostring(row.label))
-    assert(row.onSelect)
-    row.onSelect()
-    assert(row.label == expectAfter, "menu status should update without reopening")
+local function press(key)
+    assert(uiStack.top, "menu stack empty")
+    uiStack.top.module.handleInput({
+        wasPressed = function(_, button) return key == button end
+    })
 end
-toggle("NUZ: OFF", "NUZ: ON")
+local function openMenu()
+    local rows = hooks["ui.start_menu.items"](function(_, items) return items end, game, {})
+    assert(rows[#rows].label == "NUZ MENU", "one unified Gen 3 Start entry")
+    rows[#rows].onSelect()
+    local model = mod.exports.gen3_menu.model()
+    assert(model.title == "NUZ MENU", "menu opens home")
+    assert(model.rows[1] == "[WIP] NUZ RULES", "rules marked WIP")
+    assert(model.rows[3] == "NUZ STATUS", "functional status unflagged")
+    assert(model.rows[5] == "[Soon] ALMANAC", "absent feature marked Soon")
+end
+local function toggle(expectBefore, expectAfter)
+    openMenu()
+    press("a") -- NUZ RULES
+    assert(mod.exports.gen3_menu.model().title == "NUZ RULES")
+    press("a") -- CORE category
+    local core = mod.exports.gen3_menu.model()
+    assert(core.title == "CORE" and core.rows[1] == expectBefore,
+        "unexpected Gen 3 CORE rule state")
+    press("a") -- toggle Nuzlocke
+    assert(mod.exports.gen3_menu.model().rows[1] == expectAfter,
+        "Gen 3 menu toggle must update immediately")
+    press("b") -- CORE -> RULES
+    press("b") -- RULES -> HOME
+    press("b") -- HOME -> START
+    assert(uiStack.top == nil, "menu should close cleanly")
+end
+toggle("NUZLOCKE: OFF", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().enabled)
 local first = {}
 fire("battle.started", { battle = first, kind = "wild", species = "PIDGEY", speciesId = 16 })
@@ -97,6 +136,6 @@ fire("battle.ended")
 assert(#game.session.party == 0, "fainted mon removed despite later HP gain")
 assert(#values.gen3_classic_v1.graveyard == 1, "death not duplicated at cleanup")
 assert(mod.exports.gen3_classic.state().failed, "empty party loses run")
-toggle("NUZ: LOST", "NUZ: LOST")
+toggle("NUZLOCKE: ON", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().failed, "failure cannot be cleared")
 print("Gen3 experimental Nuzlocke smoke PASS")
