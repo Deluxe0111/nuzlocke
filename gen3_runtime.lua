@@ -25,6 +25,7 @@ return function(mod)
     local Extra = readModule("gen3_extra_core.lua")()
     local Levels = readModule("gen3_levels.lua")()
     local Notices = readModule("gen3_notices.lua")()
+    local Randomizer = readModule("gen3_randomizer.lua")()
     local currentArea
     local activeBattle
     local pendingRoamer
@@ -658,6 +659,26 @@ return function(mod)
         return applied
     end)
 
+    -- Native normal wild encounter selection, after vanilla table roll.
+    mod.hooks:wrap("encounter.species", function(next, enc, ctx)
+        local source = next(enc, ctx)
+        local r = Randomizer.get(loadState())
+        if not r.wild or r.seed == 0 then return source end
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return source end
+        return Randomizer.wild(loadState(), source, ctx, Pokemon)
+    end)
+
+    -- Native trainer party composition; preserve authored levels/slots.
+    mod.hooks:wrap("trainer.party", function(next, trainerClass, trainerId, party)
+        local composed = next(trainerClass, trainerId, party)
+        local r = Randomizer.get(loadState())
+        if not r.trainers or r.seed == 0 then return composed end
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return composed end
+        return Randomizer.trainers(loadState(), composed, trainerId, Pokemon)
+    end)
+
     mod.hooks:wrap("catch.rate", function(next, ball, mon, species, ctx)
         local battle = activeBattle
         if not isActive() or not battle or type(ctx) ~= "table"
@@ -794,7 +815,16 @@ return function(mod)
         inBattle = function() return battleInProgress end,
         areaSpent = Core.areaSpent,
     })
-    local Gen3Menu = readModule("gen3_menu.lua")(mod, { 
+    local Gen3Menu = readModule("gen3_menu.lua")(mod, {
+        randomizer = {
+            get = function() return Randomizer.get(loadState()) end,
+            set = function(key, value)
+                local saved = loadState()
+                local ok, reason = Randomizer.set(saved, key, value)
+                if ok then writeState(saved) end
+                return ok, reason
+            end,
+        }, 
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -850,6 +880,16 @@ return function(mod)
     end)
 
     mod.exports.gen3_menu = Gen3Menu
+    mod.exports.gen3_randomizer = {
+        api = Randomizer.api, version = Randomizer.version,
+        get = function() return Randomizer.get(loadState()) end,
+        set = function(key, value)
+            local saved = loadState()
+            local ok, reason = Randomizer.set(saved, key, value)
+            if ok then writeState(saved) end
+            return ok, reason
+        end,
+    }
     mod.exports.gen3_notices = {
         api = Notices.api,
         history = function() return Notices.history(loadState()) end,
