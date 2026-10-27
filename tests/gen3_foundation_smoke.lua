@@ -24,12 +24,15 @@ local function throw(battle)
     return caught, shakes, invoked
 end
 assert(not mod.exports.gen3_classic.state().enabled, "opt in is required")
-local function toggle()
+local function toggle(expectBefore, expectAfter)
     local rows = hooks["ui.start_menu.items"](function(_, items) return items end, game, {})
-    assert(rows[#rows].onSelect)
-    rows[#rows].onSelect()
+    local row = rows[#rows]
+    assert(row.label == expectBefore, "incorrect initial menu label: " .. tostring(row.label))
+    assert(row.onSelect)
+    row.onSelect()
+    assert(row.label == expectAfter, "menu status should update without reopening")
 end
-toggle()
+toggle("NUZ: OFF", "NUZ: ON")
 assert(mod.exports.gen3_classic.state().enabled)
 local first = {}
 fire("battle.started", { battle = first, kind = "wild", species = "PIDGEY", speciesId = 16 })
@@ -53,6 +56,6 @@ fire("battle.ended")
 assert(#game.session.party == 0, "fainted mon removed from native session")
 assert(#values.gen3_classic_v1.graveyard == 1, "death recorded")
 assert(mod.exports.gen3_classic.state().failed, "empty party loses run")
-toggle()
+toggle("NUZ: LOST", "NUZ: LOST")
 assert(mod.exports.gen3_classic.state().failed, "failure cannot be cleared")
 print("Gen3 experimental Nuzlocke smoke PASS")
