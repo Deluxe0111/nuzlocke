@@ -77,7 +77,7 @@ return function()
         local f = state(s)
         if type(areaId) ~= "string" or areaId == "" then return false end
         local entry = type(s.areas) == "table" and s.areas[areaId]
-        return f.tokens > 0 and not s.failed
+        return f.tokens > 0 and s.enabled == true and not s.failed
             and type(s.clauses) == "table"
             and (s.clauses.route_forgiveness == 1
                 or s.clauses.route_forgiveness == 2)
