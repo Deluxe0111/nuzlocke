@@ -196,6 +196,10 @@ local faint = { battle = trainerBattle, sideName = "player",
 fire("battle.fainted", faint)
 assert(battleMon.nuzlockeDead, "death is recorded during battle")
 assert(#values.gen3_classic_v1.graveyard == 1, "instant graveyard entry")
+assert(values.gen3_classic_v1.graveyard[1].archiveComplete
+    and values.gen3_classic_v1.graveyard[1].archive.personality == 7421
+    and values.gen3_classic_v1.graveyard[1].archive.nuzlockeDead == nil,
+    "death archive preserves Pokemon identity without death marker")
 fire("battle.fainted", faint)
 assert(#values.gen3_classic_v1.graveyard == 1, "duplicate faint not recorded")
 battleMon.hp = 13
@@ -467,7 +471,7 @@ press("a") -- NUZ RULES
 press("down") -- CLAUSES
 press("a")
 local clausesMenu = mod.exports.gen3_menu.model()
-assert(clausesMenu.title == "CLAUSES" and #clausesMenu.rows == 8,
+assert(clausesMenu.title == "CLAUSES" and #clausesMenu.rows == 6,
     "Gen 3 clause menu excludes Gold-only contest and includes all planned rows")
 assert(clausesMenu.rows[1] == "[WIP] DUPES CLAUSE: SPEC")
 assert(clausesMenu.rows[2] == "[WIP] SHINY CLAUSE: 1")
@@ -478,10 +482,11 @@ press("down") -- shiny clause
 press("a") -- 1 -> 2
 assert(mod.exports.gen3_clauses.getMode("shiny_clause") == 2)
 press("down") -- shiny rate
-assert(mod.exports.gen3_menu.model().rows[3] == "[Soon] SHINY RATE")
+assert(mod.exports.gen3_menu.model().rows[3] == "[WIP] SHINY RATE: NATIVE")
 press("a")
-assert(mod.exports.gen3_clauses.getMode("shiny_rate_mode") == 0,
-    "Soon clauses cannot alter state")
+assert(mod.exports.gen3_clauses.getMode("shiny_rate_mode") == 1,
+    "Shiny Rate cycles through supported real modes")
+assert(mod.exports.gen3_menu.model().rows[3] == "[WIP] SHINY RATE: 1/4096")
 press("b")
 press("b")
 press("b")
@@ -543,16 +548,36 @@ openMenu()
 press("a") -- NUZ RULES
 press("down") -- CLAUSES
 press("a")
-for _ = 1, 5 do press("down") end
+for _ = 1, 3 do press("down") end
 local roamerMenu = mod.exports.gen3_menu.model()
-assert(roamerMenu.rows[6] == "[WIP] ROAMER CLAUSE: SLOT",
+assert(roamerMenu.rows[4] == "[WIP] ROAMER CLAUSE: SLOT",
     "Gen 3 Roamer Clause row should show actual active mode")
 press("a")
 assert(mod.exports.gen3_clauses.getMode("gen3_roamer_clause") == 0)
-assert(mod.exports.gen3_menu.model().rows[6]
+assert(mod.exports.gen3_menu.model().rows[4]
     == "[WIP] ROAMER CLAUSE: OFF")
 press("b")
 press("b")
 press("b")
+
+-- Shiny Rate is deliberately independent of Nuzlocke master switch.
+-- An eligible newly generated wild Pokémon gets a persistent, individual
+-- shiny flag rather than a repeated draw-time random roll.
+values.gen3_classic_v1 = {
+    enabled = false, failed = false, areas = {}, graveyard = {},
+}
+assert(mod.exports.gen3_clauses.setMode("shiny_rate_mode", 6))
+local forced = { species = 16, personality = 7256 }
+local shinyFight = { enemy = { mon = forced } }
+fire("battle.started", { battle = shinyFight, kind = "wild", speciesId = 16 })
+assert(forced.isShiny == true and forced.nuzlockeShinyRateBoosted,
+    "ALWAYS should mark new wild shiny even when master switch OFF")
+fire("battle.ended")
+local trainerMon = { species = 16, personality = 7257 }
+fire("battle.started", { battle = { enemy = { mon = trainerMon } },
+    kind = "trainer" })
+assert(not trainerMon.nuzlockeShinyRateBoosted,
+    "Shiny Rate should not affect generated trainer Pokemon")
+fire("battle.ended")
 
 print("Gen3 experimental Nuzlocke smoke PASS")
