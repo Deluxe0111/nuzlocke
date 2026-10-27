@@ -58,7 +58,7 @@
   ],
   "conflicts": [],
   "description": "Configurable Nuzlocke enforcement for Gen 1 and 2; experimental classic Nuzlocke foundation for Gen 3 (first wild encounter per map and post-battle permadeath only).",
-  "github": "Stone696/nuzlocke",
+  "github": "Deluxe0111/nuzlocke",
   "games": [
     "red",
     "blue",
