@@ -236,7 +236,7 @@ return function(mod)
             end
         end
 
-        local modified = false
+        local modified, rescued = false, false
         for i = #party, 1, -1 do
             local mon = party[i]
             if type(mon) == "table" and mon.isEgg ~= true
@@ -261,6 +261,7 @@ return function(mod)
             if Core.enforced(s, "pc_survivors_allowed")
                 and Extra.rescueFromPc(s, native) then
                 modified = true
+                rescued = true
             else
                 s.failed = true
             end
@@ -268,8 +269,7 @@ return function(mod)
         if modified or s.failed then writeState(s) end
         if s.failed then
             notify("RUN_FAILED", "Nuzlocke run ended. See NUZ STATUS.", false)
-        elseif modified and #party > 0 and
-            Core.enforced(s, "pc_survivors_allowed") then
+        elseif rescued then
             notify("PC_SURVIVOR",
                 "Party empty: a living PC survivor joined your team.", false)
         end
