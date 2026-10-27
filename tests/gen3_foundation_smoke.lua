@@ -1,5 +1,11 @@
 -- Mocked Gen 3 event/API smoke: no ROM or Gen1Recomp installation required.
 local events, hooks, values = {}, {}, {}
+local nativeBattleMessages = {}
+package.loaded["src.core.game3.battle.ui"] = {
+    push = function(message)
+        nativeBattleMessages[#nativeBattleMessages + 1] = message
+    end,
+}
 -- ROM-backed native name resolver stubs: assert UI does not print numeric IDs.
 package.loaded["src.core.game3.pokemon"] = {
     speciesOf = function(mon) return tonumber(mon.species or mon.speciesId) end,
@@ -119,6 +125,13 @@ local repeatBattle = {}
 fire("battle.started", { battle = repeatBattle, kind = "wild" })
 caught, shakes, invoked = throw(repeatBattle)
 assert(caught == false and shakes == 0 and not invoked, "repeat catch denied")
+fire("battle.ball_thrown", { battle = repeatBattle, caught = false, shakes = 0 })
+local log = mod.exports.gen3_notices.history()
+assert(log[#log].code == "CATCH_DENIED"
+    and log[#log].text:find("One Per Area", 1, true),
+    "blocked Poke Ball should explain the rule in persisted notices")
+assert(nativeBattleMessages[#nativeBattleMessages]:find("encounter already used", 1, true),
+    "blocked Poke Ball explanation should appear in native battle text")
 fire("battle.ended")
 game.session.map = "FR_ROUTE_2"
 fire("map.entered", { mapId = "FR_ROUTE_2" })
