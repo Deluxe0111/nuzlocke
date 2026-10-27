@@ -3,18 +3,25 @@
 -- Only first-wild-encounter-per-area and post-battle permadeath are implemented.
 return function(mod)
     local KEY = "gen3_classic_v1"
+    -- Load mod-local modules without require-path assumptions. The mature
+    -- Gen 1/2 runtime keeps its own API and its own save schema.
+    local function readModule(path)
+        local source, err = mod:read(path)
+        assert(type(source) == "string",
+            "Nuzlocke cannot read " .. path .. ": " .. tostring(err))
+        local chunk, compileError = (loadstring or load)(
+            source, "@mods/nuzlocke/" .. path)
+        assert(type(chunk) == "function",
+            "Nuzlocke cannot compile " .. path .. ": " .. tostring(compileError))
+        return chunk()
+    end
+    local Core = readModule("gen3_core_rules.lua")()
     local currentArea
     local activeBattle
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
 
     local function loadState()
-        local s = mod.save:get(KEY, {})
-        if type(s) ~= "table" then s = {} end
-        if type(s.areas) ~= "table" then s.areas = {} end
-        if type(s.graveyard) ~= "table" then s.graveyard = {} end
-        s.enabled = s.enabled == true
-        s.failed = s.failed == true
-        return s
+        return Core.normalise(mod.save:get(KEY, {}))
     end
 
     local function writeState(s)
@@ -42,8 +49,7 @@ return function(mod)
     end
 
     local function isActive()
-        local s = loadState()
-        return s.enabled and not s.failed
+        return Core.active(loadState())
     end
 
     -- Game 3 battles operate on *copies* of session.party. Never table.remove
@@ -60,12 +66,13 @@ return function(mod)
             and tostring(a.nickname or a.name or "") == tostring(b.nickname or b.name or "")
     end
 
-    local function retireFainted()
+    local function retireFainted(outcome)
         local s = loadState()
-        if not s.enabled then return end
+        if not Core.active(s) then return end
         local native = session()
         local party = native and native.party
         if type(party) ~= "table" then return end
+        local deathEnabled = Core.get(s, "permadeath")
 
         -- A faint event has already committed the death to mod.save. Match the
         -- event's battle-party copy back to its native session counterpart,
@@ -90,7 +97,8 @@ return function(mod)
         for i = #party, 1, -1 do
             local mon = party[i]
             if type(mon) == "table" and mon.isEgg ~= true
-                and (mon.nuzlockeDead == true or (tonumber(mon.hp) or 0) <= 0) then
+                and (mon.nuzlockeDead == true
+                    or (deathEnabled and (tonumber(mon.hp) or 0) <= 0)) then
                 if not mon.nuzlockeDeathRecorded then
                     s.graveyard[#s.graveyard + 1] = {
                         species = mon.species or mon.speciesId,
@@ -103,14 +111,17 @@ return function(mod)
                 modified = true
             end
         end
-        if modified then
-            if #party == 0 then s.failed = true end
-            writeState(s)
-        end
+        -- Whiteout ends the run even when reserve Pokémon remain in the PC.
+        -- PC-survivor recovery stays [Soon] until a safe empty-party recovery
+        -- path exists in both Kanto and Hoenn. Do not delete user saves.
+        if Core.failedWhiteout(s, outcome) then s.failed = true end
+        if #party == 0 then s.failed = true end
+        if modified or s.failed then writeState(s) end
     end
 
     local function recordBattleFaint(ev)
-        if not isActive() or type(ev) ~= "table" then return end
+        if not Core.enforced(loadState(), "permadeath")
+            or type(ev) ~= "table" then return end
         local battler = ev.battler
         if type(battler) ~= "table" or
             (ev.sideName ~= "player" and battler.side ~= "player") then return end
@@ -165,14 +176,16 @@ return function(mod)
         end
 
         BattleItems.canUseOn = function(st, itemId, partySlot, mon, moveSlot)
-            if isActive() and isRevive(itemId, st and st.session) then
+            if Core.enforced(loadState(), "permadeath")
+                and isRevive(itemId, st and st.session) then
                 return false, "Nuzlocke: No revives."
             end
             return originalCanUse(st, itemId, partySlot, mon, moveSlot)
         end
 
         BattleItems.use = function(st, adapter, bag, nativeSession, itemId, ...)
-            if isActive() and isRevive(itemId, nativeSession) then
+            if Core.enforced(loadState(), "permadeath")
+                and isRevive(itemId, nativeSession) then
                 local message = "Nuzlocke: No revives."
                 if adapter and type(adapter.say) == "function" then
                     adapter:say(message)
@@ -212,18 +225,28 @@ return function(mod)
         local key = areaNow()
         if not key then return end -- fail open rather than block unknown maps
         local s = loadState()
-        local first = s.areas[key] == nil
-        if first then
-            s.areas[key] = { species = ev.species, speciesId = ev.speciesId, caught = false }
+        local eligible = Core.catchAllowed(s, key)
+        local entry = s.areas[key]
+        if eligible then
+            -- Even when failed encounters do not count, track how often the
+            -- area was attempted without committing its encounter slot.
+            if type(entry) ~= "table" then
+                entry = { species = ev.species, speciesId = ev.speciesId,
+                    caught = false, spent = false, attempts = 0 }
+            end
+            entry.attempts = (tonumber(entry.attempts) or 0) + 1
+            if Core.shouldSpendOnStart(s) then entry.spent = true end
+            s.areas[key] = entry
             writeState(s)
         end
-        activeBattle = { battle = ev.battle, area = key, eligible = first }
+        activeBattle = { battle = ev.battle, area = key, eligible = eligible }
     end)
 
     -- Gen 3's catch.rate wraps vanilla and returns (caught, shakes).
     -- This does not modify normal encounters or trainer battles.
     mod.hooks:wrap("catch.rate", function(next, ball, mon, species, ctx)
-        if isActive() and activeBattle and not activeBattle.eligible
+        if Core.enforced(loadState(), "encounter_limit")
+            and activeBattle and not activeBattle.eligible
             and type(ctx) == "table" and ctx.battle == activeBattle.battle then
             return false, 0
         end
@@ -237,6 +260,7 @@ return function(mod)
         local area = s.areas[activeBattle.area]
         if type(area) == "table" then
             area.caught = true
+            area.spent = true
             writeState(s)
         end
     end)
@@ -247,8 +271,8 @@ return function(mod)
 
     -- The native battle bridge writes back party HP before battle.ended.
     -- Compact party arrays only then, after the engine no longer needs indices.
-    mod.events:on("battle.ended", function()
-        retireFainted()
+    mod.events:on("battle.ended", function(ev)
+        retireFainted(type(ev) == "table" and ev.result or nil)
         activeBattle = nil
         battleDeaths = nil
     end)
@@ -256,14 +280,10 @@ return function(mod)
     -- Gen 3 is API 2 in this fork, and API 3's mod.ui.push uses a different
     -- UI bridge. Keep API 2 for the mature Gen 1/2 code and use the native
     -- Game 3 stack in a mod-local isolated menu module instead.
-    local menuSource, menuError = mod:read("gen3_menu.lua")
-    assert(type(menuSource) == "string",
-        "required Nuzlocke Gen 3 menu missing: " .. tostring(menuError))
-    local compile, compileError = (loadstring or load)(
-        menuSource, "@mods/nuzlocke/gen3_menu.lua")
-    assert(type(compile) == "function",
-        "Nuzlocke Gen 3 menu compile failed: " .. tostring(compileError))
-    local Gen3Menu = compile()(mod, { getState = loadState, setState = writeState })
+    local Gen3Menu = readModule("gen3_menu.lua")(mod, {
+        getState = loadState, setState = writeState,
+        core = Core,
+    })
 
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
         local rows = next(g, items)
@@ -281,11 +301,30 @@ return function(mod)
 
     mod.exports.gen3_menu = Gen3Menu
 
+    -- Versioned integration contract: callers may inspect a COPY of state
+    -- or ask whether a rule is enabled, but cannot bypass implementation gates.
+    mod.exports.gen3_core = {
+        api = 1,
+        schema = Core.schema,
+        definitions = Core.descriptors,
+        getRule = function(key)
+            return Core.get(loadState(), key)
+        end,
+        setRule = function(key, value)
+            local state = loadState()
+            local ok, err = Core.set(state, key, value)
+            if ok then writeState(state) end
+            return ok, err
+        end,
+    }
+
     -- Advertise supported scope without borrowing existing API-37 promises.
     mod.exports.gen3_classic = {
         api = 1,
         stage = "EXPERIMENTAL",
-        features = { "first_wild_per_area", "immediate_faint_death", "revive_denial", "post_battle_retirement" },
+        features = { "first_wild_per_area", "optional_failed_encounters",
+            "immediate_faint_death", "revive_denial", "post_battle_retirement",
+            "whiteout_ends_run" },
         state = function()
             local s = loadState()
             return { enabled = s.enabled, failed = s.failed,
