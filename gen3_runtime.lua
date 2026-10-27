@@ -17,6 +17,7 @@ return function(mod)
     end
     local Core = readModule("gen3_core_rules.lua")()
     local Clauses = readModule("gen3_clauses.lua")()
+    local ShinyRate = readModule("gen3_shiny_rate.lua")()
     local Display = readModule("gen3_display.lua")()
     local currentArea
     local activeBattle
@@ -236,6 +237,22 @@ return function(mod)
         installReviveGuard()
         local announcedRoamer = pendingRoamer
         pendingRoamer = nil -- the next battle is the only possible match
+        -- Shiny Rate is a gameplay-independent generation setting (like
+        -- Game Difficulty), so it works even with Nuzlocke enforcement OFF.
+        -- Apply once, BEFORE Shiny Clause checks encounter eligibility.
+        local shinyMode = Clauses.get(loadState(), "shiny_rate_mode")
+        ShinyRate.apply(mod, ev, shinyMode, function()
+            if love and love.math and love.math.random then
+                return love.math.random()
+            end
+            return math.random()
+        end, function(mon)
+            local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+            if not ok or not Pokemon or not Pokemon.isShiny then
+                error("Gen 3 native shiny resolver unavailable")
+            end
+            return Pokemon.isShiny(mon)
+        end)
         if not isActive() or type(ev) ~= "table" or ev.kind ~= "wild" then return end
         local key = areaNow()
         if not key then return end -- fail open rather than block unknown maps
@@ -319,6 +336,15 @@ return function(mod)
         local s = loadState()
         local caughtSpecies = ev.speciesId or ev.species
             or (ev.mon and (ev.mon.species or ev.mon.speciesId))
+        -- If the battle mon was generated shiny by Nuzlocke, preserve that
+        -- explicit identity on the just-cloned captured Pokémon as well.
+        local battleMon = activeBattle.battle and activeBattle.battle.enemy
+            and activeBattle.battle.enemy.mon
+        if battleMon and battleMon.nuzlockeShinyRateBoosted
+            and type(ev.mon) == "table" then
+            ev.mon.isShiny = true
+            ev.mon.nuzlockeShinyRateBoosted = true
+        end
         Clauses.noteCaught(s, caughtSpecies, activeBattle.exception)
         -- A captured roamer closes its *species* slot, not the current route.
         -- Exceptional shiny captures never close the ordinary encounter slot.
@@ -359,7 +385,7 @@ return function(mod)
     })
     local Gen3Menu = readModule("gen3_menu.lua")(mod, {
         getState = loadState, setState = writeState,
-        core = Core, clauses = Clauses,
+        core = Core, clauses = Clauses, shinyRate = ShinyRate,
         dev = Dev, display = Display,
     })
 
@@ -385,7 +411,13 @@ return function(mod)
         getMode = function(key)
             return Clauses.get(loadState(), key)
         end,
+        shinyRateOwner = function()
+            return ShinyRate.externalProvider(mod) or "Nuzlocke"
+        end,
         setMode = function(key, value)
+            if key == "shiny_rate_mode" and ShinyRate.externalProvider(mod) then
+                return false, "external_provider"
+            end
             local saved = loadState()
             local ok, reason = Clauses.set(saved, key, value)
             if ok then writeState(saved) end
@@ -434,6 +466,7 @@ return function(mod)
         stage = "EXPERIMENTAL",
         features = { "first_wild_per_area", "optional_failed_encounters",
             "gen3_dupes_clause", "gen3_shiny_clause", "gen3_roamer_clause",
+            "gen3_shiny_rate",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run" },
         state = function()
