@@ -16,6 +16,7 @@ return function(mod)
         return chunk()
     end
     local Core = readModule("gen3_core_rules.lua")()
+    local Clauses = readModule("gen3_clauses.lua")()
     local Display = readModule("gen3_display.lua")()
     local currentArea
     local activeBattle
@@ -23,7 +24,8 @@ return function(mod)
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
 
     local function loadState()
-        return Core.normalise(mod.save:get(KEY, {}))
+        local s = Core.normalise(mod.save:get(KEY, {}))
+        return Clauses.normalise(s)
     end
 
     local function writeState(s)
@@ -222,11 +224,21 @@ return function(mod)
         local key = areaNow()
         if not key then return end -- fail open rather than block unknown maps
         local s = loadState()
-        local eligible = Core.catchAllowed(s, key)
+        local areaEligible = Core.catchAllowed(s, key)
+        local native = session()
+        local enemy = ev.battle and ev.battle.enemy
+        local wildMon = enemy and enemy.mon
+        local species = ev.speciesId or ev.species
+            or (wildMon and (wildMon.species or wildMon.speciesId))
+        local edition = native and (native.edition or native.version
+            or native.gameId) or "gen3"
+        -- Clause eligibility must be resolved BEFORE we spend an encounter.
+        local dupe = Clauses.isDuplicate(s, species, native, edition)
+        local eligible = areaEligible and not dupe
         local entry = s.areas[key]
         if eligible then
-            -- Even when failed encounters do not count, track how often the
-            -- area was attempted without committing its encounter slot.
+            -- Failed encounters spend normal eligible encounters only.
+            -- Skipped duplicate species never claim a route.
             if type(entry) ~= "table" then
                 entry = { species = ev.species, speciesId = ev.speciesId,
                     caught = false, spent = false, attempts = 0 }
@@ -236,30 +248,56 @@ return function(mod)
             s.areas[key] = entry
             writeState(s)
         end
-        activeBattle = { battle = ev.battle, area = key, eligible = eligible }
+        activeBattle = {
+            battle = ev.battle, area = key, eligible = eligible,
+            areaEligible = areaEligible, duplicate = dupe,
+            shiny = Clauses.isShiny(wildMon),
+            exception = false,
+        }
     end)
 
     -- Gen 3's catch.rate wraps vanilla and returns (caught, shakes).
     -- This does not modify normal encounters or trainer battles.
     mod.hooks:wrap("catch.rate", function(next, ball, mon, species, ctx)
-        if Core.enforced(loadState(), "encounter_limit")
-            and activeBattle and not activeBattle.eligible
-            and type(ctx) == "table" and ctx.battle == activeBattle.battle then
+        local battle = activeBattle
+        if not isActive() or not battle or type(ctx) ~= "table"
+            or ctx.battle ~= battle.battle then
+            return next(ball, mon, species, ctx)
+        end
+        local s = loadState()
+        local limited = Core.get(s, "encounter_limit")
+        local blockedByArea = limited and not battle.areaEligible
+        local blockedByDupe = battle.duplicate
+        local exception = (blockedByArea or blockedByDupe)
+            and Clauses.canUseShinyException(s)
+            and (Clauses.isShiny(mon) or battle.shiny)
+        if (blockedByArea or blockedByDupe) and not exception then
             return false, 0
         end
-        return next(ball, mon, species, ctx)
+        local caught, shakes = next(ball, mon, species, ctx)
+        -- A failed Ball never consumes a Shiny Clause allowance.
+        if caught and exception then battle.exception = true end
+        return caught, shakes
     end)
 
     mod.events:on("pokemon.caught", function(ev)
-        if not isActive() or not activeBattle or not activeBattle.eligible then return end
+        if not isActive() or not activeBattle then return end
         if type(ev) ~= "table" or ev.battle ~= activeBattle.battle then return end
         local s = loadState()
-        local area = s.areas[activeBattle.area]
-        if type(area) == "table" then
-            area.caught = true
-            area.spent = true
-            writeState(s)
+        local caughtSpecies = ev.speciesId or ev.species
+            or (ev.mon and (ev.mon.species or ev.mon.speciesId))
+        Clauses.noteCaught(s, caughtSpecies, activeBattle.exception)
+        -- Exceptional shiny captures do not close an otherwise free normal
+        -- encounter slot. All ordinary successful catches do.
+        if activeBattle.eligible and not activeBattle.exception then
+            local area = s.areas[activeBattle.area]
+            if type(area) == "table" then
+                area.caught = true
+                area.spent = true
+                area.caughtSpeciesId = caughtSpecies
+            end
         end
+        writeState(s)
     end)
 
     -- The engine emits this while the faint is being announced, before the
@@ -286,7 +324,8 @@ return function(mod)
     })
     local Gen3Menu = readModule("gen3_menu.lua")(mod, {
         getState = loadState, setState = writeState,
-        core = Core, dev = Dev, display = Display,
+        core = Core, clauses = Clauses,
+        dev = Dev, display = Display,
     })
 
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
@@ -305,6 +344,28 @@ return function(mod)
 
     mod.exports.gen3_menu = Gen3Menu
     -- Read-only diagnostic API. Mutators stay internal to the developer menu.
+    mod.exports.gen3_clauses = {
+        api = 1, schema = Clauses.schema,
+        definitions = Clauses.descriptors,
+        getMode = function(key)
+            return Clauses.get(loadState(), key)
+        end,
+        setMode = function(key, value)
+            local saved = loadState()
+            local ok, reason = Clauses.set(saved, key, value)
+            if ok then writeState(saved) end
+            return ok, reason
+        end,
+        summary = function()
+            local saved = loadState()
+            return { shinyExceptionsUsed = saved.shinyExceptionsUsed,
+                speciesRecorded = (function()
+                    local count = 0
+                    for _ in pairs(saved.capturedSpecies) do count = count + 1 end
+                    return count
+                end)() }
+        end,
+    }
     mod.exports.gen3_dev_info = { api = 1, snapshot = Dev.inspect,
         status = Dev.status }
 
@@ -330,6 +391,7 @@ return function(mod)
         api = 1,
         stage = "EXPERIMENTAL",
         features = { "first_wild_per_area", "optional_failed_encounters",
+            "gen3_dupes_clause", "gen3_shiny_clause",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run" },
         state = function()
