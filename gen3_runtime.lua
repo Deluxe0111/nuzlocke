@@ -420,6 +420,10 @@ return function(mod)
                     -- Go to the capture naming screen, never accept "No".
                     notify("NICKNAME_FORCED",
                         "Nickname Rule: give your new Pokemon a nickname.", false)
+                    -- Naming may have loaded only now (at the capture
+                    -- prompt rather than battle.started). Wrap it before the
+                    -- native YES branch opens the screen.
+                    installNicknameGuard()
                     return callback(true)
                 end
                 return ask(prompt, callback, ...)
@@ -513,6 +517,8 @@ return function(mod)
         battleInProgress = false
         battleDeaths = nil
         mercyBattle = nil
+        installCandyGuard()
+        installNicknameGuard()
     end)
     mod.events:on("save.created", function()
         currentArea = nil
@@ -521,6 +527,8 @@ return function(mod)
         battleInProgress = false
         battleDeaths = nil
         mercyBattle = nil
+        installCandyGuard()
+        installNicknameGuard()
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
