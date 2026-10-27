@@ -133,6 +133,18 @@ assert(log[#log].code == "CATCH_DENIED"
 assert(nativeBattleMessages[#nativeBattleMessages]:find("encounter already used", 1, true),
     "blocked Poke Ball explanation should appear in native battle text")
 fire("battle.ended")
+openMenu()
+assert(mod.exports.gen3_menu.model().rows[10] == "NUZ NOTICES")
+for _ = 1, 9 do press("down") end
+press("a") -- NUZ NOTICES
+assert(mod.exports.gen3_menu.model().title == "NUZ NOTICES")
+assert(mod.exports.gen3_menu.model().rows[1] == "CATCH_DENIED",
+    "latest rule outcome available in history")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "NUZ NOTICE")
+assert(#mod.exports.gen3_menu.model().rows > 1,
+    "long player-facing reason must wrap over multiple rows")
+press("b"); press("b"); press("b")
 game.session.map = "FR_ROUTE_2"
 fire("map.entered", { mapId = "FR_ROUTE_2" })
 local newAreaBattle = {}
