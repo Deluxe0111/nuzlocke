@@ -5,17 +5,19 @@ This branch does **not** port Nuzlocke's full Gen 1/2 feature set. It introduces
 ## Implemented
 
 - Open **NUZ MENU** from the in-game Start menu (mirrors the Gen 1/2 Nuzlocke top-level structure) and toggle **NUZLOCKE: OFF / ON** in **NUZ RULES → CORE**.
-- The Gen 3 menu includes 21 rule categories and 161 original rule entries: implemented features have no prefix; partially operational menus show **[WIP]**; unimplemented rules show **[Soon]** and open inert informational detail screens.
-- Mark the first wild battle on each **native map ID** as the area's attempt, even if the wild Pokémon flees or faints.
+- The Gen 3 menu includes 21 rule categories plus the approved eight-rule **CORE** menu. Other original rule entries are visible as [Soon] placeholders. Implemented features have no prefix; partial items show **[WIP]**. See [GEN3_CORE_SPEC.md](GEN3_CORE_SPEC.md) for the agreed behaviour and PC/whiteout precedence.
+- Nuzlocke, Permadeath, One Per Area and Failed Encounters are independent live CORE switches. Whiteout Ends Run has preliminary enforcement and remains **[WIP]**. Nickname, First Rival Mercy and PC Survivors Allowed remain **[Soon]** and cannot be changed.
+- Track the first eligible wild battle on each **native map ID**. With Failed Encounters ON it consumes the slot immediately, even if the Pokémon flees or faints; with that setting OFF, only a successful eligible catch consumes the slot.
 - Reject subsequent catch rolls on the same map through Gen1Recomp's Gen 3 `catch.rate` hook (Balls are still consumed by the native action).
 - Record successful captures. As soon as the Gen 3 `battle.fainted` event fires for a player battler, irreversibly record death in the save-local graveyard and mark the battle-party Pokémon as dead. Compaction of the native party array still happens after `battle.ended`, when forced switching and battle writeback are finished.
 - Deny revival-item usage in the Gen 3 battle party UI and item execution transaction, while leaving other medicine paths unchanged.
-- Mark the run failed when the party becomes empty.
-- Keep the feature disabled by default and store data under `gen3_classic_v1`, separate from the Gen 1/2 save schema.
+- Mark the run failed when the party becomes empty. Whiteout Ends Run can also fail the challenge immediately on a lost battle, even if boxed Pokémon remain; the safe PC-survivor recovery path is **not** implemented and cannot be enabled.
+- Keep the master feature disabled by default and store settings, history and deaths under the backwards-compatible `gen3_classic_v1` key, separate from the Gen 1/2 save schema. Legacy captured/missed areas with no `spent` flag remain spent after upgrading.
 
 ## Not yet implemented / known gaps
 
-- The original mod's full rule configuration, profiles, setup, complete encounter-tracker UI, advanced death/forgiveness rules, randomiser, shiny clauses, gift/statics, species clauses and public compatibility API. They are navigable as **[Soon]** items but have **no gameplay effect** yet.
+- Most of the original mod's configuration, profiles, setup, complete encounter-tracker UI, advanced death/forgiveness rules, randomiser, shiny clauses, gift/statics and species clauses are not yet ported. These remain inert **[Soon]** rows. The limited **versioned** `mod.exports.gen3_core` rule API is now available.
+- First Rival Mercy and Nickname Requirement are approved but not active. The native whiteout / story-battle exceptions need runtime verification.
 - Gen 3's menu is implemented with its native 240x160 screen stack, rather than Gen 1/2's screens system. This keeps the fork's Mod API at version 2, but game testing is needed to confirm drawing and navigation for every GBA edition.
 - The tracker currently treats each native **map ID** as a separate catch area. Canonical Nuzlocke locations (for example different floors of one cave) need a region/section mapping.
 - Gen 3 does provide a player-side `battle.fainted` event; it now records death immediately. **The actual party entry stays visible as fainted until battle ends**, because removing it mid-battle can invalidate the engine's `partyIndex` references, especially in double battles. Special modes (scripted, link, multi, battle facilities) need separate certification.
