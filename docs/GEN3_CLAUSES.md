@@ -2,8 +2,9 @@
 
 The CLAUSES screen uses the original Gen 1/2 **option meanings** where safe,
 but is scoped to Generation 3. The original Johto **Bug Catching Contest**
-setting is intentionally omitted. This milestone brings over Dupes and Shiny
-Catch Exceptions; other clauses are visible as honest placeholders.
+setting is intentionally omitted. Dupes and Shiny Catch Exceptions were
+confirmed in live FireRed testing; Roamer Clause is the next [WIP] implementation.
+Other clauses remain honest [Soon] placeholders.
 
 ## Implemented policy and status
 
@@ -14,7 +15,7 @@ Catch Exceptions; other clauses are visible as honest placeholders.
 | **SHINY RATE** | Planned NATIVE and increased-odds policies | **[Soon]**, inert |
 | **SHINY COLOURS** | Planned options for the mod's own shiny presentation | **[Soon]**, inert |
 | **SHINY INTRO** | Planned presentation override | **[Soon]**, inert |
-| **ROAMER CLAUSE** | Planned Gen 3 roamer tracking, not Gen 2 Raikou/Entei handling | **[Soon]**, inert |
+| **ROAMER CLAUSE** | OFF / SLOT; roaming species get independent catch slots without spending grass routes | **[WIP]** (mock tests pass; native game unverified) |
 | **EGG ENCOUNTER** | Planned received / hatched / gift-egg provenance | **[Soon]**, inert |
 | **ROUTE FORGIVENESS** | Planned Gym reward token and reopening/reviving behaviour | **[Soon]**, inert |
 
@@ -91,6 +92,9 @@ rules such as No Catching, species bans or Type Locke. The policy calls
   readable.
 - No `shiny.roll` override is installed. We should only modify shiny odds
   after agreeing on ownership/interoperability with other shiny providers.
+- Roamer Clause listens for native `roamer.encountered` and native `roamer=true`,
+  recording captures in `roamerClaims` rather than consuming `areas`. See
+  [GEN3_CLAUSES_NEXT.md](GEN3_CLAUSES_NEXT.md) for proposed remaining clauses.
 - The mature Gen 1/2 runtime, menu and save schema remain unchanged.
 
 ## Recommended in-game test matrix
@@ -122,8 +126,9 @@ can themselves continue triggering Dupes Clause.
   consume a Shiny Clause exception.
 - [ ] **CL11** — Save and reload after captures. Dupes history, selected
   modes and exceptional shiny usage should persist.
-- [ ] **CL12** — Verify Shiny Rate/Colours/Intro, Roamer, Egg and Forgiveness
-  are marked [Soon] and don't falsely enable gameplay features.
+- [ ] **CL12** — Verify Shiny Rate/Colours/Intro, Egg and Forgiveness remain
+  [Soon]. Roamer Clause is [WIP] and can switch OFF/SLOT; see R01–R06 in the
+  [next milestone notes](GEN3_CLAUSES_NEXT.md).
 - [ ] **CL13** — In NUZ DEV, confirm **RESET CLAUSE COUNTS** clears the
   shiny exception counter and capture log, but does not erase actual party/PC
   Pokémon or legacy graveyard evidence. Cancellation must change nothing.
