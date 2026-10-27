@@ -22,7 +22,7 @@ This branch does **not** port Nuzlocke's full Gen 1/2 feature set. It introduces
 - The tracker currently treats each native **map ID** as a separate catch area. Canonical Nuzlocke locations (for example different floors of one cave) need a region/section mapping.
 - Gen 3 does provide a player-side `battle.fainted` event; it now records death immediately. **The actual party entry stays visible as fainted until battle ends**, because removing it mid-battle can invalidate the engine's `partyIndex` references, especially in double battles. Special modes (scripted, link, multi, battle facilities) need separate certification.
 - Revival blocking currently covers native in-battle revival items; interactions with third-party item providers, scripted healing, and the battle restart/whiteout flow remain to be tested.
-- The graveyard contains metadata, not a PC-stored recoverable Pokémon. Retirement changes the native session party; back up saves before testing.
+- The graveyard contains metadata, not a PC-stored recoverable Pokémon. Retirement changes the native session party; back up saves before testing. `gen3_display.lua` now uses native Pokémon and map-section name resolvers and humanises older records on read without rewriting their saved IDs.
 - No game/ROM runtime certification yet. The mock test checks local hook and state logic only. FireRed, LeafGreen, Ruby, Sapphire and Emerald require independent boots/tests.
 
 ## Testing
