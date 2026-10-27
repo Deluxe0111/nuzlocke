@@ -66,7 +66,7 @@ return function(mod)
     local function refreshForgiveness()
         local saved = loadState()
         local mode = Clauses.get(saved, "route_forgiveness")
-        if mode == 0 then return end
+        if mode == 0 or not Core.active(saved) then return end
         local f = saved.forgiveness
         local before = f and f.tokens or 0
         local already = f and f.initialised
