@@ -133,19 +133,19 @@ local directCandyUses = 0
 local nativeParty = {
     open = true, mode = "use", _item = 68, _session = session,
     _party = session.party, cursor = 1,
-    handleInput = function(input)
+}
+nativeParty.handleInput = function(input)
         if input:wasPressed("a") then
             directCandyUses = directCandyUses + 1
             nativeParty._party[nativeParty.cursor].level =
                 nativeParty._party[nativeParty.cursor].level + 1
         end
-    end,
-    showMessage = function(message, callback)
-        nativeParty.message = message
-        nativeParty.mode = "message"
-        nativeParty.dismiss = callback
-    end,
-}
+    end
+nativeParty.showMessage = function(message, callback)
+    nativeParty.message = message
+    nativeParty.mode = "message"
+    nativeParty.dismiss = callback
+end
 package.loaded["src.ui.game3.party_menu"] = nativeParty
 local game = { generation = 3, session = session }
 local mod = { game = game, exports = {},
