@@ -90,9 +90,15 @@ return function()
         local ok3, key = pcall(Pokemon.keyName, sp)
         if not ok2 or not ok3 or type(stats) ~= "table"
             or type(key) ~= "string" or key == "" then return nil end
+        -- Game3's Pokemon.stats is a NAMED stat object, not the Gen1/2
+        -- numeric array. Support both for safe registry adapters.
+        local keys = {"hp", "atk", "def", "spe", "spa", "spd"}
         local bst = 0
-        for i = 1, 6 do bst = bst + (tonumber(stats[i]) or 0) end
-        if bst <= 0 then return nil end
+        for i, name in ipairs(keys) do
+            local value = tonumber(stats[name] or stats[i]) or 0
+            if value <= 0 then return nil end
+            bst = bst + value
+        end
         return { id = sp, national = nat, bst = bst, key = key }
     end
     function M.pool(Pokemon)
