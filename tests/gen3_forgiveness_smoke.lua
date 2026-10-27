@@ -45,4 +45,17 @@ local flags = { [0x820] = true, [0x821] = 1 }
 local badgeMap = F.badges({ flags = flags })
 assert(badgeMap[1] == true and badgeMap[2] == true
     and badgeMap[3] == false, "real native badge flags accepted")
+local devSave = { dev = { enabled = true }, forgiveness = { tokens = 0 } }
+local D = assert(loadfile("gen3_dev.lua"))()({
+    getState = function() return devSave end,
+    setState = function(updated) devSave = updated end,
+    getCurrentArea = function() return "FR_ROUTE_1" end,
+    inBattle = function() return false end,
+    getSession = function() return { party = { { species = 25, hp = 30 } } } end,
+    areaSpent = function() return true end,
+})
+assert(D.grantTestToken() and devSave.forgiveness.tokens == 1,
+    "NUZ DEV token grant increments test balance")
+assert(devSave.dev.tainted and devSave.dev.edits == 1,
+    "test-token grant is audited and marks test save")
 print("Gen3 Forgiveness policy smoke PASS")
