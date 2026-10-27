@@ -45,13 +45,13 @@ return function()
             return nil
         end
         local result = {}
-        -- Gen 3 native species 1..386 include version-specific reserved slots.
+        -- Gen 3 internal species 1..411 include reserved OLD_UNOWN slots.
         -- Validate each through the merged registry; exclude special eggs/forms.
-        for id = 1, 386 do
+        for id = 1, 411 do
             local ok, key = pcall(Pokemon.keyName, id)
             if ok and type(key) == "string" and key ~= ""
                 and key ~= "EGG" and key ~= "NONE"
-                and key:find("UNOWN") ~= 1
+                and not key:find("OLD_UNOWN", 1, true)
                 and not key:find("BAD_EGG", 1, true) then
                 result[#result + 1] = { id = id, name = key }
             end
