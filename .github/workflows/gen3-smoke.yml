@@ -7,6 +7,7 @@ on:
       - 'gen3_runtime.lua'
       - 'gen3_core_rules.lua'
       - 'gen3_menu.lua'
+      - 'gen3_dev.lua'
       - 'manifest.json'
       - 'tests/gen3_foundation_smoke.lua'
       - '.github/workflows/gen3-smoke.yml'
