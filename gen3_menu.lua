@@ -7,6 +7,7 @@ return function(mod, api)
     local pages = {}
     local engineGame
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
+    local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
     local Display = assert(api.display, "Gen 3 menu needs species and location labels")
 
@@ -234,8 +235,38 @@ return function(mod, api)
         return rows
     end
 
+    local function clausesRows()
+        local rows = {}
+        for _, descriptor in ipairs(Clauses.descriptors()) do
+            local d = descriptor
+            if d.status == "soon" then
+                rows[#rows + 1] = row(d.label, "soon", function()
+                    disabledFeature(d.label, d.key)
+                end)
+            else
+                rows[#rows + 1] = row(d.label .. ": " ..
+                    Clauses.label(state(), d.key), "wip", function()
+                    local currentState = state()
+                    local value = Clauses.get(currentState, d.key)
+                    local nextValue = (value + 1) % #d.options
+                    local ok, reason = Clauses.set(currentState, d.key, nextValue)
+                    if ok then
+                        api.setState(currentState)
+                        current().rows = clausesRows()
+                    elseif reason == "run_failed" then
+                        return
+                    else
+                        info("RULE UNAVAILABLE", { tostring(reason) })
+                    end
+                end)
+            end
+        end
+        return rows
+    end
+
     local function categoryRows(category)
         if category.title == "CORE" then return coreRows() end
+        if category.title == "CLAUSES" then return clausesRows() end
         local rows = {}
         for _, rule in ipairs(category.rules) do
             local key, label = rule[1], rule[2]
@@ -251,7 +282,8 @@ return function(mod, api)
         local rows = {}
         for _, cat in ipairs(CATALOG) do
             local c = cat
-            local kind = c.title == "CORE" and "wip" or "soon"
+            local kind = (c.title == "CORE" or c.title == "CLAUSES")
+                and "wip" or "soon"
             rows[#rows + 1] = row(c.title, kind, function()
                 present(c.title, categoryRows(c))
             end)
