@@ -1,6 +1,6 @@
--- EXPERIMENTAL Gen 3 path: classic Nuzlocke foundation.
--- Deliberately independent of main.lua's Gen 1/2 internals and save schema.
--- Only first-wild-encounter-per-area and post-battle permadeath are implemented.
+-- EXPERIMENTAL Gen 3 runtime: CORE, encounter CLAUSES, independent shiny
+-- odds, roamer slots and full-fidelity death archive for future recovery.
+-- Deliberately independent of main.lua's Gen 1/2 save schema and UI.
 return function(mod)
     local KEY = "gen3_classic_v1"
     -- Load mod-local modules without require-path assumptions. The mature
