@@ -3,6 +3,7 @@ local events, hooks, values = {}, {}, {}
 -- ROM-backed native name resolver stubs: assert UI does not print numeric IDs.
 package.loaded["src.core.game3.pokemon"] = {
     speciesOf = function(mon) return tonumber(mon.species or mon.speciesId) end,
+    isShiny = function(mon) return mon.isShiny == true end,
     name = function(species)
         local names = { [16] = "PIDGEY", [25] = "PIKACHU" }
         return assert(names[tonumber(species)], "unknown mocked species")
