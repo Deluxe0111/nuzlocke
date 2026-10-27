@@ -20,6 +20,7 @@ return function(mod)
     local Display = readModule("gen3_display.lua")()
     local currentArea
     local activeBattle
+    local pendingRoamer
     local battleInProgress = false
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
 
@@ -197,17 +198,30 @@ return function(mod)
     -- Gen 3's map.entered uses a native map ID, not a Gen 1 map name.
     mod.events:on("map.entered", function(ev)
         currentArea = type(ev) == "table" and areaKey(ev.mapId) or nil
+        pendingRoamer = nil -- never match a roamer across unrelated maps
+    end)
+
+    -- Fires before the native Gen 3 wild battle is started. Useful even if
+    -- the provider clones the roamer and loses its original roamer=true flag.
+    mod.events:on("roamer.encountered", function(ev)
+        if type(ev) ~= "table" then return end
+        pendingRoamer = {
+            speciesId = Clauses.speciesId(ev.species),
+            mapId = areaKey(ev.mapId),
+        }
     end)
 
     mod.events:on("save.loaded", function()
         currentArea = nil
         activeBattle = nil
+        pendingRoamer = nil
         battleInProgress = false
         battleDeaths = nil
     end)
     mod.events:on("save.created", function()
         currentArea = nil
         activeBattle = nil
+        pendingRoamer = nil
         battleInProgress = false
         battleDeaths = nil
     end)
@@ -220,23 +234,37 @@ return function(mod)
         battleDeaths = nil
         -- Install after the engine's battle modules exist, before any item turn.
         installReviveGuard()
+        local announcedRoamer = pendingRoamer
+        pendingRoamer = nil -- the next battle is the only possible match
         if not isActive() or type(ev) ~= "table" or ev.kind ~= "wild" then return end
         local key = areaNow()
         if not key then return end -- fail open rather than block unknown maps
         local s = loadState()
-        local areaEligible = Core.catchAllowed(s, key)
         local native = session()
         local enemy = ev.battle and ev.battle.enemy
         local wildMon = enemy and enemy.mon
         local species = ev.speciesId or ev.species
             or (wildMon and (wildMon.species or wildMon.speciesId))
+        local spId = Clauses.speciesId(species)
         local edition = native and (native.edition or native.version
             or native.gameId) or "gen3"
-        -- Clause eligibility must be resolved BEFORE we spend an encounter.
+        local markedRoamer = wildMon and wildMon.roamer == true
+            or (ev.battle and ev.battle.roamer == true)
+        local eventRoamer = announcedRoamer
+            and announcedRoamer.speciesId ~= nil
+            and announcedRoamer.speciesId == spId
+            and (not announcedRoamer.mapId
+                or announcedRoamer.mapId == key)
+        local roamer = Clauses.roamerActive(s)
+            and (markedRoamer or eventRoamer) and spId ~= nil
+        local roamerOpen = not roamer or Clauses.roamerAvailable(s, spId)
+        local areaEligible = roamer or Core.catchAllowed(s, key)
+        -- The roamer's species slot replaces the map slot; a free roamer
+        -- encounter never consumes this map, even if it flees or faints.
         local dupe = Clauses.isDuplicate(s, species, native, edition)
-        local eligible = areaEligible and not dupe
+        local eligible = areaEligible and roamerOpen and not dupe
         local entry = s.areas[key]
-        if eligible then
+        if eligible and not roamer then
             -- Failed encounters spend normal eligible encounters only.
             -- Skipped duplicate species never claim a route.
             if type(entry) ~= "table" then
@@ -253,6 +281,8 @@ return function(mod)
             areaEligible = areaEligible, duplicate = dupe,
             shiny = Clauses.isShiny(wildMon),
             exception = false,
+            roamer = roamer, roamerOpen = roamerOpen,
+            roamerSpecies = spId,
         }
     end)
 
@@ -268,10 +298,13 @@ return function(mod)
         local limited = Core.get(s, "encounter_limit")
         local blockedByArea = limited and not battle.areaEligible
         local blockedByDupe = battle.duplicate
-        local exception = (blockedByArea or blockedByDupe)
+        local blockedByRoamer = battle.roamer and not battle.roamerOpen
+        local exception = not blockedByRoamer
+            and (blockedByArea or blockedByDupe)
             and Clauses.canUseShinyException(s)
             and (Clauses.isShiny(mon) or battle.shiny)
-        if (blockedByArea or blockedByDupe) and not exception then
+        if blockedByRoamer
+            or ((blockedByArea or blockedByDupe) and not exception) then
             return false, 0
         end
         local caught, shakes = next(ball, mon, species, ctx)
@@ -287,9 +320,11 @@ return function(mod)
         local caughtSpecies = ev.speciesId or ev.species
             or (ev.mon and (ev.mon.species or ev.mon.speciesId))
         Clauses.noteCaught(s, caughtSpecies, activeBattle.exception)
-        -- Exceptional shiny captures do not close an otherwise free normal
-        -- encounter slot. All ordinary successful catches do.
-        if activeBattle.eligible and not activeBattle.exception then
+        -- A captured roamer closes its *species* slot, not the current route.
+        -- Exceptional shiny captures never close the ordinary encounter slot.
+        if activeBattle.roamer then
+            Clauses.claimRoamer(s, activeBattle.roamerSpecies)
+        elseif activeBattle.eligible and not activeBattle.exception then
             local area = s.areas[activeBattle.area]
             if type(area) == "table" then
                 area.caught = true
