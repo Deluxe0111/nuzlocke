@@ -74,6 +74,21 @@ Clauses.noteCaught(s, 19, true)
 assert(not Clauses.canUseShinyException(s))
 assert(Clauses.set(s, "shiny_clause", 4))
 assert(Clauses.canUseShinyException(s), "unlimited ignores counter")
+-- Roamers get one species-specific slot and never borrow a route slot.
+assert(Clauses.get(s, "gen3_roamer_clause") == 0)
+assert(Clauses.set(s, "gen3_roamer_clause", 1))
+assert(Clauses.roamerAvailable(s, 243), "first roaming Raikou is eligible")
+assert(Clauses.roamerAvailable(s, 244), "different roamer species has its own slot")
+assert(Clauses.claimRoamer(s, 243), "successful Raikou catch closes its slot")
+assert(not Clauses.roamerAvailable(s, 243), "caught roamer cannot be claimed again")
+assert(Clauses.roamerAvailable(s, 244), "Raikou doesn't close Entei's slot")
+assert(not Clauses.claimRoamer(s, 243), "duplicate roamer claim prevented")
+assert(Clauses.set(s, "gen3_roamer_clause", 0))
+assert(not Clauses.roamerAvailable(s, 244), "disabled roamer policy is inert")
+assert(s.roamerClaims["243"] == true, "changing mode preserves history")
+assert(Clauses.set(s, "gen3_roamer_clause", 1))
+assert(not Clauses.roamerAvailable(s, 243), "history survives toggles")
+
 s.failed = true
 assert(Clauses.set(s, "dupes_mode", 0) == false,
     "failed runs cannot alter clause settings")
