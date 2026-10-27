@@ -4,7 +4,7 @@ The CLAUSES screen uses the original Gen 1/2 **option meanings** where safe,
 but is scoped to Generation 3. The original Johto **Bug Catching Contest**
 setting is intentionally omitted. Dupes and Shiny Catch Exceptions were
 confirmed in live FireRed testing; Roamer Clause is the next [WIP] implementation.
-Other clauses remain honest [Soon] placeholders.
+Egg Encounter and Route Forgiveness are now partial [WIP] features; full gift provenance and Pokémon restoration remain pending.
 
 ## Implemented policy and status
 
@@ -14,8 +14,8 @@ Other clauses remain honest [Soon] placeholders.
 | **SHINY CLAUSE** | `OFF`, `1`, `2`, `3`, `UNLIMITED` | **[WIP]** (implemented in Lua; in-game shiny validation needed) |
 | **SHINY RATE** | NATIVE / 1/4096 / 1/1024 / 1/512 / 1/100 / 1/10 / ALWAYS | **[WIP]** (Lua tested; gameplay certification pending) |
 | **ROAMER CLAUSE** | OFF / SLOT; roaming species get independent catch slots without spending grass routes | **[WIP]** (mock tests pass; native game unverified) |
-| **EGG ENCOUNTER** | Planned received / hatched / gift-egg provenance | **[Soon]**, inert |
-| **ROUTE FORGIVENESS** | Planned Gym reward token and reopening/reviving behaviour | **[Soon]**, inert |
+| **EGG ENCOUNTER** | OFF / RECEIVED / HATCHED / GIFT; bred Egg provenance and hatch-based area claims | **[WIP]** (full receipt/gift enforcement pending) |
+| **ROUTE FORGIVENESS** | OFF / EARN / START 1; badge-based tokens and missed-route reopening | **[WIP]** (Pokémon revival still [Soon]) |
 
 FireRed, LeafGreen and Hoenn already have native shiny palettes and battle
 intro effects. **Shiny Colours and Shiny Intro are removed from the Gen 3
@@ -151,7 +151,7 @@ can themselves continue triggering Dupes Clause.
 - [ ] **CL11** — Save and reload after captures. Dupes history, selected
   modes and exceptional shiny usage should persist.
 - [ ] **CL12** — Confirm Shiny Rate cycles all seven modes, native shiny
-  palettes/intros remain intact, and Eggs/Forgiveness remain [Soon].
+  palettes/intros remain intact, and Eggs/Forgiveness show [WIP] with unfinished paths clearly marked.
   Roamer Clause is [WIP] and supports OFF/SLOT; see R01–R06 in the
   [next milestone notes](GEN3_CLAUSES_NEXT.md).
 - [ ] **CL13** — In NUZ DEV, confirm **RESET CLAUSE COUNTS** clears the
@@ -173,3 +173,6 @@ The dedicated Gen 3 GitHub Actions workflow runs both tests. They confirm
 Lua-level behaviour with mocks; they **do not** certify every vanilla/modified
 species in FireRed, LeafGreen, Ruby, Sapphire or Emerald. Please report the
 exact edition, other enabled mods and test ID when something fails.
+
+Egg Encounter and Route Forgiveness have a separate twelve-case live test
+matrix: [GEN3_EGGS_FORGIVENESS.md](GEN3_EGGS_FORGIVENESS.md).
