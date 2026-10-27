@@ -167,7 +167,49 @@ return function(mod)
         end
         return next(game, unused, itemId, partySlot, bag)
     end)
+    -- The native Game3 PartyMenu has a separate "use" branch which
+    -- directly removes Rare Candy from the bag and mutates mon.level.
+    -- It NEVER calls ItemUse.useRareCandy or ItemUse.useField. Cancel the
+    -- actual A-press before that branch can consume anything.
+    local function installPartyCandyGuard()
+        local okP, PartyMenu = pcall(require, "src.ui.game3.party_menu")
+        local okI, ItemUse = pcall(require, "src.core.game3.item_use")
+        if not okP or not okI or type(PartyMenu) ~= "table"
+            or type(ItemUse) ~= "table"
+            or type(PartyMenu.handleInput) ~= "function"
+            or type(PartyMenu.showMessage) ~= "function"
+            or type(ItemUse.fieldUseKind) ~= "function" then return false end
+        if PartyMenu.__nuzGen3CandyOwner == mod then return true end
+        local original = PartyMenu.handleInput
+        PartyMenu.handleInput = function(input, ...)
+            if PartyMenu.open and PartyMenu.mode == "use"
+                and not PartyMenu._onSelect and input
+                and type(input.wasPressed) == "function"
+                and input:wasPressed("a") then
+                local slot = tonumber(PartyMenu.cursor)
+                local mon = slot and PartyMenu._party
+                    and PartyMenu._party[slot]
+                if mon and not mon.isEgg
+                    and ItemUse.fieldUseKind(PartyMenu._item,
+                        PartyMenu._session) == "level" then
+                    local denied, cap = isCandyCapped(PartyMenu._session, mon)
+                    if denied then
+                        local message = candyMessage(cap)
+                        notify("LEVEL_CAP_ITEM", message, false)
+                        PartyMenu.showMessage(message, function()
+                            PartyMenu.mode = "use"
+                        end)
+                        return
+                    end
+                end
+            end
+            return original(input, ...)
+        end
+        PartyMenu.__nuzGen3CandyOwner = mod
+        return true
+    end
     local function installCandyGuard()
+        installPartyCandyGuard()
         local ok, ItemUse = pcall(require, "src.core.game3.item_use")
         if not ok or type(ItemUse) ~= "table"
             or type(ItemUse.useRareCandy) ~= "function" then return false end
@@ -362,22 +404,36 @@ return function(mod)
     local function installNicknameGuard()
         local okU, Ui = pcall(require, "src.core.game3.battle.ui")
         local okN, Naming = pcall(require, "src.ui.game3.naming")
-        if not (okU and okN and type(Ui) == "table"
-            and type(Naming) == "table"
-            and type(Ui.askYesNo) == "function"
-            and type(Naming.open) == "function") then return false end
-        if Ui.__nuzGen3NicknameOwner == mod then return true end
-        local ask = Ui.askYesNo
-        local open = Naming.open
-        Ui.askYesNo = function(prompt, callback, ...)
-            local battle = package.loaded["src.core.game3.battle"]
-            if Core.enforced(loadState(), "nickname_rule")
-                and battle and battle._phase == "catch_nickname_prompt"
-                and type(callback) == "function" then
-                return callback(true)
+        if not okU or type(Ui) ~= "table"
+            or type(Ui.askYesNo) ~= "function" then return false end
+        -- Install the prompt hook even if the naming UI has not loaded yet.
+        -- The old all-or-nothing pcall(require, Naming) silently skipped BOTH
+        -- hooks when native naming assets were unavailable at battle start.
+        if Ui.__nuzGen3NicknameOwner ~= mod then
+            local ask = Ui.askYesNo
+            Ui.askYesNo = function(prompt, callback, ...)
+                local battle = package.loaded["src.core.game3.battle"]
+                if Core.enforced(loadState(), "nickname_rule")
+                    and battle and battle._phase == "catch_nickname_prompt"
+                    and type(callback) == "function" then
+                    -- The native prompt is redundant when names are required.
+                    -- Go to the capture naming screen, never accept "No".
+                    notify("NICKNAME_FORCED",
+                        "Nickname Rule: give your new Pokemon a nickname.", false)
+                    -- Naming may have loaded only now (at the capture
+                    -- prompt rather than battle.started). Wrap it before the
+                    -- native YES branch opens the screen.
+                    installNicknameGuard()
+                    return callback(true)
+                end
+                return ask(prompt, callback, ...)
             end
-            return ask(prompt, callback, ...)
+            Ui.__nuzGen3NicknameOwner = mod
         end
+        if not okN or type(Naming) ~= "table"
+            or type(Naming.open) ~= "function" then return true end
+        if Naming.__nuzGen3NicknameOwner == mod then return true end
+        local open = Naming.open
         Naming.open = function(opts)
             if type(opts) ~= "table" or opts.template ~= "CAUGHT_MON"
                 or not Core.enforced(loadState(), "nickname_rule")
@@ -398,7 +454,7 @@ return function(mod)
             wrapped.onDone = validated
             return open(wrapped)
         end
-        Ui.__nuzGen3NicknameOwner = mod
+        Naming.__nuzGen3NicknameOwner = mod
         return true
     end
 
@@ -410,6 +466,7 @@ return function(mod)
         refreshCapNotice()
         nicknameTasks()
         installCandyGuard()
+        installNicknameGuard()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -460,6 +517,8 @@ return function(mod)
         battleInProgress = false
         battleDeaths = nil
         mercyBattle = nil
+        installCandyGuard()
+        installNicknameGuard()
     end)
     mod.events:on("save.created", function()
         currentArea = nil
@@ -468,6 +527,8 @@ return function(mod)
         battleInProgress = false
         battleDeaths = nil
         mercyBattle = nil
+        installCandyGuard()
+        installNicknameGuard()
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -559,13 +620,13 @@ return function(mod)
         }
         if eligible and not roamer and Core.get(s, "encounter_limit") then
             if Core.shouldSpendOnStart(s) then
-                notify("ENCOUNTER_SPENT",
-                    "Failed Encounters: " .. Display.areaName(key)
-                    .. " encounter spent, even if the Pokemon escapes.", true)
+                notify("FIRST_ENCOUNTER",
+                    "First encounter on " .. Display.areaName(key)
+                    .. "! Catch it now: fleeing or fainting uses your chance.", true)
             else
-                notify("ENCOUNTER_OPEN",
-                    "One Per Area: " .. Display.areaName(key)
-                    .. " encounter is available until captured.", true)
+                notify("CATCH_OPPORTUNITY",
+                    "Catch opportunity on " .. Display.areaName(key)
+                    .. "! You may try again if it escapes or faints.", true)
             end
         end
     end)

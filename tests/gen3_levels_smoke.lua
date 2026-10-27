@@ -127,6 +127,26 @@ package.loaded["src.ui.game3.stack"] = {
 }
 local session = { version = "firered", map = "FR_ROUTE_1",
     party = {mon("Spark", 1450, 14)}, flags = {} }
+-- The *real* Game3 party screen never invokes item.use or
+-- ItemUse.useRareCandy: it removes a Candy then writes mon.level directly.
+local directCandyUses = 0
+local nativeParty = {
+    open = true, mode = "use", _item = 68, _session = session,
+    _party = session.party, cursor = 1,
+}
+nativeParty.handleInput = function(input)
+        if input:wasPressed("a") then
+            directCandyUses = directCandyUses + 1
+            nativeParty._party[nativeParty.cursor].level =
+                nativeParty._party[nativeParty.cursor].level + 1
+        end
+    end
+nativeParty.showMessage = function(message, callback)
+    nativeParty.message = message
+    nativeParty.mode = "message"
+    nativeParty.dismiss = callback
+end
+package.loaded["src.ui.game3.party_menu"] = nativeParty
 local game = { generation = 3, session = session }
 local mod = { game = game, exports = {},
     save = {
@@ -149,6 +169,16 @@ assert(api.setRule("exp_edging", true))
 local original = session.party[1]
 local battle = { playerParty = { original } }
 events["battle.started"]({ battle = battle, kind = "trainer" })
+nativeParty.handleInput({
+    wasPressed = function(_, button) return button == "a" end,
+})
+assert(directCandyUses == 0 and original.level == 14,
+    "native PartyMenu Candy branch must be cancelled before it changes level")
+assert(nativeParty.message:find("Lv 14", 1, true)
+    and nativeParty.mode == "message",
+    "direct party-menu denial must show the cap explanation")
+nativeParty.dismiss()
+assert(nativeParty.mode == "use", "dismiss returns to party item-use mode")
 local composed = 0
 local exp = hooks["exp.gain"](function()
     composed = composed + 1; return 200
@@ -176,6 +206,11 @@ assert(mod.exports.gen3_notices.history()[#mod.exports.gen3_notices.history()].c
 events["battle.ended"]({ battle = battle, result = "win" })
 session.flags[0x820] = true
 original.level, original.exp = 15, 1500
+nativeParty.handleInput({
+    wasPressed = function(_, button) return button == "a" end,
+})
+assert(directCandyUses == 1 and original.level == 16,
+    "party-menu Candy delegates normally when below next cap")
 assert(package.loaded["src.core.game3.item_use"].useRareCandy(session, original) == true)
 assert(candies == 1, "Candy delegates below next cap")
 local okItem = hooks["item.use"](nextItem, game, nil, 68, 1, {})

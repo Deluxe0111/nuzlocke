@@ -12,7 +12,7 @@ change any old Gen 1 / Gen 2 saves. Selecting a notice shows its full text.
 
 | Action | Feedback |
 |---|---|
-| First eligible wild encounter | Indicates whether Failed Encounters has consumed the area immediately or capture is still pending |
+| First eligible wild encounter | Clearly announces the first opportunity; warns that fleeing/fainting uses the chance if Failed Encounters is ON |
 | Blocked Poke Ball | One Per Area (including route name), Dupes Clause or claimed Roamer slot |
 | Successful area catch | Records that the area's encounter slot has been used |
 | Successful Shiny Clause exception | States that the extra encounter was allowed |
@@ -35,12 +35,24 @@ errors use the native field menu's existing error-text return contract.
 
 ## Why Rare Candy was getting through
 
-Previously, the guard only wrapped `ItemUse.useRareCandy`, and it installed
-lazily at game events/menu open. The actual overworld bag transaction enters
-through `ItemUse.useField` and the `item.use` mod hook. The new outer guard
-checks the active cap **before** calling the native item operation, then
-returns `false, "noeffect", explanatoryText`. This also handles the
-out-of-battle use path independently of the direct native Rare Candy guard.
+The normal bag's party-target screen goes through
+`src.ui.game3.party_menu`. In its `mode == "use"` level-item branch,
+the native code **directly removes the item and increments the Pokémon's
+level**, bypassing both `ItemUse.useRareCandy` and the `item.use` mod hook.
+That is why the earlier guards and mocks passed while Rare Candy remained
+usable in a real game.
+
+The new guard intercepts the party menu's confirm input **before** that
+branch can run, shows a readable level-cap explanation and returns to item
+selection without consuming anything. The previous `item.use` and
+`ItemUse.useRareCandy` guards remain for other callers.
+
+Capture Nickname Requirement also previously depended on being able to load
+the native naming module during `battle.started`; a failed early require
+meant the Yes/No prompt was never guarded. Now the prompt guard is installed
+independently and automatically chooses the native name-entry path whenever
+the rule is active. Naming validation is applied as soon as the native
+name-entry module is available, including at the capture prompt itself.
 
 ## Disposable-ROM testing checklist
 
@@ -73,3 +85,21 @@ out-of-battle use path independently of the direct native Rare Candy guard.
 CI smoke tests cover the field item-hook cancellation and battle notice
 contracts, but **real-ROM testing is still necessary**, especially for native
 bag messages, battle animation timing and RSE item differences.
+
+## Follow-up real-game checks
+
+- [ ] **F12:** With first Gym Lv14 cap, select a Rare Candy from the BAG and
+      choose a Lv14 Pokémon in the *party selection screen*. No item is spent,
+      no success animation or level change occurs, and the party screen gives
+      the cap reason. Repeat after leaving/re-entering the map and loading a save.
+- [ ] **F13:** Below cap (e.g. Lv13), the *same* BAG → Party Menu sequence
+      permits one level, consuming exactly one Candy.
+- [ ] **F14:** Catch a new Pokémon with Nickname Rule ON. The game must go
+      directly to the native naming screen; there must be no way to select
+      NO and skip it.
+- [ ] **F15:** Attempt the Pokémon's unchanged species name or a blank
+      nickname. The native name-entry screen must reopen. A valid custom name
+      allows the capture to finish.
+- [ ] **F16:** Confirm the first eligible route encounter says
+      "First encounter" / "your chance", not "Failed Encounters" as though
+      the capture had already failed.

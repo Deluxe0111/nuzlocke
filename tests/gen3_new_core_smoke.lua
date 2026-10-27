@@ -85,7 +85,9 @@ function nativeNaming.open(opts)
     nativeNaming.opened = nativeNaming.opened + 1
     nativeNaming.last = opts
 end
-package.loaded["src.ui.game3.naming"] = nativeNaming
+-- Simulate naming UI not ready when the mod first installs its battle
+-- prompt guard (the old code skipped both hooks in that situation).
+package.loaded["src.ui.game3.naming"] = false
 local game = { generation = 3, session = { version = "firered",
     map = "FR_ROUTE_1", party = { mon(25, 123, 20, "Spark") } } }
 local mod = { game = game, exports = {},
@@ -119,12 +121,15 @@ game.session.party[1].hp = 0
 fire("battle.ended", { battle = opening, result = "lose" })
 assert(not values.gen3_classic_v1.failed and #game.session.party == 1,
     "opening rival loss does not retire or fail run")
-
+-- The hook must be active without Naming installed; once the UI loads,
+-- map entry installs name validation for capture and PC task screens.
+package.loaded["src.ui.game3.naming"] = nativeNaming
+fire("map.entered", { mapId = "FR_ROUTE_1" })
 engineBattle._phase = "catch_nickname_prompt"
 local responded = nil
 nativeUi.askYesNo("NAME?", function(v) responded = v end)
 assert(responded == true and originalAsks == 0,
-    "catch must not allow skipping a required nickname")
+    "catch must force native Naming even if the Yes/No UI was unavailable at battle start")
 local namedValue = nil
 nativeNaming.open({ template = "CAUGHT_MON", species = 25,
     onDone = function(v) namedValue = v end })

@@ -116,6 +116,13 @@ toggle("NUZLOCKE: OFF", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().enabled)
 local first = {}
 fire("battle.started", { battle = first, kind = "wild", species = "PIDGEY", speciesId = 16 })
+local firstNotice = mod.exports.gen3_notices.history()
+firstNotice = firstNotice[#firstNotice]
+assert(firstNotice.code == "FIRST_ENCOUNTER"
+    and firstNotice.text:find("First encounter", 1, true)
+    and firstNotice.text:find("fleeing or fainting", 1, true)
+    and not firstNotice.text:find("Failed Encounters", 1, true),
+    "first encounter notice should describe the chance, not announce a failure")
 local caught, shakes, invoked = throw(first)
 assert(caught and shakes == 4 and invoked, "first battle may catch")
 fire("pokemon.caught", { battle = first })
