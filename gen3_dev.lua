@@ -157,6 +157,20 @@ return function(api)
         return true
     end
 
+    -- Test-only token injection to avoid needing to repeat Gym battles. This
+    -- bypasses badge rewards but not the clause's route eligibility checks.
+    function M.grantTestToken()
+        local saved, err = guard()
+        if not saved then return false, err end
+        if type(saved.forgiveness) ~= "table" then
+            saved.forgiveness = {}
+        end
+        local f = saved.forgiveness
+        f.tokens = math.max(0, math.floor(tonumber(f.tokens) or 0)) + 1
+        audit(saved, "FORGIVENESS TEST TOKEN")
+        return true
+    end
+
     function M.clearGraveyard()
         local s, err = guard()
         if not s then return false, err end
