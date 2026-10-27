@@ -1,7 +1,8 @@
-# Gen 3 CLAUSES — next milestone decisions
+# Gen 3 CLAUSES — agreed implementation contract
 
-Status: **proposed**, except the Roamer Clause prototype, which is now implemented
-as an opt-in **[WIP]** feature and needs live-game verification.
+Status: **approved 27 October 2026**. Shiny Rate and Roamer Clause now have
+opt-in **[WIP]** implementations and automated tests, pending FireRed/Hoenn
+certification. Egg Encounter and Route Forgiveness remain **[Soon]**.
 
 The design goal is a near-complete port of the existing Gen 1/2 Nuzlocke mod
 without taking ownership from other active mods. The current Gen 3 runtime
@@ -38,39 +39,39 @@ keeps **mod API 2** to preserve the mature mod entry/legacy games.
 - [ ] **R06:** Verify a second roaming species gets its own slot. On FireRed
   this may require a disposable altered save or a different edition.
 
-## 2. Shiny Rate — suggested contract; NOT implemented
+## 2. Shiny Rate — implemented [WIP]
 
 Original modes from Gen 1/2: `NATIVE`, `1/4096`, `1/1024`,
 `1/512`, `1/100`, `1/10`, `ALWAYS`.
 
-**Decisions for Gen 3:**
+**Agreed Gen 3 scope:** newly generated wild Pokémon, including normal static
+wild encounters. Exclude starters, gifts, Eggs, trainer Pokémon, tutorials and
+persistent roamers until each has its own stable source/identity lifecycle.
 
-- **Scope:** only newly generated *wild* encounters (safest), or also
-  starters, gifts, Eggs and generated trainer Pokémon? Recommended: wild
-  encounters + statics, and separately selectable breeding/gifts later.
-- **Identity stability:** Gen 3's `Pokemon.isShiny()` can be called repeatedly
-  by battles, icons, and UI. A simple random `shiny.roll` result on each call
-  would cause shiny identity to flicker or change when a screen redraws.
-  We must bind the result to a stable individual identity, without changing
-  the actual Pokémon's stats, and retain it across save/load and PC transfers.
-- **Provider ownership:** when a separate shiny mod owns generation, Nuzlocke
-  should show `EXTERNAL` and leave the hook alone (but still recognise the
-  generated shiny for Shiny Clause). Never stack probability boosters.
+Enhanced odds are applied **once at battle start**. The native 1/8192 chance
+is evaluated first; only non-shinies get a conditional roll that raises the
+*combined total* to the selected rate. Successful overrides set
+`mon.isShiny=true` on that individual Pokémon and are cloned into the captured
+Pokémon. They never change IVs, EVs, personality or base stats.
 
-## 3. Shiny Colours and Shiny Intro — suggested; NOT implemented
+Gen 3's `Pokemon.isShiny()` may be called repeatedly by screens; Nuzlocke does
+**not** add an independent random `shiny.roll` callback that rerolls on draws.
+Where a verified active **SHINY_POKEMON** external provider owns shiny identity,
+the menu reads `EXTERNAL`, Nuzlocke's own enhanced-rate mechanism is dormant
+and the other provider remains authoritative. Other external mods will need
+capability negotiation if they also claim shiny ownership.
 
-Gen 3 already has native shiny palettes and introduction effects.
+**Need in-game validation:** GBA save persistence for the explicit shiny field,
+static Pokémon, Safari, randomiser interoperation, and provider activation order.
 
-Recommended: **ON** preserves normal game presentation plus any future
-Nuzlocke-owned extra cosmetic effects. **OFF** suppresses only the *additional
-Nuzlocke-owned effects*; it does not try to remove native GBA shininess.
-An external presentation provider always takes precedence.
+## 3. Native shiny visuals — agreed
 
-If players want ON/OFF to hide *native* shiny palettes/sparkles as well,
-that requires explicit separate renderer integration and must not change the
-underlying shiny identity used by gameplay clauses.
+**Remove Shiny Colours and Shiny Intro from the Gen 3 CLAUSES menu.** FireRed,
+LeafGreen and Hoenn already have native shiny palettes and animations.
+Nuzlocke neither hides nor duplicates these; external presentation providers
+remain responsible for their own visuals.
 
-## 4. Egg Encounter — suggested; NOT implemented
+## 4. Egg Encounter — approved; [Soon] pending provenance hooks
 
 Keep original Gen 2 semantics but adapt provenance for Gen 3 daycare and
 gift-story Eggs:
@@ -81,44 +82,34 @@ gift-story Eggs:
 - **GIFT:** story gift Eggs use a separate one-off gift slot; bred Eggs
   still use their received/generated location.
 
-**Decisions:**
+**Approved:** Player-bred Eggs are unrestricted when Egg Encounter is OFF.
+An Egg acquired/hatching in a spent location is recorded as pending/ineligible,
+never silently destroyed and never allowed to corrupt story scripts. Eggs
+count towards Dupes only when their species is established on hatch. Unknown
+receipt origin must **fail open and log diagnostic provenance**, rather than
+inventing a map. The menu switch stays [Soon] until reliable acquisition and
+hatch hooks exist.
 
-1. Should regular player-bred Eggs be unrestricted (quality-of-life breeding)
-   unless Egg Encounter is explicitly enabled? **Recommend yes**.
-2. What happens if an Egg is received/hatched in an already spent area?
-   **Recommend record a pending, ineligible acquisition; do not silently
-   remove an Egg or corrupt story scripts.** Mark it as invalid for
-   Nuzlocke eligibility when hatch identity is available, and track that
-   separately from the normal party.
-3. Should an Egg's ownership count for Dupes immediately or only after
-   hatching? **Recommend after hatching**, when species becomes authoritative.
-4. Where should an Egg from daycare count if the receipt source isn't exposed?
-   **Recommend fail open with [WIP] diagnostic provenance**, never make up
-   a route based on the player's current location.
-
-## 5. Route Forgiveness — suggested; NOT implemented
+## 5. Route Forgiveness — approved; [Soon] pending restoration
 
 Original modes: OFF / EARN / START 1. A Gym Leader earns one token once, which
 can be spent to reopen a **failed** route or restore a fallen Pokémon.
 
-**Decisions:**
+**Approved:** Initially redeem tokens through a dedicated menu, with
+confirmation; add the native inventory item later. The original Gym Leader
+award rules remain (one token per unique defeated Leader; START 1 gives a
+single initial token on new runs, not each time settings are changed).
 
-- **Token presentation:** add a dedicated in-game menu action first, then
-  integrate an actual item when the Gen 3 item-ownership API supports it
-  safely; or wait until item inventory integration exists. Recommend menu
-  action with explicit confirmation and a mirrored future inventory item.
-- **Pokémon restoration:** old Gen 3 Graveyard entries contain *metadata*,
-  not all battle/Pokémon fields. Revival can only be enabled for **future
-  full-fidelity archived records** (personality, EVs, IVs, moves, OT and
-  other fields). Never recreate an approximate Pokémon from an ID.
-- **Where it goes:** restore to the party if space, otherwise to PC if
-  available. If neither is possible, retain the token; do not erase the
-  record.
-- **HP:** restore at half health, matching Gen 1/2 semantics.
-- **Lost run:** forgiveness cannot reverse `failed=true` except through
-  explicit Nuz Dev testing reset.
-- **Gym identity:** rewards are keyed by a stable game/leader ID; defeating
-  rematches or replaying a Gym cannot mint more tokens.
+Future revival requires a **complete Pokémon archive**, not species and level
+metadata. `gen3_archive.lua` now preserves snapshot data on new deaths and
+marks incomplete/cyclic records as non-restorable. Recovery itself remains
+[SOON]: the native party/PC destination, safe half-HP restoration, pending
+battle writes and capacity checks are not yet implemented.
+
+When implemented, recover to the party if space, else PC; if neither has room,
+keep the token and do not alter the graveyard. Forgiveness cannot reverse a
+completed/lost run except through NUZ DEV. Legacy graveyard metadata cannot
+reconstruct Pokémon and must never be treated as a valid recovery source.
 
 ## 6. API evolution
 
@@ -135,6 +126,6 @@ can be spent to reopen a **failed** route or restore a fallen Pokémon.
 ## Remaining manual certification
 
 The Roamer Clause code and isolated tests are complete, but native
-FireRed/LeafGreen and Hoenn testing is required. The shiny-rate, egg and
-forgiveness settings deliberately remain **[Soon]** in the player menu until
-their decisions and engine hooks are validated.
+FireRed/LeafGreen and Hoenn testing is required. Egg Encounter and Route Forgiveness deliberately remain **[Soon]** in the
+player menu until provenance and safe full-individual recovery are validated.
+The Shiny Rate and Roamer Clause controls are [WIP] pending live testing.
