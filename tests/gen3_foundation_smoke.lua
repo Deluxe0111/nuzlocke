@@ -215,4 +215,122 @@ fire("battle.ended", { result = "lose" })
 assert(not values.gen3_classic_v1.failed,
     "whiteout OFF does not by itself end a surviving-party run")
 
+-- Nuz Dev: explicit opt-in, per-area editing, confirmations and audit.
+openMenu()
+for _ = 1, 6 do press("down") end
+assert(mod.exports.gen3_menu.model().rows[7] == "[WIP] NUZ DEV",
+    "developer menu should appear as a distinct, labelled tool")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
+assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "CONFIRM EDIT")
+press("b") -- refuse confirmation
+assert(not mod.exports.gen3_dev_info.status().enabled,
+    "cancelled developer activation must not change save")
+press("a")
+press("a") -- explicit YES
+assert(mod.exports.gen3_dev_info.status().enabled,
+    "developer mode opt-in should work")
+assert(mod.exports.gen3_dev_info.status().tainted,
+    "using developer editing marks test save permanently")
+assert(mod.exports.gen3_menu.model().rows[1] == "CURRENT AREA")
+
+-- Re-arm current area without editing actual Pokémon.
+press("a")
+assert(mod.exports.gen3_menu.model().title == "EDIT AREA")
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: UNRECORDED")
+press("down")
+press("down") -- MARK OPEN
+press("a")
+press("a") -- confirm
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == false)
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: OPEN")
+assert(mod.exports.gen3_dev_info.snapshot().areasOpen == 1)
+press("down") -- MARK SPENT
+press("a")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == true)
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: SPENT")
+press("down") -- MARK CAUGHT
+press("a")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.caught == true)
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: CAUGHT")
+press("down") -- CLEAR ENTRY
+press("a")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3 == nil,
+    "clear entry should rearm only that map")
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: UNRECORDED")
+
+-- The area editor is forbidden while a native battle is live.
+local devFight = {}
+fire("battle.started", { battle = devFight, kind = "trainer" })
+press("up") -- MARK CAUGHT
+press("a")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "EDIT BLOCKED")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3 == nil,
+    "developer edits must not mutate battle state")
+press("b")
+fire("battle.ended")
+press("b") -- back to NUZ DEV
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
+press("down") -- EDIT ALL AREAS
+press("a")
+assert(mod.exports.gen3_menu.model().rows[1] == "NO RECORDED AREAS")
+press("b")
+press("down") -- CLEAR ALL AREAS
+values.gen3_classic_v1.areas.FR_ROUTE_4 = { spent = true, caught = true }
+press("a")
+press("b") -- cancel
+assert(values.gen3_classic_v1.areas.FR_ROUTE_4 ~= nil,
+    "cancelled global reset should leave areas alone")
+press("a")
+press("a") -- confirm clear ALL
+assert(next(values.gen3_classic_v1.areas) == nil,
+    "global reset should clear all encounter records")
+
+press("down") -- STATE INSPECTOR
+press("a")
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV STATUS")
+press("b")
+press("down") -- RULE INSPECTOR
+press("a")
+assert(mod.exports.gen3_menu.model().title == "RULE INSPECT")
+press("b")
+
+press("down") -- CLEAR GRAVEYARD
+values.gen3_classic_v1.graveyard = { { species = 25, nickname = "Test" } }
+press("a")
+press("a")
+assert(#values.gen3_classic_v1.graveyard == 0)
+assert(#game.session.party == 1, "dev edits never remove party members")
+
+press("down") -- CLEAR RUN FAILURE
+values.gen3_classic_v1.failed = true
+game.session.party = {}
+press("a")
+press("a")
+assert(values.gen3_classic_v1.failed == true,
+    "cannot clear run failure with an empty party")
+assert(mod.exports.gen3_menu.model().title == "EDIT BLOCKED")
+press("b")
+game.session.party = { { species = 25, personality = 7421, hp = 22 } }
+press("a")
+press("a")
+assert(values.gen3_classic_v1.failed == false,
+    "can clear loss after restoring a nonempty native party")
+
+press("down") -- DISABLE DEV MODE
+press("a")
+press("a")
+assert(not mod.exports.gen3_dev_info.status().enabled)
+assert(mod.exports.gen3_dev_info.status().tainted,
+    "disabling test tools must not remove the audit marker")
+assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
+press("b") -- back to NUZ MENU
+press("b") -- close menu
+
 print("Gen3 experimental Nuzlocke smoke PASS")
