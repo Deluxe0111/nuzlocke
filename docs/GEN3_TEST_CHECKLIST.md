@@ -57,6 +57,12 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 be renamed, but are not yet prevented from battling. All checks above need
 real game testing; passing a mocked Lua smoke does not certify them.
 
+## LEVELS smoke (disposable save)
+
+Run tests **L01–L10** in [GEN3_LEVELS.md](GEN3_LEVELS.md), including
+scope transitions, the first Gym, bank persistence through PC/reload and
+Rare Candy consumption. Mocked CI is not a replacement for ROM tests.
+
 ## B. Encounter rules (save A, Nuzlocke ON)
 
 **Important:** `One Per Area` is currently per **native map ID**, not yet an official combined location. Some cave floors or Safari sections can have separate slots. Test ordinary routes first; do not interpret different floors as a fixed map bug yet.
