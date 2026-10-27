@@ -53,7 +53,7 @@ local pc = { party = {}, storage = { boxes = {
                [2] = dead, [3] = archived, [4] = survivor } },
 } } }
 local policy = { graveyard = { { archive = {
-    species = archived.species, personality = archived.personality } } }
+    species = archived.species, personality = archived.personality } } } }
 assert(Extra.rescueFromPc(policy, pc), "eligible reserve can continue")
 assert(pc.party[1] == survivor and pc.storage.boxes[1].mons[4] == nil,
     "move original PC Pokemon, do not clone or revive")
