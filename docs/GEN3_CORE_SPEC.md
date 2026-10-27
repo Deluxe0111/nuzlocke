@@ -13,10 +13,10 @@ completed mechanics, labels partial work `[WIP]`, and keeps unsupported settings
 | `permadeath` | Permadeath | ON | Working (battle) | Record death on `battle.fainted`, deny battle revivals, retire after writeback; field revival seam still needs certification |
 | `encounter_limit` | One Encounter Per Area | ON | Working (map ID) | Only one consumed eligible encounter per map; multi-floor area grouping is pending |
 | `failed_encounter` | Failed Encounters Count | ON | Working (ordinary wild) | With area limit ON, first eligible wild attempt consumes the area even if missed; OFF means the first successful eligible catch closes it |
-| `nickname_rule` | Nickname Requirement | ON | Soon | Newly acquired Pokémon must have a non-default nickname; gift/trade prompt integration pending |
-| `first_rival_forgiveness` | First Rival Mercy | ON | Soon | Forgive death/wipe on *the actual opening rival battle*, once per run, without altering story results |
+| `nickname_rule` | Nickname Requirement | ON | WIP | Native catch naming is mandatory; unnamed party/PC Pokémon appear in Nickname Tasks |
+| `first_rival_forgiveness` | First Rival Mercy | ON | WIP | Opening rival battle consumes one-time mercy at start and protects Pokémon from Nuzlocke deaths |
 | `whiteout_ends_run` | Whiteout Ends Run | ON | WIP | Losing a qualifying battle marks run failed even if PC reserves exist; story/tutorial/link exceptions need certification |
-| `pc_survivors_allowed` | PC Survivors Allowed | OFF | Soon | Empty party may recover from eligible PC reserves once safe post-blackout transport / party reconstruction is implemented |
+| `pc_survivors_allowed` | PC Survivors Allowed | OFF | WIP | Empty party can receive one eligible living boxed Pokémon after battle writeback; whiteout failure takes precedence |
 
 Defaults of the last two rules were not specified by the original discussion.
 For now, use conservative defaults (whiteout fails run / PC rescue OFF).
@@ -50,15 +50,26 @@ ordinary wild encounters by native map ID, not full canonical Nuzlocke areas.
 | OFF | ON | Can continue after party wipe only if eligible boxed Pokémon survive |
 | OFF | OFF | Empty party ends run regardless of PC |
 
-`pc_survivors_allowed` must **remain read-only [Soon]** until implementation
-can safely revive the *player's ability to reach a PC*, not their dead
-Pokémon. A failed run is marked failed in mod state, but **the native save is
-never deleted automatically**. Future manual retirement / history retention
-should be a separate explicit rule or action.
+PC Survivors is **[WIP] opt-in**. After native battle writeback and permadeath
+retirement, the first eligible living boxed Pokémon is **moved**, not copied
+or revived, into an empty party. This avoids the native empty-party softlock
+while letting the engine handle normal post-loss relocation. Whiteout Ends
+Run still takes precedence. A failed run only marks mod state; the native
+save is never deleted.
 
-Eligibility for PC recovery will exclude Eggs, dead Pokémon, progression-locked
-captures and Pokémon forbidden by active party rules. The engine stores box
-entries in `session.storage.boxes[boxId].mons`.
+Recovery excludes Eggs, Bad Eggs, fainted/death-marked Pokémon and creatures
+matching an archived death. Explicit progression/ineligibility flags are also
+honoured; compatibility with future party restrictions remains unfinished.
+Native boxes are in `session.storage.boxes[boxId].mons`.
+
+Nickname Tasks scans party and boxes for unnamed acquisitions, including
+gifts, trades and hatched Eggs. Unresolved tasks are visible to the player
+but **do not yet prevent use in battle**. The catch prompt itself is enforced.
+
+Opening rival mercy is consumed at battle start, restricted to the three
+Oak Lab matchups in FRLG or Route 103 first matchups in R/S/E. Native battle
+results, healing and story scripts are not overridden. Real ROM tests for
+every starter and edition remain mandatory.
 
 ## API / compatibility
 
@@ -75,18 +86,15 @@ entries in `session.storage.boxes[boxId].mons`.
   navigable WIP mirror and should be migrated to a unified registry in later
   milestones.
 
-## Next implementation order
+## Next validation order
 
-1. Verify the new four live switches and `[WIP]` whiteout rule in FireRed.
-2. Implement reliable identity-based tracking across party and boxes, and a
-   safe PC rescue/transport path; *only then* enable PC Survivors Allowed.
-3. Detect exact opening-rival battle IDs for FRLG and all Hoenn editions;
-   implement single-use mercy using a saved `consumed` flag.
-4. Enforce pending nicknames across catch, gift, trade and egg acquisition.
-5. Make encounters eligibility-driven, then add Dupes/Shiny and unified
-   multi-map area grouping.
-6. Continue the near-complete port in category order, with adapters and stable
-   public API contracts rather than direct cross-mod mutations.
+1. Verify native name-screen layering and re-prompting on a FireRed catch.
+2. Verify Nickname Tasks with a gift, trade, Egg hatch and boxed Pokémon.
+3. Verify the one-time opening rival exception for every edition and starter.
+4. Verify PC survivor transfer after a native blackout and verify Whiteout
+   Ends Run priority on a disposable save.
+5. Add battle-use restrictions for pending nicknames and integrate future
+   progression/party eligibility clauses.
 
-The automated smoke is `lua5.1 tests/gen3_foundation_smoke.lua`; passing a
+The automated smokes include `lua5.1 tests/gen3_foundation_smoke.lua` and `lua5.1 tests/gen3_new_core_smoke.lua`; passing a
 mocked test does **not** establish in-game compatibility for every edition.
