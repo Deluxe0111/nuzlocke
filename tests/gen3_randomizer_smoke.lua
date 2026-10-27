@@ -171,4 +171,28 @@ end
 assert(soon,"unimplemented starter randomiser must stay [Soon]")
 press("b");press("b");press("b")
 assert(#stack==0)
-print("Gen3 randomiser policy, native hooks and menu: PASS")
+-- Disposable test state: simulate a fresh run so the seed editor is writable.
+saves.gen3_classic_v1.randomizer.used = false
+assert(mod.exports.gen3_menu.open(game))
+press("a")
+for i=2,position do press("down") end
+press("a")
+local rngPage=mod.exports.gen3_menu.model()
+local seedRow
+for i,label in ipairs(rngPage.rows) do
+    if label:sub(1,5)=="SEED:" then seedRow=i end
+end
+assert(seedRow and rngPage.rows[seedRow]=="SEED: 12345678")
+for i=2,seedRow do press("down") end
+press("a")
+assert(mod.exports.gen3_menu.model().title=="EDIT RNG SEED")
+press("down") -- first digit
+press("a") -- 1 becomes 2
+assert(mod.exports.gen3_menu.model().rows[1]=="SEED: 22345678")
+for i=1,8 do press("down") end -- APPLY SEED
+press("a")
+assert(api.get("randomizer_seed")==22345678,
+    "eight-digit seed editor must apply the exact chosen value")
+press("b");press("b");press("b")
+assert(#stack==0)
+print("Gen3 randomiser policy, native hooks, seed editor and menu: PASS")
