@@ -96,6 +96,16 @@ return function()
     end
     M.speciesId = numericSpecies
 
+    local function monSpecies(mon)
+        if type(mon) ~= "table" then return nil end
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if ok and Pokemon and type(Pokemon.speciesOf) == "function" then
+            local success, result = pcall(Pokemon.speciesOf, mon)
+            if success and tonumber(result) then return tonumber(result) end
+        end
+        return numericSpecies(mon.species or mon.speciesId)
+    end
+
     local function addSpecies(set, value)
         local n = numericSpecies(value)
         if n then set[n] = true end
@@ -114,19 +124,19 @@ return function()
             end
         end
         for _, death in ipairs(s.graveyard or {}) do
-            addSpecies(owned, death.species or death.speciesId)
+            addSpecies(owned, monSpecies(death))
         end
         if type(session) == "table" then
             for _, mon in pairs(session.party or {}) do
                 if type(mon) == "table" and not mon.isEgg then
-                    addSpecies(owned, mon.species or mon.speciesId)
+                    addSpecies(owned, monSpecies(mon))
                 end
             end
             local storage = session.storage
             for _, box in pairs(storage and storage.boxes or {}) do
                 for _, mon in pairs(type(box) == "table" and box.mons or {}) do
                     if type(mon) == "table" and not mon.isEgg then
-                        addSpecies(owned, mon.species or mon.speciesId)
+                        addSpecies(owned, monSpecies(mon))
                     end
                 end
             end
