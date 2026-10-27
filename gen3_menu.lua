@@ -8,6 +8,7 @@ return function(mod, api)
     local engineGame
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
+    local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
     local Display = assert(api.display, "Gen 3 menu needs species and location labels")
 
@@ -15,7 +16,7 @@ return function(mod, api)
     -- A catalog row is not evidence of Gen 3 runtime support.
     local CATALOG = {
     { title = "CORE", rules = {{ "nuzlocke_enabled", "Nuzlocke" }, { "permadeath", "Permadeath" }, { "first_rival_forgiveness", "First Rival Mercy" }, { "encounter_limit", "One Per Area" }, { "failed_encounter", "Failed Encounters" }, { "nickname_rule", "Nickname" } } },
-    { title = "CLAUSES", rules = {{ "dupes_mode", "Dupes Clause" }, { "shiny_clause", "Shiny Clause" }, { "shiny_rate_mode", "Shiny Rate" }, { "shiny_colors", "Shiny Colors" }, { "shiny_intro", "Shiny Intro" }, { "gold_roamer_clause", "Roamer Clause" }, { "gold_egg_encounter_mode", "Egg Encounter" }, { "gold_bug_contest_mode", "Bug Contest" }, { "route_forgiveness", "Route Forgiveness" } } },
+    { title = "CLAUSES", rules = {{ "dupes_mode", "Dupes Clause" }, { "shiny_clause", "Shiny Clause" }, { "shiny_rate_mode", "Shiny Rate" }, { "gen3_roamer_clause", "Roamer Clause" }, { "gen3_egg_encounter_mode", "Egg Encounter" }, { "route_forgiveness", "Route Forgiveness" } } },
     { title = "HARDCORE", rules = {{ "no_escape", "No Escape" }, { "whiteout_clause", "Whiteout" }, { "gym_lock_in", "Gym Lock-In" }, { "dungeon_lock_in", "Dungeon Lock-In" }, { "no_held_items", "No Held Items" } } },
     { title = "GAME DIFFICULTY", rules = {{ "difficulty_profile", "Game Difficulty" } } },
     { title = "BATTLE MECHANICS", rules = {{ "physical_special_split", "Phys/Spec Split" }, { "badge_boosts", "Badge Boosts" } } },
@@ -247,8 +248,19 @@ return function(mod, api)
                     disabledFeature(d.label, d.key)
                 end)
             else
+                local external = d.key == "shiny_rate_mode"
+                    and ShinyRate.externalProvider(mod) or nil
                 rows[#rows + 1] = row(d.label .. ": " ..
-                    Clauses.label(state(), d.key), "wip", function()
+                    (external and "EXTERNAL" or Clauses.label(state(), d.key)),
+                    "wip", function()
+                    if external then
+                        info("SHINY PROVIDER", {
+                            "EXTERNAL SHINY MOD",
+                            "CONTROLS SHINY ODDS",
+                            "NUZ WILL NOT OVERRIDE",
+                        })
+                        return
+                    end
                     local currentState = state()
                     local value = Clauses.get(currentState, d.key)
                     local nextValue = (value + 1) % #d.options
