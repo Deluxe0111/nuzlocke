@@ -580,4 +580,64 @@ assert(not trainerMon.nuzlockeShinyRateBoosted,
     "Shiny Rate should not affect generated trainer Pokemon")
 fire("battle.ended")
 
+-- Egg acquisition and token redemptions are connected through the real
+-- Gen 3 event bus; neither changes party structure or destroys an Egg.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+}
+assert(mod.exports.gen3_clauses.setMode("gen3_egg_encounter_mode", 1))
+game.session.map = "FR_ROUTE_11"
+fire("map.entered", { mapId = "FR_ROUTE_11" })
+local newEgg = { species = 175, personality = 2026, isEgg = true }
+fire("breeding.egg_created", { egg = newEgg, mother = { species = 25 } })
+assert(newEgg.nuzEggReceivedAt == "FR_ROUTE_11", "native Egg gets receipt provenance")
+game.session.map = "FR_ROUTE_12"
+fire("map.entered", { mapId = "FR_ROUTE_12" })
+local hatchling = { species = 175, personality = 2026, isEgg = false }
+fire("egg.hatched", { mon = hatchling, egg = newEgg, species = 175 })
+assert(hatchling.nuzEggProvenance == "ELIGIBLE"
+    and values.gen3_classic_v1.areas.FR_ROUTE_11.spent,
+    "RECEIVED claims receipt map, not hatch location")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_12 == nil)
+assert(mod.exports.gen3_clauses.summary().eggsTracked == 1)
+-- Seed a known initial badge; enable Route Forgiveness START 1, then confirm
+-- later badge progress awards exactly one extra token.
+game.session.flags = { [0x820] = true }
+assert(mod.exports.gen3_clauses.setMode("route_forgiveness", 2))
+assert(mod.exports.gen3_clauses.summary().forgivenessTokens == 1,
+    "START 1 awards one token on first activation")
+game.session.flags[0x821] = true
+fire("map.entered", { mapId = "FR_ROUTE_12" })
+assert(mod.exports.gen3_clauses.summary().forgivenessTokens == 2,
+    "first new badge awards one token")
+fire("map.entered", { mapId = "FR_ROUTE_12" })
+assert(mod.exports.gen3_clauses.summary().forgivenessTokens == 2,
+    "the same badge never pays twice")
+values.gen3_classic_v1.areas.FR_ROUTE_13 = { caught = false, spent = true }
+openMenu()
+press("a") -- rules
+press("down") -- clauses
+press("a")
+for _ = 1, 7 do press("down") end
+assert(mod.exports.gen3_menu.model().rows[8] == "[WIP] REDEEM TOKEN",
+    "redemption action is discoverable in CLAUSES")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "FORGIVENESS")
+assert(mod.exports.gen3_menu.model().rows[1] == "TOKENS: 2")
+press("down")
+press("a") -- route 13 -> confirmation
+assert(mod.exports.gen3_menu.model().title == "CONFIRM TOKEN")
+press("b") -- cancel
+assert(values.gen3_classic_v1.areas.FR_ROUTE_13.spent,
+    "cancelling a token redemption has no effect")
+press("a")
+press("a") -- confirm yes
+assert(values.gen3_classic_v1.areas.FR_ROUTE_13.spent == false
+    and mod.exports.gen3_clauses.summary().forgivenessTokens == 1,
+    "confirm consumes token and reopens the chosen missed route")
+press("b")
+press("b")
+press("b")
+press("b")
+
 print("Gen3 experimental Nuzlocke smoke PASS")
