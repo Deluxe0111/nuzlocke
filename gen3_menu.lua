@@ -376,10 +376,55 @@ return function(mod, api)
         }
     end
 
+    -- Randomiser phase 1. Only working controls are enabled; remaining
+    -- Gen 1/2 settings remain explicitly visible but inactive.
+    local function randomizerRows()
+        local r = api.randomizer and api.randomizer.get() or {}
+        local rows = {
+            row("SEED: " .. string.format("%08d", r.seed or 0), nil, function()
+                local seed = (tonumber(r.seed) or 0) + 1
+                if seed == 1 then seed = 24681357 end
+                if seed > 99999999 then seed = 1 end
+                if api.randomizer.set("seed", seed) then
+                    current().rows = randomizerRows()
+                end
+            end),
+            row("WILD: " .. (r.wild and "ON" or "OFF"), nil, function()
+                if api.randomizer.set("wild", not r.wild) then
+                    current().rows = randomizerRows()
+                end
+            end),
+            row("TRAINERS: " .. (r.trainers and "ON" or "OFF"), nil, function()
+                if api.randomizer.set("trainers", not r.trainers) then
+                    current().rows = randomizerRows()
+                end
+            end),
+            row("SEED 00000000 = OFF"),
+            row("EDIT SEED VIA MOD API"),
+        }
+        for _, item in ipairs(CATALOG) do
+            if item.title == "RANDOMIZER" then
+                for _, rule in ipairs(item.rules) do
+                    if rule[1] ~= "randomizer_seed"
+                        and rule[1] ~= "random_encounter_tables"
+                        and rule[1] ~= "random_trainers" then
+                        local key, name = rule[1], rule[2]
+                        rows[#rows + 1] = row(name, "soon", function()
+                            disabledFeature(name, key)
+                        end)
+                    end
+                end
+                break
+            end
+        end
+        return rows
+    end
+
     local function categoryRows(category)
         if category.title == "CORE" then return coreRows() end
         if category.title == "CLAUSES" then return clausesRows() end
         if category.title == "LEVELS" then return levelRows() end
+        if category.title == "RANDOMIZER" then return randomizerRows() end
         local rows = {}
         for _, rule in ipairs(category.rules) do
             local key, label = rule[1], rule[2]
@@ -398,7 +443,7 @@ return function(mod, api)
             -- CORE and CLAUSES are active categories; their individual
             -- policy rows still distinguish unsupported mechanics.
             local active = c.title == "CORE" or c.title == "CLAUSES"
-                or c.title == "LEVELS"
+                or c.title == "LEVELS" or c.title == "RANDOMIZER"
             rows[#rows + 1] = row(c.title, active and "working" or "soon", function()
                 present(c.title, categoryRows(c),
                     active and function() return categoryRows(c) end or nil)
