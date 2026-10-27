@@ -3,7 +3,7 @@
   "name": "Nuzlocke",
   "version": "2.9.72",
   "api": 2,
-  "entry": "main.lua",
+  "entry": "entry.lua",
   "profile": "content",
   "category": "BALANCE",
   "game_version": ">=0.2.24 <2.0.0",
@@ -57,15 +57,16 @@
     "HGSS_SPRITES"
   ],
   "conflicts": [],
-  "description": "Configurable Nuzlocke enforcement, encounter tracking, challenge rules, run status, and quality-of-life options for Red, Blue, Yellow, beta Gold/Silver, and alpha Crystal support.",
-  "github": "Stone696/nuzlocke",
+  "description": "Configurable Nuzlocke enforcement for Gen 1/2; experimental Gen 3 CORE and CLAUSES port with area restrictions, permadeath, Dupes and Shiny Catch exceptions.",
+  "github": "Deluxe0111/nuzlocke",
   "games": [
     "red",
     "blue",
     "yellow",
     "gold",
     "silver",
-    "crystal"
+    "crystal",
+    "gen3"
   ],
   "affects_link": true
 }

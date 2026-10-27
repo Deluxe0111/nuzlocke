@@ -1,0 +1,643 @@
+-- Mocked Gen 3 event/API smoke: no ROM or Gen1Recomp installation required.
+local events, hooks, values = {}, {}, {}
+-- ROM-backed native name resolver stubs: assert UI does not print numeric IDs.
+package.loaded["src.core.game3.pokemon"] = {
+    speciesOf = function(mon) return tonumber(mon.species or mon.speciesId) end,
+    isShiny = function(mon) return mon.isShiny == true end,
+    name = function(species)
+        local names = { [16] = "PIDGEY", [25] = "PIKACHU" }
+        return assert(names[tonumber(species)], "unknown mocked species")
+    end,
+}
+package.loaded["src.import.gba.map_sections_extract"] = {
+    getInfo = function(_, mapId)
+        local n = type(mapId) == "string" and
+            mapId:match("^FR_ROUTE_(%d+)$") or nil
+        if n then
+            return { resolved = true, rawName = "ROUTE " .. n,
+                name = "ROUTE " .. n }
+        end
+        return { resolved = false, rawName = "PALLET TOWN" }
+    end,
+}
+local uiStack = { top = nil }
+package.loaded["src.ui.game3.stack"] = {
+    push = function(id, module) uiStack.top = { id = id, module = module } end,
+    pop = function(id)
+        assert(uiStack.top and uiStack.top.id == id, "wrong menu popped")
+        uiStack.top = nil
+    end,
+}
+local fakeBattleItems = {
+    canUseOn = function() return true end,
+    use = function() return "heal", {}, true, false end,
+}
+-- The actual engine uses these internal modules to resolve battle items.
+-- The test supplies their narrow contracts without loading a GBA ROM.
+package.loaded["src.core.game3.battle.items"] = fakeBattleItems
+package.loaded["src.core.game3.items_data"] = {
+    medicineKind = function(id) return id == "REVIVE" and "revive" or "heal" end,
+}
+package.loaded["src.core.game3.item_use"] = {
+    fieldUseKind = function(id)
+        return id == "REVIVE" and "revive" or "heal"
+    end,
+}
+local game = { generation = 3, session = { map = "FR_ROUTE_1", party = {
+    { species = 25, personality = 7421, hp = 21, level = 5, nickname = "Starter" },
+} } }
+local mod = {
+    game = game,
+    save = {
+        get = function(_, k, default) return values[k] or default end,
+        set = function(_, k, v) values[k] = v end,
+    },
+    events = { on = function(_, n, f) events[n] = f end },
+    hooks = { wrap = function(_, n, f) hooks[n] = f end },
+    exports = {},
+    read = function(_, path)
+        local handle = io.open(path, "rb")
+        if not handle then return nil, "file missing: " .. path end
+        local text = handle:read("*a")
+        handle:close()
+        return text
+    end,
+}
+assert(loadfile("gen3_runtime.lua")()(mod) == nil)
+local function fire(n, v) assert(events[n], n)(v) end
+local function throw(battle)
+    local invoked = false
+    local caught, shakes = hooks["catch.rate"](function()
+        invoked = true
+        return true, 4
+    end, "POKE_BALL", {}, {}, { battle = battle })
+    return caught, shakes, invoked
+end
+assert(not mod.exports.gen3_classic.state().enabled, "opt in is required")
+local function press(key)
+    assert(uiStack.top, "menu stack empty")
+    uiStack.top.module.handleInput({
+        wasPressed = function(_, button) return key == button end
+    })
+end
+local function openMenu()
+    local rows = hooks["ui.start_menu.items"](function(_, items) return items end, game, {})
+    assert(rows[#rows].label == "NUZ MENU", "one unified Gen 3 Start entry")
+    rows[#rows].onSelect()
+    local model = mod.exports.gen3_menu.model()
+    assert(model.title == "NUZ MENU", "menu opens home")
+    assert(model.rows[1] == "[WIP] NUZ RULES", "rules marked WIP")
+    assert(model.rows[3] == "NUZ STATUS", "functional status unflagged")
+    assert(model.rows[5] == "[Soon] ALMANAC", "absent feature marked Soon")
+end
+local function toggle(expectBefore, expectAfter)
+    openMenu()
+    press("a") -- NUZ RULES
+    assert(mod.exports.gen3_menu.model().title == "NUZ RULES")
+    press("a") -- CORE category
+    local core = mod.exports.gen3_menu.model()
+    assert(core.title == "CORE" and core.rows[1] == expectBefore,
+        "unexpected Gen 3 CORE rule state")
+    press("a") -- toggle Nuzlocke
+    assert(mod.exports.gen3_menu.model().rows[1] == expectAfter,
+        "Gen 3 menu toggle must update immediately")
+    press("b") -- CORE -> RULES
+    press("b") -- RULES -> HOME
+    press("b") -- HOME -> START
+    assert(uiStack.top == nil, "menu should close cleanly")
+end
+toggle("NUZLOCKE: OFF", "NUZLOCKE: ON")
+assert(mod.exports.gen3_classic.state().enabled)
+local first = {}
+fire("battle.started", { battle = first, kind = "wild", species = "PIDGEY", speciesId = 16 })
+local caught, shakes, invoked = throw(first)
+assert(caught and shakes == 4 and invoked, "first battle may catch")
+fire("pokemon.caught", { battle = first })
+assert(values.gen3_classic_v1.areas.FR_ROUTE_1.caught == true)
+fire("battle.ended")
+local repeatBattle = {}
+fire("battle.started", { battle = repeatBattle, kind = "wild" })
+caught, shakes, invoked = throw(repeatBattle)
+assert(caught == false and shakes == 0 and not invoked, "repeat catch denied")
+fire("battle.ended")
+game.session.map = "FR_ROUTE_2"
+fire("map.entered", { mapId = "FR_ROUTE_2" })
+local newAreaBattle = {}
+fire("battle.started", { battle = newAreaBattle, kind = "wild" })
+assert(select(1, throw(newAreaBattle)) == true, "new area allowed")
+fire("battle.ended")
+
+-- Failed Encounters OFF: a failed attempt does not claim the route; after a
+-- successful catch, the route becomes committed even with failure mode OFF.
+local core = mod.exports.gen3_core
+assert(core.schema == 1 and #core.definitions() == 8, "eight approved CORE rules")
+assert(core.setRule("failed_encounter", false))
+game.session.map = "FR_ROUTE_3"
+fire("map.entered", { mapId = "FR_ROUTE_3" })
+local try1 = {}
+fire("battle.started", { battle = try1, kind = "wild" })
+assert(select(1, throw(try1)) == true, "first attempt allowed")
+fire("battle.ended")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == false,
+    "failed catch must not consume the area")
+local try2 = {}
+fire("battle.started", { battle = try2, kind = "wild" })
+assert(select(1, throw(try2)) == true, "second attempt allowed when failures OFF")
+fire("pokemon.caught", { battle = try2 })
+fire("battle.ended")
+local try3 = {}
+fire("battle.started", { battle = try3, kind = "wild" })
+assert(select(1, throw(try3)) == false, "successful catch closes area")
+fire("battle.ended")
+assert(core.setRule("encounter_limit", false))
+local noLimit = {}
+fire("battle.started", { battle = noLimit, kind = "wild" })
+assert(select(1, throw(noLimit)) == true, "one-per-area OFF disables catch block")
+fire("battle.ended")
+assert(core.setRule("encounter_limit", true))
+assert(core.setRule("failed_encounter", true))
+assert(core.setRule("nickname_rule", false) == false,
+    "unimplemented CORE rule must be read-only")
+assert(core.setRule("pc_survivors_allowed", true) == false,
+    "unsafe PC recovery must not be advertised as working")
+
+-- Permadeath OFF must restore normal revives and allow ordinary fainting.
+assert(core.setRule("permadeath", false))
+local safeMon = { species = 25, personality = 7421, hp = 0, level = 5 }
+local safeBattle = { playerParty = { safeMon } }
+fire("battle.started", { battle = safeBattle, kind = "trainer" })
+fire("battle.fainted", { battle = safeBattle, sideName = "player",
+    battler = { side = "player", partyIndex = 1, mon = safeMon } })
+assert(#values.gen3_classic_v1.graveyard == 0 and not safeMon.nuzlockeDead,
+    "permadeath OFF does not mark death")
+fire("battle.ended")
+assert(#game.session.party == 1, "permadeath OFF preserves party")
+assert(fakeBattleItems.canUseOn({}, "REVIVE", 1, safeMon),
+    "revive item becomes usable with permadeath OFF")
+assert(core.setRule("permadeath", true))
+
+assert(fakeBattleItems.canUseOn({}, "REVIVE", 1, game.session.party[1]) == false,
+    "revival should be denied by target-selection UI")
+local dummyAdapter = { say = function(_, text) assert(text:find("No revives")) end }
+assert(select(1, fakeBattleItems.use({}, dummyAdapter, {}, game.session,
+    "REVIVE", 1)) == "error", "native revival action must also be blocked")
+assert(select(1, fakeBattleItems.use({}, dummyAdapter, {}, game.session,
+    "POTION", 1)) == "heal", "ordinary healing still delegates to engine")
+
+-- Player faint in a trainer battle: immediate death even if an external
+-- battle effect later restores HP on the copied party mon.
+local battleMon = {
+    species = 25, personality = 7421, hp = 0, level = 5,
+    nickname = "Starter",
+}
+local trainerBattle = { playerParty = { battleMon } }
+fire("battle.started", { battle = trainerBattle, kind = "trainer" })
+local faint = { battle = trainerBattle, sideName = "player",
+    battler = { side = "player", partyIndex = 1, mon = battleMon } }
+fire("battle.fainted", faint)
+assert(battleMon.nuzlockeDead, "death is recorded during battle")
+assert(#values.gen3_classic_v1.graveyard == 1, "instant graveyard entry")
+assert(values.gen3_classic_v1.graveyard[1].archiveComplete
+    and values.gen3_classic_v1.graveyard[1].archive.personality == 7421
+    and values.gen3_classic_v1.graveyard[1].archive.nuzlockeDead == nil,
+    "death archive preserves Pokemon identity without death marker")
+fire("battle.fainted", faint)
+assert(#values.gen3_classic_v1.graveyard == 1, "duplicate faint not recorded")
+battleMon.hp = 13
+game.session.party[1].hp = 13 -- simulate a mid-battle revive / heal bypass
+fire("battle.ended")
+assert(#game.session.party == 0, "fainted mon removed despite later HP gain")
+assert(#values.gen3_classic_v1.graveyard == 1, "death not duplicated at cleanup")
+assert(values.gen3_classic_v1.graveyard[1].speciesName == "Pikachu",
+    "new memorial records keep the native species name")
+assert(values.gen3_classic_v1.graveyard[1].areaName == "Route 3",
+    "new memorial records keep readable native location")
+assert(mod.exports.gen3_classic.state().failed, "empty party loses run")
+
+-- Migration/display test: pre-existing saves store only species=16 and
+-- area=FR_ROUTE_1, yet should render Pidgey at Route 1.
+local historic = { species = 16, level = 3, area = "FR_ROUTE_1" }
+table.insert(values.gen3_classic_v1.graveyard, historic)
+openMenu()
+for _ = 1, 3 do press("down") end -- GRAVEYARD
+press("a")
+assert(mod.exports.gen3_menu.model().title == "GRAVEYARD")
+assert(mod.exports.gen3_menu.model().rows[1] == "Starter Lv5")
+assert(mod.exports.gen3_menu.model().rows[2] == "Pidgey Lv3")
+press("down")
+press("a")
+local memorial = mod.exports.gen3_menu.model()
+assert(memorial.title == "IN MEMORY")
+assert(memorial.rows[1] == "POKEMON: Pidgey")
+assert(memorial.rows[2] == "LEVEL: 3")
+assert(memorial.rows[3] == "LOST AT: Route 1")
+press("b")
+press("b")
+press("b")
+table.remove(values.gen3_classic_v1.graveyard) -- restore original one-death record
+
+toggle("NUZLOCKE: ON", "NUZLOCKE: ON")
+assert(mod.exports.gen3_classic.state().failed, "failure cannot be cleared")
+assert(core.setRule("nuzlocke_enabled", false) == false,
+    "failed-run config remains sealed")
+
+-- Whiteout has higher priority than healthy reserve Pokémon in the PC;
+-- switching it OFF allows the native loss outcome when the party survives.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+    rules = { whiteout_ends_run = true, permadeath = true }
+}
+game.session.party = {
+    { species = 1, personality = 77, hp = 12, level = 5 },
+}
+game.session.storage = {
+    boxes = { { mons = { { species = 4, hp = 11, level = 5 } } } },
+}
+local losing = {}
+fire("battle.started", { battle = losing, kind = "trainer" })
+fire("battle.ended", { result = "lose" })
+assert(values.gen3_classic_v1.failed, "whiteout ends run despite PC reserves")
+
+values.gen3_classic_v1.failed = false
+assert(core.setRule("whiteout_ends_run", false))
+local forgivenLoss = {}
+fire("battle.started", { battle = forgivenLoss, kind = "trainer" })
+fire("battle.ended", { result = "lose" })
+assert(not values.gen3_classic_v1.failed,
+    "whiteout OFF does not by itself end a surviving-party run")
+
+-- Nuz Dev: explicit opt-in, per-area editing, confirmations and audit.
+openMenu()
+for _ = 1, 6 do press("down") end
+assert(mod.exports.gen3_menu.model().rows[7] == "[WIP] NUZ DEV",
+    "developer menu should appear as a distinct, labelled tool")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
+assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "CONFIRM EDIT")
+press("b") -- refuse confirmation
+assert(not mod.exports.gen3_dev_info.status().enabled,
+    "cancelled developer activation must not change save")
+press("a")
+press("a") -- explicit YES
+assert(mod.exports.gen3_dev_info.status().enabled,
+    "developer mode opt-in should work")
+assert(mod.exports.gen3_dev_info.status().tainted,
+    "using developer editing marks test save permanently")
+assert(mod.exports.gen3_menu.model().rows[1] == "RE-ARM CURRENT")
+
+-- One-step quick re-arm for the next wild encounter, then detailed editing.
+press("a") -- quick re-arm
+assert(mod.exports.gen3_menu.model().title == "CONFIRM EDIT")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == false,
+    "quick re-arm opens current map catch slot")
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
+press("down") -- EDIT CURRENT AREA
+press("a")
+assert(mod.exports.gen3_menu.model().title == "EDIT AREA")
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: OPEN")
+press("down")
+press("down") -- MARK OPEN
+press("a")
+press("a") -- confirm
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == false)
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: OPEN")
+assert(mod.exports.gen3_dev_info.snapshot().areasOpen == 1)
+press("down") -- MARK SPENT
+press("a")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == true)
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: SPENT")
+press("down") -- MARK CAUGHT
+press("a")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.caught == true)
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: CAUGHT")
+press("down") -- CLEAR ENTRY
+press("a")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3 == nil,
+    "clear entry should rearm only that map")
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: UNRECORDED")
+
+-- The area editor is forbidden while a native battle is live.
+local devFight = {}
+fire("battle.started", { battle = devFight, kind = "trainer" })
+press("up") -- MARK CAUGHT
+press("a")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "EDIT BLOCKED")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3 == nil,
+    "developer edits must not mutate battle state")
+press("b")
+fire("battle.ended")
+press("b") -- back to NUZ DEV
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
+press("down") -- EDIT ALL AREAS
+press("a")
+assert(mod.exports.gen3_menu.model().rows[1] == "NO RECORDED AREAS")
+press("b")
+press("down") -- CLEAR ALL AREAS
+values.gen3_classic_v1.areas.FR_ROUTE_4 = { spent = true, caught = true }
+press("a")
+press("b") -- cancel
+assert(values.gen3_classic_v1.areas.FR_ROUTE_4 ~= nil,
+    "cancelled global reset should leave areas alone")
+press("a")
+press("a") -- confirm clear ALL
+assert(next(values.gen3_classic_v1.areas) == nil,
+    "global reset should clear all encounter records")
+
+press("down") -- STATE INSPECTOR
+press("a")
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV STATUS")
+press("b")
+press("down") -- RULE INSPECTOR
+press("a")
+assert(mod.exports.gen3_menu.model().title == "RULE INSPECT")
+press("b")
+
+press("down") -- RESET CLAUSE COUNTS
+values.gen3_classic_v1.shinyExceptionsUsed = 2
+values.gen3_classic_v1.capturedSpecies = { ["16"] = true }
+values.gen3_classic_v1.roamerClaims = { ["243"] = true }
+press("a")
+press("b") -- cancel
+assert(values.gen3_classic_v1.shinyExceptionsUsed == 2,
+    "cancelled clause reset should do nothing")
+press("a")
+press("a")
+assert(values.gen3_classic_v1.shinyExceptionsUsed == 0
+    and next(values.gen3_classic_v1.capturedSpecies) == nil
+    and next(values.gen3_classic_v1.roamerClaims) == nil,
+    "confirm clause reset clears allowances, captures and roamer claims")
+press("down") -- PRINT DEBUG REPORT
+press("a")
+assert(mod.exports.gen3_menu.model().title == "REPORT PRINTED")
+press("b")
+press("down") -- CLEAR GRAVEYARD
+values.gen3_classic_v1.graveyard = { { species = 25, nickname = "Test" } }
+press("a")
+press("a")
+assert(#values.gen3_classic_v1.graveyard == 0)
+assert(#game.session.party == 1, "dev edits never remove party members")
+
+press("down") -- CLEAR RUN FAILURE
+values.gen3_classic_v1.failed = true
+game.session.party = {}
+press("a")
+press("a")
+assert(values.gen3_classic_v1.failed == true,
+    "cannot clear run failure with an empty party")
+assert(mod.exports.gen3_menu.model().title == "EDIT BLOCKED")
+press("b")
+game.session.party = { { species = 25, personality = 7421, hp = 0 } }
+press("a")
+press("a")
+assert(values.gen3_classic_v1.failed == true,
+    "cannot clear loss with only fainted party members")
+assert(mod.exports.gen3_menu.model().title == "EDIT BLOCKED")
+press("b")
+game.session.party[1].hp = 22
+press("a")
+press("a")
+assert(values.gen3_classic_v1.failed == false,
+    "can clear loss after restoring a living native party")
+
+press("down") -- DISABLE DEV MODE
+press("a")
+press("a")
+assert(not mod.exports.gen3_dev_info.status().enabled)
+assert(mod.exports.gen3_dev_info.status().tainted,
+    "disabling test tools must not remove the audit marker")
+assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
+press("b") -- back to NUZ MENU
+press("b") -- close menu
+
+-- Integration: repeated Pokémon are rejected without spending an unused
+-- area's first chance; shiny exceptions bypass Dupes/area only when successful.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+    rules = { failed_encounter = true, encounter_limit = true },
+}
+game.session.party = {
+    { species = 25, personality = 7421, hp = 21, level = 5 },
+}
+assert(mod.exports.gen3_clauses.setMode("dupes_mode", 1))
+assert(mod.exports.gen3_clauses.setMode("shiny_clause", 1))
+game.session.map = "FR_ROUTE_6"
+fire("map.entered", { mapId = "FR_ROUTE_6" })
+local dupeBattle = { enemy = { mon = { species = 25, isShiny = false } } }
+fire("battle.started", { battle = dupeBattle, kind = "wild",
+    speciesId = 25 })
+assert(select(1, throw(dupeBattle)) == false,
+    "owned species denied by Dupes Clause")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_6 == nil,
+    "rejected duplicate must not use the encounter")
+fire("battle.ended")
+local normalBattle = { enemy = { mon = { species = 16, isShiny = false } } }
+fire("battle.started", { battle = normalBattle, kind = "wild",
+    speciesId = 16 })
+assert(select(1, throw(normalBattle)) == true,
+    "unrelated species still available")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_6.spent,
+    "eligible encounter consumes the route normally")
+fire("battle.ended")
+local shinyBattle = { enemy = { mon = { species = 25, isShiny = true } } }
+fire("battle.started", { battle = shinyBattle, kind = "wild",
+    speciesId = 25 })
+local allowed, _, invoked = hooks["catch.rate"](function()
+    return true, 4
+end, "MASTER_BALL", shinyBattle.enemy.mon, {}, { battle = shinyBattle })
+assert(allowed and not not allowed, "shiny exception bypasses spent duplicate")
+fire("pokemon.caught", { battle = shinyBattle, speciesId = 25,
+    mon = shinyBattle.enemy.mon })
+assert(mod.exports.gen3_clauses.summary().shinyExceptionsUsed == 1,
+    "successful exceptional catch consumes exactly one allowance")
+fire("battle.ended")
+local secondShiny = { enemy = { mon = { species = 25, isShiny = true } } }
+fire("battle.started", { battle = secondShiny, kind = "wild",
+    speciesId = 25 })
+assert(select(1, throw(secondShiny)) == false,
+    "one-time shiny exception cannot be reused")
+fire("battle.ended")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_6.caught ~= true,
+    "shiny exception must not falsely mark a normal area catch")
+
+-- CLAUSES menu cycle and unsupported entries visibly remain inert.
+openMenu()
+press("a") -- NUZ RULES
+press("down") -- CLAUSES
+press("a")
+local clausesMenu = mod.exports.gen3_menu.model()
+assert(clausesMenu.title == "CLAUSES" and #clausesMenu.rows == 8,
+    "Gen 3 clause menu excludes Gold-only contest and includes all planned rows")
+assert(clausesMenu.rows[1] == "[WIP] DUPES CLAUSE: SPEC")
+assert(clausesMenu.rows[2] == "[WIP] SHINY CLAUSE: 1")
+press("a") -- SPEC -> FAM
+assert(mod.exports.gen3_clauses.getMode("dupes_mode") == 2)
+assert(mod.exports.gen3_menu.model().rows[1] == "[WIP] DUPES CLAUSE: FAM")
+press("down") -- shiny clause
+press("a") -- 1 -> 2
+assert(mod.exports.gen3_clauses.getMode("shiny_clause") == 2)
+press("down") -- shiny rate
+assert(mod.exports.gen3_menu.model().rows[3] == "[WIP] SHINY RATE: NATIVE")
+press("a")
+assert(mod.exports.gen3_clauses.getMode("shiny_rate_mode") == 1,
+    "Shiny Rate cycles through supported real modes")
+assert(mod.exports.gen3_menu.model().rows[3] == "[WIP] SHINY RATE: 1/4096")
+press("b") -- CLAUSES -> RULES
+press("b") -- RULES -> NUZ MENU
+press("b") -- NUZ MENU -> game
+
+-- Native Gen 3 roamer: don't spend an area when the roaming Pokémon
+-- flees, then close only its species slot when eventually caught.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+    rules = { failed_encounter = true, encounter_limit = true },
+}
+game.session.party = { { species = 25, personality = 99, hp = 22 } }
+assert(mod.exports.gen3_clauses.setMode("gen3_roamer_clause", 1))
+game.session.map = "FR_ROUTE_7"
+fire("map.entered", { mapId = "FR_ROUTE_7" })
+fire("roamer.encountered", { species = 243, mapId = "FR_ROUTE_7" })
+local fleeingRoamer = { enemy = { mon = { species = 243 } } }
+fire("battle.started", { battle = fleeingRoamer, kind = "wild", speciesId = 243 })
+assert(select(1, throw(fleeingRoamer)) == true,
+    "first roamer gets its own encounter slot")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_7 == nil,
+    "roamer encounter must not claim route even on Failed Encounters ON")
+fire("battle.ended", { result = "run" })
+fire("roamer.encountered", { species = 243, mapId = "FR_ROUTE_7" })
+local caughtRoamer = { enemy = { mon = { species = 243 } } }
+fire("battle.started", { battle = caughtRoamer, kind = "wild", speciesId = 243 })
+assert(select(1, throw(caughtRoamer)) == true,
+    "fled roamer can be caught in a later battle")
+fire("pokemon.caught", { battle = caughtRoamer, speciesId = 243 })
+assert(values.gen3_classic_v1.roamerClaims["243"],
+    "successful capture closes Raikou's species-specific slot")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_7 == nil,
+    "caught roamer must not claim regular grass encounter")
+fire("battle.ended")
+-- The next battle may use the native mon.roamer flag instead of an event.
+local repeatRoamer = { enemy = { mon = { species = 243, roamer = true } } }
+fire("battle.started", { battle = repeatRoamer, kind = "wild", speciesId = 243 })
+assert(select(1, throw(repeatRoamer)) == false,
+    "claimed roamer slot cannot be reused")
+fire("battle.ended")
+local otherRoamer = { enemy = { mon = { species = 244, roamer = true } } }
+fire("battle.started", { battle = otherRoamer, kind = "wild", speciesId = 244 })
+assert(select(1, throw(otherRoamer)) == true, "another roamer retains separate slot")
+fire("battle.ended", { result = "run" })
+local routeWild = { enemy = { mon = { species = 16, isShiny = false } } }
+fire("battle.started", { battle = routeWild, kind = "wild", speciesId = 16 })
+assert(select(1, throw(routeWild)) == true,
+    "ordinary first route encounter remains eligible after roamer")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_7.spent,
+    "ordinary first encounter consumes the route")
+fire("battle.ended")
+assert(mod.exports.gen3_clauses.getMode("gen3_roamer_clause") == 1)
+assert(mod.exports.gen3_clauses.summary().speciesRecorded >= 1)
+assert(mod.exports.gen3_clauses.summary().roamerClaims == 1,
+    "read-only clause summary shows captured roamer slots")
+
+-- Menu uses the real clause registry, not the Gen 2-only rule list.
+openMenu()
+press("a") -- NUZ RULES
+press("down") -- CLAUSES
+press("a")
+for _ = 1, 3 do press("down") end
+local roamerMenu = mod.exports.gen3_menu.model()
+assert(roamerMenu.rows[4] == "[WIP] ROAMER CLAUSE: SLOT",
+    "Gen 3 Roamer Clause row should show actual active mode")
+press("a")
+assert(mod.exports.gen3_clauses.getMode("gen3_roamer_clause") == 0)
+assert(mod.exports.gen3_menu.model().rows[4]
+    == "[WIP] ROAMER CLAUSE: OFF")
+press("b")
+press("b")
+press("b")
+
+-- Shiny Rate is deliberately independent of Nuzlocke master switch.
+-- An eligible newly generated wild Pokémon gets a persistent, individual
+-- shiny flag rather than a repeated draw-time random roll.
+values.gen3_classic_v1 = {
+    enabled = false, failed = false, areas = {}, graveyard = {},
+}
+assert(mod.exports.gen3_clauses.setMode("shiny_rate_mode", 6))
+local forced = { species = 16, personality = 7256 }
+local shinyFight = { enemy = { mon = forced } }
+fire("battle.started", { battle = shinyFight, kind = "wild", speciesId = 16 })
+assert(forced.isShiny == true and forced.nuzlockeShinyRateBoosted,
+    "ALWAYS should mark new wild shiny even when master switch OFF")
+fire("battle.ended")
+local trainerMon = { species = 16, personality = 7257 }
+fire("battle.started", { battle = { enemy = { mon = trainerMon } },
+    kind = "trainer" })
+assert(not trainerMon.nuzlockeShinyRateBoosted,
+    "Shiny Rate should not affect generated trainer Pokemon")
+fire("battle.ended")
+
+-- Egg acquisition and token redemptions are connected through the real
+-- Gen 3 event bus; neither changes party structure or destroys an Egg.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+}
+assert(mod.exports.gen3_clauses.setMode("gen3_egg_encounter_mode", 1))
+game.session.map = "FR_ROUTE_11"
+fire("map.entered", { mapId = "FR_ROUTE_11" })
+local newEgg = { species = 175, personality = 2026, isEgg = true }
+fire("breeding.egg_created", { egg = newEgg, mother = { species = 25 } })
+assert(newEgg.nuzEggReceivedAt == "FR_ROUTE_11", "native Egg gets receipt provenance")
+game.session.map = "FR_ROUTE_12"
+fire("map.entered", { mapId = "FR_ROUTE_12" })
+local hatchling = { species = 175, personality = 2026, isEgg = false }
+fire("egg.hatched", { mon = hatchling, egg = newEgg, species = 175 })
+assert(hatchling.nuzEggProvenance == "ELIGIBLE"
+    and values.gen3_classic_v1.areas.FR_ROUTE_11.spent,
+    "RECEIVED claims receipt map, not hatch location")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_12 == nil)
+assert(mod.exports.gen3_clauses.summary().eggsTracked == 1)
+-- Seed a known initial badge; enable Route Forgiveness START 1, then confirm
+-- later badge progress awards exactly one extra token.
+game.session.flags = { [0x820] = true }
+assert(mod.exports.gen3_clauses.setMode("route_forgiveness", 2))
+assert(mod.exports.gen3_clauses.summary().forgivenessTokens == 1,
+    "START 1 awards one token on first activation")
+game.session.flags[0x821] = true
+fire("map.entered", { mapId = "FR_ROUTE_12" })
+assert(mod.exports.gen3_clauses.summary().forgivenessTokens == 2,
+    "first new badge awards one token")
+fire("map.entered", { mapId = "FR_ROUTE_12" })
+assert(mod.exports.gen3_clauses.summary().forgivenessTokens == 2,
+    "the same badge never pays twice")
+values.gen3_classic_v1.areas.FR_ROUTE_13 = { caught = false, spent = true }
+openMenu()
+press("a") -- rules
+press("down") -- clauses
+press("a")
+for _ = 1, 7 do press("down") end
+assert(mod.exports.gen3_menu.model().rows[8] == "[WIP] REDEEM TOKEN",
+    "redemption action is discoverable in CLAUSES")
+press("a")
+assert(mod.exports.gen3_menu.model().title == "FORGIVENESS")
+assert(mod.exports.gen3_menu.model().rows[1] == "TOKENS: 2")
+press("down")
+press("a") -- route 13 -> confirmation
+assert(mod.exports.gen3_menu.model().title == "CONFIRM TOKEN")
+press("b") -- cancel
+assert(values.gen3_classic_v1.areas.FR_ROUTE_13.spent,
+    "cancelling a token redemption has no effect")
+press("a")
+press("a") -- confirm yes
+assert(values.gen3_classic_v1.areas.FR_ROUTE_13.spent == false
+    and mod.exports.gen3_clauses.summary().forgivenessTokens == 1,
+    "confirm consumes token and reopens the chosen missed route")
+press("b")
+press("b")
+press("b")
+press("b")
+
+print("Gen3 experimental Nuzlocke smoke PASS")

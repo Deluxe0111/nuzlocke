@@ -1,0 +1,48 @@
+name: Gen 3 foundation smoke
+
+on:
+  pull_request:
+    paths:
+      - 'entry.lua'
+      - 'gen3_runtime.lua'
+      - 'gen3_core_rules.lua'
+      - 'gen3_menu.lua'
+      - 'gen3_dev.lua'
+      - 'gen3_display.lua'
+      - 'gen3_clauses.lua'
+      - 'gen3_shiny_rate.lua'
+      - 'gen3_archive.lua'
+      - 'gen3_eggs.lua'
+      - 'gen3_forgiveness.lua'
+      - 'tests/gen3_eggs_smoke.lua'
+      - 'tests/gen3_forgiveness_smoke.lua'
+      - 'tests/gen3_shiny_rate_smoke.lua'
+      - 'tests/gen3_archive_smoke.lua'
+      - 'tests/gen3_clauses_smoke.lua'
+      - 'manifest.json'
+      - 'tests/gen3_foundation_smoke.lua'
+      - '.github/workflows/gen3-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gen3-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1
+        run: sudo apt-get update && sudo apt-get install -y lua5.1
+      - name: Run isolated Gen 3 hook/state smoke
+        run: lua5.1 tests/gen3_foundation_smoke.lua
+      - name: Run isolated Gen 3 clauses policy smoke
+        run: lua5.1 tests/gen3_clauses_smoke.lua
+      - name: Run stable shiny-rate policy smoke
+        run: lua5.1 tests/gen3_shiny_rate_smoke.lua
+      - name: Run full-Pokemon archive smoke
+        run: lua5.1 tests/gen3_archive_smoke.lua
+      - name: Run Egg Encounter provenance smoke
+        run: lua5.1 tests/gen3_eggs_smoke.lua
+      - name: Run Route Forgiveness policy smoke
+        run: lua5.1 tests/gen3_forgiveness_smoke.lua
