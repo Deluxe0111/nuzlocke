@@ -1,5 +1,5 @@
 local F = assert(loadfile("gen3_forgiveness.lua"))()()
-local s = { areas = {
+local s = { enabled = true, areas = {
     FR_ROUTE_1 = { spent = true, caught = false },
     FR_ROUTE_2 = { spent = true, caught = true },
 }, clauses = { route_forgiveness = 2 } }
