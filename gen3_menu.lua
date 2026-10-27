@@ -544,6 +544,46 @@ return function(mod, api)
         present("NUZ DEV", devRows(), devRows)
     end
 
+    local function showNicknameTasks()
+        local naming = api.nickname
+        if not naming then return end
+        local function tasksRows()
+            local rows = {}
+            if not Core.enforced(state(), "nickname_rule") then
+                rows[1] = row("NICKNAME RULE IS OFF")
+                return rows
+            end
+            local tasks = naming.pending()
+            for _, item in ipairs(tasks) do
+                local mon = item.mon
+                local label = (item.where == "party"
+                    and ("PARTY " .. tostring(item.slot))
+                    or ("BOX " .. tostring(item.box) .. "/" .. tostring(item.slot)))
+                    .. ": " .. item.name
+                rows[#rows + 1] = row(label, nil, function()
+                    local Naming = require("src.ui.game3.naming")
+                    Naming.open({
+                        template = "CAUGHT_MON", maxLen = 10,
+                        species = mon.species or mon.speciesId,
+                        personality = mon.personality,
+                        gender = mon.gender,
+                        seed = item.name,
+                        sentToPc = item.where == "box",
+                        title = Naming.monTitle(item.name),
+                        onDone = function(value)
+                            if naming.rename(mon, value) and current() then
+                                current().rows = tasksRows()
+                            end
+                        end,
+                    })
+                end)
+            end
+            if #rows == 0 then rows[1] = row("ALL POKEMON NAMED") end
+            return rows
+        end
+        present("NICKNAME TASKS", tasksRows(), tasksRows)
+    end
+
     local function home()
         present("NUZ MENU", {
             row("NUZ RULES", "wip", showRules),
@@ -557,6 +597,7 @@ return function(mod, api)
                 disabledFeature("MOD COMPAT", "compat")
             end),
             row("NUZ DEV", "wip", showDevTools),
+            row("NICKNAME TASKS", "wip", showNicknameTasks),
             row("END RUN", "soon", function()
                 disabledFeature("END RUN", "end_run")
             end),
