@@ -110,6 +110,39 @@ assert(first.speciesId ~= 1 and first.level == 7 and first.item=="BERRY")
 assert(wild.speciesId == 1, "native encounter object must not mutate")
 assert(hooks["encounter.species"](downstream,wild,ctx).speciesId == first.speciesId)
 assert(count==2,"compose downstream provider exactly once")
+-- Untamed-Advanced does not call encounter.species. It calls a separate
+-- opt-in hook before its visible sprite and battle enemy are constructed.
+local owctx={source="untamed_advanced",mapId="FR_ROUTE_1",
+    terrain="land",x=4,y=7}
+local ow={species=1,level=8,item="BERRY"}
+local called=0
+local function nextOwe(enc, origin)
+    called=called+1
+    assert(origin==owctx)
+    return enc
+end
+local rendered=hooks["untamed.owe.species"](nextOwe,ow,owctx)
+assert(called==1 and rendered~=ow and rendered.species~=1
+    and rendered.level==8 and rendered.item=="BERRY"
+    and ow.species==1, "visible OWE must randomise without mutating input")
+local second=hooks["untamed.owe.species"](nextOwe,ow,
+    {source="untamed_advanced",mapId="FR_ROUTE_1",
+    terrain="land",x=12,y=1})
+assert(second.species==rendered.species,
+    "same original species/route must be deterministic across spawn tiles")
+assert(api.effectiveSeed()==12345678)
+local wrongProvider={species=1,level=8}
+assert(hooks["untamed.owe.species"](nextOwe,wrongProvider,
+    {source="some_other_mod",mapId="FR_ROUTE_1",terrain="land"})
+    == wrongProvider, "do not claim unrelated providers")
+local fakeRoamer={species=1,level=8,roamer=true}
+assert(hooks["untamed.owe.species"](nextOwe,fakeRoamer,owctx)
+    == fakeRoamer, "special roamers cannot be rewritten")
+assert(hooks["untamed.owe.species"](nextOwe,ow,nil)==ow,
+    "missing context fails open")
+assert(hooks["untamed.owe.species"](nextOwe,ow,
+    {source="untamed_advanced",mapId="FR_ROUTE_1",terrain="cave"})
+    == ow, "only Untamed land/water wild slots can be randomised")
 local fish={species="ALPHA",speciesId=1,level=9}
 local f=hooks["encounter.fishing"](function() return fish end,
     "OLD_ROD","FR_ROUTE_1",{})
