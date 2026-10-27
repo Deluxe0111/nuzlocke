@@ -357,6 +357,7 @@ press("b")
 press("down") -- RESET CLAUSE COUNTS
 values.gen3_classic_v1.shinyExceptionsUsed = 2
 values.gen3_classic_v1.capturedSpecies = { ["16"] = true }
+values.gen3_classic_v1.roamerClaims = { ["243"] = true }
 press("a")
 press("b") -- cancel
 assert(values.gen3_classic_v1.shinyExceptionsUsed == 2,
@@ -364,8 +365,9 @@ assert(values.gen3_classic_v1.shinyExceptionsUsed == 2,
 press("a")
 press("a")
 assert(values.gen3_classic_v1.shinyExceptionsUsed == 0
-    and next(values.gen3_classic_v1.capturedSpecies) == nil,
-    "confirm clause reset clears recorded allowances and history")
+    and next(values.gen3_classic_v1.capturedSpecies) == nil
+    and next(values.gen3_classic_v1.roamerClaims) == nil,
+    "confirm clause reset clears allowances, captures and roamer claims")
 press("down") -- PRINT DEBUG REPORT
 press("a")
 assert(mod.exports.gen3_menu.model().title == "REPORT PRINTED")
@@ -533,5 +535,24 @@ assert(values.gen3_classic_v1.areas.FR_ROUTE_7.spent,
 fire("battle.ended")
 assert(mod.exports.gen3_clauses.getMode("gen3_roamer_clause") == 1)
 assert(mod.exports.gen3_clauses.summary().speciesRecorded >= 1)
+assert(mod.exports.gen3_clauses.summary().roamerClaims == 1,
+    "read-only clause summary shows captured roamer slots")
+
+-- Menu uses the real clause registry, not the Gen 2-only rule list.
+openMenu()
+press("a") -- NUZ RULES
+press("down") -- CLAUSES
+press("a")
+for _ = 1, 5 do press("down") end
+local roamerMenu = mod.exports.gen3_menu.model()
+assert(roamerMenu.rows[6] == "[WIP] ROAMER CLAUSE: SLOT",
+    "Gen 3 Roamer Clause row should show actual active mode")
+press("a")
+assert(mod.exports.gen3_clauses.getMode("gen3_roamer_clause") == 0)
+assert(mod.exports.gen3_menu.model().rows[6]
+    == "[WIP] ROAMER CLAUSE: OFF")
+press("b")
+press("b")
+press("b")
 
 print("Gen3 experimental Nuzlocke smoke PASS")
