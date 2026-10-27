@@ -69,8 +69,8 @@ has `spent=true, caught=false`. An area where you caught a Pokémon is not
 eligible. Each route can be forgiven **at most once per run**. A completed
 or lost run cannot redeem forgiveness.
 
-Redemption changes only the Nuzlocke encounter record, not world progress,
-Pokédex entries, party, PC or inventory.
+Redemption requires the main Nuzlocke rule to be ON and changes only the Nuzlocke encounter record, not world progress,
+Pokédex entries, party, PC or inventory. For repeatable testing, **NUZ DEV → ADD TEST TOKEN** grants one token on a flagged disposable test save, behind a confirmation.
 
 **Pokémon revival remains [Soon]**, even for new deaths with archived
 full-individual data. A safe native party/PC transaction, destination
