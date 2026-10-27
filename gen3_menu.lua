@@ -12,6 +12,7 @@ return function(mod, api)
     local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
     local Levels = assert(api.levels, "Gen 3 menu needs LEVELS contract")
+    local Randomizer = assert(api.randomizer, "Gen 3 menu needs RANDOMIZER contract")
     local Display = assert(api.display, "Gen 3 menu needs species and location labels")
 
     -- Mirrored from rule_catalog.lua in the established Gen 1/2 mod.
@@ -376,10 +377,130 @@ return function(mod, api)
         }
     end
 
+    local function seedEditor()
+        if Randomizer.locked() then
+            return info("SEED LOCKED", {
+                "SEED IS FIXED FOR RUN",
+                "START NEW RUN TO CHANGE",
+                "REPLAY WITH SAME SEED",
+            })
+        end
+        local digits = string.format("%08d",
+            Randomizer.get("randomizer_seed") or 0)
+        local function editorRows()
+            local rows = { row("SEED: " .. digits) }
+            for index = 1, 8 do
+                local i = index
+                rows[#rows + 1] = row("DIGIT " .. i .. ": "
+                    .. digits:sub(i, i), nil, function()
+                    local digit = (tonumber(digits:sub(i, i)) + 1) % 10
+                    digits = digits:sub(1, i - 1) .. tostring(digit)
+                        .. digits:sub(i + 1)
+                    current().rows = editorRows()
+                end)
+            end
+            rows[#rows + 1] = row("APPLY SEED", nil, function()
+                local ok, reason = Randomizer.set("randomizer_seed",
+                    tonumber(digits))
+                if ok then popPage()
+                else info("SEED ERROR", { tostring(reason) }) end
+            end)
+            rows[#rows + 1] = row("USE AUTO", nil, function()
+                local ok, reason = Randomizer.set("randomizer_seed", 0)
+                if ok then popPage()
+                else info("SEED ERROR", { tostring(reason) }) end
+            end)
+            rows[#rows + 1] = row("CANCEL", nil, popPage)
+            return rows
+        end
+        present("EDIT RNG SEED", editorRows(), editorRows)
+    end
+
+    local function randomError(reason)
+        if reason == "locked_after_first_randomised_result" then
+            return info("RNG LOCKED", {
+                "RANDOMISER ALREADY USED",
+                "KEEP THIS RUN SEED",
+                "NEW SAVE TO RECONFIGURE",
+            })
+        end
+        info("RNG ERROR", { tostring(reason or "Unknown error") })
+    end
+
+    local function randomRows()
+        local config = Randomizer
+        local rows = {}
+        local function cycle(key, label, options)
+            local value = config.get(key)
+            rows[#rows + 1] = row(label .. ": "
+                .. tostring(options[value + 1]), nil, function()
+                local ok, reason = config.set(key, (value + 1) % #options)
+                if ok then current().rows = randomRows()
+                else randomError(reason) end
+            end)
+        end
+        local function toggle(key, label)
+            local on = config.get(key)
+            rows[#rows + 1] = row(label .. ": "
+                .. (on and "ON" or "OFF"), nil, function()
+                local ok, reason = config.set(key, not on)
+                if ok then current().rows = randomRows()
+                else randomError(reason) end
+            end)
+        end
+        cycle("randomizer_preset", "PRESET", {
+            "CUSTOM", "CHAOS", "BALANCED" })
+        toggle("random_encounter_tables", "RANDOM WILD")
+        toggle("random_trainers", "RANDOM TRAINERS")
+        if config.get("random_encounter_tables") then
+            cycle("random_encounter_balance", "WILD BALANCE",
+                { "CHAOS", "SIM BST" })
+        end
+        if config.get("random_trainers") then
+            cycle("random_trainer_balance", "TRAINER BALANCE",
+                { "CHAOS", "SIM BST" })
+        end
+        if config.get("random_encounter_tables")
+            or config.get("random_trainers") then
+            cycle("random_species_generation", "SPECIES POOL",
+                { "ALL", "KANTO", "JOHTO", "HOENN" })
+        end
+        rows[#rows + 1] = row("SEED: "
+            .. ((config.get("randomizer_seed") or 0) == 0
+                and "AUTO" or string.format("%08d",
+                config.get("randomizer_seed"))), nil, seedEditor)
+        rows[#rows + 1] = row("RUN SEED: "
+            .. ((config.seed() or 0) == 0 and "NOT ROLLED"
+                or string.format("%08d", config.seed())))
+        rows[#rows + 1] = row("CONFIG: "
+            .. (config.locked() and "LOCKED" or "EDITABLE"))
+        -- Keep other legacy settings visible as non-interactive placeholders.
+        for _, cat in ipairs(CATALOG) do
+            if cat.title == "RANDOMIZER" then
+                local supported = {
+                    randomizer_preset=true, random_encounter_tables=true,
+                    random_trainers=true, randomizer_seed=true,
+                    random_encounter_balance=true, random_trainer_balance=true,
+                    random_species_generation=true,
+                }
+                for _, def in ipairs(cat.rules) do
+                    local key, label = def[1], def[2]
+                    if not supported[key] then
+                        rows[#rows + 1] = row(label, "soon", function()
+                            disabledFeature(label, key)
+                        end)
+                    end
+                end
+            end
+        end
+        return rows
+    end
+
     local function categoryRows(category)
         if category.title == "CORE" then return coreRows() end
         if category.title == "CLAUSES" then return clausesRows() end
         if category.title == "LEVELS" then return levelRows() end
+        if category.title == "RANDOMIZER" then return randomRows() end
         local rows = {}
         for _, rule in ipairs(category.rules) do
             local key, label = rule[1], rule[2]
@@ -398,7 +519,7 @@ return function(mod, api)
             -- CORE and CLAUSES are active categories; their individual
             -- policy rows still distinguish unsupported mechanics.
             local active = c.title == "CORE" or c.title == "CLAUSES"
-                or c.title == "LEVELS"
+                or c.title == "LEVELS" or c.title == "RANDOMIZER"
             rows[#rows + 1] = row(c.title, active and "working" or "soon", function()
                 present(c.title, categoryRows(c),
                     active and function() return categoryRows(c) end or nil)

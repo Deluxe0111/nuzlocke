@@ -25,6 +25,7 @@ return function(mod)
     local Extra = readModule("gen3_extra_core.lua")()
     local Levels = readModule("gen3_levels.lua")()
     local Notices = readModule("gen3_notices.lua")()
+    local Randomizer = readModule("gen3_randomizer.lua")()
     local currentArea
     local activeBattle
     local pendingRoamer
@@ -60,6 +61,88 @@ return function(mod)
         local s = session()
         return areaKey(currentArea) or areaKey(s and s.map)
     end
+
+    -- Gen 3 RANDOMIZER deliberately runs even if Nuzlocke rules are OFF.
+    local function randomSpecies(source, key, original)
+        local saved = loadState()
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return nil end
+        local usedBefore = Randomizer.locked(saved)
+        local result, name = Randomizer.replace(saved, Pokemon, source,
+            key, original, function()
+                -- AUTO consumes engine entropy once per game save and stores
+                -- the resolved seed; all subsequent selections are pure.
+                return math.random(1, 99999999)
+            end)
+        if result then
+            if not usedBefore then
+                Notices.add(saved, "RANDOMIZER_LOCK",
+                    "Randomiser seed and settings locked after first result.")
+            end
+            writeState(saved)
+        end
+        return result, name
+    end
+
+    mod.hooks:wrap("encounter.species", function(next, encounter, ctx)
+        local base = next(encounter, ctx)
+        if type(base) ~= "table" or not ctx
+            or ctx.mapId == nil or base.roamer == true then return base end
+        local original = base.speciesId or base.species
+        -- Do not serialize a table's pointer address into the source key.
+        -- Only stable scalar terrain identifiers are reproducible on reload.
+        local terrain = (type(ctx.terrain) == "string"
+            or type(ctx.terrain) == "number") and ctx.terrain or ""
+        local key = table.concat({ tostring(ctx.mapId),
+            tostring(terrain), tostring(original),
+            tostring(base.level or "") }, ":")
+        local id, name = randomSpecies("ENCOUNTERS", key, original)
+        if not id then return base end
+        local copy = {}
+        for k, v in pairs(base) do copy[k] = v end
+        copy.species = name
+        copy.speciesId = id
+        return copy
+    end)
+    -- Fishing has an independent engine hook, NOT encounter.species.
+    mod.hooks:wrap("encounter.fishing", function(next, rod, mapId, pool)
+        local base = next(rod, mapId, pool)
+        if type(base) ~= "table" or mapId == nil or base.roamer then
+            return base end
+        local original = base.speciesId or base.species
+        local key = table.concat({ tostring(mapId), tostring(rod),
+            tostring(original), tostring(base.level or "") }, ":")
+        local id, name = randomSpecies("ENCOUNTERS", "FISH:" .. key, original)
+        if not id then return base end
+        local copy = {}
+        for k, v in pairs(base) do copy[k] = v end
+        copy.species, copy.speciesId = name, id
+        return copy
+    end)
+    mod.hooks:wrap("trainer.party", function(next, trainerClass,
+            trainerId, party)
+        local original = next(trainerClass, trainerId, party)
+        if type(original) ~= "table" or #original == 0
+            or tonumber(trainerId) == nil or tonumber(trainerId) <= 0 then
+            return original
+        end
+        local result, changed = {}, false
+        for i, member in ipairs(original) do
+            local newMember = {}
+            for k, v in pairs(member) do newMember[k] = v end
+            local key = tostring(trainerClass or "") .. ":"
+                .. tostring(trainerId) .. ":" .. tostring(i)
+                .. ":" .. tostring(member.speciesId or member.species or "")
+            local id, name = randomSpecies("TRAINERS", key,
+                member.speciesId or member.species)
+            if id then
+                newMember.species, newMember.speciesId = name, id
+                changed = true
+            end
+            result[i] = newMember
+        end
+        return changed and result or original
+    end)
 
     local function isActive()
         return Core.active(loadState())
@@ -511,6 +594,7 @@ return function(mod)
     end)
 
     mod.events:on("save.loaded", function()
+        Randomizer.clearCache()
         currentArea = nil
         activeBattle = nil
         pendingRoamer = nil
@@ -521,6 +605,7 @@ return function(mod)
         installNicknameGuard()
     end)
     mod.events:on("save.created", function()
+        Randomizer.clearCache()
         currentArea = nil
         activeBattle = nil
         pendingRoamer = nil
@@ -795,6 +880,24 @@ return function(mod)
         areaSpent = Core.areaSpent,
     })
     local Gen3Menu = readModule("gen3_menu.lua")(mod, { 
+        randomizer = {
+            get = function(key)
+                return Randomizer.get(loadState(), key)
+            end,
+            set = function(key, value)
+                local saved = loadState()
+                local ok, reason = Randomizer.set(saved, key, value)
+                if ok then writeState(saved) end
+                return ok, reason
+            end,
+            seed = function()
+                return Randomizer.seed(loadState())
+            end,
+            locked = function()
+                return Randomizer.locked(loadState())
+            end,
+        },
+
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -850,6 +953,18 @@ return function(mod)
     end)
 
     mod.exports.gen3_menu = Gen3Menu
+    mod.exports.gen3_randomizer = {
+        api = Randomizer.api, algorithm = Randomizer.algorithm,
+        get = function(key) return Randomizer.get(loadState(), key) end,
+        set = function(key, value)
+            local saved = loadState()
+            local ok, reason = Randomizer.set(saved, key, value)
+            if ok then writeState(saved) end
+            return ok, reason
+        end,
+        effectiveSeed = function() return Randomizer.seed(loadState()) end,
+        locked = function() return Randomizer.locked(loadState()) end,
+    }
     mod.exports.gen3_notices = {
         api = Notices.api,
         history = function() return Notices.history(loadState()) end,
@@ -948,7 +1063,9 @@ return function(mod)
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
             "pc_survivors_wip", "nickname_requirement_wip",
-            "gym_league_level_caps", "exp_edging" },
+            "gym_league_level_caps", "exp_edging",
+            "random_wild_and_fishing_species", "random_trainer_parties",
+            "randomizer_seed_v1" },
         state = function()
             local s = loadState()
             return { enabled = s.enabled, failed = s.failed,

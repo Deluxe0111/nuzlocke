@@ -9,6 +9,7 @@ on:
       - 'gen3_extra_core.lua'
       - 'gen3_levels.lua'
       - 'gen3_notices.lua'
+      - 'gen3_randomizer.lua'
       - 'gen3_menu.lua'
       - 'gen3_dev.lua'
       - 'gen3_display.lua'
@@ -26,6 +27,7 @@ on:
       - 'tests/gen3_foundation_smoke.lua'
       - 'tests/gen3_new_core_smoke.lua'
       - 'tests/gen3_levels_smoke.lua'
+      - 'tests/gen3_randomizer_smoke.lua'
       - '.github/workflows/gen3-smoke.yml'
   workflow_dispatch:
 
@@ -45,6 +47,8 @@ jobs:
         run: lua5.1 tests/gen3_new_core_smoke.lua
       - name: Run Gen 3 LEVELS cap and EXP edging smoke
         run: lua5.1 tests/gen3_levels_smoke.lua
+      - name: Run Gen 3 seeded randomizer native hook smoke
+        run: lua5.1 tests/gen3_randomizer_smoke.lua
       - name: Run isolated Gen 3 clauses policy smoke
         run: lua5.1 tests/gen3_clauses_smoke.lua
       - name: Run stable shiny-rate policy smoke
