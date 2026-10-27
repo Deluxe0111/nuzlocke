@@ -11,6 +11,7 @@ return function(mod, api)
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
     local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
+    local Levels = assert(api.levels, "Gen 3 menu needs LEVELS contract")
     local Display = assert(api.display, "Gen 3 menu needs species and location labels")
 
     -- Mirrored from rule_catalog.lua in the established Gen 1/2 mod.
@@ -20,7 +21,6 @@ return function(mod, api)
     { title = "CLAUSES", rules = {{ "dupes_mode", "Dupes Clause" }, { "shiny_clause", "Shiny Clause" }, { "shiny_rate_mode", "Shiny Rate" }, { "gen3_roamer_clause", "Roamer Clause" }, { "gen3_egg_encounter_mode", "Egg Encounter" }, { "route_forgiveness", "Route Forgiveness" } } },
     { title = "HARDCORE", rules = {{ "no_escape", "No Escape" }, { "whiteout_clause", "Whiteout" }, { "gym_lock_in", "Gym Lock-In" }, { "dungeon_lock_in", "Dungeon Lock-In" }, { "no_held_items", "No Held Items" } } },
     { title = "GAME DIFFICULTY", rules = {{ "difficulty_profile", "Game Difficulty" } } },
-    { title = "BATTLE MECHANICS", rules = {{ "physical_special_split", "Phys/Spec Split" }, { "badge_boosts", "Badge Boosts" } } },
     { title = "RUN / PARTY", rules = {{ "gym_team_size", "Gym Team Size" }, { "party_size_limit", "Party Size Limit" }, { "evolution_limit", "Evolution Limits" } } },
     { title = "LEVELS", rules = {{ "level_cap_scope", "Level Cap Scope" }, { "exp_edging", "EXP Edging" } } },
     { title = "CATCH RULES", rules = {{ "overworld_encounters", "Overworld" }, { "town_catches", "Town Catches" }, { "ban_legendaries", "No Legendaries" }, { "ban_mythicals", "No Mythicals" }, { "ban_pseudos", "No Pseudos" }, { "no_static_encounters", "No Static Enc" }, { "no_fishing", "No Fishing" }, { "allow_gifts", "Gift Pokemon" }, { "gift_slot_policy", "Gift Slot Policy" }, { "allow_trades", "In-Game Trades" }, { "trade_slot_policy", "Trade Slot Policy" }, { "maximum_bst", "Maximum BST" }, { "pkmn_ban", "PKMN BAN" }, { "colorlocke_mode", "Colorlocke" }, { "colorlocke_color", "Color" }, { "alphabetlocke_mode", "Alphabetlocke" }, { "alphabetlocke_letter", "Letter" }, { "allow_glitch_pokemon", "Allow Glitches" } } },
@@ -217,7 +217,7 @@ return function(mod, api)
                     return label .. ": " ..
                         (Core.get(state(), key) and "ON" or "OFF")
                 end
-                rows[#rows + 1] = row(updateLabel(), status == "wip" and "wip" or nil,
+                rows[#rows + 1] = row(updateLabel(), nil,
                     function()
                         local fresh = state()
                         local ok, reason = Core.set(fresh, key,
@@ -310,7 +310,7 @@ return function(mod, api)
                     and ShinyRate.externalProvider(mod) or nil
                 rows[#rows + 1] = row(d.label .. ": " ..
                     (external and "EXTERNAL" or Clauses.label(state(), d.key)),
-                    "wip", function()
+                    nil, function()
                     if external then
                         info("SHINY PROVIDER", {
                             "EXTERNAL SHINY MOD",
@@ -335,14 +335,46 @@ return function(mod, api)
                 end)
             end
         end
-        rows[#rows + 1] = row("EGG HISTORY", "wip", eggHistory)
-        rows[#rows + 1] = row("REDEEM TOKEN", "wip", openForgiveness)
+        rows[#rows + 1] = row("EGG HISTORY", nil, eggHistory)
+        rows[#rows + 1] = row("REDEEM TOKEN", nil, openForgiveness)
         return rows
+    end
+
+    local function levelRows()
+        local scope = Levels.get("level_cap_scope") or 0
+        local edging = Levels.get("exp_edging") == true
+        local cap, stage = Levels.cap()
+        local banked, pending = 0, 0
+        for _, mon in ipairs(Levels.currentParty()) do
+            local amount = Levels.banked(mon)
+            banked = banked + amount
+            if amount > 0 then pending = pending + 1 end
+        end
+        return {
+            row("CAP SCOPE: " .. ({
+                "NONE", "GYMS", "ELITE FOUR", "CHAMPION", "POSTGAME"
+            })[scope + 1], nil, function()
+                if Levels.set("level_cap_scope", (scope + 1) % 5) then
+                    current().rows = levelRows()
+                end
+            end),
+            row("EXP EDGING: " .. (edging and "ON" or "OFF"), nil,
+                function()
+                    if Levels.set("exp_edging", not edging) then
+                        current().rows = levelRows()
+                    end
+                end),
+            row("CURRENT CAP: " .. (cap and ("LV " .. cap) or "NONE")),
+            row("STAGE: " .. (stage or "UNKNOWN")),
+            row("PARTY BANK: " .. tostring(banked) .. " EXP"),
+            row("BANKED MEMBERS: " .. tostring(pending)),
+        }
     end
 
     local function categoryRows(category)
         if category.title == "CORE" then return coreRows() end
         if category.title == "CLAUSES" then return clausesRows() end
+        if category.title == "LEVELS" then return levelRows() end
         local rows = {}
         for _, rule in ipairs(category.rules) do
             local key, label = rule[1], rule[2]
@@ -358,10 +390,13 @@ return function(mod, api)
         local rows = {}
         for _, cat in ipairs(CATALOG) do
             local c = cat
-            local kind = (c.title == "CORE" or c.title == "CLAUSES")
-                and "wip" or "soon"
-            rows[#rows + 1] = row(c.title, kind, function()
-                present(c.title, categoryRows(c))
+            -- CORE and CLAUSES are active categories; their individual
+            -- policy rows still distinguish unsupported mechanics.
+            local active = c.title == "CORE" or c.title == "CLAUSES"
+                or c.title == "LEVELS"
+            rows[#rows + 1] = row(c.title, active and "working" or "soon", function()
+                present(c.title, categoryRows(c),
+                    active and function() return categoryRows(c) end or nil)
             end)
         end
         present("NUZ RULES", rows)
