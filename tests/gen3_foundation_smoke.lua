@@ -354,6 +354,18 @@ press("a")
 assert(mod.exports.gen3_menu.model().title == "RULE INSPECT")
 press("b")
 
+press("down") -- RESET CLAUSE COUNTS
+values.gen3_classic_v1.shinyExceptionsUsed = 2
+values.gen3_classic_v1.capturedSpecies = { ["16"] = true }
+press("a")
+press("b") -- cancel
+assert(values.gen3_classic_v1.shinyExceptionsUsed == 2,
+    "cancelled clause reset should do nothing")
+press("a")
+press("a")
+assert(values.gen3_classic_v1.shinyExceptionsUsed == 0
+    and next(values.gen3_classic_v1.capturedSpecies) == nil,
+    "confirm clause reset clears recorded allowances and history")
 press("down") -- PRINT DEBUG REPORT
 press("a")
 assert(mod.exports.gen3_menu.model().title == "REPORT PRINTED")
