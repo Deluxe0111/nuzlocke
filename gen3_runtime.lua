@@ -104,6 +104,37 @@ return function(mod)
         copy.speciesId = id
         return copy
     end)
+    -- Untamed-Advanced's wandering overworld Pokemon are authored and
+    -- spawned independently of encounter.species. Its opt-in hook fires
+    -- BEFORE building the world sprite and before creating the battle foe.
+    -- Same Wild toggle, Gen 3 pool, fixed/AUTO seed, and balance policy.
+    mod.hooks:wrap("untamed.owe.species", function(next, encounter, ctx)
+        local base = next(encounter, ctx)
+        if type(base) ~= "table" or type(ctx) ~= "table"
+            or ctx.source ~= "untamed_advanced" or ctx.mapId == nil
+            or (ctx.terrain ~= "land" and ctx.terrain ~= "water")
+            or base.roamer == true or base.scripted == true then
+            return base
+        end
+        local original = tonumber(base.species)
+        local level = tonumber(base.level)
+        if not original or original % 1 ~= 0 or original <= 0
+            or not level or level % 1 ~= 0
+            or level < 1 or level > 100 then return base end
+        -- Keep this separate from native step/rod mapping: an OWE's
+        -- unique source is the visible spawn, not a vanilla step roll.
+        -- Coords are intentionally excluded, so the same original wild
+        -- species on a route retains its identity across spawn locations.
+        local key = table.concat({ "OWE", tostring(ctx.mapId),
+            ctx.terrain, tostring(original) }, ":")
+        local id = randomSpecies("ENCOUNTERS", key, original)
+        if not id then return base end
+        local copy = {}
+        for k, v in pairs(base) do copy[k] = v end
+        copy.species = id -- Untamed expects an internal numeric species ID.
+        return copy
+    end)
+
     -- Fishing has an independent engine hook, NOT encounter.species.
     mod.hooks:wrap("encounter.fishing", function(next, rod, mapId, pool)
         local base = next(rod, mapId, pool)
