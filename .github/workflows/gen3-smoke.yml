@@ -10,6 +10,10 @@ on:
       - 'gen3_dev.lua'
       - 'gen3_display.lua'
       - 'gen3_clauses.lua'
+      - 'gen3_shiny_rate.lua'
+      - 'gen3_archive.lua'
+      - 'tests/gen3_shiny_rate_smoke.lua'
+      - 'tests/gen3_archive_smoke.lua'
       - 'tests/gen3_clauses_smoke.lua'
       - 'manifest.json'
       - 'tests/gen3_foundation_smoke.lua'
@@ -30,3 +34,7 @@ jobs:
         run: lua5.1 tests/gen3_foundation_smoke.lua
       - name: Run isolated Gen 3 clauses policy smoke
         run: lua5.1 tests/gen3_clauses_smoke.lua
+      - name: Run stable shiny-rate policy smoke
+        run: lua5.1 tests/gen3_shiny_rate_smoke.lua
+      - name: Run full-Pokemon archive smoke
+        run: lua5.1 tests/gen3_archive_smoke.lua
