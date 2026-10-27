@@ -16,6 +16,7 @@ return function(mod)
         return chunk()
     end
     local Core = readModule("gen3_core_rules.lua")()
+    local Display = readModule("gen3_display.lua")()
     local currentArea
     local activeBattle
     local battleInProgress = false
@@ -101,12 +102,8 @@ return function(mod)
                 and (mon.nuzlockeDead == true
                     or (deathEnabled and (tonumber(mon.hp) or 0) <= 0)) then
                 if not mon.nuzlockeDeathRecorded then
-                    s.graveyard[#s.graveyard + 1] = {
-                        species = mon.species or mon.speciesId,
-                        nickname = mon.nickname or mon.name,
-                        level = mon.level,
-                        area = areaNow(),
-                    }
+                    s.graveyard[#s.graveyard + 1] =
+                        Display.memorial(mon, areaNow(), "Fainted in battle")
                 end
                 table.remove(party, i)
                 modified = true
@@ -143,12 +140,8 @@ return function(mod)
         mon.nuzlockeDead = true
         battler.mon.nuzlockeDead = true
         local s = loadState()
-        s.graveyard[#s.graveyard + 1] = {
-            species = mon.species or mon.speciesId,
-            nickname = mon.nickname or mon.name,
-            level = mon.level,
-            area = areaNow(),
-        }
+        s.graveyard[#s.graveyard + 1] =
+            Display.memorial(mon, areaNow(), "Fainted in battle")
         writeState(s)
     end
 
@@ -293,7 +286,7 @@ return function(mod)
     })
     local Gen3Menu = readModule("gen3_menu.lua")(mod, {
         getState = loadState, setState = writeState,
-        core = Core, dev = Dev,
+        core = Core, dev = Dev, display = Display,
     })
 
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
