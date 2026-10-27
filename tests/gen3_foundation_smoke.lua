@@ -485,4 +485,53 @@ press("b")
 press("b")
 press("b")
 
+-- Native Gen 3 roamer: don't spend an area when the roaming Pokémon
+-- flees, then close only its species slot when eventually caught.
+values.gen3_classic_v1 = {
+    enabled = true, failed = false, areas = {}, graveyard = {},
+    rules = { failed_encounter = true, encounter_limit = true },
+}
+game.session.party = { { species = 25, personality = 99, hp = 22 } }
+assert(mod.exports.gen3_clauses.setMode("gen3_roamer_clause", 1))
+game.session.map = "FR_ROUTE_7"
+fire("map.entered", { mapId = "FR_ROUTE_7" })
+fire("roamer.encountered", { species = 243, mapId = "FR_ROUTE_7" })
+local fleeingRoamer = { enemy = { mon = { species = 243 } } }
+fire("battle.started", { battle = fleeingRoamer, kind = "wild", speciesId = 243 })
+assert(select(1, throw(fleeingRoamer)) == true,
+    "first roamer gets its own encounter slot")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_7 == nil,
+    "roamer encounter must not claim route even on Failed Encounters ON")
+fire("battle.ended", { result = "run" })
+fire("roamer.encountered", { species = 243, mapId = "FR_ROUTE_7" })
+local caughtRoamer = { enemy = { mon = { species = 243 } } }
+fire("battle.started", { battle = caughtRoamer, kind = "wild", speciesId = 243 })
+assert(select(1, throw(caughtRoamer)) == true,
+    "fled roamer can be caught in a later battle")
+fire("pokemon.caught", { battle = caughtRoamer, speciesId = 243 })
+assert(values.gen3_classic_v1.roamerClaims["243"],
+    "successful capture closes Raikou's species-specific slot")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_7 == nil,
+    "caught roamer must not claim regular grass encounter")
+fire("battle.ended")
+-- The next battle may use the native mon.roamer flag instead of an event.
+local repeatRoamer = { enemy = { mon = { species = 243, roamer = true } } }
+fire("battle.started", { battle = repeatRoamer, kind = "wild", speciesId = 243 })
+assert(select(1, throw(repeatRoamer)) == false,
+    "claimed roamer slot cannot be reused")
+fire("battle.ended")
+local otherRoamer = { enemy = { mon = { species = 244, roamer = true } } }
+fire("battle.started", { battle = otherRoamer, kind = "wild", speciesId = 244 })
+assert(select(1, throw(otherRoamer)) == true, "another roamer retains separate slot")
+fire("battle.ended", { result = "run" })
+local routeWild = { enemy = { mon = { species = 16, isShiny = false } } }
+fire("battle.started", { battle = routeWild, kind = "wild", speciesId = 16 })
+assert(select(1, throw(routeWild)) == true,
+    "ordinary first route encounter remains eligible after roamer")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_7.spent,
+    "ordinary first encounter consumes the route")
+fire("battle.ended")
+assert(mod.exports.gen3_clauses.getMode("gen3_roamer_clause") == 1)
+assert(mod.exports.gen3_clauses.summary().speciesRecorded >= 1)
+
 print("Gen3 experimental Nuzlocke smoke PASS")
