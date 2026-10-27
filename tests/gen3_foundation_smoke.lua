@@ -1,7 +1,22 @@
 -- Mocked Gen 3 event/API smoke: no ROM or Gen1Recomp installation required.
 local events, hooks, values = {}, {}, {}
+local fakeBattleItems = {
+    canUseOn = function() return true end,
+    use = function() return "heal", {}, true, false end,
+}
+-- The actual engine uses these internal modules to resolve battle items.
+-- The test supplies their narrow contracts without loading a GBA ROM.
+package.loaded["src.core.game3.battle.items"] = fakeBattleItems
+package.loaded["src.core.game3.items_data"] = {
+    medicineKind = function(id) return id == "REVIVE" and "revive" or "heal" end,
+}
+package.loaded["src.core.game3.item_use"] = {
+    fieldUseKind = function(id)
+        return id == "REVIVE" and "revive" or "heal"
+    end,
+}
 local game = { generation = 3, session = { map = "FR_ROUTE_1", party = {
-    { species = 25, hp = 21, level = 5, nickname = "Starter" },
+    { species = 25, personality = 7421, hp = 21, level = 5, nickname = "Starter" },
 } } }
 local mod = {
     game = game,
@@ -51,10 +66,36 @@ fire("map.entered", { mapId = "FR_ROUTE_2" })
 local newAreaBattle = {}
 fire("battle.started", { battle = newAreaBattle, kind = "wild" })
 assert(select(1, throw(newAreaBattle)) == true, "new area allowed")
-game.session.party[1].hp = 0
 fire("battle.ended")
-assert(#game.session.party == 0, "fainted mon removed from native session")
-assert(#values.gen3_classic_v1.graveyard == 1, "death recorded")
+
+assert(fakeBattleItems.canUseOn({}, "REVIVE", 1, game.session.party[1]) == false,
+    "revival should be denied by target-selection UI")
+local dummyAdapter = { say = function(_, text) assert(text:find("No revives")) end }
+assert(select(1, fakeBattleItems.use({}, dummyAdapter, {}, game.session,
+    "REVIVE", 1)) == "error", "native revival action must also be blocked")
+assert(select(1, fakeBattleItems.use({}, dummyAdapter, {}, game.session,
+    "POTION", 1)) == "heal", "ordinary healing still delegates to engine")
+
+-- Player faint in a trainer battle: immediate death even if an external
+-- battle effect later restores HP on the copied party mon.
+local battleMon = {
+    species = 25, personality = 7421, hp = 0, level = 5,
+    nickname = "Starter",
+}
+local trainerBattle = { playerParty = { battleMon } }
+fire("battle.started", { battle = trainerBattle, kind = "trainer" })
+local faint = { battle = trainerBattle, sideName = "player",
+    battler = { side = "player", partyIndex = 1, mon = battleMon } }
+fire("battle.fainted", faint)
+assert(battleMon.nuzlockeDead, "death is recorded during battle")
+assert(#values.gen3_classic_v1.graveyard == 1, "instant graveyard entry")
+fire("battle.fainted", faint)
+assert(#values.gen3_classic_v1.graveyard == 1, "duplicate faint not recorded")
+battleMon.hp = 13
+game.session.party[1].hp = 13 -- simulate a mid-battle revive / heal bypass
+fire("battle.ended")
+assert(#game.session.party == 0, "fainted mon removed despite later HP gain")
+assert(#values.gen3_classic_v1.graveyard == 1, "death not duplicated at cleanup")
 assert(mod.exports.gen3_classic.state().failed, "empty party loses run")
 toggle("NUZ: LOST", "NUZ: LOST")
 assert(mod.exports.gen3_classic.state().failed, "failure cannot be cleared")
