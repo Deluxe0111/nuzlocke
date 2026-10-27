@@ -77,6 +77,23 @@ return function()
         levels.postgameCap = cap
         return true
     end
+    local CLEAR_FLAGS = { firered = 0x82C, leafgreen = 0x82C,
+        ruby = 0x804, sapphire = 0x804, emerald = 0x864 }
+    local function clearedGame(native, edition)
+        local id = CLEAR_FLAGS[edition]
+        if not id then return false end
+        local flags = native and native.flags
+        local space = package.loaded["src.core.game3.scripting.space"]
+        if type(space) == "table" and type(space.getStore) == "function" then
+            local ok, store = pcall(space.getStore)
+            if ok and type(store) == "table"
+                and type(store.flags) == "table" then flags = store.flags end
+        end
+        return type(flags) == "table" and
+            (flags[id] == true or flags[tostring(id)] == true
+                or flags["FLAG_SYS_GAME_CLEAR"] == true) or false
+    end
+
     local function completed(wins)
         local n = 0
         for i = 1, 5 do
@@ -102,7 +119,10 @@ return function()
             end
         end
         if levels.scope == 1 then return nil, "GYMS COMPLETE" end
-        local progress = completed(levels.wins)
+        -- Detect already-completed native saves even when this Nuzlocke
+        -- feature was enabled after beating the Champion.
+        local progress = clearedGame(native, id)
+            and 5 or completed(levels.wins)
         if progress < 4 then
             return edition.league[progress + 1], "ELITE " .. (progress + 1)
         end
