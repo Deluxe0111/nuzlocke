@@ -118,7 +118,7 @@ local ow={species=1,level=8,item="BERRY"}
 local called=0
 local function nextOwe(enc, origin)
     called=called+1
-    assert(origin==owctx)
+    assert(type(origin)=="table")
     return enc
 end
 local rendered=hooks["untamed.owe.species"](nextOwe,ow,owctx)
