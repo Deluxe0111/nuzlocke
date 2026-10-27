@@ -478,20 +478,20 @@ press("a")
 local clausesMenu = mod.exports.gen3_menu.model()
 assert(clausesMenu.title == "CLAUSES" and #clausesMenu.rows == 8,
     "Gen 3 clause menu excludes Gold-only contest and includes all planned rows")
-assert(clausesMenu.rows[1] == "[WIP] DUPES CLAUSE: SPEC")
-assert(clausesMenu.rows[2] == "[WIP] SHINY CLAUSE: 1")
+assert(clausesMenu.rows[1] == "DUPES CLAUSE: SPEC")
+assert(clausesMenu.rows[2] == "SHINY CLAUSE: 1")
 press("a") -- SPEC -> FAM
 assert(mod.exports.gen3_clauses.getMode("dupes_mode") == 2)
-assert(mod.exports.gen3_menu.model().rows[1] == "[WIP] DUPES CLAUSE: FAM")
+assert(mod.exports.gen3_menu.model().rows[1] == "DUPES CLAUSE: FAM")
 press("down") -- shiny clause
 press("a") -- 1 -> 2
 assert(mod.exports.gen3_clauses.getMode("shiny_clause") == 2)
 press("down") -- shiny rate
-assert(mod.exports.gen3_menu.model().rows[3] == "[WIP] SHINY RATE: NATIVE")
+assert(mod.exports.gen3_menu.model().rows[3] == "SHINY RATE: NATIVE")
 press("a")
 assert(mod.exports.gen3_clauses.getMode("shiny_rate_mode") == 1,
     "Shiny Rate cycles through supported real modes")
-assert(mod.exports.gen3_menu.model().rows[3] == "[WIP] SHINY RATE: 1/4096")
+assert(mod.exports.gen3_menu.model().rows[3] == "SHINY RATE: 1/4096")
 press("b") -- CLAUSES -> RULES
 press("b") -- RULES -> NUZ MENU
 press("b") -- NUZ MENU -> game
@@ -554,12 +554,12 @@ press("down") -- CLAUSES
 press("a")
 for _ = 1, 3 do press("down") end
 local roamerMenu = mod.exports.gen3_menu.model()
-assert(roamerMenu.rows[4] == "[WIP] ROAMER CLAUSE: SLOT",
+assert(roamerMenu.rows[4] == "ROAMER CLAUSE: SLOT",
     "Gen 3 Roamer Clause row should show actual active mode")
 press("a")
 assert(mod.exports.gen3_clauses.getMode("gen3_roamer_clause") == 0)
 assert(mod.exports.gen3_menu.model().rows[4]
-    == "[WIP] ROAMER CLAUSE: OFF")
+    == "ROAMER CLAUSE: OFF")
 press("b")
 press("b")
 press("b")
@@ -623,7 +623,7 @@ press("a") -- rules
 press("down") -- clauses
 press("a")
 for _ = 1, 7 do press("down") end
-assert(mod.exports.gen3_menu.model().rows[8] == "[WIP] REDEEM TOKEN",
+assert(mod.exports.gen3_menu.model().rows[8] == "REDEEM TOKEN",
     "redemption action is discoverable in CLAUSES")
 press("a")
 assert(mod.exports.gen3_menu.model().title == "FORGIVENESS")
