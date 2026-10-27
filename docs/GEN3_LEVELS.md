@@ -48,7 +48,7 @@ mod clamps applied EXP to one below the threshold for cap+1, preserving
 `Experience.apply` for HP/stats/learnsets and UI presentation.
 
 When EXP Edging is ON, all EXP above that threshold is saved in a per-Pokémon
-bank keyed by species, personality and original trainer ID. That bank survives
+bank keyed by personality and original trainer IDs (stable across evolution). That bank survives
 PC transfers and reloads. On the Pokémon's next qualifying EXP award, once
 the cap permits, stored EXP is added to the award (and subject to the new
 cap). No extra battles are simulated. Switching EXP Edging OFF leaves
