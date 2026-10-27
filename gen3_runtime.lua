@@ -18,6 +18,7 @@ return function(mod)
     local Core = readModule("gen3_core_rules.lua")()
     local currentArea
     local activeBattle
+    local battleInProgress = false
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
 
     local function loadState()
@@ -206,11 +207,13 @@ return function(mod)
     mod.events:on("save.loaded", function()
         currentArea = nil
         activeBattle = nil
+        battleInProgress = false
         battleDeaths = nil
     end)
     mod.events:on("save.created", function()
         currentArea = nil
         activeBattle = nil
+        battleInProgress = false
         battleDeaths = nil
     end)
 
@@ -218,6 +221,7 @@ return function(mod)
     -- Tutorial battles and scripted trainer battles do not claim an area.
     mod.events:on("battle.started", function(ev)
         activeBattle = nil
+        battleInProgress = true
         battleDeaths = nil
         -- Install after the engine's battle modules exist, before any item turn.
         installReviveGuard()
@@ -274,15 +278,22 @@ return function(mod)
     mod.events:on("battle.ended", function(ev)
         retireFainted(type(ev) == "table" and ev.result or nil)
         activeBattle = nil
+        battleInProgress = false
         battleDeaths = nil
     end)
 
     -- Gen 3 is API 2 in this fork, and API 3's mod.ui.push uses a different
     -- UI bridge. Keep API 2 for the mature Gen 1/2 code and use the native
     -- Game 3 stack in a mod-local isolated menu module instead.
+    local Dev = readModule("gen3_dev.lua")({
+        getState = loadState, setState = writeState,
+        getCurrentArea = areaNow, getSession = session,
+        inBattle = function() return battleInProgress end,
+        areaSpent = Core.areaSpent,
+    })
     local Gen3Menu = readModule("gen3_menu.lua")(mod, {
         getState = loadState, setState = writeState,
-        core = Core,
+        core = Core, dev = Dev,
     })
 
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
@@ -300,6 +311,9 @@ return function(mod)
     end)
 
     mod.exports.gen3_menu = Gen3Menu
+    -- Read-only diagnostic API. Mutators stay internal to the developer menu.
+    mod.exports.gen3_dev_info = { api = 1, snapshot = Dev.inspect,
+        status = Dev.status }
 
     -- Versioned integration contract: callers may inspect a COPY of state
     -- or ask whether a rule is enabled, but cannot bypass implementation gates.
