@@ -20,6 +20,13 @@ return function()
         end))
     end
 
+    local function displayCase(value)
+        if nonblank(value) and value == value:upper() then
+            return formatProper(value) or value
+        end
+        return value
+    end
+
     local function safeNativeName(Pokemon, mon)
         if not Pokemon then return nil end
         if type(Pokemon.speciesOf) == "function"
@@ -28,7 +35,7 @@ return function()
             if okId and number then
                 local okName, name = pcall(Pokemon.name, number)
                 if okName and nonblank(name) and name ~= "?????" then
-                    return name
+                    return displayCase(name)
                 end
             end
         end
@@ -36,7 +43,9 @@ return function()
         if type(Pokemon.name) == "function" then
             local ok, name = pcall(Pokemon.name,
                 mon.species or mon.speciesId)
-            if ok and nonblank(name) and name ~= "?????" then return name end
+            if ok and nonblank(name) and name ~= "?????" then
+                return displayCase(name)
+            end
         end
         return nil
     end
@@ -44,7 +53,7 @@ return function()
     function M.speciesName(mon)
         if type(mon) ~= "table" then return "Unknown Pokémon" end
         local stored = mon.speciesName
-        if nonblank(stored) then return stored end
+        if nonblank(stored) then return displayCase(stored) end
         local raw = mon.species or mon.speciesId
         local fromEngine = safeNativeName(nativePokemon(), mon)
         if fromEngine then return fromEngine end
