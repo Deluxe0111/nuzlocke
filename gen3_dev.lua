@@ -155,16 +155,51 @@ return function(api)
         return true
     end
 
+    -- Useful for attaching a compact snapshot to bug reports from the game's
+    -- console. Never dumps raw save data or Pokémon ownership identifiers.
+    function M.printReport()
+        local s, err = guard()
+        if not s then return false, err end
+        local view = M.inspect()
+        print("[NUZ DEV] ----- GEN 3 DEBUG REPORT -----")
+        print("[NUZ DEV] MAP=" .. tostring(view.map)
+            .. " ENABLED=" .. tostring(view.enabled)
+            .. " LOST=" .. tostring(view.failed)
+            .. " PARTY=" .. tostring(view.party)
+            .. " DEATHS=" .. tostring(view.deaths))
+        print("[NUZ DEV] AREA_SPENT=" .. tostring(view.areasSpent)
+            .. " AREA_OPEN=" .. tostring(view.areasOpen)
+            .. " AREA_CAUGHT=" .. tostring(view.areasCaught)
+            .. " EDITS=" .. tostring(view.edits))
+        for _, area in ipairs(M.areas()) do
+            print("[NUZ DEV] AREA " .. area.key
+                .. " SPENT=" .. tostring(area.spent)
+                .. " CAUGHT=" .. tostring(area.caught)
+                .. " ATTEMPTS=" .. tostring(area.attempts))
+        end
+        print("[NUZ DEV] ----- END DEBUG REPORT -----")
+        return true
+    end
+
     -- A run can be re-armed only if the native party is already nonempty.
     -- This never recreates deleted Pokémon, heals anyone or touches the PC.
     function M.clearFailed()
         local s, err = guard()
         if not s then return false, err end
         local native = getSession()
-        if type(native) ~= "table" or type(native.party) ~= "table"
-            or #native.party == 0 then
-            return false, "empty_party"
+        local party = native and native.party
+        local living = false
+        if type(party) == "table" then
+            for _, mon in ipairs(party) do
+                if type(mon) == "table" and mon.isEgg ~= true
+                    and mon.nuzlockeDead ~= true
+                    and (tonumber(mon.hp) or 0) > 0 then
+                    living = true
+                    break
+                end
+            end
         end
+        if not living then return false, "no_living_party" end
         s.failed = false
         audit(s, "RUN FAILURE CLEAR")
         return true
