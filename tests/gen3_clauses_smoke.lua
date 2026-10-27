@@ -18,8 +18,10 @@ local s = { areas = {}, graveyard = {}, capturedSpecies = {} }
 assert(#Clauses.descriptors() == 6, "Gen 3 removes redundant shiny visuals")
 assert(Clauses.get(s, "dupes_mode") == 0, "new games default dupes OFF")
 assert(Clauses.get(s, "shiny_clause") == 0, "new games default shiny OFF")
-assert(Clauses.set(s, "gen3_egg_encounter_mode", 2) == false,
-    "unimplemented egg policy must not be selectable")
+assert(Clauses.set(s, "gen3_egg_encounter_mode", 2),
+    "hatch location mode is selectable for WIP egg provenance")
+assert(Clauses.set(s, "route_forgiveness", 2),
+    "token-only forgiveness mode is selectable")
 assert(Clauses.set(s, "shiny_rate_mode", 1),
     "Shiny Rate modes are now selectable")
 assert(Clauses.get(s, "shiny_rate_mode") == 1)
