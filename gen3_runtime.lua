@@ -89,8 +89,12 @@ return function(mod)
         if type(base) ~= "table" or not ctx
             or ctx.mapId == nil or base.roamer == true then return base end
         local original = base.speciesId or base.species
+        -- Do not serialize a table's pointer address into the source key.
+        -- Only stable scalar terrain identifiers are reproducible on reload.
+        local terrain = (type(ctx.terrain) == "string"
+            or type(ctx.terrain) == "number") and ctx.terrain or ""
         local key = table.concat({ tostring(ctx.mapId),
-            tostring(ctx.terrain or ""), tostring(original),
+            tostring(terrain), tostring(original),
             tostring(base.level or "") }, ":")
         local id, name = randomSpecies("ENCOUNTERS", key, original)
         if not id then return base end
