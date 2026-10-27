@@ -253,33 +253,33 @@ return function(mod)
         battleDeaths = nil
     end)
 
-    -- This is a deliberately small in-game toggle; other Nuzlocke rule settings
-    -- are NOT offered until they have their own Gen 3 implementation.
+    -- Gen 3 is API 2 in this fork, and API 3's mod.ui.push uses a different
+    -- UI bridge. Keep API 2 for the mature Gen 1/2 code and use the native
+    -- Game 3 stack in a mod-local isolated menu module instead.
+    local menuSource, menuError = mod:read("gen3_menu.lua")
+    assert(type(menuSource) == "string",
+        "required Nuzlocke Gen 3 menu missing: " .. tostring(menuError))
+    local compile, compileError = (loadstring or load)(
+        menuSource, "@mods/nuzlocke/gen3_menu.lua")
+    assert(type(compile) == "function",
+        "Nuzlocke Gen 3 menu compile failed: " .. tostring(compileError))
+    local Gen3Menu = compile()(mod, { getState = loadState, setState = writeState })
+
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
         local rows = next(g, items)
         if type(rows) ~= "table" or not (g and g.session) then return rows end
-        local function labelFor(state)
-            -- The native GBA menu has a narrow label column.
-            return state.failed and "NUZ: LOST"
-                or (state.enabled and "NUZ: ON" or "NUZ: OFF")
-        end
-        local row = {
-            id = "nuzlocke_gen3_classic",
-            label = labelFor(loadState()),
-        }
-        row.onSelect = function()
-            local s = loadState()
-            if not s.failed then
-                s.enabled = not s.enabled
-                writeState(s)
-            end
-            -- StartMenu draws the same entry table until it closes; update
-            -- the live label so a player gets instant ON/OFF feedback.
-            row.label = labelFor(s)
-        end
-        rows[#rows + 1] = row
+        -- Mirror the Gen 1/2 entry: one Start-menu destination.
+        table.insert(rows, {
+            id = "nuzlocke.gen3.menu",
+            label = "NUZ MENU",
+            onSelect = function()
+                Gen3Menu.open(g)
+            end,
+        })
         return rows
     end)
+
+    mod.exports.gen3_menu = Gen3Menu
 
     -- Advertise supported scope without borrowing existing API-37 promises.
     mod.exports.gen3_classic = {
