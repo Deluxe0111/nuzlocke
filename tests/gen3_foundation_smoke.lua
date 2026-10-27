@@ -234,12 +234,19 @@ assert(mod.exports.gen3_dev_info.status().enabled,
     "developer mode opt-in should work")
 assert(mod.exports.gen3_dev_info.status().tainted,
     "using developer editing marks test save permanently")
-assert(mod.exports.gen3_menu.model().rows[1] == "CURRENT AREA")
+assert(mod.exports.gen3_menu.model().rows[1] == "RE-ARM CURRENT")
 
--- Re-arm current area without editing actual Pokémon.
+-- One-step quick re-arm for the next wild encounter, then detailed editing.
+press("a") -- quick re-arm
+assert(mod.exports.gen3_menu.model().title == "CONFIRM EDIT")
+press("a")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_3.spent == false,
+    "quick re-arm opens current map catch slot")
+assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
+press("down") -- EDIT CURRENT AREA
 press("a")
 assert(mod.exports.gen3_menu.model().title == "EDIT AREA")
-assert(mod.exports.gen3_menu.model().rows[2] == "STATE: UNRECORDED")
+assert(mod.exports.gen3_menu.model().rows[2] == "STATE: OPEN")
 press("down")
 press("down") -- MARK OPEN
 press("a")
@@ -301,6 +308,10 @@ press("a")
 assert(mod.exports.gen3_menu.model().title == "RULE INSPECT")
 press("b")
 
+press("down") -- PRINT DEBUG REPORT
+press("a")
+assert(mod.exports.gen3_menu.model().title == "REPORT PRINTED")
+press("b")
 press("down") -- CLEAR GRAVEYARD
 values.gen3_classic_v1.graveyard = { { species = 25, nickname = "Test" } }
 press("a")
@@ -317,11 +328,18 @@ assert(values.gen3_classic_v1.failed == true,
     "cannot clear run failure with an empty party")
 assert(mod.exports.gen3_menu.model().title == "EDIT BLOCKED")
 press("b")
-game.session.party = { { species = 25, personality = 7421, hp = 22 } }
+game.session.party = { { species = 25, personality = 7421, hp = 0 } }
+press("a")
+press("a")
+assert(values.gen3_classic_v1.failed == true,
+    "cannot clear loss with only fainted party members")
+assert(mod.exports.gen3_menu.model().title == "EDIT BLOCKED")
+press("b")
+game.session.party[1].hp = 22
 press("a")
 press("a")
 assert(values.gen3_classic_v1.failed == false,
-    "can clear loss after restoring a nonempty native party")
+    "can clear loss after restoring a living native party")
 
 press("down") -- DISABLE DEV MODE
 press("a")
