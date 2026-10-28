@@ -2125,7 +2125,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
             })
             if blockedByArea and not blockedByDupe and not blockedByRoamer then
                 battle.pendingCatchReason = "One Per Area: " ..
-                    Display.areaName(battle.area) .. " encounter already used."
+                    AreaSplits.name(battle.area,Display.areaName) .. " encounter already used."
             end
             return false, 0
         end
@@ -2223,7 +2223,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         if activeBattle.eligible and not activeBattle.roamer
             and not activeBattle.exception and Core.enforced(s, "encounter_limit") then
             notify("ENCOUNTER_CAUGHT", "One Per Area: "
-                .. Display.areaName(activeBattle.area)
+                .. AreaSplits.name(activeBattle.area,Display.areaName)
                 .. " capture recorded. This area's slot is now used.", true)
         end
         if Playstyles.active(s, Core) and activeBattle.eligible
@@ -2231,7 +2231,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
             notify("SHINY_CATCH",
                 "Shiny Nuzlocke: shiny Pokemon caught"
                 .. (activeBattle.area
-                    and (" on " .. Display.areaName(activeBattle.area)) or "")
+                    and (" on " .. AreaSplits.name(activeBattle.area,Display.areaName)) or "")
                 .. ".", true)
         end
         if activeBattle.exception then
