@@ -107,7 +107,15 @@ return function()
     -- prevents an empty native party from softlocking the whiteout return.
     function M.rescueFromPc(s, native)
         if type(native) ~= "table" or type(native.party) ~= "table"
-            or #native.party ~= 0 then return false end
+            or #native.party >= 6 then return false end
+        -- Preserve Eggs but never rescue if any usable party member
+        -- already remains; only a living PC mon can prevent a softlock.
+        for _,existing in ipairs(native.party) do
+            if type(existing)~="table"
+                or (existing.isEgg~=true and existing.isBadEgg~=true) then
+                return false
+            end
+        end
         local boxes = native.storage and native.storage.boxes
         if type(boxes) ~= "table" then return false end
         for boxId, box in ipairs(boxes) do
@@ -122,7 +130,7 @@ return function()
                     and (tonumber(mon.hp) or 0) > 0
                     and not isDeadInArchive(s, mon) then
                     box.mons[slot] = nil
-                    native.party[1] = mon
+                    native.party[#native.party + 1] = mon
                     s.pcRescues = (tonumber(s.pcRescues) or 0) + 1
                     s.lastPcRescue = { box = boxId, slot = slot,
                         species = mon.species or mon.speciesId }
