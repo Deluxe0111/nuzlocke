@@ -19,6 +19,7 @@ return function(mod)
     local Clauses = readModule("gen3_clauses.lua")()
     local CatchRules = readModule("gen3_catch_rules.lua")()
     local BattleItemRules = readModule("gen3_battle_items.lua")()
+    local FieldRules = readModule("gen3_field_items.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -518,12 +519,25 @@ return function(mod)
             .. " reached. RARE CANDY cannot be used."
     end
 
+    local function fieldDenial(itemId,native)
+        local okI,ItemUse=pcall(require,"src.core.game3.item_use")
+        local okD,ItemsData=pcall(require,"src.core.game3.items_data")
+        return FieldRules.fieldDenial(loadState(),Core,itemId,
+            native or session(),okI and ItemUse or nil,
+            okD and ItemsData or nil)
+    end
+
     -- The authoritative overworld path is ItemUse.useField -> item.use.
     -- Guard before native consumption. A direct useRareCandy wrapper alone
     -- cannot intercept all Gen 3 bag / RSE item paths.
     mod.hooks:wrap("item.use", function(next, game, unused, itemId,
             partySlot, bag)
         local native = session()
+        local fieldReason=fieldDenial(itemId,native)
+        if fieldReason then
+            notify("FIELD_ITEM_DENIED",fieldReason,false)
+            return false,"noeffect",fieldReason
+        end
         local ok, ItemUse = pcall(require, "src.core.game3.item_use")
         if ok and type(ItemUse) == "table"
             and type(ItemUse.fieldUseKind) == "function"
@@ -560,6 +574,17 @@ return function(mod)
                 local slot = tonumber(PartyMenu.cursor)
                 local mon = slot and PartyMenu._party
                     and PartyMenu._party[slot]
+                if mon and not mon.isEgg then
+                    local reason=fieldDenial(PartyMenu._item,
+                        PartyMenu._session)
+                    if reason then
+                        notify("FIELD_ITEM_DENIED",reason,false)
+                        PartyMenu.showMessage(reason,function()
+                            PartyMenu.mode="use"
+                        end)
+                        return
+                    end
+                end
                 if mon and not mon.isEgg
                     and ItemUse.fieldUseKind(PartyMenu._item,
                         PartyMenu._session) == "level" then
@@ -587,6 +612,11 @@ return function(mod)
         if ItemUse.__nuzGen3CandyOwner == mod then return true end
         local original = ItemUse.useRareCandy
         ItemUse.useRareCandy = function(native, mon, ...)
+            local reason=fieldDenial("RARE_CANDY",native)
+            if reason then
+                notify("FIELD_ITEM_DENIED",reason,false)
+                return false,"no_effect",reason
+            end
             local denied, cap = isCandyCapped(native, mon)
             if denied then
                 local message = candyMessage(cap)
@@ -596,6 +626,73 @@ return function(mod)
             return original(native, mon, ...)
         end
         ItemUse.__nuzGen3CandyOwner = mod
+        return true
+    end
+
+    -- Direct native item calls used by the TM Case / medicine UI do
+    -- not necessarily reach item.use. Wrap their mutation boundaries;
+    -- the PartyMenu A-press guard catches its own direct TM/Candy branch.
+    local function installFieldItemGuards()
+        local okI,ItemUse=pcall(require,"src.core.game3.item_use")
+        if okI and type(ItemUse)=="table" then
+            local function protect(key,idAt,sessionAt)
+                local marker="__nuzFieldWrap_"..key
+                if type(ItemUse[key])~="function" then return end
+                if ItemUse[marker]==ItemUse[key]
+                    and ItemUse.__nuzFieldOwner==mod then return end
+                local previous=ItemUse[key]
+                local function guard(...)
+                    local args={...}
+                    local item=idAt(args)
+                    local native=sessionAt(args)
+                    local why=fieldDenial(item,native)
+                    if why then
+                        notify("FIELD_ITEM_DENIED",why,false)
+                        return false,"noeffect",why
+                    end
+                    return previous(...)
+                end
+                ItemUse[key]=guard
+                ItemUse[marker]=guard
+            end
+            protect("useTm",function(a)return a[3] end,
+                function(a)return a[1] end)
+            protect("useEscapeRope",function(a)return a[3] end,
+                function(a)return a[1] end)
+            protect("applyPpItem",function(a)return a[2] end,
+                function(a)return a[5] end)
+            ItemUse.__nuzFieldOwner=mod
+        end
+        -- The menu dispatch table captures handlers when field_moves.lua
+        -- loads; replacing flyFromMenu alone would leave the old entry live.
+        local okM,Moves=pcall(require,"src.core.game3.field_moves")
+        if okM and type(Moves)=="table" then
+            local function guardMove(name,method)
+                local marker="__nuzFieldTravel_"..name
+                local dispatch=Moves.MENU_HANDLERS
+                local moveId=Moves.MOVES and Moves.MOVES[name]
+                if type(Moves[method])~="function" then return end
+                if Moves[marker]==Moves[method]
+                    and (not dispatch or not moveId
+                        or dispatch[moveId]==Moves[method]) then return end
+                local previous=Moves[method]
+                local function guarded(ctx)
+                    local why=FieldRules.travelDenial(loadState(),Core,name)
+                    if why then
+                        notify("FIELD_TRAVEL_DENIED",why,false)
+                        return {ok=false,text=why}
+                    end
+                    return previous(ctx)
+                end
+                Moves[method]=guarded
+                Moves[marker]=guarded
+                if type(dispatch)=="table" and moveId then
+                    dispatch[moveId]=guarded
+                end
+            end
+            guardMove("FLY","flyFromMenu")
+            guardMove("TELEPORT","teleportFromMenu")
+        end
         return true
     end
 
@@ -1121,8 +1218,10 @@ return function(mod)
         -- Suppress non-Ball choices in the battle bag where supported.
         if type(originalIsBattleUsable) == "function" then
             BattleItems.isBattleUsable = function(itemId, ...)
-                if battleInProgress and itemDenial(nil,itemId)
-                    then return false end
+                if battleInProgress and
+                    (itemDenial(nil,itemId) or
+                    FieldRules.battleDenial(loadState(),Core,itemId,
+                        session(),ItemUse,ItemsData)) then return false end
                 return originalIsBattleUsable(itemId, ...)
             end
         end
@@ -1137,6 +1236,10 @@ return function(mod)
 
         BattleItems.canUseOn = function(st, itemId, partySlot, mon, moveSlot)
             local denial=itemDenial(st,itemId)
+            if not denial then
+                denial=FieldRules.battleDenial(loadState(),Core,
+                    itemId,st and st.session,ItemUse,ItemsData)
+            end
             if denial then return false,denial end
             if Core.enforced(loadState(), "permadeath")
                 and isRevive(itemId, st and st.session) then
@@ -1147,6 +1250,10 @@ return function(mod)
 
         BattleItems.use = function(st, adapter, bag, nativeSession, itemId, ...)
             local message=itemDenial(st,itemId)
+            if not message then
+                message=FieldRules.battleDenial(loadState(),Core,
+                    itemId,nativeSession,ItemUse,ItemsData)
+            end
             if message then
                 if adapter and type(adapter.say)=="function" then
                     adapter:say(message)
@@ -1298,6 +1405,7 @@ return function(mod)
         refreshCapNotice()
         nicknameTasks()
         installCandyGuard()
+        installFieldItemGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1356,6 +1464,7 @@ return function(mod)
         battleDeaths = nil
         mercyBattle = nil
         installCandyGuard()
+        installFieldItemGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1372,6 +1481,7 @@ return function(mod)
         battleDeaths = nil
         mercyBattle = nil
         installCandyGuard()
+        installFieldItemGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1392,6 +1502,7 @@ return function(mod)
         installHardcoreSetGuard()
         installNicknameGuard()
         installCandyGuard()
+        installFieldItemGuards()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
@@ -1832,6 +1943,7 @@ return function(mod)
 
         variants = Variants,
         battleItemRules = BattleItemRules,
+        fieldItemRules = FieldRules,
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -1978,6 +2090,17 @@ return function(mod)
             local s=loadState()
             local ok,reason=BattleClauses.set(s,key,value)
             if ok then writeState(s) end
+            return ok,reason
+        end,
+    }
+    mod.exports.gen3_field_items = {
+        api=FieldRules.api,schema=FieldRules.schema,
+        definitions=FieldRules.descriptors,
+        getRule=function(key) return FieldRules.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=FieldRules.set(saved,key,value)
+            if ok then writeState(saved) end
             return ok,reason
         end,
     }
