@@ -777,6 +777,149 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         return true
     end
 
+    -- Read live Hardcore policy at native action boundaries. Do not
+    -- change the game's ROM maps, trainers, equipment or badge flags.
+    local function installHardcoreGuards()
+        local okE,Engine=pcall(require,"src.core.game3.battle.engine")
+        if okE and type(Engine)=="table"
+            and type(Engine.tryFlee)=="function"
+            and Engine.__nuzHcFlee~=Engine.tryFlee then
+            local previous=Engine.tryFlee
+            local function guarded(st,adapter,battler,...)
+                if Hardcore.blockRun(loadState(),Core,st) then
+                    st.fleeAttempts=(tonumber(st.fleeAttempts) or 0)+1
+                    if adapter and type(adapter.sayText)=="function" then
+                        adapter:sayText("STRINGID_CANTESCAPE2")
+                    end
+                    return false
+                end
+                return previous(st,adapter,battler,...)
+            end
+            Engine.tryFlee=guarded
+            Engine.__nuzHcFlee=guarded
+        end
+
+        local okI,ItemUse=pcall(require,"src.core.game3.item_use")
+        if okI and type(ItemUse)=="table" then
+            for _,method in ipairs({"giveToMon","giveHeld","switchHeld"}) do
+                local tag="__nuzHc_"..method
+                if type(ItemUse[method])=="function"
+                    and ItemUse[tag]~=ItemUse[method] then
+                    local previous=ItemUse[method]
+                    local function guarded(...)
+                        if Hardcore.heldGiveDenied(loadState(),Core) then
+                            notify("NO_HELD_ITEMS",
+                                "No Held Items: you cannot give held items.",false)
+                            return false,"no_held_items",
+                                "No Held Items: take existing items instead."
+                        end
+                        return previous(...)
+                    end
+                    ItemUse[method]=guarded
+                    ItemUse[tag]=guarded
+                end
+            end
+        end
+
+        local okH,Held=pcall(require,"src.core.game3.battle.held_items")
+        if okH and type(Held)=="table" and type(Held.of)=="function"
+            and Held.__nuzHcOf~=Held.of then
+            local previous=Held.of
+            local function guarded(b,trigger,st,...)
+                if Hardcore.heldEffectDenied(loadState(),Core,b) then
+                    -- Preserve underlying held item for later taking.
+                    return 0,0,tonumber(b.item) or 0
+                end
+                return previous(b,trigger,st,...)
+            end
+            Held.of=guarded
+            Held.__nuzHcOf=guarded
+        end
+
+        local okW,Warp=pcall(require,"src.core.game3.warp")
+        if okW and type(Warp)=="table" then
+            local function prevent(from,dest,x,y)
+                local saved=loadState()
+                local okF,Flags=pcall(require,
+                    "src.core.game3.scripting.flags")
+                local Space=package.loaded["src.core.game3.scripting.space"]
+                if okF and Hardcore.gymLocked(saved,Core,from,
+                    Flags,Space and Space.store) then
+                    notify("GYM_LOCK_IN",
+                        "Gym Lock-In: defeat the Gym Leader before leaving.",
+                        false)
+                    return true
+                end
+                if Hardcore.dungeonEntranceLocked(saved,Core,
+                    dungeonEntry,from,dest,x,y,AreaSplits) then
+                    notify("DUNGEON_LOCK_IN",
+                        "Dungeon Lock-In: use a different exit.",false)
+                    return true
+                end
+                return false
+            end
+            for _,method in ipairs({"startDoorExit","startStairWarp",
+                "startTeleport","startEscalator","startDoorEntrance"}) do
+                local tag="__nuzHc_"..method
+                if type(Warp[method])=="function"
+                    and Warp[tag]~=Warp[method] then
+                    local previous=Warp[method]
+                    local function guarded(...)
+                        local args={...}
+                        local dest=args[3]
+                        local px,py
+                        if method=="startDoorExit" then
+                            px,py=tonumber(args[6]),tonumber(args[7])
+                        end
+                        if not px or not py then
+                            local P=package.loaded["src.core.game3.player"]
+                            px,py=P and tonumber(P.cellX),
+                                P and tonumber(P.cellY)
+                        end
+                        if prevent(areaNow(),dest,px,py) then
+                            return false
+                        end
+                        return previous(...)
+                    end
+                    Warp[method]=guarded
+                    Warp[tag]=guarded
+                end
+            end
+        end
+
+        local okM,Moves=pcall(require,"src.core.game3.field_moves")
+        if okM and type(Moves)=="table" then
+            for _,name in ipairs({"DIG","TELEPORT","FLY"}) do
+                local method=({DIG="digFromMenu",
+                    TELEPORT="teleportFromMenu",FLY="flyFromMenu"})[name]
+                local tag="__nuzHcTravel_"..name
+                local dispatch=Moves.MENU_HANDLERS
+                local id=Moves.MOVES and Moves.MOVES[name]
+                if type(Moves[method])=="function"
+                    and (Moves[tag]~=Moves[method]
+                        or (dispatch and id
+                            and dispatch[id]~=Moves[method])) then
+                    local previous=Moves[method]
+                    local function guarded(ctx)
+                        if Hardcore.dungeonEscapeLocked(loadState(),Core,
+                            dungeonEntry,areaNow(),AreaSplits) then
+                            local why="Dungeon Lock-In: "
+                                .."field travel is restricted."
+                            notify("DUNGEON_TRAVEL_LOCK",why,false)
+                            return {ok=false,text=why}
+                        end
+                        return previous(ctx)
+                    end
+                    Moves[method]=guarded
+                    Moves[tag]=guarded
+                    if type(dispatch)=="table" and id then
+                        dispatch[id]=guarded
+                    end
+                end
+            end
+        end
+    end
+
     -- Reinstallable native guards. Rules never rewrite game data.
     local function installServiceGuards()
         local okD,Daycare=pcall(require,"src.core.game3.daycare")
@@ -1936,6 +2079,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
+        installHardcoreGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1999,6 +2143,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
+        installHardcoreGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -2020,6 +2165,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
+        installHardcoreGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -2044,6 +2190,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
+        installHardcoreGuards()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
