@@ -598,20 +598,26 @@ for i, name in ipairs(expectedAdvanced) do
             and child.rows[5]=="Poison/Toxic: OFF"
             and child.rows[6]=="Burn Ban: OFF"
             and child.rows[7]=="Freeze: OFF"
-            and child.rows[8]=="[Soon] Sleep Clause",
-            "six status bans + synchronising parent, Sleep Clause stays Soon")
+            and child.rows[8]=="Sleep Clause: OFF",
+            "status menu must expose independent working Sleep Clause")
         press("a")
         local parentActive=mod.exports.gen3_menu.model()
         assert(parentActive.rows[1]=="No Status Moves: SELF"
-            and parentActive.rows[2]=="[Soon] Sleep Clause"
+            and parentActive.rows[2]=="Sleep Clause: OFF"
             and #parentActive.rows==3,
-            "parent status scope hides redundant child toggles")
+            "parent status scope hides child bans but not Sleep Clause")
         assert(statusRules.getRule("status_poison_scope")==1)
+        press("down");press("a") -- independent Sleep Clause ON
+        assert(mod.exports.gen3_menu.model().rows[2]=="Sleep Clause: ON")
+        press("a");press("up") -- OFF, back to parent
         press("a");press("a");press("a") -- ENEMY, ALL, OFF
         assert(mod.exports.gen3_menu.model().rows[1]=="No Status Moves: OFF"
-            and mod.exports.gen3_menu.model().rows[8]=="[Soon] Sleep Clause")
+            and mod.exports.gen3_menu.model().rows[8]=="Sleep Clause: OFF")
         assert(statusRules.getRule("status_poison_scope")==0)
         for k=1,7 do press("down") end
+        press("a") -- Sleep Clause ON while parent OFF
+        assert(mod.exports.gen3_menu.model().rows[8]=="Sleep Clause: ON")
+        press("a") -- OFF
     end
     if name=="BATTLE CLAUSES" then
         assert(child.rows[1]=="[Soon] OHKO Clause"
@@ -647,12 +653,15 @@ for i, name in ipairs(expectedAdvanced) do
         assert(catch.getRule("ban_legendaries")==false)
         press("up");press("up")
     end
-    -- Check placeholder action still explains why not implemented.
-    press("a")
-    assert(mod.exports.gen3_menu.model().title~=name,
-        "[Soon] entry must open its unavailable explanation")
-    press("b")
-    assert(mod.exports.gen3_menu.model().title==name)
+    -- All STATUS BANS entries now work; other advanced sections still
+    -- contain genuine placeholders that explain unimplemented rules.
+    if name~="STATUS BANS" then
+        press("a")
+        assert(mod.exports.gen3_menu.model().title~=name,
+            "[Soon] entry must open its unavailable explanation")
+        press("b")
+        assert(mod.exports.gen3_menu.model().title==name)
+    end
     press("b")
     advanced=mod.exports.gen3_menu.model()
     assert(advanced.title=="ADVANCED RULES" and advanced.index==i,
