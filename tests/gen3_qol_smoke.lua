@@ -3,16 +3,14 @@ local Q=assert(loadfile("gen3_qol.lua"))()()
 local Core=assert(loadfile("gen3_core_rules.lua"))()()
 local s=Core.normalise({})
 local defs=Q.descriptors()
-local keys={"progression_pc_catches","instant_text",
-    "skip_cherrygrove_tour","run_surf","unlimited_bag_space",
-    "trade_evolutions","system_clock_sync","infinite_rare_candies"}
-assert(#defs==8)
-for i,d in ipairs(defs) do assert(d.key==keys[i]) end
-for _,key in ipairs({keys[1],keys[3],keys[7],keys[8]}) do
+local keys={"instant_text","run_surf","unlimited_bag_space","trade_evolutions"}
+assert(#defs==4)
+for i,d in ipairs(defs) do assert(d.key==keys[i] and d.status=="working") end
+for _,key in ipairs({"progression_pc_catches","skip_cherrygrove_tour",
+    "system_clock_sync","infinite_rare_candies"}) do
     assert(Q.get(s,key)==nil)
     assert(Q.next(s,key)==nil)
     assert(not Q.set(s,key,true))
-    assert(Q.label(s,key)=="WIP" or Q.label(s,key)=="N/A")
 end
 assert(Q.get(s,"instant_text")==false)
 assert(Q.get(s,"run_surf")==0)
