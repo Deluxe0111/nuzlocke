@@ -49,7 +49,9 @@ package.loaded["src.core.game3.item_use"] = {
         return id == "REVIVE" and "revive" or "heal"
     end,
 }
-local game = { generation = 3, session = { map = "FR_ROUTE_1", party = {
+local game = { generation = 3, session = { map = "FR_ROUTE_1",
+    bag = { pockets = { POKE_BALLS = { { id = 4, qty = 0 } } } },
+    party = {
     { species = 25, personality = 7421, hp = 21, level = 5, nickname = "Starter" },
 } } }
 local mod = {
@@ -114,6 +116,16 @@ local function toggle(expectBefore, expectAfter)
 end
 toggle("NUZLOCKE: OFF", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().enabled)
+-- A pre-Poké Ball scripted battle cannot claim Route 1, including with
+-- Failed Encounters ON. Native PC Balls do not count as carried Balls.
+game.session.storage = { items = { { id = 4, qty = 99 } } }
+local premature = {}
+fire("battle.started", { battle = premature, kind = "wild",
+    species = "PIDGEY", speciesId = 16 })
+assert(not values.gen3_classic_v1.areas.FR_ROUTE_1,
+    "pre-Ball wild battle must not spend or register any route")
+fire("battle.ended")
+game.session.bag.pockets.POKE_BALLS[1].qty = 5
 local first = {}
 fire("battle.started", { battle = first, kind = "wild", species = "PIDGEY", speciesId = 16 })
 local firstNotice = mod.exports.gen3_notices.history()
