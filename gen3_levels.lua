@@ -121,9 +121,12 @@ return function()
         end
         return n
     end
-    function M.cap(s, native, badges)
+    function M.cap(s, native, badges, overrideScope)
         local levels = data(s)
-        if levels.scope == 0 then return nil, "NONE" end
+        local scope = type(overrideScope) == "number"
+            and overrideScope >= 1 and overrideScope <= 4
+            and overrideScope % 1 == 0 and overrideScope or levels.scope
+        if scope == 0 then return nil, "NONE" end
         local id = M.edition(native)
         local edition = id and EDITIONS[id]
         if not edition or type(badges) ~= "table" then
@@ -134,7 +137,7 @@ return function()
                 return edition.gyms[i], "GYM " .. i
             end
         end
-        if levels.scope == 1 then return nil, "GYMS COMPLETE" end
+        if scope == 1 then return nil, "GYMS COMPLETE" end
         -- Detect already-completed native saves even when this Nuzlocke
         -- feature was enabled after beating the Champion.
         local progress = math.max(completed(levels.wins),
@@ -142,9 +145,9 @@ return function()
         if progress < 4 then
             return edition.league[progress + 1], "ELITE " .. (progress + 1)
         end
-        if levels.scope == 2 then return nil, "ELITE COMPLETE" end
+        if scope == 2 then return nil, "ELITE COMPLETE" end
         if progress < 5 then return edition.league[5], "CHAMPION" end
-        if levels.scope == 4 then
+        if scope == 4 then
             return levels.postgameCap, levels.postgameCap and "POSTGAME" or "POSTGAME OPEN"
         end
         return nil, "CHAMPION COMPLETE"
