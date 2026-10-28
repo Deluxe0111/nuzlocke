@@ -60,6 +60,12 @@ return function()
         if type(value) ~= "boolean" then return false, "boolean_required" end
         s = M.normalise(s)
         if s.failed then return false, "run_failed" end
+        if key ~= "nuzlocke_enabled" and value == false
+            and type(s.playstyles) == "table"
+            and s.playstyles.hardcore_nuzlocke == true
+            and M.hardcoreForced(key) and M.active(s) then
+            return false, "hardcore_override"
+        end
         if key == "nuzlocke_enabled" then
             s.enabled = value
         else
@@ -73,8 +79,21 @@ return function()
             and not (s and s.failed == true)
     end
 
+    local HARDCORE_FORCED = {
+        permadeath = true, encounter_limit = true,
+        failed_encounter = true, whiteout_ends_run = true,
+    }
+    function M.hardcoreForced(key)
+        return HARDCORE_FORCED[key] == true
+    end
+    -- Hardcore is a temporary policy overlay; it NEVER writes into the
+    -- classic settings stored in s.rules. The master switch still governs.
     function M.enforced(s, key)
-        return M.active(s) and M.get(s, key) == true
+        if not M.active(s) then return false end
+        if type(s.playstyles) == "table"
+            and s.playstyles.hardcore_nuzlocke == true
+            and HARDCORE_FORCED[key] then return true end
+        return M.get(s, key) == true
     end
 
     -- Preserve slots consumed by earlier versions of this mod. A missing
@@ -92,7 +111,7 @@ return function()
 
     function M.shouldSpendOnStart(s)
         return M.enforced(s, "encounter_limit")
-            and M.get(s, "failed_encounter") == true
+            and M.enforced(s, "failed_encounter")
     end
 
     -- A battle whiteout takes precedence over eligible PC survivors.
