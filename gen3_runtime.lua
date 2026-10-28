@@ -31,6 +31,7 @@ return function(mod)
     local activeBattle
     local pendingRoamer
     local battleInProgress = false
+    local currentBattleState
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
     local mercyBattle
     local expReports = setmetatable({}, { __mode = "k" })
@@ -445,7 +446,7 @@ return function(mod)
         local native = session()
         local party = native and native.party
         if type(party) ~= "table" then return end
-        local deathEnabled = Core.get(s, "permadeath")
+        local deathEnabled = Core.enforced(s, "permadeath")
 
         -- A faint event has already committed the death to mod.save. Match the
         -- event's battle-party copy back to its native session counterpart,
@@ -577,6 +578,7 @@ return function(mod)
         local originalIsBattleUsable = BattleItems.isBattleUsable
 
         local function hardcoreDisallows(st, itemId)
+            st = st or currentBattleState
             if not Playstyles.hardcoreActive(loadState(), Core)
                 or (st and (st.link or st.recordedLink
                     or st.oldManTutorial or st.pokedude
@@ -776,6 +778,7 @@ return function(mod)
     mod.events:on("battle.started", function(ev)
         activeBattle = nil
         battleInProgress = true
+        currentBattleState = ev and ev.battle
         battleDeaths = nil
         mercyBattle = nil
         -- Install after the engine's battle modules exist, before any item turn.
@@ -880,7 +883,7 @@ return function(mod)
                 "Shiny Nuzlocke: shiny found! This is a valid catch"
                 .. (key and (" on " .. Display.areaName(key)) or "")
                 .. ".", true)
-        elseif eligible and not roamer and Core.get(s, "encounter_limit") then
+        elseif eligible and not roamer and Core.enforced(s, "encounter_limit") then
             if Core.shouldSpendOnStart(s) then
                 notify("FIRST_ENCOUNTER",
                     "First encounter on " .. Display.areaName(key)
@@ -959,7 +962,7 @@ return function(mod)
                 writeState(s)
             end
         end
-        local limited = Core.get(s, "encounter_limit")
+        local limited = Core.enforced(s, "encounter_limit")
         local blockedByArea = limited and not battle.areaEligible
         local blockedByDupe = battle.duplicate
         local blockedByRoamer = battle.roamer and not battle.roamerOpen
@@ -1043,7 +1046,7 @@ return function(mod)
         end
         writeState(s)
         if activeBattle.eligible and not activeBattle.roamer
-            and not activeBattle.exception and Core.get(s, "encounter_limit") then
+            and not activeBattle.exception and Core.enforced(s, "encounter_limit") then
             notify("ENCOUNTER_CAUGHT", "One Per Area: "
                 .. Display.areaName(activeBattle.area)
                 .. " capture recorded. This area's slot is now used.", true)
@@ -1082,6 +1085,7 @@ return function(mod)
         end
         activeBattle = nil
         battleInProgress = false
+        currentBattleState = nil
         battleDeaths = nil
         mercyBattle = nil
         refreshCapNotice()
