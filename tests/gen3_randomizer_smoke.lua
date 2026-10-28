@@ -1,7 +1,7 @@
 -- Gen 3 randomiser policy, isolation, species safety and native hooks.
 local R = assert(loadfile("gen3_randomizer.lua"))()()
 local names = { [1]="ALPHA", [2]="BETA", [3]="GAMMA",
-    [4]="DELTA", [5]="EPSILON", [6]="ZETA" }
+    [4]="DELTA", [5]="EPSILON", [6]="ZETA", [7]="ETA" }
 local ids = {}
 for id, name in pairs(names) do ids[name] = id end
 local P = {
@@ -10,7 +10,7 @@ local P = {
     national = function(id) return id end,
     stats = function(id)
         if not names[id] then return nil end
-        local n = ({48, 49, 80, 82, 49, 30})[id]
+        local n = ({48, 49, 80, 82, 49, 30, 60})[id]
         return {hp=n,atk=n,def=n,spe=n,spa=n,spd=n}
     end,
 }
@@ -104,7 +104,7 @@ assert(R.replace(replay,P,"ENCOUNTERS","different level",1,
 -- repeats after both are used, not alter native species or stop encounters.
 local small={randomizer={randomizer_seed=1234,
     random_encounter_tables=true,random_encounter_repetition=1}}
-local function onlyTwo(n) return n~=3 and n~=4 end
+local function onlyTwo(n) return n~=3 and n~=4 and n~=7 end
 local slot1=R.replace(small,P,"ENCOUNTERS","slot1",1,nil,onlyTwo,nil,
     "STEP:SMALL:grass","1")
 local slot2=R.replace(small,P,"ENCOUNTERS","slot2",2,nil,onlyTwo,nil,
@@ -186,6 +186,7 @@ assert(C.toggleNational(banSave,2))
 assert(C.toggleNational(banSave,3))
 assert(C.toggleNational(banSave,4))
 assert(C.toggleNational(banSave,5))
+assert(C.toggleNational(banSave,7))
 local function bannedNat(nat) return C.isBannedNational(banSave,nat) end
 for _,source in ipairs({"ENCOUNTERS","TRAINERS"}) do
     local chosen=R.replace(banSave,P,source,"ban-pool-test",1,nil,bannedNat)
