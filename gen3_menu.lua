@@ -12,6 +12,7 @@ return function(mod, api)
     local Variants = assert(api.variants, "Gen 3 menu needs VARIANTS policy")
     local BattleItemRules = assert(api.battleItemRules, "Gen 3 menu needs BATTLE ITEMS policy")
     local FieldRules = assert(api.fieldItemRules, "Gen 3 menu needs FIELD ITEMS policy")
+    local Services = assert(api.serviceRules, "Gen 3 menu needs SERVICES policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -1062,7 +1063,57 @@ return function(mod, api)
         return rows
     end
 
+    local function serviceRows(category)
+        local rows={}
+        for _,definition in ipairs(category.rules) do
+            local key,label=definition[1],definition[2]
+            local saved=state()
+            local value=Services.get(saved,key)
+            if value==nil then
+                rows[#rows+1]=row(label,"soon",function()
+                    disabledFeature(label,key)
+                end)
+            else
+                rows[#rows+1]=row(label..": "..Services.label(saved,key),
+                    nil,function()
+                    local currentState=state()
+                    local desired=Services.next(currentState,key)
+                    local ok,why=Services.set(currentState,key,desired)
+                    if not ok then
+                        info("SERVICE RULE",{tostring(why)})
+                        return
+                    end
+                    api.setState(currentState)
+                    current().rows=serviceRows(category)
+                end)
+            end
+        end
+        rows[#rows+1]=row("  DETAILS: SERVICES",nil,function()
+            info("SERVICES HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "CENTER: NO NURSE HEALS",
+                "MOM: NO HOME HEALS",
+                "STORY HEALS UNAFFECTED",
+                "DAY CARE: NO DEPOSITS",
+                "EXISTING MONS: COLLECT",
+                "EXISTING EGGS: ALLOWED",
+                "SHOPS: NORMAL / NO BUY",
+                "NO SELL / CLOSED",
+                "DECOR SHOPS INCLUDED",
+                "GAMBLING: NO SLOTS",
+                "OR ROULETTE",
+                "TRAINER PRIZES: 0%,",
+                "50%, 100%, 200%, 300%",
+                "SCRIPTED CASH UNCHANGED",
+                "NO ITEMS/MONEY DELETED",
+                "NUZ OFF: NATIVE RULES",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
+        if category.title == "SERVICES & ECONOMY" then return serviceRows(category) end
         if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
@@ -1098,6 +1149,7 @@ return function(mod, api)
             or c.title == "VARIANTS"
             or c.title == "BATTLE ITEMS"
             or c.title == "FIELD ITEMS"
+            or c.title == "SERVICES & ECONOMY"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
