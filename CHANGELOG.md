@@ -1,5 +1,6 @@
 ## 3.0.0-BETA — Generation 3 and Untamed compatibility
 
+- Repairs Gen 3 mandatory nickname bypass reported after catching a wild Pokémon: native post-catch integration uses Gen1Recomp's new `battle.catch.nickname_required` hook to skip Yes/No, with a lower-level Choice guard for older builds. Native naming rejects blank, cancelled and species-default names including PC-bound catches; requires updated companion engine for a completely prompt-free experience.
 - Streamlines PLAYSTYLES into toggle + dedicated DETAILS pairs for Shiny and Hardcore, keeping the four-row menu clean and moving explanatory rules into scrollable detail views.
 - Strengthens capture Nickname Requirement: skips the native No choice, rejects empty/default/cancelled names, and restores the optional prompt when the rule is OFF. Re-checks native UI hooks after capture to handle late-loaded/overridden interfaces.
 - Promotes the package version to **3.0.0-BETA** while retaining Mod API 2 and Generation 1/2 save/runtime compatibility.
