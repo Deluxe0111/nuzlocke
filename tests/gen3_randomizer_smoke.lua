@@ -411,9 +411,11 @@ assert(model.title=="RANDOMIZER"
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do
-    if label=="[Soon] Rndm Strtr" then soon=true end
+    assert(label~="[Soon] Rndm Strtr",
+        "working starter randomiser must not be marked Soon")
+    if label=="[Soon] Strtr Style" then soon=true end
 end
-assert(soon,"unimplemented starter randomiser must stay [Soon]")
+assert(soon,"unimplemented starter styles must remain [Soon]")
 press("b");press("b");press("b")
 assert(#stack==0)
 -- Disposable test state: simulate a fresh run so the seed editor is writable.
