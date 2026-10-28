@@ -112,8 +112,11 @@ return function(mod, api)
             "DEATH: " .. (Core.get(s, "permadeath")
                 and "IMMEDIATE" or "OFF"),
             "DUPES: " .. Clauses.label(s, "dupes_mode"),
-            "PLAYSTYLE: " .. (Playstyles.get(s, "shiny_nuzlocke")
-                and "SHINY NUZ" or "CLASSIC"),
+            "PLAYSTYLE: " .. (Playstyles.get(s, "hardcore_nuzlocke")
+                and (Playstyles.get(s, "shiny_nuzlocke")
+                    and "SHINY + HARD" or "HARDCORE")
+                or (Playstyles.get(s, "shiny_nuzlocke")
+                    and "SHINY NUZ" or "CLASSIC")),
             "SHINY CLAUSE: " .. Clauses.label(s, "shiny_clause"),
             "SHINY USED: " .. tostring(s.shinyExceptionsUsed or 0),
             "B: RETURN",
@@ -219,8 +222,13 @@ return function(mod, api)
                 end)
             else
                 local function updateLabel()
+                    local fresh = state()
+                    if Playstyles.hardcoreActive(fresh, Core)
+                        and Core.hardcoreForced(key) then
+                        return label .. ": FORCED ON"
+                    end
                     return label .. ": " ..
-                        (Core.get(state(), key) and "ON" or "OFF")
+                        (Core.get(fresh, key) and "ON" or "OFF")
                 end
                 rows[#rows + 1] = row(updateLabel(), nil,
                     function()
@@ -233,9 +241,13 @@ return function(mod, api)
                             -- without pushing a second screen.
                             current().rows = coreRows()
                         elseif reason == "run_failed" then
-                            -- Stay on the same page; the visible value cannot
-                            -- be changed on a failed run.
                             return
+                        elseif reason == "hardcore_override" then
+                            info("HARDCORE OVERRIDE", {
+                                label .. ": FORCED ON",
+                                "DISABLE HARDCORE FIRST",
+                                "ORIGINAL RULE IS SAVED",
+                            })
                         else
                             disabledFeature(label, key)
                         end
@@ -329,6 +341,41 @@ return function(mod, api)
                 end
                 current().rows = playstyleRows()
             end),
+            row("HARDCORE: " ..
+                (Playstyles.get(s, "hardcore_nuzlocke") and "ON" or "OFF"),
+                nil, function()
+                    local updated = state()
+                    local value = not Playstyles.get(updated, "hardcore_nuzlocke")
+                    local ok, reason = Playstyles.set(updated,
+                        "hardcore_nuzlocke", value)
+                    if not ok then
+                        info("PLAYSTYLE UNAVAILABLE", { tostring(reason) })
+                        return
+                    end
+                    api.setState(updated)
+                    if api.notify then
+                        api.notify("PLAYSTYLE_CHANGED", value
+                            and "Hardcore ON: no battle items except Poke Balls; "
+                                .. "forced SET, strict catches/deaths, boss caps."
+                            or "Hardcore OFF: previous CORE, LEVELS and "
+                                .. "battle style settings restored.", false)
+                    end
+                    current().rows = playstyleRows()
+                end),
+            row("A: HARDCORE DETAILS", nil, function()
+                info("HARDCORE NUZLOCKE", {
+                    "REQUIRES NUZLOCKE ON",
+                    "NO BATTLE ITEMS",
+                    "POKE BALLS ALLOWED",
+                    "FORCED SET STYLE",
+                    "ONE CATCH PER AREA",
+                    "FAILED ENC. COUNT",
+                    "PERMADEATH + WHITEOUT",
+                    "CAP THROUGH CHAMPION",
+                    "BASE SETTINGS SAVED",
+                    "COMBINES WITH SHINY NUZ",
+                })
+            end),
             row("ONLY SHINIES CATCHABLE"),
             row("OTHERS: ROUTE STAYS OPEN"),
             row("1 SHINY PER AREA*"),
@@ -393,6 +440,7 @@ return function(mod, api)
 
     local function levelRows()
         local scope = Levels.get("level_cap_scope") or 0
+        local hardcore = Playstyles.hardcoreActive(state(), Core)
         local edging = Levels.get("exp_edging") == true
         local cap, stage = Levels.cap()
         local banked, pending = 0, 0
@@ -402,10 +450,16 @@ return function(mod, api)
             if amount > 0 then pending = pending + 1 end
         end
         return {
-            row("CAP SCOPE: " .. ({
+            row("CAP SCOPE: " .. (hardcore and "CHAMPION*" or ({
                 "NONE", "GYMS", "ELITE FOUR", "CHAMPION", "POSTGAME"
-            })[scope + 1], nil, function()
-                if Levels.set("level_cap_scope", (scope + 1) % 5) then
+            })[scope + 1]), nil, function()
+                if hardcore then
+                    info("HARDCORE LEVEL CAP", {
+                        "CHAMPION SCOPE FORCED",
+                        "ORIGINAL SCOPE SAVED",
+                        "DISABLE HARDCORE TO EDIT",
+                    })
+                elseif Levels.set("level_cap_scope", (scope + 1) % 5) then
                     current().rows = levelRows()
                 end
             end),

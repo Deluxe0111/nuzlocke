@@ -245,3 +245,10 @@ Follow tests **S01–S11** in [Gen 3 Playstyles](GEN3_PLAYSTYLES.md):
 non-shiny Ball rejection and unused route slots, eligible shiny
 encounters with Failed Encounters ON/OFF, Shiny Clause precedence,
 shiny-rate independence, saves and Untamed wandering wild captures.
+
+## Hardcore Nuzlocke playstyle (v3.0.0-BETA)
+
+Use **H01–H11** in [Gen 3 Playstyles](GEN3_PLAYSTYLES.md). Verify
+effective CORE overrides, native battle bag refusal (Poké Balls allowed),
+forced SET response, boss EXP/Rare Candy caps, mode combinations and
+instant restoration on Hardcore OFF. Use a disposable ROM save.

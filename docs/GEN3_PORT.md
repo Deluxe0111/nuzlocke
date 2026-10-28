@@ -18,7 +18,7 @@ a working toggle is not proof that every edition and edge case is tested.
 | --- | --- |
 | **CORE** | Nuzlocke Enabled, Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run and PC Survivors Allowed. See [CORE specification](GEN3_CORE_SPEC.md). |
 | **CLAUSES** | Dupes, Shiny Catch Exception, Shiny Rate, Roamer Clause, Egg Encounter and Route Forgiveness. See [Clauses](GEN3_CLAUSES.md) and [Eggs and Forgiveness](GEN3_EGGS_FORGIVENESS.md). |
-| **PLAYSTYLES** | **Shiny Nuzlocke** restricts Ball captures to shinies; non-shinies do not spend a route, and Shiny Clause cannot bypass One Per Area. See [Playstyles](GEN3_PLAYSTYLES.md). |
+| **PLAYSTYLES** | **Shiny Nuzlocke** restricts catches to shinies; **Hardcore Nuzlocke** forces strict encounter/death rules, SET style, no battle items except Balls, and Gym/League caps through Champion. Modes may combine. See [Playstyles](GEN3_PLAYSTYLES.md). |
 | **LEVELS** | Gym/Elite Four/Champion/Postgame cap scopes, native EXP clamping and optional EXP banking (EXP Edging). Native Rare Candy checks. See [LEVELS](GEN3_LEVELS.md). |
 | **RANDOMIZER** | Seeded normal wild step and fishing encounters and trainer species, with fixed/AUTO seed, presets, generation limits and BST balancing. See [Randomiser](GEN3_RANDOMIZER.md). |
 | **Overworld wild compatibility** | Untamed-Advanced's generated wandering Pokémon use the same Random Wild setting/seed via `untamed.owe.species`, before the sprite and battle are constructed. |

@@ -5,6 +5,8 @@ return function()
     local DEFINITIONS = {
         { key = "shiny_nuzlocke", label = "SHINY NUZLOCKE",
           default = false, status = "working" },
+        { key = "hardcore_nuzlocke", label = "HARDCORE NUZLOCKE",
+          default = false, status = "working" },
     }
     local byKey = {}
     for _, d in ipairs(DEFINITIONS) do byKey[d.key] = d end
@@ -42,6 +44,12 @@ return function()
     function M.active(s, Core)
         return Core.active(s) and M.get(s, "shiny_nuzlocke") == true
     end
+    -- Can combine with Shiny Nuzlocke; neither mode edits the saved
+    -- CORE/LEVELS settings. Hardcore is inactive with NUZLOCKE OFF.
+    function M.hardcoreActive(s, Core)
+        return Core.active(s) and M.get(s, "hardcore_nuzlocke") == true
+    end
+
     -- The first *eligible shiny* is the area encounter. A nonshiny
     -- must never claim it, even when Failed Encounters Count is ON.
     function M.qualifies(s, Core, shiny)

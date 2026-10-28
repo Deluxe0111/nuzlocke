@@ -21,7 +21,7 @@ The Generation 3 randomiser works independently of the master Nuzlocke challenge
 | --- | --- |
 | **CORE** | Nuzlocke Enabled, Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run, PC Survivors |
 | **CLAUSES** | Dupes, Shiny Catch Exception, Shiny Rate, Roamer, Egg Encounter, Route Forgiveness |
-| **PLAYSTYLES** | **Shiny Nuzlocke:** catch only shiny Pokémon, with non-shinies leaving encounter opportunities open |
+| **PLAYSTYLES** | **Shiny Nuzlocke:** catch only shinies; **Hardcore Nuzlocke:** strict encounters/permadeath, SET style, no battle bag items except Balls, and Champion-level caps. Both modes can be combined. |
 | **LEVELS** | Gym / Elite Four / Champion / Postgame level-cap scopes; optional banked EXP Edging |
 | **RANDOMIZER** | Seeded wild Pokémon (grass, water and fishing) and trainer teams; presets, species-generation filters and optional BST balancing |
 | **Player tools** | Encounter Tracker, Graveyard, Nickname Tasks, Nuz Dev testing tools and a persistent NUZ NOTICES history |
@@ -45,7 +45,7 @@ See [Gen 3 Randomiser documentation](docs/GEN3_RANDOMIZER.md) for the exact beha
 | --- | --- |
 | Generation 3 architecture, implemented scope and remaining gaps | [Gen 3 overview](docs/GEN3_PORT.md) |
 | CORE rules and precedence | [CORE specification](docs/GEN3_CORE_SPEC.md) |
-| Shiny-only catching rules and variant tests | [PLAYSTYLES](docs/GEN3_PLAYSTYLES.md) |
+| Shiny and Hardcore Nuzlocke rules, tests and compatibility | [PLAYSTYLES](docs/GEN3_PLAYSTYLES.md) |
 | Encounter clauses, Eggs and Forgiveness | [Clauses](docs/GEN3_CLAUSES.md) · [Eggs and Forgiveness](docs/GEN3_EGGS_FORGIVENESS.md) |
 | Level caps and EXP Edging | [LEVELS](docs/GEN3_LEVELS.md) |
 | Randomiser including Untamed overworld integration | [RANDOMIZER](docs/GEN3_RANDOMIZER.md) |
