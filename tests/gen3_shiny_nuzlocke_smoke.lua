@@ -516,7 +516,7 @@ press("a") -- NUZ RULES
 local mainRules=mod.exports.gen3_menu.model()
 local expectedMain={
     "CORE","CLAUSES","[Soon] HARDCORE",
-    "[Soon] GAME DIFFICULTY","[Soon] RUN / PARTY",
+    "[Soon] GAME DIFFICULTY","RUN / PARTY",
     "LEVELS","PLAYSTYLES","ADVANCED RULES",
     "RANDOMIZER","[Soon] QOL","[Soon] QOL SETUP ONLY",
 }
@@ -525,6 +525,35 @@ for i, label in ipairs(expectedMain) do
     assert(mainRules.rows[i]==label,
         "main NUZ RULES row "..i.." should be "..label)
 end
+-- RUN / PARTY is now implemented, with live controls and details.
+for _=1,4 do press("down") end
+press("a")
+local rp=mod.exports.gen3_menu.model()
+assert(rp.title=="RUN / PARTY" and #rp.rows==4)
+assert(rp.rows[1]=="Gym Team Size: OFF"
+    and rp.rows[2]=="Party Size Limit: 6/6"
+    and rp.rows[3]=="Evolution Limits: NORMAL"
+    and rp.rows[4]=="  DETAILS: RUN / PARTY")
+press("a")
+assert(mod.exports.gen3_menu.model().rows[1]=="Gym Team Size: ON")
+press("a");press("down")
+for _,i in ipairs({1,2,3,4,5,6}) do
+    press("a")
+    assert(mod.exports.gen3_menu.model().rows[2]
+        =="Party Size Limit: "..i.."/6")
+end
+press("down")
+for _,label in ipairs({"NO FINAL","NO EVOLUTION","NORMAL"}) do
+    press("a")
+    assert(mod.exports.gen3_menu.model().rows[3]
+        =="Evolution Limits: "..label)
+end
+press("down");press("a")
+assert(mod.exports.gen3_menu.model().title=="RUN / PARTY HELP")
+press("b");press("b")
+assert(mod.exports.gen3_menu.model().title=="NUZ RULES")
+for _=1,4 do press("up") end
+assert(mod.exports.gen3_menu.model().index==1)
 local catalog=mod.exports.gen3_menu.catalog()
 for _, category in ipairs(catalog) do
     assert(category.title~="WORLD" and category.title~="UI",
