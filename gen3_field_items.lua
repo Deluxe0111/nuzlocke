@@ -110,7 +110,7 @@ return function()
         -- Explicit native IDs as fallback if an older engine metadata
         -- pack omits PP Up/Max's fieldKind. IDs 34-38 are Ether/Elixir.
         local num=numericId(id,items)
-        if num and (num>=34 and num<=38 or num==69) then
+        if num and (num>=34 and num<=38 or num==69 or num==71) then
             return true
         end
         local n=itemName(id)
