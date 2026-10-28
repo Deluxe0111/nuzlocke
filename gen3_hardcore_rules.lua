@@ -73,27 +73,27 @@ return function()
         -- Extra.rescueFromPc is the canonical verifier: it checks dead
         -- archives, PC-only locks, eggs and usable HP before transfer.
         if extra and type(extra.rescueFromPc)=="function"
-            and type(native.party)=="table"
-            and #native.party==0 then
+            and type(native.party)=="table" then
             return extra.rescueFromPc(s,native)
         end
         return false
     end
     local function gymOf(mapId)
         if type(mapId)~="string" then return nil end
-        if not mapId:match("^(FR|RU|SA|EM)_") then
-            -- Lua alternation is not supported in patterns.
-            if not mapId:match("^FR_") and not mapId:match("^RU_")
-                and not mapId:match("^SA_")
-                and not mapId:match("^EM_") then return nil end
-        end
+        if not mapId:match("^FR_") and not mapId:match("^RU_")
+            and not mapId:match("^SA_")
+            and not mapId:match("^EM_") then return nil end
         local town=mapId:match("_([A-Z]+)_CITY_GYM$")
             or mapId:match("_([A-Z]+)_TOWN_GYM$")
         return town
     end
     M.gymOf=gymOf
-    function M.gymLocked(s,core,mapId,flags,store)
+    function M.gymLocked(s,core,mapId,flags,store,gymTeamCapOn)
         if not M.on(s,core,"gym_lock_in") then return false end
+        -- Team-size cap requires returning to a PC. Without native
+        -- trainer-to-gym roster identification, sealing the door
+        -- simultaneously would risk an unavoidable softlock.
+        if gymTeamCapOn==true then return false end
         local gym=gymOf(mapId)
         if not gym or type(flags)~="table"
             or type(flags.badgeInfo)~="function"
