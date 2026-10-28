@@ -820,4 +820,72 @@ assert(values.gen3_classic_v1.catchRules.alphabetlocke_random_letter==16,
 assert(values.gen3_classic_v1.areas.FR_ROUTE_24.caught,
     "allowed scripted gift commits its receipt map after selection")
 
+-- Type Locke integrates at both battle-start encounter claiming and Ball
+-- resolution, and shares the optional gift/NPC trade preflight. An off-type
+-- wild must not spend its route, even with Failed Encounters enabled.
+local variants=mod.exports.gen3_variants
+assert(catchRules.setRule("alphabetlocke_mode",0))
+nativePokemon.keyName=function(id)
+    return ({[25]="PIKACHU",[4]="CHARMANDER"})[id]
+end
+nativePokemon.speciesFromNational=function(nat)
+    return nat==25 and 25 or nat==4 and 4 or nil
+end
+nativePokemon.types=function(id)
+    return ({[25]={13,13},[4]={10,10}})[id] or {0,0}
+end
+assert(variants.setRule("type_lock_mode",1))
+assert(variants.setRule("type_lock_primary",10)) -- FIRE
+game.session.map="FR_ROUTE_25"
+fire("map.entered",{mapId="FR_ROUTE_25"})
+local wrongType={enemy={mon={species=25,speciesId=25}}}
+fire("battle.started",{battle=wrongType,kind="wild",speciesId=25})
+assert(values.gen3_classic_v1.areas.FR_ROUTE_25==nil,
+    "off-type encounters must never consume the first route slot")
+local called=false
+local won,shakes=hooks["catch.rate"](function()
+    called=true;return true,4
+end,"POKE_BALL",{speciesId=25},25,{battle=wrongType})
+assert(not won and shakes==0 and not called,
+    "off-type Ball must be vetoed before native catching")
+fire("battle.ended")
+local rightType={enemy={mon={species=4,speciesId=4}}}
+fire("battle.started",{battle=rightType,kind="wild",speciesId=4})
+assert(values.gen3_classic_v1.areas.FR_ROUTE_25.spent,
+    "matching species becomes the FIRST eligible route encounter")
+called=false
+won=hooks["catch.rate"](function()
+    called=true;return true,4
+end,"POKE_BALL",{speciesId=4},4,{battle=rightType})
+assert(won and called,"matching type reaches native catch transaction")
+fire("battle.ended")
+-- Type restriction applies to optional gifts before native mutation;
+-- mandatory starter exception is handled independently upstream.
+game.session.map="FR_ROUTE_26"
+fire("map.entered",{mapId="FR_ROUTE_26"})
+local giftBefore=giftCalls
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(giftCalls==giftBefore
+    and values.gen3_classic_v1.areas.FR_ROUTE_26==nil,
+    "off-type gift rejected without changing party or route")
+assert(variants.setRule("type_lock_primary",13)) -- ELECTRIC
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(giftCalls==giftBefore+1,
+    "matching gift accepted by native transaction")
+-- NPC trade's offered species must be checked before destructive swap.
+game.session.map="FR_ROUTE_27"
+fire("map.entered",{mapId="FR_ROUTE_27"})
+assert(variants.setRule("type_lock_primary",10))
+hooks["script.command"](nativePreview,c,"specialvar",
+    {op="specialvar",[1]=0x800D,[2]=77})
+assert(vm.ctx.specialVars[0x800D]==0,
+    "off-type NPC trade refused at preview, not after swap")
+assert(variants.setRule("type_lock_primary",13))
+hooks["script.command"](nativePreview,c,"specialvar",
+    {op="specialvar",[1]=0x800D,[2]=77})
+assert(vm.ctx.specialVars[0x800D]==25,
+    "legal NPC trade preview preserved")
+assert(variants.setRule("type_lock_mode",0))
 print("Gen3 experimental Nuzlocke smoke PASS")
