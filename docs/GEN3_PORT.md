@@ -13,11 +13,14 @@ This branch does **not** port Nuzlocke's full Gen 1/2 feature set. It introduces
 - Record successful captures. As soon as the Gen 3 `battle.fainted` event fires for a player battler, irreversibly record death in the save-local graveyard and mark the battle-party Pokémon as dead. Compaction of the native party array still happens after `battle.ended`, when forced switching and battle writeback are finished.
 - Deny revival-item usage in the Gen 3 battle party UI and item execution transaction, while leaving other medicine paths unchanged.
 - Mark the run failed when the party becomes empty. Whiteout Ends Run can also fail the challenge immediately on a lost battle, even if boxed Pokémon remain; the safe PC-survivor recovery path is **not** implemented and cannot be enabled.
+- **NEW GAME** opens the native Nuzlocke setup before the intro on FRLG and RS/Emerald. Choose rules, lock them for the run, then Start or Cancel without modifying the prior save.
+- **Setup-only Gen 3 QoL** now includes Starting Money (preset values 0–999999), Starting Rare Candy (0–99 in native Player PC), Starting Poké Balls (0–99, deferred to native capture unlock and delivered into PC), PC Heal Kit (10 each of nine standard medicines) and PC Vitamins (10 each of six Gen 3 vitamins). These never backfill existing saves, change quest flags or bypass native item-use restrictions.
+- Starting Ball delivery checks the durable capture unlock as well as the current Bag. It retries on a later map entry/save load if PC space is unavailable. The first scripted wild battles still cannot consume an area before the native capture boundary.
 - Keep the master feature disabled by default and store settings, history and deaths under the backwards-compatible `gen3_classic_v1` key, separate from the Gen 1/2 save schema. Legacy captured/missed areas with no `spent` flag remain spent after upgrading.
 
 ## Not yet implemented / known gaps
 
-- Most of the original mod's configuration, profiles, setup, complete encounter-tracker UI, advanced death/forgiveness rules, randomiser, shiny clauses, gift/statics and species clauses are not yet ported. These remain inert **[Soon]** rows. The limited **versioned** `mod.exports.gen3_core` rule API is now available.
+- Most of the original mod's configuration, profiles, intro/story shortcuts, complete encounter-tracker UI, advanced death/forgiveness rules, randomiser, gift/statics and species clauses are not yet ported. These remain inert **[Soon]** rows. The limited **versioned** `mod.exports.gen3_core` rule API is now available.
 - First Rival Mercy and Nickname Requirement are approved but not active. The native whiteout / story-battle exceptions need runtime verification.
 - Gen 3's menu is implemented with its native 240x160 screen stack, rather than Gen 1/2's screens system. This keeps the fork's Mod API at version 2, but game testing is needed to confirm drawing and navigation for every GBA edition.
 - The tracker currently treats each native **map ID** as a separate catch area. Canonical Nuzlocke locations (for example different floors of one cave) need a region/section mapping.
@@ -32,6 +35,8 @@ Run from the repository root:
 
 ```sh
 lua5.1 tests/gen3_foundation_smoke.lua
+lua5.1 tests/gen3_setup_qol_smoke.lua
+lua5.1 tests/gen3_title_setup_smoke.lua
 python3 tools/modkit.py gen3check /path/to/this/mod
 ```
 
