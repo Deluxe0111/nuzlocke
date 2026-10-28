@@ -516,7 +516,7 @@ press("a") -- NUZ RULES
 local mainRules=mod.exports.gen3_menu.model()
 local expectedMain={
     "CORE","CLAUSES","[Soon] HARDCORE",
-    "[Soon] GAME DIFFICULTY","RUN / PARTY",
+    "GAME DIFFICULTY","RUN / PARTY",
     "LEVELS","PLAYSTYLES","ADVANCED RULES",
     "RANDOMIZER","[Soon] QOL","[Soon] QOL SETUP ONLY",
 }
@@ -553,6 +553,31 @@ assert(mod.exports.gen3_menu.model().title=="RUN / PARTY HELP")
 press("b");press("b")
 assert(mod.exports.gen3_menu.model().title=="NUZ RULES")
 for _=1,4 do press("up") end
+assert(mod.exports.gen3_menu.model().index==1)
+-- The difficulty selector spans 16 unique native Gen3 profiles.
+for _=1,3 do press("down") end
+press("a")
+local difficulty=mod.exports.gen3_menu.model()
+assert(difficulty.title=="GAME DIFFICULTY" and #difficulty.rows==2)
+assert(difficulty.rows[1]=="Game Difficulty: VANILLA"
+    and difficulty.rows[2]=="  DETAILS: DIFFICULTY")
+local difficulties={
+    "NUZ MEDIUM","NUZ HARD","NUZ EXPERT","NUZ MASTER",
+    "BOSS MEDIUM","BOSS HARD","BOSS EXPERT","BOSS MASTER",
+    "TACTIC MEDIUM","TACTIC HARD","TACTIC EXPERT","TACTIC MASTER",
+    "FULL MEDIUM","FULL HARD","FULL MASTER","VANILLA",
+}
+for _,label in ipairs(difficulties) do
+    press("a")
+    assert(mod.exports.gen3_menu.model().rows[1]
+        =="Game Difficulty: "..label)
+end
+press("down");press("a")
+assert(mod.exports.gen3_menu.model().title=="GAME DIFFICULTY HELP")
+press("b");press("b")
+assert(mod.exports.gen3_menu.model().title=="NUZ RULES"
+    and mod.exports.gen3_menu.model().index==4)
+for _=1,3 do press("up") end
 assert(mod.exports.gen3_menu.model().index==1)
 local catalog=mod.exports.gen3_menu.catalog()
 for _, category in ipairs(catalog) do
