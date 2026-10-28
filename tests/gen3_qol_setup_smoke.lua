@@ -37,7 +37,18 @@ assert(S.set(s,"starting_pokeballs",0))
 local Storage={
     MAX_ITEM_QTY=999,
     ensure=function(native) return native.storage end,
-    addPcItem=function()return true end,
+    addPcItem=function(native,id,qty)
+        local items=native.storage.items
+        for _,entry in ipairs(items) do
+            if entry.id==id then
+                entry.qty=entry.qty+qty
+                return true
+            end
+        end
+        if #items>=30 then return false,"pc_full" end
+        items[#items+1]={id=id,qty=qty}
+        return true
+    end,
     pcItemsCount=function()return 30 end,
 }
 local function fresh()
@@ -80,17 +91,32 @@ end
 native=fresh()
 assert(S.apply(s,native,Storage))
 assert(native.money==7500)
-assert(#native.storage.items==17,
-    "native Potion merged into 17-item loadout")
+assert(#native.storage.items==16,
+    "deferred Balls are withheld from initial 16-item PC loadout")
 local items={}
 for _,e in ipairs(native.storage.items) do
     assert(not items[e.id],"duplicate PC item slot")
     items[e.id]=e.qty
 end
 assert(items[13]==11,"keep the native starting Potion")
-assert(items[4]==25 and items[68]==50)
+assert(items[4]==nil and items[68]==50,
+    "extra Balls must not exist in PC before capture unlock")
 assert(native.modData.nuzQolSetupSummary.money==7500)
-assert(native.modData.nuzQolSetupSummary.pcItemTypes==17)
+assert(native.modData.nuzQolSetupSummary.pcItemTypes==16)
+assert(native.modData.nuzQolDeferredBalls==25)
+assert(not S.deliverBalls({},native,Storage),
+    "no Balls before native capture unlock")
+assert(not S.deliverBalls({captureUnlocked=false},native,Storage))
+assert(S.deliverBalls({captureUnlocked=true},native,Storage))
+assert(native.modData.nuzQolDeferredBalls==0
+    and native.modData.nuzQolExtraBallsGranted==true)
+local ballCount=0
+for _,entry in ipairs(native.storage.items) do
+    if entry.id==4 then ballCount=entry.qty end
+end
+assert(ballCount==25,"extra Balls delivered into native PC")
+assert(not S.deliverBalls({captureUnlocked=true},native,Storage),
+    "deferred rewards must not duplicate")
 local prior=native
 assert(not S.apply(s,prior,Storage))
 assert(prior.storage.items[1].qty==11,
