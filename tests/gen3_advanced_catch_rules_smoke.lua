@@ -65,7 +65,7 @@ assert(Rules.get(s,"maximum_bst")==500)
 assert(Rules.nextBst(500)==550 and Rules.nextBst(700)==0)
 assert(not Rules.set(s,"maximum_bst",501),"only valid UI presets accepted")
 assert(not Rules.set(s,"ban_pseudos",1),"toggles must be booleans")
-assert(not Rules.set(s,"allow_gifts",true),"not-yet-ported keys not editable")
+assert(not Rules.set(s,"pkmn_ban",true),"unported species picker not editable")
 assert(Rules.set(s,"maximum_bst",0))
 -- Scripted static/legendary wild battles are catch-blocked, but native
 -- roamers (even legendary species) and normal/fishing/grass are not.
