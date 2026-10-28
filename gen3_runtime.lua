@@ -325,7 +325,7 @@ return function(mod)
         battleDeaths = nil
         deliverPendingStartingBalls()
     end)
-    mod.events:on("save.created", function()
+    mod.events:on("save.created", function(ev)
         -- Apply setup to the newly adopted save, not the old title save.
         if pendingNewGameState then
             pendingNewGameState._setup = nil
@@ -343,7 +343,7 @@ return function(mod)
         if not saved.qolCreatedApplied then
             local ok, Storage = pcall(require, "src.core.game3.storage")
             if ok then
-                local granted = SetupQol.applyNewGame(saved, session(), Storage)
+                local granted = SetupQol.applyNewGame(saved, ev and ev.save or session(), Storage)
                 if granted then writeState(saved) end
             end
         end
