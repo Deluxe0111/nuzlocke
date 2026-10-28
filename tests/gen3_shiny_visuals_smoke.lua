@@ -57,6 +57,7 @@ love={graphics=gfx,image={
 }}
 local native,normal=0,0
 local Pokemon={
+    _front={},
     isShiny=function(mon)return mon.isShiny==true end,
     picSpecies=function(species)return species end,
     frontPic=function(id,form,shiny,pid)
@@ -109,5 +110,9 @@ local newStore={read=function()return rgba end}
 package.loaded["src.core.game3.dataset"].cache=function()return newStore end
 assert(Visual.front(Pokemon,shiny).image~=pic.image
     and generated==2,"ROM switch requires fresh shiny assets")
+local previous=Visual.front(Pokemon,shiny)
+Pokemon._front={} -- engine's Pokemon.install() on a new ROM
+assert(Visual.front(Pokemon,shiny).image~=previous.image
+    and generated==3,"shared Dataset cache must also detect ROM reload")
 love=oldLove
 print("Gen 3 shiny ROM artwork and PC/icon visuals: PASS")

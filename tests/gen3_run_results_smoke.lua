@@ -156,6 +156,7 @@ local savedPng=nil
 local dimensions={}
 local allText={}
 local drawnSprites=0
+local modArtDraws=0
 local shinySprites=0
 local normalSprites=0
 local exportCount=0
@@ -185,7 +186,10 @@ local gfx={
     print=function(s)
         allText[#allText+1]=s
     end,
-    draw=function()drawnSprites=drawnSprites+1 end,
+    draw=function(img)
+        drawnSprites=drawnSprites+1
+        if img.modShiny then modArtDraws=modArtDraws+1 end
+    end,
 }
 local loveBefore=love
 love={graphics=gfx}
@@ -229,7 +233,13 @@ for i=2,8 do
     failed.graveyard[#failed.graveyard+1]=copy
 end
 failed.deaths=#failed.graveyard
-assert(View.open(game,failed))
+local customVisual={
+    front=function(_,mon)
+        assert(mon.isShiny==true,"poster should request only shiny art")
+        return {image={modShiny=true},w=64,h=64}
+    end,
+}
+assert(View.open(game,failed,{shinyVisuals=customVisual}))
 local w,h=View.posterDimensions(failed)
 assert(w==1200 and h>1000,"8 memorial entries need a taller poster")
 assert(View.model().rows[5]=="SHARE COMPLETE RUN PNG")
@@ -238,7 +248,7 @@ assert(View.model().title=="SHARE RESULT")
 assert(savedPng and savedPng:match("^nuzlocke_")
     and savedPng:match("_FULL%.png$")
     and exportCount==1 and drawnSprites==9
-    and shinySprites==7 and normalSprites==1,
+    and modArtDraws==7 and shinySprites==0 and normalSprites==1,
     "poster must request explicit native shiny palette for confirmed shiny Pokemon")
 local rendered=table.concat(allText," ")
 for _,expected in ipairs({
@@ -263,7 +273,7 @@ assert(not View.isOpen())
 -- the same winning poster rather than only the living party.
 win.graveyard={failed.graveyard[1]}
 win.deaths=1
-assert(View.open(game,win))
+assert(View.open(game,win,{shinyVisuals=customVisual}))
 local winning=View.model()
 assert(winning.outcome=="VICTORY")
 local previous=exportCount
@@ -271,9 +281,10 @@ allText={}
 drawnSprites=0
 shinySprites=0
 normalSprites=0
+modArtDraws=0
 assert(selectPrefix("SHARE COMPLETE RUN PNG"))
 assert(exportCount==previous+1)
-assert(drawnSprites==2 and shinySprites==2 and normalSprites==0,
+assert(drawnSprites==2 and modArtDraws==2 and normalSprites==0,
     "Champion poster must use shiny art for living and fallen Pokemon")
 press("b")
 assert(selectPrefix("CONTINUE ADVENTURE"))

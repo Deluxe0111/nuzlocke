@@ -28,7 +28,12 @@ function Stack.top() return layers[#layers] end
 package.loaded["src.ui.game3.stack"]=Stack
 local Hof={open=false,close=function(self) self.open=false end}
 package.loaded["src.ui.game3.hall_of_fame"]=Hof
+package.loaded["src.ui.game3.pc_chrome"]={
+    drawLeftDataPanel=function()return true end,
+}
 package.loaded["src.core.game3.pokemon"]={
+    monIcon=function()return {native=true} end,
+    isShiny=function(mon)return mon.isShiny==true end,
     name=function(id) return ({[1]="BULBASAUR",[4]="CHARMANDER",
         [7]="SQUIRTLE"})[id] or "POKEMON" end,
     speciesOf=function(mon)return mon.species end,
@@ -75,6 +80,15 @@ assert(type(events["save.loaded"])=="function"
     and type(events["battle.ended"])=="function")
 assert(type(Hof.close)=="function" and Hof.__nuzResultsOwner==mod,
     "Hall of Fame is patched at native completion boundary")
+local corePokemon=package.loaded["src.core.game3.pokemon"]
+local chrome=package.loaded["src.ui.game3.pc_chrome"]
+assert(corePokemon.__nuzVisualOwner==mod
+    and corePokemon.__nuzVisualIconWrap==corePokemon.monIcon
+    and chrome.__nuzVisualOwner==mod
+    and chrome.__nuzVisualPanelWrap==chrome.drawLeftDataPanel,
+    "runtime must wrap native PC icons and portrait at initialization")
+assert(corePokemon.monIcon({species=56,isShiny=true}).native==true,
+    "missing GPU shiny resources should fall back to native icon safely")
 -- User chooses END RUN, receives a separate irreversible confirmation.
 assert(mod.exports.gen3_menu.open(game))
 local function pressTop(button)

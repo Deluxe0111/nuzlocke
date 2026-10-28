@@ -93,8 +93,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 or Pokemon.__nuzVisualOwner~=mod) then
             local native=Pokemon.monIcon
             local function icon(mon,...)
-                if loadState().enabled and ShinyVisuals.isShiny(Pokemon,mon)
-                    then
+                if ShinyVisuals.isShiny(Pokemon,mon)
+                    and loadState().enabled then
                     local ok,visual=pcall(ShinyVisuals.icon,Pokemon,mon)
                     if ok and visual then return visual end
                 end

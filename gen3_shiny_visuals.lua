@@ -4,7 +4,7 @@
 -- palette in vanilla Gen 3 and can otherwise misrepresent the Pokemon.
 return function()
     local M={api=1}
-    local loadedCache,fronts,icons=nil,{},{}
+    local loadedCache,loadedFronts,fronts,icons=nil,nil,{},{} 
     function M.isShiny(Pokemon,mon)
         if type(mon)~="table" then return false end
         if mon.shinyKnown==true then return mon.shiny==true end
@@ -48,8 +48,13 @@ return function()
         local species,pid=frontInfo(Pokemon,mon)
         if not species then return nil end
         local c=cache()
-        if c~=loadedCache then
-            loadedCache,fronts,icons=c,{},{}
+        -- Dataset.cache() is a shared stateless object across ROM boots.
+        -- Pokemon.install() resets _front on every ROM switch, so use
+        -- that identity as an additional invalidation signal.
+        local nativeFronts=type(Pokemon._front)=="table"
+            and Pokemon._front or nil
+        if c~=loadedCache or nativeFronts~=loadedFronts then
+            loadedCache,loadedFronts,fronts,icons=c,nativeFronts,{},{}
         end
         local suffix=""
         if type(Pokemon.deoxysFormSuffix)=="function" then
