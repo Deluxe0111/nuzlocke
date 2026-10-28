@@ -3,22 +3,14 @@
 return function()
     local M={api=1,schema=1}
     local defs={
-        {key="progression_pc_catches",label="PC-Only Catches",
-            status="soon",detail="Needs atomic PC capture + permanent lock."},
         {key="instant_text",label="Instant Text",
             status="working",kind="bool",default=false},
-        {key="skip_cherrygrove_tour",label="Skip Cherrygrove Tour",
-            status="gen2",detail="Gold/Silver/Crystal only."},
         {key="run_surf",label="Run / Surf",
             status="working",kind="mode",default=0},
         {key="unlimited_bag_space",label="Unlimited Bag Space",
             status="working",kind="bool",default=false},
         {key="trade_evolutions",label="Trade Evolutions",
             status="working",kind="bool",default=false},
-        {key="system_clock_sync",label="System Clock Sync",
-            status="gen2",detail="Gold/Silver/Crystal only."},
-        {key="infinite_rare_candies",label="Gym Guide Rare Candy",
-            status="gen1",detail="Red/Blue/Yellow only."},
     }
     local byKey={}
     for _,d in ipairs(defs) do byKey[d.key]=d end
