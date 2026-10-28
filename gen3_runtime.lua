@@ -567,11 +567,20 @@ return function(mod)
                 local target=type(M)=="table" and M.target
                 local affectsUser=select(3,...)
                 if affectsUser==true then target=user end
-                if user and StatusBans.deny(loadState(),effect,
+                local saved=loadState()
+                if user and StatusBans.deny(saved,effect,
                     user,target,Core) then
                     battleClauseNotice("status:"..tostring(effect),
                         "Status Ban: "..tostring(effect)..
                         " from this side was prevented.")
+                    return false
+                end
+                if user and (effect=="SLEEP" or effect=="SLP")
+                    and StatusBans.denySleepClause(saved,user,target,
+                        type(M)=="table" and M.adapter and M.adapter._st,
+                        Core) then
+                    battleClauseNotice("sleep:clause",
+                        "Sleep Clause: another foe is already asleep.")
                     return false
                 end
                 return original(M,effect,...)
@@ -593,10 +602,13 @@ return function(mod)
             local original=Status.yawn
             local function guarded(ctx,...)
                 if type(ctx)=="table" and ctx.user
-                    and StatusBans.deny(loadState(),"SLEEP",
-                        ctx.user,ctx.target,Core) then
+                    and (StatusBans.deny(loadState(),"SLEEP",
+                        ctx.user,ctx.target,Core)
+                        or StatusBans.denySleepClause(loadState(),
+                            ctx.user,ctx.target,
+                            ctx.adapter and ctx.adapter._st,Core)) then
                     battleClauseNotice("status:yawn",
-                        "Sleep Ban: Yawn was prevented.")
+                        "Sleep rule: Yawn was prevented.")
                     if ctx.adapter and type(ctx.adapter.sayFail)=="function"
                         then ctx.adapter:sayFail() end
                     return nil
@@ -626,10 +638,12 @@ return function(mod)
             local original=Effects.run
             local function guarded(id,adapter,user,target,...)
                 if id=="EXP_YAWN_EFFECT" and user
-                    and StatusBans.deny(loadState(),"SLEEP",
-                        user,target,Core) then
+                    and (StatusBans.deny(loadState(),"SLEEP",
+                        user,target,Core)
+                        or StatusBans.denySleepClause(loadState(),
+                            user,target,adapter and adapter._st,Core)) then
                     battleClauseNotice("status:yawn",
-                        "Sleep Ban: Yawn was prevented.")
+                        "Sleep rule: Yawn was prevented.")
                     if adapter and type(adapter.sayFail)=="function" then
                         adapter:sayFail()
                     end
@@ -660,25 +674,77 @@ return function(mod)
                 if type(ad.applyStatus)=="function" then
                     local native=ad.applyStatus
                     ad.applyStatus=function(self,target,status,source,opts)
-                        local actualSource=source
-                        if (status=="SLP" or status=="SLEEP")
-                            and source==target and type(target)=="table"
-                            and target._nuzYawnSource then
-                            actualSource=target._nuzYawnSource
-                        end
-                        if StatusBans.deny(loadState(),status,
+                        local sleep=status=="SLP" or status=="SLEEP"
+                        -- Rest can happen while Yawn is pending; its
+                        -- explicit three-turn sleep must stay self-induced.
+                        local delayedYawn=sleep and source==target
+                            and type(target)=="table"
+                            and target._nuzYawnSource~=nil
+                            and type(opts)=="table"
+                            and opts.ignoreSafeguard==true
+                            and opts.turns==nil
+                        local actualSource=delayedYawn
+                            and target._nuzYawnSource or source
+                        local saved=loadState()
+                        if StatusBans.deny(saved,status,
                             actualSource,target,Core) then
                             battleClauseNotice("direct:"..tostring(status),
                                 "Status Ban: "..tostring(status)..
                                 " was prevented.")
-                            if target then target._nuzYawnSource=nil end
+                            if delayedYawn then
+                                target._nuzYawnSleepBlocked=true
+                                target._nuzYawnSource=nil
+                            end
+                            return false
+                        end
+                        if sleep and StatusBans.denySleepClause(saved,
+                            actualSource,target,self._st,Core) then
+                            battleClauseNotice("sleep:clause",
+                                "Sleep Clause: another foe is already asleep.")
+                            if delayedYawn then
+                                target._nuzYawnSleepBlocked=true
+                                target._nuzYawnSource=nil
+                            end
                             return false
                         end
                         local result=native(self,target,status,source,opts)
-                        if target and (status=="SLP" or status=="SLEEP") then
-                            target._nuzYawnSource=nil
+                        if sleep then
+                            if result then
+                                StatusBans.recordSleep(self._st,target,
+                                    actualSource)
+                            end
+                            if type(target)=="table" then
+                                target._nuzYawnSource=nil
+                            end
                         end
                         return result
+                    end
+                    -- The native delayed-Yawn handler announces sleep even
+                    -- when applyStatus returned false. Suppress ONLY that
+                    -- misleading animation and message.
+                    if type(ad.statusAnim)=="function" then
+                        local statusAnim=ad.statusAnim
+                        ad.statusAnim=function(self,target,status,...)
+                            if type(target)=="table"
+                                and target._nuzYawnSleepBlocked
+                                and (status=="SLP" or status=="SLEEP") then
+                                return
+                            end
+                            return statusAnim(self,target,status,...)
+                        end
+                    end
+                    if type(ad.sayText)=="function" then
+                        local sayText=ad.sayText
+                        ad.sayText=function(self,id,fill,...)
+                            local target=type(fill)=="table" and fill.eff
+                            if id=="STRINGID_PKMNFELLASLEEP"
+                                and type(target)=="table"
+                                and target._nuzYawnSleepBlocked then
+                                target._nuzYawnSleepBlocked=nil
+                                return
+                            end
+                            return sayText(self,id,fill,...)
+                        end
                     end
                 end
                 if type(ad.applyConfusion)=="function" then
