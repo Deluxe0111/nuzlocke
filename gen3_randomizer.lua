@@ -122,7 +122,7 @@ return function()
         if n >= 252 and n <= 386 then return 3 end
         return nil
     end
-    local function candidates(Pokemon, original, poolMode, balance)
+    local function candidates(Pokemon, original, poolMode, balance, denyNational)
         local all = M.pool(Pokemon)
         local originalId = tonumber(original)
         if not originalId and type(original) == "string"
@@ -136,7 +136,8 @@ return function()
         local pool = {}
         for _, item in ipairs(all) do
             if item.id ~= originalId
-                and (poolMode == 0 or generation(item.national) == poolMode) then
+                and (poolMode == 0 or generation(item.national) == poolMode)
+                and not (denyNational and denyNational(item.national)) then
                 pool[#pool + 1] = item
             end
         end
@@ -154,7 +155,8 @@ return function()
         end
         return pool
     end
-    function M.replace(s, Pokemon, source, sourceId, original, entropy)
+    function M.replace(s, Pokemon, source, sourceId, original, entropy,
+        denyNational)
         local r = state(s)
         local enabled = source == "ENCOUNTERS" and r.random_encounter_tables
             or source == "TRAINERS" and r.random_trainers
@@ -163,7 +165,7 @@ return function()
         local balance = source == "ENCOUNTERS"
             and r.random_encounter_balance or r.random_trainer_balance
         local legal = candidates(Pokemon, original,
-            r.random_species_generation, balance)
+            r.random_species_generation, balance,denyNational)
         if not legal or #legal == 0 then return nil end
         local seed = M.seed(s, entropy)
         if seed == 0 then return nil end
