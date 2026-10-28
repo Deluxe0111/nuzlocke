@@ -4,6 +4,9 @@
 return function()
     local M = { api = 1, schema = 1 }
     local definitions = {
+        -- Prevents the four native one-hit KO moves for both sides.
+        { key="ohko_clause", label="OHKO Clause",
+          default=false, kind="toggle" },
         { key="flinch_clause_scope", label="Flinch Clause",
           default=0, kind="scope" },
         { key="trap_clause_scope", label="Trap Clause",
@@ -80,6 +83,9 @@ return function()
         if scope==3 then return side=="player" or side=="enemy" end
         return (scope==1 and side=="player")
             or (scope==2 and side=="enemy") or false
+    end
+    function M.denyOHKO(s,userSide,core)
+        return M.applies(s,"ohko_clause",userSide,core)
     end
     function M.denyEffect(s,effect,userSide,core)
         if effect=="FLINCH" and M.applies(s,"flinch_clause_scope",userSide,core)
