@@ -727,6 +727,14 @@ for i, name in ipairs(expectedAdvanced) do
             assert(not label:find("Overworld",1,true),
                 "visible overworld Pokémon use native catch rules")
         end
+    elseif name=="BATTLE CLAUSES" then
+        assert(child.rows[1]=="OHKO Clause: OFF",
+            "OHKO Clause is now a working ON/OFF battle clause")
+        press("a")
+        assert(mod.exports.gen3_menu.model().rows[1]=="OHKO Clause: ON",
+            "OHKO can be enabled from the native menu")
+        press("a")
+        assert(mod.exports.gen3_menu.model().rows[1]=="OHKO Clause: OFF")
     elseif name~="STATUS BANS" and name~="VARIANTS"
         and name~="BATTLE ITEMS" and name~="FIELD ITEMS"
         and name~="SERVICES & ECONOMY"
