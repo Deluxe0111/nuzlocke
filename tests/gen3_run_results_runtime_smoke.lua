@@ -24,6 +24,7 @@ function Stack.has(id)
     for _,v in ipairs(layers) do if v.id==id then return true end end
     return false
 end
+function Stack.top() return layers[#layers] end
 package.loaded["src.ui.game3.stack"]=Stack
 local Hof={open=false,close=function(self) self.open=false end}
 package.loaded["src.ui.game3.hall_of_fame"]=Hof
@@ -129,6 +130,10 @@ assert(Stack.has("nuzlocke.gen3.results")
     and layers[#layers].mod.model().outcome=="FORFEIT",
     "reloading failed save must reopen terminal results")
 assert(writes==1,"reloading a terminal save must not overwrite it")
+Stack.push("unrelated.native.menu",{})
+events["world.stepped"]()
+assert(Stack.top().id=="nuzlocke.gen3.results",
+    "native menu layers must never cover the failed-run results modal")
 advanceTo("QUIT TO TITLE")
 assert(quits==2)
 -- New run must be able to end from native battle end with autosave.
