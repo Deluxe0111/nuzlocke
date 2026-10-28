@@ -1,7 +1,7 @@
 # Gen 3 Nuzlocke — QOL Setup Only
 
 **Version:** v3.0.0-BETA  
-**Menu:** NUZ MENU → NUZ RULES → QOL SETUP ONLY  
+**Menu:** NEW GAME → NEW RUN SETUP → QOL SETUP ONLY (also shown in NUZ RULES)  
 **Policy file:** \`gen3_qol_setup.lua\`  
 **Save settings:** \`gen3_classic_v1.setupRules\`  
 **Native apply point:** \`save.new_game\` in Gen1Recomp's
@@ -14,7 +14,7 @@ with a final DETAILS row.
 
 | Rule | Values | Default | Effect on the next New Game |
 | --- | --- | --- | --- |
-| Starting Poke Balls | 0–99; menu presets 0/5/10/25/50/99 | 0 | Adds that many Poké Balls to the Player PC |
+| Starting Poke Balls | 0–99; menu presets 0/5/10/25/50/99 | 0 | Adds that many Balls to the Player PC **after the native first-Ball capture unlock** |
 | Starting Rare Candy | 0–99; menu presets 0/5/10/25/50/99 | 0 | Adds Rare Candies to the Player PC |
 | Starting Money | NATIVE or 0–999999; menu presets | NATIVE | Overrides the new session wallet only when non-native |
 | Heal Loadout | OFF / ON | OFF | Adds 10 each of nine standard healing items to the Player PC |
@@ -25,13 +25,13 @@ Burn Heal, Ice Heal, Awakening, Parlyz Heal and Full Heal.
 The six native Gen 3 vitamins are HP Up, Protein, Iron,
 Carbos, Calcium and Zinc.
 
-**Poké Balls are placed in the PC, not automatically in the Bag.**
-This is an explicit resource loadout, not a capture/story unlock
-and not a bypass of catching rules. A player must retrieve them.
-The first implementation does not defer PC delivery until receiving
-the Pokédex, so if the PC is accessible earlier the extra Balls may
-be withdrawn before the normal story giveaway. Test this interaction
-before enabling Starting Poke Balls in a restricted run.
+**Extra Poké Balls are deferred until native capture unlock.**
+They are neither placed in the early Bag nor seeded into the early
+Player PC. When a native Ball is first carried (or a previous valid
+catch proves that happened), the additional Balls enter the Player PC.
+The count survives save/reload, and retrying cannot duplicate the grant.
+The player must still retrieve those extra Balls from the PC.
+Pre-Ball scripted fights cannot spend the first encounter for an area.
 
 ## Atomic new-game behaviour
 
@@ -57,7 +57,9 @@ never deleted or silently topped up.
 
 Changing setup settings on an existing save configures a future
 New Game only; it cannot retroactively award items or change
-money on the currently running save.
+money on the currently running save. Selecting **LOCK FOR RUN**
+in NEW RUN SETUP makes all Gen 3 Nuzlocke settings read-only
+once the new save is created, including the five QoL setup options.
 
 ## Deliberately deferred
 
@@ -93,16 +95,15 @@ The older Gen 1/2 rule catalogue is not modified.
 8. **QS08:** Repeat in LeafGreen, Ruby, Sapphire, Emerald.
    Pay particular attention to RSE PC item capacity,
    new-game flow and catch tutorial timing.
-9. **QS09:** If early PC withdrawal is permitted, verify
-   whether additional Poké Balls can be obtained before
-   capture progression and decide if deferred delivery
-   should be added before enabling it in a competitive run.
+9. **QS09:** Confirm extra PC Balls **are not present** before
+   the first native Ball, then appear once and only once after it.
+   The route ledger must not advance during early scripted battles.
 10. **QS10:** Confirm Nuzlocke CORE ON/OFF and Hardcore do
     not bypass or alter the native new-game resource action.
 
-The automated smoke suite validates config defaults, menu
-values, native hook presence, PC slot/stack failures, no
-partial mutations, persistence and duplicate-protection.
+The automated smoke suite validates config defaults, title
+confirmation/cancel, PC slot/stack failures, deferred native
+Ball delivery, settings lock, persistence and duplicate-protection.
 **In-game testing is still essential**, especially whether the
 selected mod setup state remains available when the native
 New Game scene initializes a brand-new save.
