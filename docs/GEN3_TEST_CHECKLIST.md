@@ -1,8 +1,8 @@
 # Gen 3 Nuzlocke — Manual test checklist
 
-**Branch:** `feature/gen3-foundation` · **Scope:** first eight CORE rules + menu / data persistence · **Updated:** 27 October 2026.
+**Branch:** `feature/gen3-foundation` · **Release target:** `v3.0.0-BETA` · **Scope:** the complete Gen 3 feature matrix, native integration, UI and regression testing · **Updated:** 28 October 2026.
 
-This is the human-in-the-loop test plan for [PR #1](https://github.com/Deluxe0111/nuzlocke/pull/1). The automated smoke test is necessary but cannot replace actual ROM/gameplay testing.
+This is the live, human-in-the-loop test plan for the Gen 3 beta. It follows the [ported/adapted/new feature matrix](GEN3_FEATURE_MATRIX.md) and complements automated smoke tests; passing a mocked test does not replace real ROM/gameplay validation.
 
 > **Safety:** Use backed-up **disposable** saves. These tests can permanently remove party Pokémon and mark the Nuzlocke run lost. Do not test on a valuable save. Start fresh test runs as indicated; a lost run cannot be reset with the menu.
 
@@ -16,8 +16,7 @@ This is the human-in-the-loop test plan for [PR #1](https://github.com/Deluxe011
 
 ## NUZ DEV test reset controls (optional, recommended)
 
-Before repeating encounter tests on the same route, open **Start → NUZ MENU →
-NUZ MENU → **hold Select + tap A** (default keyboard: Tab+Enter or Tab+Z) → OPEN DEV TOOLS → ENABLE DEV MODE**, confirm, then use **RE-ARM CURRENT**.
+To repeat encounters on the same route, open **Start → NUZ MENU**, hold **Select** and tap **A** (default keyboard: **Tab + Enter** or **Tab + Z**), then choose **OPEN DEV TOOLS → ENABLE DEV MODE** and confirm. Use **RE-ARM CURRENT** to reopen a route.
 See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 
 - [ ] **V01 — Hidden dev entry.** NUZ DEV is absent from the regular NUZ MENU. Hold SELECT and tap A from the NUZ MENU home screen (or enter the older eight-direction code with distinct key presses). **Expected:** DEV ACCESS opens without changing the save; cancelling returns home; opening the tools and confirming ENABLE DEV MODE permanently flags the test save. The code is not accepted in a submenu or new-game setup.
@@ -35,14 +34,14 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 
 - [ ] **M01 — Open menu.** Press Start → NUZ MENU → NUZ RULES → CORE. **Expected:** No errors, readable labels, **exactly eight** CORE rules.
 - [ ] **M02 — Supported labels.** Inspect Nuzlocke Enabled, Permadeath, One Per Area and Failed Encounters. **Expected:** Each shows an accurate ON/OFF state and can be changed independently.
-- [ ] **M03 — Partial/placeholder labels.** Inspect Whiteout Ends Run, Nickname, First Rival Mercy and PC Survivors. **Expected:** Whiteout, Nickname, First Rival Mercy and PC Survivors are all **[WIP]** and toggleable; the three new rules require actual gameplay certification.
+- [ ] **M03 — Implemented CORE labels.** Inspect Whiteout Ends Run, Nickname, First Rival Mercy and PC Survivors. **Expected:** all show working ON/OFF controls without obsolete [WIP]/[Soon] prefixes; enforce the relevant native action. Manual edition testing remains required.
 - [ ] **M04 — Navigation.** Scroll through CORE, back to NUZ RULES, open some other categories, then back to NUZ MENU and the game. **Expected:** Scrolling, cursor, A/B and reopening all work; no clipped/unreadable menu entries or stuck overlays.
 - [ ] **M05 — Master toggle.** Switch NUZLOCKE OFF → ON → OFF → ON. **Expected:** Label changes immediately; rule values in other rows do not reset.
 - [ ] **M06 — Compact PLAYSTYLES.** Open NUZ RULES → PLAYSTYLES. **Expected:** Exactly four rows: SHINY NUZ toggle, its DETAILS directly below, HARDCORE toggle, its DETAILS directly below. No stray rule-description lines.
 - [ ] **M07 — Details and return.** Open both DETAILS screens, scroll their explanations and press B. **Expected:** Complete rules are visible in the correct details screen and the selector returns to the same row. Each toggle changes only its corresponding playstyle.
 - [ ] **M08 — Advanced Rules navigation.** Open NUZ RULES → ADVANCED RULES. **Expected:** Exactly nine categories in order: CATCH RULES, BATTLE CLAUSES, STATUS BANS, VARIANTS, BATTLE ITEMS, FIELD ITEMS, SERVICES & ECONOMY, POKEMON STATS, AREA SPLITS.
-- [ ] **M09 — Advanced placeholder behaviour.** Open each ADVANCED RULES category and one rule inside; go back twice. **Expected:** CATCH RULES, BATTLE CLAUSES, STATUS BANS, VARIANTS, BATTLE ITEMS and FIELD ITEMS have working controls; The VARIANTS menu contains only Type Locke and Catch Draft controls; all nine advanced categories are implemented apart from explicitly labelled unsupported individual rules. Catch Draft is working and fills type lanes only after successful wild catches. B returns to the selected category, then to ADVANCED RULES in NUZ RULES.
-- [ ] **M10 — Removed categories.** Look through NUZ RULES, including ADVANCED RULES. **Expected:** Neither WORLD nor UI appears; RUN JOURNAL replaces ALMANAC, NUZ STATUS and RUN JOURNAL > EVENT HISTORY with a single working recap/event-history screen. MOD SUPPORT is an active read-only screen. It must report UNKNOWN when live mod discovery is unavailable, detect active Untamed/Shiny providers when present, and never change run settings.
+- [ ] **M09 — Advanced category navigation.** Open all nine ADVANCED RULES categories, change one working setting, open its DETAILS where offered, then return twice. **Expected:** each category has implemented controls; any specifically unsupported option is inert and clearly identified. VARIANTS offers Type Locke and Catch Draft, not Wonderlocke. B returns to the selected category and then ADVANCED RULES; settings persist when unlocked.
+- [ ] **M10 — Journal and Mod Support.** **Expected:** WORLD/UI planning rows are absent; **RUN JOURNAL** replaces separate Almanac, NUZ STATUS and NUZ NOTICES entries, while its EVENT HISTORY remains accessible. **MOD SUPPORT** is read-only and distinguishes UNKNOWN, NOT FOUND, DETECTED and verified shiny ownership without editing rule state. NUZ DEV is absent from the normal home menu.
 - [ ] **M11 — Working Catch Rules.** Open ADVANCED RULES → CATCH RULES, toggle No Legendaries, No Mythicals, No Pseudos, No Static Encounters and No Fishing, and cycle Maximum BST. **Expected:** Those six legacy controls plus Town Catches, Alphabetlocke mode/letter, Allow Glitches, Gift Pokémon/Gift Slot Policy and In-Game Trades/Trade Slot Policy persist. Overworld Encounters must be absent, and Untamed wandering wilds must follow the normal area/catch rules automatically. With CORE → NUZLOCKE ON, supported wild-capture and fishing checks follow [Advanced Rules](GEN3_ADVANCED_RULES.md).
 - [ ] **M11a — Catch bans and encounter slots.** With FAILED ENCOUNTERS ON, attempt a prohibited wild capture on an unused route. **Expected:** No catch, accurate RUN JOURNAL > EVENT HISTORY message and no spent encounter slot. Catch an allowed wild Pokémon there; the slot is then consumed.
 - [ ] **M11b — Save and master switch.** Save/reload the selected bans; then disable CORE → NUZLOCKE and try a prohibited capture. **Expected:** Settings persist but native capture is allowed while master enforcement is OFF.
@@ -71,7 +70,7 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 - [ ] **M11j — Sleep Clause.** Enable Sleep Clause with Sleep Ban OFF. Sleep one opposing Pokémon, switch it out, then try sleeping a second. **Expected:** Second sleep fails until first wakes/is cured/faints. Rest does not consume the slot. Repeat for enemy-induced sleep on your party, Yawn delayed resolution, OFF/Nuzlocke-disabled behaviour and saved rule persistence.
 - [ ] **M12 — Save persistence.** Enable Nuzlocke, change one rule, save **in game**, restart and reopen the menu. **Expected:** Master switch and saved rule values persist.
 
-## A2. New CORE clauses (disposable saves; WIP)
+## A2. CORE gameplay integration (disposable saves; requires ROM validation)
 
 - [ ] **N01 — Catch naming (mod-only).** With CORE → NUZLOCKE ON and NICKNAME ON, catch a wild Pokémon using the normal unmodified Gen1Recomp engine. **Expected:** No nickname Yes/No question is displayed; native naming opens immediately.
 - [ ] **N01a — PC-bound capture.** Fill the party, catch a wild Pokémon, and attempt an empty/species-default nickname. **Expected:** Naming reopens; the catch cannot complete and the PC transfer message cannot finish until a custom nickname is confirmed.
@@ -90,11 +89,17 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 - [ ] **C03 — No survivors.** Wipe with only Eggs, dead/fainted or ineligible boxed Pokémon. **Expected:** Run fails; no Pokémon is revived or cloned.
 - [ ] **C04 — Recovery persistence.** Save and reload after C01. **Expected:** Rescued Pokémon exists exactly once, in the party, absent from its old box.
 
-**Known WIP limitation:** Unresolved gift/trade/Egg nicknames are tracked and can
-be renamed, but are not yet prevented from battling. All checks above need
-real game testing; passing a mocked Lua smoke does not certify them.
+**Known remaining limitation:** Unresolved gift/trade/Egg nicknames are tracked and can be renamed, but battle-use prevention is not yet complete for every acquisition source. All checks above need real game testing; passing a Lua smoke does not certify them.
 
-## Rule feedback and Rare Candy regression\n\nFollow **F01–F11** in [GEN3_FEEDBACK.md](GEN3_FEEDBACK.md), especially a capped Rare Candy from the overworld bag, cancelled catch reasons, EXP edging messages, and viewing long messages through RUN JOURNAL > EVENT HISTORY.\n\n## RANDOMIZER smoke (disposable save)\n\nRun **R01–R14** in [GEN3_RANDOMIZER.md](GEN3_RANDOMIZER.md): deterministic wild/fishing/trainer teams, seed editor, configuration locking, pool legality and ROM/story progression.\n\n## LEVELS smoke (disposable save)
+## Rule feedback and Rare Candy regression
+
+Follow **F01–F11** in [GEN3_FEEDBACK.md](GEN3_FEEDBACK.md), especially a capped Rare Candy from the overworld bag, cancelled catch reasons, EXP edging messages, and viewing long messages through RUN JOURNAL > EVENT HISTORY.
+
+## RANDOMIZER smoke (disposable save)
+
+Run **R01–R14** in [GEN3_RANDOMIZER.md](GEN3_RANDOMIZER.md): deterministic wild/fishing/trainer teams, seed editor, configuration locking, pool legality and ROM/story progression.
+
+## LEVELS smoke (disposable save)
 
 Run tests **L01–L10** in [GEN3_LEVELS.md](GEN3_LEVELS.md), including
 scope transitions, the first Gym, bank persistence through PC/reload and
@@ -102,7 +107,7 @@ Rare Candy consumption. Mocked CI is not a replacement for ROM tests.
 
 ## B. Encounter rules (save A, Nuzlocke ON)
 
-**Important:** `One Per Area` is currently per **native map ID**, not yet an official combined location. Some cave floors or Safari sections can have separate slots. Test ordinary routes first; do not interpret different floors as a fixed map bug yet.
+**Important:** `One Per Area` resolves a configured encounter-area identity from native map data using **AREA SPLITS**. Some caves, floor groups and Safari areas can share or split slots according to the selected policy. Check [Area Splits](GEN3_AREA_SPLITS.md) before reporting a grouping bug.
 
 - [ ] **E01 — First encounter.** On unused Route A, encounter the first wild Pokémon and use a Master Ball. **Expected:** Capture succeeds; Encounter Tracker identifies Route A as caught.
 - [ ] **E02 — Repeat encounter.** On that same map, encounter another wild Pokémon and throw a Master Ball. **Expected:** Capture fails despite Master Ball (Ball may still be consumed).
@@ -114,7 +119,7 @@ Rare Candy consumption. Mocked CI is not a replacement for ROM tests.
 - [ ] **E08 — Catch after a failed attempt.** Still on Route E with `FAILED ENC.: OFF`, make a successful first catch, then throw a Ball at a subsequent Pokémon. **Expected:** Successful capture consumes the slot; later capture fails.
 - [ ] **E09 — One Per Area OFF.** On any route, switch `ONE PER AREA: OFF`. **Expected:** Multiple wild Pokémon can be caught; switching it back ON restores per-area restrictions.
 - [ ] **E10 — Master switch OFF.** Switch `NUZLOCKE: OFF` and try catching on a normally locked route. **Expected:** Nuzlocke no longer blocks catching. Turn it back ON afterwards; prior run records should not be wiped.
-- [ ] **E11 — Tracker reflects outcomes.** Visit ENC TRACKER and NUZ STATUS. **Expected:** Claimed areas and catches distinguish caught / spent / still-open areas, and totals do not reset when entering another map.
+- [ ] **E11 — Tracker reflects outcomes.** Visit ENC TRACKER and RUN JOURNAL → RUN RULE DETAILS. **Expected:** Claimed areas and catches distinguish caught / spent / still-open areas, and totals do not reset when entering another map.
 - [ ] **E12 — Persist encountered areas.** Save in-game, restart, revisit a previously spent map with Nuzlocke ON. **Expected:** Capture remains restricted; the tracker retains entries.
 - [ ] **E13 — Trainer fights do not spend wild encounters.** Fight a trainer in a new area *before* any wild battle there. **Expected:** The area's first eligible wild catch is still available.
 
@@ -123,19 +128,19 @@ Rare Candy consumption. Mocked CI is not a replacement for ROM tests.
 - [ ] **D01 — Permadeath ON, faint event.** Enable Nuzlocke and Permadeath. Let exactly one Pokémon faint during a trainer battle while another remains alive. **Expected:** It stays fainted and unavailable during the battle; no immediate party-array removal that breaks forced switching.
 - [ ] **D02 — Revives denied in battle.** While that first Pokémon remains fainted and battle continues, try Revive (or Max Revive). **Expected:** Revival is refused.
 - [ ] **D03 — Post-battle retirement.** Finish the battle. **Expected:** Only the fainted Pokémon disappears from the native party; the surviving Pokémon remains valid.
-- [ ] **D04 — Graveyard details.** Open GRAVEYARD and NUZ STATUS. **Expected:** One death entry, a Pokémon name (nickname or species), readable species name and location (e.g. Pidgey / Route 1), correct level, no duplicates. Internal species/map IDs should not be the primary player-facing text.
+- [ ] **D04 — Graveyard details.** Open GRAVEYARD and RUN JOURNAL. **Expected:** One death entry, a Pokémon name (nickname or species), readable species name and location (e.g. Pidgey / Route 1), correct level, no duplicates. Internal species/map IDs should not be the primary player-facing text.
 - [ ] **D05 — Permadeath OFF.** On a *fresh second faint*, disable Permadeath but keep Nuzlocke ON. **Expected:** Pokémon remains in the party after battle, isn't recorded as dead, and native revival items are usable.
 - [ ] **D06 — Re-enable Permadeath.** Turn Permadeath back ON and faint another Pokémon. **Expected:** The next death is enforced normally; previous recorded deaths are retained.
 - [ ] **D07 — Nuzlocke OFF.** Disable the master switch, faint a Pokémon in battle. **Expected:** Native Pokémon faint/revive behaviour; no Nuzlocke deletion or new graveyard record.
-- [ ] **D08 — Restart after deaths.** Save/restart, inspect party, GRAVEYARD and NUZ STATUS. **Expected:** Removed party members stay removed, recorded deaths persist once, and enabled rule values persist.
+- [ ] **D08 — Restart after deaths.** Save/restart, inspect party, GRAVEYARD and RUN JOURNAL. **Expected:** Removed party members stay removed, recorded deaths persist once, and enabled rule values persist.
 
 ## D. Whiteout & run failure (save C: intentionally destructive)
 
-Do these on separate save copies. **PC Survivors Allowed is still [Soon]**; do not count lack of PC recovery as a newly introduced failure.
+Do these on separate save copies. **PC Survivors Allowed is implemented**; its native transfer and whiteout precedence must be tested. A failed run is terminal, so do not use valuable saves.
 
 - [ ] **W01 — Whiteout ON with PC reserves.** Keep a healthy Pokémon in the PC and intentionally wipe the whole battling party with `WHITEOUT FAILS: ON`. **Expected:** Nuzlocke run is marked LOST **despite** living Pokémon in the PC; normal game save is *not* automatically deleted.
 - [ ] **W02 — Lost run is locked.** After W01, revisit CORE. **Expected:** You cannot turn rule switches back on/off to reset the lost-run state.
-- [ ] **W03 — Whiteout OFF, no PC rescue yet.** On another save, disable `WHITEOUT FAILS`, leave `PC SURVIVORS` unavailable, then lose all party Pokémon. **Expected for current WIP:** An empty party still fails the run. Turning whiteout failure OFF **alone does not make PC rescue work**.
+- [ ] **W03 — Whiteout OFF, PC rescue comparison.** On one save, disable WHITEOUT FAILS and enable PC Survivors; lose the party while a healthy PC Pokémon exists. **Expected:** that existing survivor is moved to an empty party slot once. On a second save with PC Survivors OFF or no eligible survivor, an empty party cannot continue. WHITEOUT FAILS ON overrides PC rescue.
 - [ ] **W04 — PC box unchanged.** After a whiteout, inspect the PC/storage if the game permits it. **Expected:** Nuzlocke has not removed or marked otherwise healthy boxed Pokémon as dead.
 
 ## CLAUSES milestone — Dupes / Shiny exceptions
@@ -152,12 +157,12 @@ persistence, NUZ DEV resets and other editions.
   caught using an available exception, but a normal Pokémon may not.
 - [ ] **L04 — Allowance accounting:** failed Balls do not spend a Shiny Clause
   allowance; a successful exceptional capture does.
-- [ ] **L05 — [Soon] handling:** Egg and Forgiveness remain inert, Shiny Rate and Roamer are [WIP] and can be configured. Native shiny palettes/intro effects remain unchanged.
+- [ ] **L05 — Clauses working scopes.** Egg receipt/hatch claim modes, badge-earned/start Route Forgiveness tokens, Roamer slot and Shiny Rate can be configured and persist. Verify each native path. Ordinary Pokémon revival remains explicitly disabled; the native shiny artwork must remain correct.
 - [ ] **L06 — Development reset:** NUZ DEV's RESET CLAUSE COUNTS requires
   confirmation and resets the shiny allowance count and captured-species log
   without altering party, boxes or graveyard.
 
-## Roamer Clause (currently [WIP])
+## Roamer Clause (implemented; runtime certification required)
 
 Requires an active roaming legendary, so use a disposable late-game save.
 The Gen 3 engine emits `roamer.encountered` when supported, but the result
@@ -207,9 +212,7 @@ not something you can validate with a handful of normal encounters; use
   complete archive. **Expected:** It still shows species, level, nickname (if
   stored) and location, but does **not** offer approximate restoration.
 
-**Egg Encounter and Route Forgiveness remain [Soon].** It is a known pending
-feature—not a failure—that the UI cannot enable Egg counting or redeem
-Forgiveness Tokens yet.
+**Egg Encounter and Route Forgiveness are implemented for provenance, badge tokens and missed-route redemption.** Ordinary Pokémon revival with a Forgiveness token is not implemented; the separate developer-only full-archive restore is not part of this clause.
 
 ## Egg Encounter & Route Forgiveness
 
@@ -241,13 +244,13 @@ twelve-case checklist and exact [WIP] limitations.
 - [ ] **C02 — Gen 2 regression.** If you have Gold/Silver/Crystal configured, open its Nuzlocke UI. **Expected:** Established Gen 2 menu unaffected.
 - [ ] **C03 — Second Gen 3 edition.** Repeat **M01, E01–E03 and D01–D03** in another edition (ideally Emerald after FireRed). **Expected:** Same basic results; record the exact edition.
 - [ ] **C04 — Double battle stress test.** If convenient, faint one player Pokémon during a native double battle. **Expected:** Forced switching does not crash or shift the wrong party slot; death is recorded exactly once.
-- [ ] **C05 — Unsupported rules remain inert.** Inspect Nickname, First Rival Mercy, PC Survivors, Gifts, shiny-rate controls, Randomiser and other [Soon] items. **Expected:** They are visibly labelled pending and cannot claim active enforcement.
+- [ ] **C05 — Implemented versus unsupported controls.** Inspect Nickname, First Rival Mercy, PC Survivors, Gifts, Shiny Rate and Randomiser. **Expected:** implemented controls show live values and enforce their working paths; only explicitly unsupported individual options are marked inert. No Wonderlocke, obsolete Almanac, standalone NUZ NOTICES or Overworld Encounters toggle remains in the Gen 3 menu.
 
 ### Current known limitations (not automatic regressions)
 
-- Native map IDs are not yet grouped into canonical named areas; different floors can count separately.
+- Encounter areas use native map evidence with configurable **Area Splits**. Test floor/group policies per edition and with third-party maps.
 - Field revival routes and custom item-provider mods require separate review.
-- Early rival exception, nickname prompt enforcement, PC resurrection/recovery, full gift/static encounter handling, duplicate/shiny clauses and most randomiser options are **not yet implemented**.
+- Early rival mercy, catch naming, PC survivors, supported gifts/statics, Dupes/Shiny clauses and the Gen 3 randomiser are implemented. Remaining issues are live-ROM and third-party edge-case certification, not blanket unimplemented features.
 - Whiteout handling and Gen 3 special battle types (Safari, link/multi, scripted/tutor battles, Battle Frontier) need edition-specific certification.
 - The source repository's general legacy CI has outdated manifest assertions; the dedicated Gen 3 Lua smoke is a separate check.
 
