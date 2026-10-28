@@ -154,10 +154,12 @@ for _,token in ipairs({
     'readModule("gen3_run_party.lua")',
     'installRunPartyGuards()',
     'RunParty.addDenied(s,Core,session())',
-    'RunParty.gymDenial(loadState(),Core',
+    'RunParty.gymDenial(saved,Core',
     'RunParty.evoDenied(loadState(),Core',
     'Battle.start=guardedStart',
     'Evolution.targetSpecies=guardedTarget',
+    'Party.__nuzStatsGive=guardedGive',
+    'Battle.__nuzStatsStart=guardedStart',
     'Evolution.apply=guardedApply',
     'Party.giveMon=guardedGive',
     'Catching.storeCaught=guardedStore',
@@ -169,4 +171,8 @@ for _,token in ipairs({
 }) do
     assert(runtime:find(token,1,true),"missing Run/Party seam "..token)
 end
+assert(not runtime:find('Party.__nuzRunGive=',1,true),
+    "do not layer competing gift wrappers over Stats")
+assert(not runtime:find('Battle.__nuzRunStart=',1,true),
+    "do not layer competing battle wrappers over Stats")
 print("Gen3 Run/Party: gym composed cap, party PC/acquisition limit and evolutions PASS")
