@@ -38,7 +38,10 @@ Rest/self-induced sleep is exempt.
 **VARIANTS** now implements Type Locke OFF/MONO/DUO/TRI/QUAD/PENTA/HEXA
 with six conditionally visible type selectors, saved deterministic RANDOM
 types, and species eligibility checks for wilds (including Untamed),
-optional gifts and NPC trades. Catch Draft and Wonderlocke remain [Soon].
+optional gifts and NPC trades. **Catch Draft** is also implemented:
+successful wild catches establish unique type lanes, drafts persist,
+and optional gifts/trades must match already drafted types without
+filling new lanes. Wonderlocke remains [Soon].
 The remaining five advanced categories remain [Soon].
 See [Status Bans](GEN3_STATUS_BANS.md) and [Variants](GEN3_VARIANTS.md).
 The unimplemented WORLD and UI planning categories have been removed
