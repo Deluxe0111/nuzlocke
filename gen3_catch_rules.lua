@@ -252,7 +252,10 @@ return function()
     end
     function M.isGlitch(species,pokemon)
         local id=resolvedId(species,pokemon)
-        if not id or id<1 or id~=math.floor(id) then return true end
+        -- The catch-rate hook may lack a species ID even for a valid wild.
+        -- Unknown provenance is not proof of a glitch; never veto it.
+        if id==nil then return nil end
+        if id<1 or id~=math.floor(id) then return true end
         if not pokemon or type(pokemon.national)~="function" then
             return nil -- cannot judge without the live species registry
         end
