@@ -1,11 +1,9 @@
 -- Gen 3 terminal run-results UI: native 240x160 presentation,
--- plus 960x540 shareable PNG with real native Pokemon front sprites.
+-- plus a single dynamic-height results poster using native Pokemon sprites.
 return function()
     local M={isMenu=true}
     local ID="nuzlocke.gen3.results"
     local result,game,opts,stack,pages={},nil,{},nil,{}
-    local current,scroll,pageIndex=1,0,1
-    local lastExport=nil
     local function present(title,rows)
         pages[#pages+1]={title=title,rows=rows,index=1,scroll=0}
     end
@@ -95,137 +93,214 @@ return function()
             g.draw(pic.image,x+(90-w*scale)/2,y,0,scale,scale)
         end
     end
-    local function exportImage(mode,offset)
-        -- The mod sandbox exposes love.graphics / ImageData:encode but
-        -- explicitly DENIES love.filesystem. ImageData:encode with a
-        -- relative filename writes into the active LÖVE save directory.
-        -- Use the save root so no direct directory creation is needed.
+
+    -- A whole-run image, not six-Pokemon pages. Both the surviving party
+    -- and every recorded death are present, even after a failed run.
+    local WIDTH,EDGE,GAP=1200,42,14
+    local CARD_W,CARD_H=362,190
+    local ROW_STEP=204
+    local function layout()
+        local party=result.party or {}
+        local dead=result.graveyard or {}
+        local partyY=282
+        local partyRows=math.max(1,math.ceil(#party/3))
+        local gravesY=partyY+58+partyRows*ROW_STEP+30
+        local graveRows=math.max(1,math.ceil(#dead/3))
+        local height=gravesY+58+graveRows*ROW_STEP+68
+        return partyY,gravesY,height
+    end
+    function M.posterDimensions(record)
+        local previous=result
+        if record then result=record end
+        local _,_,height=layout()
+        if record then result=previous end
+        return WIDTH,height
+    end
+    local function clip(font,value,maxWidth)
+        local str=tostring(value or "")
+        if font and type(font.getWidth)=="function" then
+            if font:getWidth(str)<=maxWidth then return str end
+            while #str>0 and font:getWidth(str.."...")>maxWidth do
+                str=str:sub(1,-2)
+            end
+            return str.."..."
+        end
+        local maxChars=math.max(3,math.floor(maxWidth/8))
+        return #str>maxChars and str:sub(1,maxChars-3).."..." or str
+    end
+    local function exportImage()
+        -- Sandbox blocks love.filesystem. ImageData:encode(path) writes
+        -- into the LÖVE save directory without a filesystem permission.
         if not (love and love.graphics and love.graphics.newCanvas) then
             return false,"PNG EXPORT UNAVAILABLE"
         end
         local g=love.graphics
+        local party=result.party or {}
+        local graveyard=result.graveyard or {}
+        local partyY,gravesY,height=layout()
+        local limits=type(g.getSystemLimits)=="function"
+            and g.getSystemLimits() or nil
+        local maximum=type(limits)=="table"
+            and tonumber(limits.texturesize) or 8192
+        if WIDTH>maximum or height>maximum then
+            return false,"Poster exceeds this device's maximum image size"
+                .." ("..WIDTH.."x"..height..")."
+        end
         local pushed=false
         local ok,filename=pcall(function()
-            local list=entries(mode)
-            local canvas=g.newCanvas(960,540)
+            local canvas=g.newCanvas(WIDTH,height)
             g.push("all")
             pushed=true
             g.setCanvas(canvas)
             g.clear(.035,.06,.12,1)
-            local gold={.97,.78,.38}
             local accent=result.outcome=="VICTORY"
-                and {.18,.68,.49} or {.69,.29,.34}
-            local function color(rgb,a)
-                g.setColor(rgb[1],rgb[2],rgb[3],a or 1)
+                and {.18,.68,.49} or {.72,.30,.39}
+            local gold={.97,.78,.38}
+            local main=g.newFont(38)
+            local section=g.newFont(24)
+            local body=g.newFont(18)
+            local small=g.newFont(15)
+            local statFont=g.newFont(22)
+            local function color(rgb,alpha)
+                g.setColor(rgb[1],rgb[2],rgb[3],alpha or 1)
             end
-            local fontBig=g.newFont(33)
-            local font=g.newFont(17)
-            local small=g.newFont(14)
-            color(accent)
-            g.rectangle("fill",0,0,960,9)
-            color(gold);g.setFont(fontBig)
-            g.print(result.outcome=="VICTORY"
-                and "CHAMPION HALL OF FAME" or "IN MEMORIAM",38,26)
-            g.setFont(font)
-            g.setColor(.74,.83,.92,1)
-            g.print("TRAINER  "..text(result.trainer),42,78)
-            g.print("TIME "..text(result.playtime).."   BADGES "
-                ..text(result.badges).."   CAUGHT "..text(result.caught)
-                .."   LOST "..text(result.deaths),42,104)
-            for i=1,6 do
-                local mon=list[offset+i]
-                if mon then
-                    local col=(i-1)%3
-                    local rw=math.floor((i-1)/3)
-                    local x=35+col*304
-                    local y=155+rw*171
-                    g.setColor(.10,.16,.26,1)
-                    g.rectangle("fill",x,y,285,157,9,9)
-                    color(accent,.95)
-                    g.rectangle("fill",x,y,5,157)
-                    drawSprite(g,mon,x+12,y+10)
-                    g.setFont(font)
-                    g.setColor(1,1,1,1)
-                    g.print(text(mon.name):sub(1,21),x+112,y+18)
-                    g.setFont(small)
-                    g.setColor(.72,.80,.88,1)
-                    g.print(text(mon.speciesName):sub(1,23),x+112,y+46)
-                    g.print("LEVEL "..text(mon.level),x+112,y+69)
+            local function write(font,str,x,y,rgb,maxWidth)
+                g.setFont(font)
+                color(rgb or {1,1,1})
+                g.print(clip(font,str,maxWidth or WIDTH-2*EDGE),x,y)
+            end
+            local muted={.70,.80,.91}
+            local soft={.90,.94,1}
+            local function stat(label,value,col)
+                local x=EDGE+(col-1)*188
+                g.setColor(.10,.16,.25,1)
+                g.rectangle("fill",x,187,174,78,7,7)
+                write(small,label,x+12,198,muted,148)
+                write(statFont,value,x+12,221,soft,148)
+            end
+            local function card(mon,index,y0,dead)
+                local col=(index-1)%3
+                local row=math.floor((index-1)/3)
+                local x=EDGE+col*(CARD_W+GAP)
+                local y=y0+58+row*ROW_STEP
+                g.setColor(.10,.16,.26,1)
+                g.rectangle("fill",x,y,CARD_W,CARD_H,8,8)
+                color(dead and {.72,.30,.39} or {.18,.68,.49})
+                g.rectangle("fill",x,y,5,CARD_H)
+                drawSprite(g,mon,x+13,y+20)
+                write(body,mon.name or mon.speciesName or "Pokemon",
+                    x+110,y+15,soft,240)
+                write(small,mon.speciesName or "Unknown",
+                    x+110,y+43,muted,238)
+                write(small,"LEVEL "..text(mon.level),x+110,y+65,muted)
+                if mon.hp~=nil and mon.maxHp~=nil then
+                    write(small,"HP "..text(mon.hp).."/"..text(mon.maxHp),
+                        x+110,y+86,muted)
+                end
+                local a,d=mon.attack,mon.defense
+                if a~=nil or d~=nil then
+                    write(small,"ATK "..text(a).."  DEF "..text(d),
+                        x+15,y+118,muted,335)
+                end
+                if mon.spAttack~=nil or mon.spDefense~=nil
+                    or mon.speed~=nil then
+                    write(small,"SPA "..text(mon.spAttack)
+                        .."  SPD "..text(mon.spDefense)
+                        .."  SPE "..text(mon.speed),
+                        x+15,y+139,muted,335)
+                elseif a==nil and d==nil then
+                    write(small,"Stats not recorded",x+15,y+139,muted)
+                end
+                if dead then
                     if mon.area then
-                        g.print("ATK "..text(mon.attack).."  DEF "
-                            ..text(mon.defense),x+112,y+92)
-                        g.print(text(mon.area):sub(1,29),x+12,y+116)
-                    else
-                        g.print("HP "..text(mon.hp).."/"..text(mon.maxHp),
-                            x+112,y+92)
+                        write(small,mon.area,x+15,y+160,muted,168)
                     end
                     if mon.cause then
-                        g.print(text(mon.cause):sub(1,31),x+12,y+136)
-                    else
-                        g.print("ATK "..text(mon.attack).." / DEF "
-                            ..text(mon.defense),x+112,y+115)
+                        write(small,mon.cause,x+190,y+160,muted,158)
+                    end
+                else
+                    if mon.ability then
+                        write(small,"ABILITY "..text(mon.ability),
+                            x+15,y+160,muted,330)
                     end
                 end
             end
-            g.setFont(small)
-            color(gold)
-            g.print("NUZLOCKE  //  GEN 3",38,515)
-            g.setColor(.62,.7,.8,1)
-            g.print(text(result.date),750,515)
+            -- Header and all meaningful run metrics.
+            color(accent)
+            g.rectangle("fill",0,0,WIDTH,9)
+            write(main,result.outcome=="VICTORY"
+                and "CHAMPION HALL OF FAME" or "IN MEMORIAM",
+                EDGE,26,gold)
+            write(body,"TRAINER "..text(result.trainer),
+                EDGE,91,soft,520)
+            write(small,(text(result.version).."  /  "
+                ..text(result.date)),EDGE,123,muted,750)
+            write(small,("RESULT: "..text(result.reason)),
+                EDGE,151,muted,WIDTH-2*EDGE)
+            stat("PLAY TIME",text(result.playtime),1)
+            stat("BADGES",text(result.badges),2)
+            stat("CAUGHT",text(result.caught),3)
+            stat("FAINTED",text(result.deaths),4)
+            stat("AREAS",text(result.encounters),5)
+            stat("SLOTS USED",text(result.spent),6)
+
+            write(section,"FINAL PARTY  ("..#party..")",
+                EDGE,partyY,gold)
+            if #party==0 then
+                write(body,"No Pokemon in the party at run end.",
+                    EDGE+12,partyY+99,muted)
+            else
+                for i,mon in ipairs(party) do
+                    card(mon,i,partyY,false)
+                end
+            end
+
+            write(section,"IN MEMORIAM  ("..#graveyard..")",
+                EDGE,gravesY,gold)
+            if #graveyard==0 then
+                write(body,"No fallen Pokemon recorded.",
+                    EDGE+12,gravesY+99,muted)
+            else
+                for i,mon in ipairs(graveyard) do
+                    card(mon,i,gravesY,true)
+                end
+            end
+            color(accent)
+            g.rectangle("fill",EDGE,height-53,WIDTH-2*EDGE,2)
+            write(small,"NUZLOCKE  //  GEN 3",EDGE,height-39,gold)
+            write(small,"SHINY EXCEPTIONS: "
+                ..text(result.shinyExceptions),440,height-39,muted,320)
+            write(small,text(result.date),865,height-39,muted,285)
             g.setCanvas()
             g.pop()
             pushed=false
-            local name=tostring(result.trainer):gsub("[^%w%-_]","_")
-            local suffix=os.date and os.date("!%Y%m%d_%H%M%S") or "run"
-            local rel="nuzlocke_"..name.."_"..result.outcome
-                .."_"..suffix.."_"..tostring(offset+1)..".png"
-            local data=canvas:newImageData()
-            -- This ImageData API is the sandbox-supported export path.
-            -- A filename writes a genuine PNG into the LÖVE save root;
-            -- do not try to reach love.filesystem through a sandbox mod.
-            data:encode("png",rel)
+            local name=tostring(result.trainer or "TRAINER")
+                :gsub("[^%w%-_]","_")
+            local suffix=os.date and os.date("!%Y%m%d_%H%M%S")
+                or "run"
+            local rel="nuzlocke_"..name.."_"..text(result.outcome)
+                .."_"..suffix.."_FULL.png"
+            canvas:newImageData():encode("png",rel)
             return rel
         end)
         if ok then return true,filename end
-        -- Restore the graphics stack even if an external sprite renderer
-        -- throws during a PNG render. Never strand the native game on an
-        -- offscreen Canvas after a failed export.
         if pushed then pcall(g.pop) end
         pcall(g.setCanvas)
         return false,tostring(filename)
     end
-    local function exportPage()
-        local mode=result.outcome=="VICTORY" and "party" or "graveyard"
-        local list=entries(mode)
-        if #list==0 then
-            present("SHARE IMAGE",{row("NO RECORDED POKEMON")})
-            return
+    local function exportFullRun()
+        local ok,filename=exportImage()
+        local rows={}
+        if ok then
+            rows[#rows+1]=row("COMPLETE RUN PNG SAVED")
+            rows[#rows+1]=row("LOVE SAVE FOLDER")
+            rows[#rows+1]=row(filename)
+            rows[#rows+1]=row("PARTY + GRAVEYARD + STATS")
+        else
+            rows[#rows+1]=row("EXPORT FAILED")
+            rows[#rows+1]=row(tostring(filename):sub(1,90))
         end
-        local total=math.max(1,math.ceil(#list/6))
-        pageIndex=math.min(pageIndex,total)
-        local function shareRows()
-            return {
-                row("PAGE "..pageIndex.." / "..total,function()
-                    pageIndex=pageIndex%total+1
-                    active().rows=shareRows()
-                end),
-                row("SAVE PAGE AS PNG",function()
-                    local ok,path=exportImage(mode,(pageIndex-1)*6)
-                    local rows={}
-                    if ok then
-                        rows[#rows+1]=row("PNG SAVED")
-                        rows[#rows+1]=row("LOVE SAVE FOLDER")
-                        rows[#rows+1]=row(path)
-                    else
-                        rows[#rows+1]=row("EXPORT FAILED")
-                        rows[#rows+1]=row(tostring(path):sub(1,65))
-                    end
-                    present("SHARE RESULT",rows)
-                end),
-            }
-        end
-        present("SHARE "..(mode=="party" and "PARTY" or "MEMORIAL"),
-            shareRows())
+        present("SHARE RESULT",rows)
     end
     local function quit()
         local fn=opts and opts.onQuit
@@ -236,7 +311,6 @@ return function()
     end
     local function home()
         pages={}
-        local rosterMode=result.outcome=="VICTORY" and "party" or "graveyard"
         local rows={
             row("RESULT: "..text(result.outcome)),
             row("STATS / PLAY TIME",stats),
@@ -244,8 +318,7 @@ return function()
             row("GRAVEYARD: "..text(result.deaths),function()
                 roster("graveyard")
             end),
-            row("SHARE "..(rosterMode=="party" and "PARTY" or "MEMORIAL")
-                .." PNG",exportPage),
+            row("SHARE COMPLETE RUN PNG",exportFullRun),
         }
         if result.saveError then
             rows[#rows+1]=row("AUTOSAVE FAILED")
@@ -276,7 +349,6 @@ return function()
         if type(record)~="table" then return false end
         result,game,opts=record,g,options or {}
         stack=require("src.ui.game3.stack")
-        pageIndex=1
         home()
         stack.push(ID,M,{hideBelow=true,fullscreen=true})
         return true

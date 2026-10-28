@@ -49,7 +49,7 @@ native write again. Ensure that write is successful before exiting.
 When the engine's Hall of Fame screen **closes after genuine induction**
 (`session.game_cleared` and at least one native HoF entry present), a
 Nuzlocke run creates a permanent **VICTORY** snapshot and saves it through
-`game:writeSave()`. Merely winning an ordinary trainer fight does not
+`game:saveGame()`. Merely winning an ordinary trainer fight does not
 count, and the engine keeps control over credits and normal HoF effects.
 
 The victory results screen contains:
@@ -72,32 +72,37 @@ Starting a genuinely new game starts a fresh run record.
 
 ## PNG export
 
-Choose **SHARE PARTY PNG** on victory, or **SHARE MEMORIAL PNG** after a
-failed run. Each 960 × 540 PNG is a standalone share card with trainer,
-outcome, time, badges, encounters/deaths, six Pokémon per page and native
-front artwork, species, names, levels and selected stats/details.
+Select **SHARE COMPLETE RUN PNG** from the final results screen, whether
+the outcome is VICTORY, FAILED or FORFEIT. The menu saves **one complete
+poster** rather than splitting the graveyard into pages.
 
-Graveyards larger than six Pokémon expose a **PAGE N / M** control.
-Select **SAVE PAGE AS PNG** to export each page independently.
+The image contains all three sections on a single canvas:
 
-PNG files are saved in the **root of the game’s LÖVE save folder**:
+1. **RUN STATISTICS:** trainer, result, region, date, time played,
+   badges, catches, fallen Pokémon, encountered areas, used slots,
+   run-ending reason, shiny exceptions.
+2. **FINAL PARTY:** all Pokémon remaining in the party when the
+   run finished, with their native front sprites, names, species,
+   level, HP and available combat stats.
+3. **IN MEMORIAM:** the **entire** graveyard, also with sprites,
+   nicknames, species, levels, recorded combat stats, areas and
+   causes of death. Empty sections are explicitly labelled.
 
-`<LÖVE save directory>/nuzlocke_<trainer>_<result>_<date>_<page>.png`
+The poster is 1200 pixels wide, with **height automatically calculated**
+from the total Pokémon count. Three Pokémon cards are drawn per row.
+Unlike the previous exporter, there is **no PAGE N/M menu** and the
+player does not have to export multiple PNGs for an eight-Pokémon
+graveyard. Missing data is labelled instead of inventing statistics.
 
-The game’s mod sandbox does **not** allow access to `love.filesystem`.
-The PNG export therefore uses the sanctioned
-`ImageData:encode("png", filename)` path, which saves directly into
-the game’s writable LÖVE directory without creating folders.
+The PNG goes directly into the game's **LÖVE save directory**:
 
-The popup confirms the filename. Players can then attach that PNG to
-Discord, forum posts or social media. The mod does **not** automatically
-upload private player data or images to any external service. Export
-requires an active LÖVE graphics/filesystem context and native ROM
-sprite assets; when a sprite is unavailable, the textual record still
-exports. In headless tests the graphics functionality is stubbed.
+`nuzlocke_<trainer>_<result>_<date>_FULL.png`
 
-This is an independently generated results-card PNG, not a full-window
-screenshot or a modification of the actual Hall of Fame ROM scene.
+The mod sandbox blocks `love.filesystem`, so the PNG is saved through
+the supported `ImageData:encode("png", filename)` API.
+Nothing is uploaded to an external site. If an extremely large
+graveyard would exceed the current GPU's maximum texture size, the
+export reports a clear error rather than silently truncating deaths.
 
 ## Compatibility / caveats
 
@@ -135,9 +140,10 @@ screenshot or a modification of the actual Hall of Fame ROM scene.
   the final six-Pokémon team and continue through native postgame.
 - [ ] **ER07** Repeat for Ruby/Sapphire/Emerald. Verify native credits,
   flags and Hall of Fame save state are not suppressed.
-- [ ] **ER08** Export victory party PNG and failed memorial PNG, verify
-  filename, full 960×540 dimensions, native sprites and readable text.
-  Check multi-page memorials with more than six deaths.
+- [ ] **ER08** Export the single complete run poster for victory
+  and loss. Verify its 1200-pixel width and dynamic height, readable
+  summary, final party, and **all** graveyard Pokémon (including
+  eight or more deaths) in the same exported file.
 - [ ] **ER09** Load an old `failed=true` save without `finalResult`;
   confirm a retrospective memorial appears without inventing metadata.
 - [ ] **ER10** Save after victory, reload and use END RUN to inspect the
@@ -146,7 +152,8 @@ screenshot or a modification of the actual Hall of Fame ROM scene.
 ## Automated tests
 
 - `tests/gen3_run_results_smoke.lua` exercises policy snapshots, loss
-  lock, victory continuation, record navigation and PNG encoding.
+  lock, victory continuation, record navigation, the single poster
+  export, native sprites, the full graveyard and run statistics.
 - `tests/gen3_run_results_runtime_smoke.lua` exercises the actual
   Gen 3 runtime callback wiring: End Run confirmation, native
   `saveGame`, failed CONTINUE reload, battle whiteout and HoF close.

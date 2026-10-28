@@ -105,35 +105,44 @@ assert(monScreen.title=="POKEMON RECORD"
     and table.concat(monScreen.rows," "):find("Critical hit",1,true))
 press("b");press("b")
 assert(View.model().title=="NUZ RUN RESULTS")
--- Mock Love graphics at the point of action. PNG export is a concrete
--- per-page 960x540 image, not a screenshot of the native 240x160 window.
+
+-- One dynamic-height PNG contains BOTH rosters and all run statistics.
+-- Fail with any pagination controls, dropped graveyard members or missing
+-- current-party Pokemon. Mock the real restricted mod sandbox.
 local savedPng=nil
-local colorArgs={}
+local dimensions={}
+local allText={}
 local drawnSprites=0
+local exportCount=0
 local gfx={
     newCanvas=function(w,h)
-        assert(w==960 and h==540)
+        dimensions={w,h}
+        assert(w==1200 and h>540,"full poster must be dynamic, not a page")
         return {newImageData=function()
             return {encode=function(_,fmt,path)
                 assert(fmt=="png")
                 savedPng=path
+                exportCount=exportCount+1
             end}
         end}
     end,
-    newFont=function()return {} end,
+    newFont=function(size)
+        return {getWidth=function(_,s)return #s*size*.52 end}
+    end,
+    getSystemLimits=function()return {texturesize=8192} end,
     push=function()end,
     pop=function()end,
     setCanvas=function()end,
     clear=function()end,
-    setColor=function(...)colorArgs={...} end,
+    setColor=function()end,
     setFont=function()end,
     rectangle=function()end,
-    print=function()end,
+    print=function(s)
+        allText[#allText+1]=s
+    end,
     draw=function()drawnSprites=drawnSprites+1 end,
 }
 local loveBefore=love
--- Match the real mod sandbox: the love.filesystem member throws on
--- access. Encoding a PNG through ImageData is permitted by that sandbox.
 love={graphics=gfx}
 setmetatable(love,{__index=function(_,key)
     if key=="filesystem" then
@@ -141,26 +150,60 @@ setmetatable(love,{__index=function(_,key)
     end
 end})
 package.loaded["src.core.game3.pokemon"]={
-    monFrontPic=function()
-        return {image={},w=64,h=64}
-    end,
+    monFrontPic=function()return {image={},w=64,h=64} end,
     moveName=function(id)return "MOVE "..id end,
 }
-assert(selectPrefix("SHARE MEMORIAL PNG"))
-assert(View.model().title=="SHARE MEMORIAL")
-assert(selectPrefix("SAVE PAGE AS PNG"))
+-- The actual test case has eight deaths; the last card MUST appear
+-- in the same export alongside the current party and summary.
+for i=2,8 do
+    local copy={}
+    for k,v in pairs(failed.graveyard[1]) do copy[k]=v end
+    copy.name="Memory"..i
+    copy.speciesName="Species"..i
+    copy.level=10+i
+    failed.graveyard[#failed.graveyard+1]=copy
+end
+failed.deaths=#failed.graveyard
+assert(View.open(game,failed))
+local w,h=View.posterDimensions(failed)
+assert(w==1200 and h>1000,"8 memorial entries need a taller poster")
+assert(View.model().rows[5]=="SHARE COMPLETE RUN PNG")
+assert(selectPrefix("SHARE COMPLETE RUN PNG"))
 assert(View.model().title=="SHARE RESULT")
 assert(savedPng and savedPng:match("^nuzlocke_")
-    and savedPng:find(".png",1,true) and drawnSprites>=1,
-    "export must produce a shareable PNG in LÖVE save directory")
-press("b");press("b")
+    and savedPng:match("_FULL%.png$")
+    and exportCount==1 and drawnSprites==9,
+    "single share image must include 1 party + all 8 fallen Pokemon")
+local rendered=table.concat(allText," ")
+for _,expected in ipairs({
+    "FINAL PARTY", "IN MEMORIAM", "Shell", "Pyro",
+    "Memory2", "Memory3", "Memory4", "Memory5", "Memory6",
+    "Memory7", "Memory8", "PLAY TIME", "BADGES",
+    "CAUGHT", "FAINTED", "AREAS", "SLOTS USED",
+}) do
+    assert(rendered:find(expected,1,true),
+        "whole-run PNG omitted "..expected)
+end
+assert(not rendered:find("ATK ?",1,true),
+    "missing stats should be labelled, not filled with question marks")
+press("b")
 assert(selectPrefix("QUIT TO TITLE"))
 assert(game.quit==true)
 View.close()
 assert(not View.isOpen())
+
+-- Victories should still show the graveyard and party together.
 assert(View.open(game,win))
 local winning=View.model()
 assert(winning.outcome=="VICTORY")
+local previous=exportCount
+allText={}
+drawnSprites=0
+assert(selectPrefix("SHARE COMPLETE RUN PNG"))
+assert(exportCount==previous+1)
+assert(drawnSprites==2,
+    "Champion poster must show living party plus fallen Pokemon")
+press("b")
 assert(selectPrefix("CONTINUE ADVENTURE"))
 assert(not View.isOpen() and game.quit==true,
     "victory continue must close the result overlay without quitting")
