@@ -46,10 +46,12 @@ package.loaded["src.core.game3.battle.ui"]={
     push=function(line) battleText[#battleText+1]=line end,
 }
 local secondaryCalls={flinch=0,trap=0,stats=0}
+local nativeStatusCalls={}
 local nativeSecondary={
     set=function(_,effect)
         if effect=="FLINCH" then secondaryCalls.flinch=secondaryCalls.flinch+1 end
         if effect=="WRAP" then secondaryCalls.trap=secondaryCalls.trap+1 end
+        nativeStatusCalls[effect]=(nativeStatusCalls[effect] or 0)+1
         return true
     end,
     changeStat=function(_,target,stat,delta)
@@ -64,12 +66,33 @@ package.loaded["src.core.game3.battle.effect_ctx"]={
     current=function() return effectSource end,
 }
 local nativeEffects={
-    run=function(id,_,user)
+    run=function(id,_,user,target)
         if id=="EXP_MINIMIZE_EFFECT" then user.minimized=true end
+        if id=="EXP_YAWN_EFFECT" then target.expYawnTurns=2 end
         return true
     end,
 }
 package.loaded["src.core.game3.battle.effects.init"]=nativeEffects
+local nativeStatus={
+    yawn=function(ctx)
+        ctx.target.expYawnTurns=2
+        return true
+    end,
+}
+package.loaded["src.core.game3.battle.effects.status"]=nativeStatus
+local nativeAdapter={
+    new=function()
+        return {
+            applyStatus=function(self,target,status,source)
+                target.status=status;return true
+            end,
+            applyConfusion=function(self,target)
+                target.confusionTurns=3;return true
+            end,
+        }
+    end,
+}
+package.loaded["src.core.game3.battle.adapter"]=nativeAdapter
 package.loaded["src.import.gba.map_sections_extract"]={
     getInfo=function(_,map) return {
         resolved=true,
@@ -409,6 +432,76 @@ end
 assert(battleRules.setRule("evasion_clause",false))
 assert(core.setRule("nuzlocke_enabled",false))
 
+-- STATUS BANS: primary/secondary effect suppression, direct ability
+-- status transactions, delayed Yawn and Rest self-sleep.
+local statusRules=assert(mod.exports.gen3_status_bans)
+assert(core.setRule("nuzlocke_enabled",true))
+map("FR_TEST_STATUS_BANS")
+local sourcePlayer={side="player"}
+local sourceEnemy={side="enemy"}
+local targetPlayer={side="player"}
+local targetEnemy={side="enemy"}
+assert(statusRules.setRule("status_move_scope",1))
+local composedSet,composedRun=nativeSecondary.set,nativeEffects.run
+map("FR_STATUS_GUARD_REENTRY_1")
+map("FR_STATUS_GUARD_REENTRY_2")
+assert(nativeSecondary.set==composedSet and nativeEffects.run==composedRun,
+    "re-entering maps must not stack battle and status guard wrappers")
+assert(not nativeSecondary.set({user=sourcePlayer,target=targetEnemy},
+    "PARALYSIS",true,false,false))
+assert(not nativeSecondary.set({user=sourcePlayer,target=targetEnemy},
+    "BURN",false,false,false))
+assert(nativeSecondary.set({user=sourceEnemy,target=targetPlayer},
+    "FREEZE",false,false,false))
+assert(nativeStatusCalls.PARALYSIS==nil and nativeStatusCalls.BURN==nil
+    and nativeStatusCalls.FREEZE==1,
+    "status guard must prevent native primary and secondary status mutation")
+local adapter=nativeAdapter.new()
+assert(adapter:applyStatus(targetPlayer,"PSN",sourcePlayer)==false,
+    "direct ability inflict must respect SELF source scope")
+assert(targetPlayer.status==nil)
+assert(adapter:applyStatus(targetPlayer,"PSN",sourceEnemy)==true
+    and targetPlayer.status=="PSN")
+local resting={side="player"}
+assert(adapter:applyStatus(resting,"SLP",resting)==true,
+    "self-inflicted Rest sleep must still be legal")
+assert(resting.status=="SLP")
+local yawnVictim={side="enemy"}
+local fakeAdapter={sayFail=function()end}
+assert(nativeEffects.run("EXP_YAWN_EFFECT",
+    fakeAdapter,sourcePlayer,yawnVictim)==true)
+assert(yawnVictim.expYawnTurns==nil,
+    "blocked Yawn must never schedule deferred sleep")
+assert(nativeStatus.yawn({
+    adapter=fakeAdapter,user=sourcePlayer,target=yawnVictim
+})==nil)
+assert(yawnVictim.expYawnTurns==nil)
+assert(statusRules.setRule("status_move_scope",0))
+assert(statusRules.setRule("status_sleep_scope",2))
+assert(nativeEffects.run("EXP_YAWN_EFFECT",
+    fakeAdapter,sourcePlayer,yawnVictim)==true)
+assert(yawnVictim.expYawnTurns==2)
+assert(yawnVictim._nuzYawnSource=="player",
+    "allowed Yawn must retain source side until its delayed transaction")
+assert(statusRules.setRule("status_sleep_scope",1))
+assert(adapter:applyStatus(yawnVictim,"SLP",yawnVictim)==false,
+    "delayed Yawn cannot bypass newly enabled source-side Sleep Ban")
+assert(yawnVictim.status==nil)
+assert(statusRules.setRule("status_sleep_scope",0))
+assert(adapter:applyConfusion(targetEnemy,3,sourcePlayer)==true)
+assert(targetEnemy.confusionTurns==3)
+assert(statusRules.setRule("status_confusion_scope",1))
+local freshTarget={side="enemy"}
+assert(adapter:applyConfusion(freshTarget,3,sourcePlayer)==false
+    and freshTarget.confusionTurns==nil)
+assert(core.setRule("nuzlocke_enabled",false))
+assert(nativeSecondary.set({user=sourcePlayer,target=targetEnemy},
+    "PARALYSIS",true,false,false))
+assert(core.setRule("nuzlocke_enabled",true))
+assert(statusRules.setRule("status_confusion_scope",0))
+assert(statusRules.setRule("status_move_scope",0))
+assert(core.setRule("nuzlocke_enabled",false))
+
 -- Menu exposes an actual PLAYSTYLES category and writes live state.
 local start=hooks["ui.start_menu.items"](function(_,items)return items end,g,{})
 assert(start[#start].label=="NUZ MENU")
@@ -486,14 +579,40 @@ assert(advanced.title=="ADVANCED RULES"
     "Advanced Rules must contain exactly the nine requested categories")
 for i, name in ipairs(expectedAdvanced) do
     assert(advanced.rows[i]==((name=="CATCH RULES"
-        or name=="BATTLE CLAUSES") and name or "[Soon] "..name),
+        or name=="BATTLE CLAUSES"
+        or name=="STATUS BANS") and name or "[Soon] "..name),
         "advanced category "..i.." should reflect real feature readiness")
     press("a")
     local child=mod.exports.gen3_menu.model()
     assert(child.title==name and #child.rows>0,
         "advanced category must open its original rules")
-    assert(child.rows[1]:find("[Soon]",1,true),
-        "unsupported rows must stay read-only even in an active category")
+    if name~="STATUS BANS" then
+        assert(child.rows[1]:find("[Soon]",1,true),
+            "unsupported rows must stay read-only even in an active category")
+    end
+    if name=="STATUS BANS" then
+        assert(child.rows[1]=="No Status Moves: OFF"
+            and child.rows[2]=="Paralysis: OFF"
+            and child.rows[3]=="Confusion: OFF"
+            and child.rows[4]=="Sleep Ban: OFF"
+            and child.rows[5]=="Poison/Toxic: OFF"
+            and child.rows[6]=="Burn Ban: OFF"
+            and child.rows[7]=="Freeze: OFF"
+            and child.rows[8]=="[Soon] Sleep Clause",
+            "six status bans + synchronising parent, Sleep Clause stays Soon")
+        press("a")
+        local parentActive=mod.exports.gen3_menu.model()
+        assert(parentActive.rows[1]=="No Status Moves: SELF"
+            and parentActive.rows[2]=="[Soon] Sleep Clause"
+            and #parentActive.rows==3,
+            "parent status scope hides redundant child toggles")
+        assert(statusRules.getRule("status_poison_scope")==1)
+        press("a");press("a");press("a") -- ENEMY, ALL, OFF
+        assert(mod.exports.gen3_menu.model().rows[1]=="No Status Moves: OFF"
+            and mod.exports.gen3_menu.model().rows[8]=="[Soon] Sleep Clause")
+        assert(statusRules.getRule("status_poison_scope")==0)
+        for k=1,7 do press("down") end
+    end
     if name=="BATTLE CLAUSES" then
         assert(child.rows[1]=="[Soon] OHKO Clause"
             and child.rows[2]=="Flinch Clause: OFF"

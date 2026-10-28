@@ -11,6 +11,8 @@ return function(mod, api)
     local CatchRules = assert(api.catchRules, "Gen 3 menu needs CATCH RULES policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
+    local StatusBans = assert(api.statusBans,
+        "Gen 3 menu needs STATUS BANS policy")
     local Playstyles = assert(api.playstyles, "Gen 3 menu needs PLAYSTYLES policy")
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
     local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
@@ -727,7 +729,60 @@ return function(mod, api)
         return rows
     end
 
+    local function statusBanRows(category)
+        local rows={}
+        local saved=state()
+        local hideChildren=StatusBans.childrenHidden(saved)
+        for _,entry in ipairs(category.rules) do
+            local key,label=entry[1],entry[2]
+            local currentValue=StatusBans.get(saved,key)
+            if currentValue==nil then
+                rows[#rows+1]=row(label,"soon",function()
+                    disabledFeature(label,key)
+                end)
+            elseif not (hideChildren and key~="status_move_scope") then
+                rows[#rows+1]=row(label..": "..
+                    StatusBans.label(saved,key),nil,function()
+                    local nextState=state()
+                    local value=StatusBans.next(nextState,key)
+                    local ok,reason=StatusBans.set(nextState,key,value)
+                    if not ok then
+                        info("STATUS BAN UNAVAILABLE",{tostring(reason)})
+                        return
+                    end
+                    api.setState(nextState)
+                    current().rows=statusBanRows(category)
+                    if current().index>#current().rows then
+                        current().index=#current().rows
+                    end
+                end)
+            end
+        end
+        rows[#rows+1]=row("  DETAILS: STATUS",nil,function()
+            info("STATUS BANS HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "OFF: NO BAN",
+                "SELF: CAUSED BY YOU",
+                "ENEMY: CAUSED BY FOE",
+                "ALL: BOTH SIDES",
+                "PARENT SYNCS ALL SIX",
+                "PARENT ON HIDES CHILDREN",
+                "PARENT OFF CLEARS SIX",
+                "BANS BLOCK STATUS ONLY",
+                "DAMAGE IS UNAFFECTED",
+                "PARALYSIS / CONFUSION",
+                "SLEEP / POISON / TOXIC",
+                "BURN / FREEZE",
+                "SELF REST: ALLOWED",
+                "YAWN: BLOCKS DROWSY",
+                "SLEEP CLAUSE: [SOON]",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
+        if category.title == "STATUS BANS" then return statusBanRows(category) end
         if category.title == "BATTLE CLAUSES" then
             return battleClauseRows(category)
         end
@@ -755,6 +810,7 @@ return function(mod, api)
         return c.title == "CORE" or c.title == "CLAUSES"
             or c.title == "CATCH RULES"
             or c.title == "BATTLE CLAUSES"
+            or c.title == "STATUS BANS"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end

@@ -23,8 +23,11 @@ See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
 **BATTLE CLAUSES** now exposes Flinch, Trap, No Setup Moves, Evasion
 Clause, Accuracy Drops and Other Stat Drops as six working effect-level
 restrictions (see [Battle Clauses](GEN3_BATTLE_CLAUSES.md)).
-OHKO Clause remains [Soon], and the other seven advanced categories
-remain [Soon].
+OHKO Clause remains [Soon].
+**STATUS BANS** adds seven working controls (No Status Moves bulk parent,
+and six individual status scopes), with Sleep Clause still [Soon].
+The remaining six advanced categories remain [Soon].
+See [Status Bans](GEN3_STATUS_BANS.md).
 The unimplemented WORLD and UI planning categories have been removed
 from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
 

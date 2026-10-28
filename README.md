@@ -24,7 +24,7 @@ The Generation 3 randomiser works independently of the master Nuzlocke challenge
 | **PLAYSTYLES** | **Shiny Nuzlocke:** catch only shinies; **Hardcore Nuzlocke:** strict encounters/permadeath, SET style, no battle bag items except Balls, and Champion-level caps. Both modes can be combined. |
 | **LEVELS** | Gym / Elite Four / Champion / Postgame level-cap scopes; optional banked EXP Edging |
 | **RANDOMIZER** | Seeded wild Pokémon (grass, water and fishing) and trainer teams; presets, species-generation filters and optional BST balancing |
-| **ADVANCED RULES** | **CATCH RULES** has six enforced capture/field restrictions. **BATTLE CLAUSES** adds six effect-level rules: Flinch, Trap, No Setup, Evasion, Accuracy Drops and Other Stat Drops, with SELF/ENEMY/ALL scopes where applicable. OHKO and other unported options remain **[Soon]**. |
+| **ADVANCED RULES** | **CATCH RULES** has six enforced capture/field restrictions. **BATTLE CLAUSES** adds six effect-level rules: Flinch, Trap, No Setup, Evasion, Accuracy Drops and Other Stat Drops. **STATUS BANS** now adds a No Status Moves parent and six individual bans for Paralysis, Confusion, Sleep, Poison/Toxic, Burn and Freeze. Scopes are SELF/ENEMY/ALL; OHKO and Sleep Clause remain **[Soon]**. |
 | **Player tools** | Encounter Tracker, Graveyard, Nickname Tasks, Nuz Dev testing tools and a persistent NUZ NOTICES history |
 
 Unavailable Gen 1/2 rules are shown as **[Soon]** in Generation 3 rather than silently enabled. The obsolete Gen 3 **WORLD** and **UI** planning categories are hidden; Generation 1/2 menus are unaffected. Some implemented features still require edition-specific game testing; for example, acquiring an unnamed gift Pokémon is tracked but is not necessarily blocked from battle.
@@ -50,6 +50,7 @@ See [Gen 3 Randomiser documentation](docs/GEN3_RANDOMIZER.md) for the exact beha
 | Encounter clauses, Eggs and Forgiveness | [Clauses](docs/GEN3_CLAUSES.md) · [Eggs and Forgiveness](docs/GEN3_EGGS_FORGIVENESS.md) |
 | Advanced Catch Rules and exact supported bans | [Advanced Rules](docs/GEN3_ADVANCED_RULES.md) |
 | Battle Clauses and per-side effect enforcement | [Battle Clauses](docs/GEN3_BATTLE_CLAUSES.md) |
+| Status Bans and parent/child sync | [Status Bans](docs/GEN3_STATUS_BANS.md) |
 | Level caps and EXP Edging | [LEVELS](docs/GEN3_LEVELS.md) |
 | Randomiser including Untamed overworld integration | [RANDOMIZER](docs/GEN3_RANDOMIZER.md) |
 | Notifications and Rare Candy/nickname tests | [Player feedback](docs/GEN3_FEEDBACK.md) |
