@@ -419,7 +419,9 @@ return function(mod, api)
             local kind = (c.title == "CORE" or c.title == "CLAUSES"
                 or c.title == "QOL SETUP ONLY") and "wip" or "soon"
             rows[#rows + 1] = row(c.title, kind, function()
-                present(c.title, categoryRows(c))
+                present(c.title, categoryRows(c),
+                    c.title == "QOL SETUP ONLY"
+                        and function() return categoryRows(c) end or nil)
             end)
         end
         present("NUZ RULES", rows)
