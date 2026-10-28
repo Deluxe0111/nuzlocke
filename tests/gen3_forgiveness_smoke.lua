@@ -47,6 +47,7 @@ assert(badgeMap[1] == true and badgeMap[2] == true
     and badgeMap[3] == false, "real native badge flags accepted")
 local devSave = { dev = { enabled = true }, forgiveness = { tokens = 0 } }
 local D = assert(loadfile("gen3_dev.lua"))()({
+    archive = assert(loadfile("gen3_archive.lua"))()(),
     getState = function() return devSave end,
     setState = function(updated) devSave = updated end,
     getCurrentArea = function() return "FR_ROUTE_1" end,
