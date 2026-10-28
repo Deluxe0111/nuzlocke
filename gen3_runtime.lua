@@ -40,6 +40,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local Display = readModule("gen3_display.lua")()
     local Results = readModule("gen3_run_results.lua")()
     local ResultsScreen = readModule("gen3_results_screen.lua")()
+    local ShinyVisuals = readModule("gen3_shiny_visuals.lua")()
     local Extra = readModule("gen3_extra_core.lua")()
     local Levels = readModule("gen3_levels.lua")()
     local Notices = readModule("gen3_notices.lua")()
@@ -76,6 +77,53 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local function session()
         local g = game()
         return g and g.session
+    end
+
+    -- Vanilla Gen 3 has no shiny variants for the tiny PC/menu icons.
+    -- When Nuzlocke is enabled, build two 32px icon frames from the
+    -- actual extracted shiny *front* RGBA instead of the standard icon
+    -- palette. The PC monitor uses the same artwork for its portrait.
+    -- This is scoped to this mod; no upstream engine changes are needed.
+    local function installShinyVisualGuards()
+        local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
+        if not okP or type(Pokemon)~="table" then return false end
+        local marker="__nuzVisualIconWrap"
+        if type(Pokemon.monIcon)=="function"
+            and (Pokemon[marker]~=Pokemon.monIcon
+                or Pokemon.__nuzVisualOwner~=mod) then
+            local native=Pokemon.monIcon
+            local function icon(mon,...)
+                if loadState().enabled and ShinyVisuals.isShiny(Pokemon,mon)
+                    then
+                    local ok,visual=pcall(ShinyVisuals.icon,Pokemon,mon)
+                    if ok and visual then return visual end
+                end
+                return native(mon,...)
+            end
+            Pokemon.monIcon=icon
+            Pokemon[marker]=icon
+            Pokemon.__nuzVisualOwner=mod
+        end
+        local okC,Chrome=pcall(require,"src.ui.game3.pc_chrome")
+        local panelMark="__nuzVisualPanelWrap"
+        if okC and type(Chrome)=="table"
+            and type(Chrome.drawLeftDataPanel)=="function"
+            and (Chrome[panelMark]~=Chrome.drawLeftDataPanel
+                or Chrome.__nuzVisualOwner~=mod) then
+            local native=Chrome.drawLeftDataPanel
+            local function panel(mon,...)
+                local original=native(mon,...)
+                if loadState().enabled
+                    and ShinyVisuals.isShiny(Pokemon,mon) then
+                    pcall(ShinyVisuals.drawPcPortrait,Pokemon,mon)
+                end
+                return original
+            end
+            Chrome.drawLeftDataPanel=panel
+            Chrome[panelMark]=panel
+            Chrome.__nuzVisualOwner=mod
+        end
+        return true
     end
 
     local function countBadgesForResult()
@@ -118,6 +166,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
         local running=game()
         local ok,opened=pcall(ResultsScreen.open,running,record,{
+            shinyVisuals=ShinyVisuals,
             onQuit=function()
                 if running and type(running.returnToTitle)=="function" then
                     ResultsScreen.close()
@@ -3096,6 +3145,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installAcquisitionGuards()
         deliverPendingStartingBalls()
         installChampionResultHook()
+        installShinyVisualGuards()
         local saved=loadState()
         if Results.isTerminal(saved) then
             if not ResultsScreen.isOpen() then
@@ -3190,6 +3240,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installStatusBanGuards()
         installAcquisitionGuards()
         installChampionResultHook()
+        installShinyVisualGuards()
         local saved=loadState()
         if saved.failed==true and saved.enabled==true then
             if type(saved.finalResult)~="table" then
@@ -3230,6 +3281,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installStatusBanGuards()
         installAcquisitionGuards()
         installChampionResultHook()
+        installShinyVisualGuards()
         ResultsScreen.close()
     end)
 
@@ -3709,6 +3761,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         refreshCapNotice()
         nicknameTasks()
         installChampionResultHook()
+        installShinyVisualGuards()
         if loadState().failed then
             finishRun("FAILED","Party defeated / no usable survivors",true)
         end
@@ -3818,6 +3871,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     -- Install terminal hooks before native Hall of Fame is lazily
     -- entered; game3's close callback is the authoritative completion.
     installChampionResultHook()
+    installShinyVisualGuards()
     -- Install text hooks before the native new-game intro loads.
     -- Later save/map events reapply guards for lazy-loaded RSE modules.
     installQolGuards()

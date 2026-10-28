@@ -91,7 +91,16 @@ return function()
         local known=mon.shinyKnown==true
         if known then source.isShiny=mon.shiny==true end
         local good,pic=false,nil
-        if known and type(Pokemon.frontPic)=="function" then
+        local visual=opts and opts.shinyVisuals
+        if known and mon.shiny==true and visual
+            and type(visual.front)=="function" then
+            local okCustom,custom=pcall(visual.front,Pokemon,source)
+            if okCustom and custom and custom.image then
+                pic=custom
+                good=true
+            end
+        end
+        if not pic and known and type(Pokemon.frontPic)=="function" then
             -- Gen 3's frontPic has a direct shiny palette/asset selector.
             -- A result card carries a frozen shiny flag, not a complete
             -- native Pokemon. Calling monFrontPic(source) can re-resolve
@@ -105,7 +114,7 @@ return function()
             end
             good,pic=pcall(Pokemon.frontPic,species,nil,
                 mon.shiny==true,personality)
-        elseif type(Pokemon.monFrontPic)=="function" then
+        elseif not pic and type(Pokemon.monFrontPic)=="function" then
             -- Legacy/unknown shiny state still follows native behaviour.
             good,pic=pcall(Pokemon.monFrontPic,source,nil,"hof")
         end

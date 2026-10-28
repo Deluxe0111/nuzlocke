@@ -33,6 +33,8 @@ on:
       - 'gen3_run_setup.lua'
       - 'gen3_run_results.lua'
       - 'gen3_results_screen.lua'
+      - 'gen3_shiny_visuals.lua'
+      - 'tests/gen3_shiny_visuals_smoke.lua'
       - 'tests/gen3_run_results_smoke.lua'
       - 'tests/gen3_run_results_runtime_smoke.lua'
       - 'gen3_title_setup.lua'
@@ -88,7 +90,7 @@ jobs:
       - name: Validate new setup Lua syntax
         run: |
           luac5.1 -p main.lua title_setup_compat.lua
-          luac5.1 -p gen3_runtime.lua gen3_menu.lua gen3_title_setup.lua gen3_run_setup.lua gen3_qol_setup.lua gen3_run_results.lua gen3_results_screen.lua
+          luac5.1 -p gen3_runtime.lua gen3_menu.lua gen3_title_setup.lua gen3_run_setup.lua gen3_qol_setup.lua gen3_run_results.lua gen3_results_screen.lua gen3_shiny_visuals.lua
           luac5.1 -p tests/gen3_run_results_smoke.lua tests/gen3_run_results_runtime_smoke.lua
       - name: Test FRLG and RSE NEW GAME interception
         run: lua5.1 tests/gen3_title_setup_smoke.lua
@@ -108,6 +110,8 @@ jobs:
         run: lua5.1 tests/gen3_hardcore_nuzlocke_smoke.lua
       - name: Test End Run, irreversible failed saves and shareable memorial PNG
         run: lua5.1 tests/gen3_run_results_smoke.lua
+      - name: Test shiny ROM art, PC portrait and box mini-icons
+        run: lua5.1 tests/gen3_shiny_visuals_smoke.lua
       - name: Test terminal native save and Hall of Fame runtime wiring
         run: lua5.1 tests/gen3_run_results_runtime_smoke.lua
       - name: Run Gen 3 seeded randomizer native hook smoke

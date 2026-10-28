@@ -109,6 +109,24 @@ Nothing is uploaded to an external site. If an extremely large
 graveyard would exceed the current GPU's maximum texture size, the
 export reports a clear error rather than silently truncating deaths.
 
+### Shiny artwork
+
+Gen 3 native mini-icons have only a standard-colour icon palette, so
+the small Box and Party icons are normally **not shiny variants**.
+The Nuzlocke mod now draws confirmed shiny Pokémon using the extracted
+ROM's `pokemon/front_shiny/<species>.rgba` artwork, including in the
+complete-results PNG and native PC monitor. Its shiny mini-icons use
+scaled-down native front artwork (two icon frames); normal Pokémon retain
+the standard animated native mini-icons.
+
+This bypasses the potentially stale/misresolved normal front-sprite
+cache by reading the ROM's shiny-palette RGBA directly through the
+engine's Dataset cache and converting it into a LÖVE image in memory.
+No ROM rewriting, base-game PR or filesystem permission is needed.
+Special personality-dependent forms such as Spinda use the native shiny
+sprite selector as a fallback. Unavailable shiny assets fall back to
+native rendering rather than inventing colours.
+
 ## Compatibility / caveats
 
 - The Nuzlocke CORE rule must be enabled for End Run. Players without an
