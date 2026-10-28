@@ -269,7 +269,18 @@ return function()
         local areas=type(s)=="table" and s.areas or {}
         if core.areaSpent(areas[key]) then return false end
         local current=infoOf(key) or infoOf(raw)
-        if not current then return not core.areaSpent(areas[raw]) end
+        if not current then
+            -- If a previously split Route 2/10/20 becomes unsplit,
+            -- neither previously captured half may be caught again.
+            if key==raw and raw and raw:match("^FR_ROUTE_%d+$") then
+                local prefix="SPLIT:FR:"..raw:sub(4)..":"
+                for history,entry in pairs(areas) do
+                    if history:sub(1,#prefix)==prefix
+                        and core.areaSpent(entry) then return false end
+                end
+            end
+            return not core.areaSpent(areas[raw])
+        end
         local groupKey="SPLIT:"..current.edition..":"..current.group
         if core.areaSpent(areas[groupKey]) then return false end
         local isGroup=key==groupKey
