@@ -16,6 +16,9 @@ return function()
         random_gift_pokemon = { kind="boolean", default=false },
         random_egg_gifts = { kind="boolean", default=false },
         random_gift_balance = { kind="number", default=0, min=0, max=1 },
+        random_field_items = { kind="boolean", default=false },
+        random_field_item_balance = { kind="number", default=0, min=0, max=1 },
+        random_field_item_repetition = { kind="number", default=0, min=0, max=1 },
         randomizer_seed = { kind="number", default=0, min=0, max=MAX_SEED },
         random_encounter_balance = { kind="number", default=0, min=0, max=1 },
         -- Preserve a distinct replacement per native wild source within
@@ -27,7 +30,11 @@ return function()
         randomizer_preset = { kind="number", default=0, min=0, max=2 },
     }
     local cachedPool, cachedOwner
-    function M.clearCache() cachedPool, cachedOwner = nil, nil end
+    local cachedItemPool, cachedItemPack, cachedItemOwner
+    function M.clearCache()
+        cachedPool, cachedOwner = nil, nil
+        cachedItemPool, cachedItemPack, cachedItemOwner = nil, nil, nil
+    end
     local function state(s)
         if type(s.randomizer) ~= "table" then s.randomizer = {} end
         local r = s.randomizer
@@ -62,6 +69,7 @@ return function()
         -- Before the first generated result there are no authoritative
         -- assignments. Changing setup options must not retain stale slots.
         r.encounterAssignments = nil
+        r.fieldItemAssignments = nil
         r.starterOptions = nil
         r.starterSource = nil
         if key == "randomizer_preset" then
@@ -310,6 +318,125 @@ return function()
             end
         end
         return nil
+    end
+
+    -- Only native, buyable consumables/balls/berries enter the item pool.
+    -- Key items, TM/HMs, unique story objects, zero-price special items,
+    -- missing pack entries and placeholder/glitch IDs cannot be rewritten.
+    local function itemEntry(ItemsData, id)
+        if type(id) ~= "number" or id ~= math.floor(id)
+            or id < 1 or id >= 0x4000
+            or (id >= 289 and id <= 346) then return nil end
+        if type(ItemsData) ~= "table"
+            or type(ItemsData.info) ~= "function" then return nil end
+        local ok, meta = pcall(ItemsData.info, id)
+        if not ok or type(meta) ~= "table" then return nil end
+        local pocket = tostring(meta.pocket or ""):upper()
+        if pocket ~= "ITEMS" and pocket ~= "POKE_BALLS"
+            and pocket ~= "BERRIES" and pocket ~= "BERRY_POUCH" then
+            return nil
+        end
+        local importance = meta.importance
+        if importance == true or (tonumber(importance) or 0) ~= 0 then
+            return nil
+        end
+        local price = tonumber(meta.price) or 0
+        local name = meta.name
+        if price <= 0 or price > 1000000
+            or type(name) ~= "string" or name == ""
+            or name:find("?",1,true) then return nil end
+        return {id=id, price=price, name=name}
+    end
+    function M.itemPool(ItemsData)
+        if type(ItemsData) ~= "table"
+            or type(ItemsData.ensureLoaded) ~= "function" then return {} end
+        local ok, pack = pcall(ItemsData.ensureLoaded)
+        if not ok or type(pack) ~= "table" then return {} end
+        if ItemsData == cachedItemOwner and pack == cachedItemPack
+            and cachedItemPool then return cachedItemPool end
+        local pool = {}
+        for id in pairs(pack) do
+            local entry = itemEntry(ItemsData, id)
+            if entry then pool[#pool + 1] = entry end
+        end
+        table.sort(pool, function(a,b) return a.id < b.id end)
+        cachedItemPool,cachedItemPack,cachedItemOwner =
+            pool,pack,ItemsData
+        return pool
+    end
+    local function itemCandidates(pool, original, balance, taken)
+        local valid = {}
+        for _,item in ipairs(pool) do
+            if item.id ~= original.id
+                and not (taken and taken[item.id]) then
+                valid[#valid + 1] = item
+            end
+        end
+        if balance == 1 and #valid > 0 then
+            -- Match the shop value approximately, but widen rather than
+            -- risk a failed lookup when an uncommon price has no peers.
+            for _, tolerance in ipairs({0.25,0.50,1.00}) do
+                local close = {}
+                for _,item in ipairs(valid) do
+                    if math.abs(item.price-original.price)
+                        <= math.max(100,original.price*tolerance) then
+                        close[#close+1] = item
+                    end
+                end
+                if #close>0 then return close end
+            end
+        end
+        return valid
+    end
+    -- Pickup identity is map + native event script/hidden flag, never a
+    -- transient BAG operation or a changing world RNG stream.
+    function M.item(s, ItemsData, sourceId, original, entropy, scope)
+        local r=state(s)
+        if not r.random_field_items
+            or type(sourceId)~="string" or sourceId==""
+            or type(scope)~="string" or scope=="" then return nil end
+        local originalId=tonumber(original)
+        local orig=itemEntry(ItemsData,originalId)
+        if not orig then return nil end
+        local pool=M.itemPool(ItemsData)
+        if #pool<2 then return nil end
+        local candidate=itemCandidates(pool,orig,r.random_field_item_balance)
+        if #candidate==0 then return nil end
+        local assignments=type(r.fieldItemAssignments)=="table"
+            and r.fieldItemAssignments[scope] or nil
+        if type(assignments)~="table" then assignments=nil end
+        local prior=assignments and assignments[sourceId]
+        if prior~=nil then
+            for _,entry in ipairs(candidate) do
+                if entry.id==prior then
+                    r.used=true
+                    return entry.id
+                end
+            end
+            return nil -- ROM/pack changes: preserve native pickup.
+        end
+        local seed=M.seed(s,entropy)
+        if seed==0 then return nil end
+        if r.random_field_item_repetition==1 then
+            local used={}
+            for _,id in pairs(assignments or {}) do
+                if type(id)=="number" then used[id]=true end
+            end
+            local fresh=itemCandidates(pool,orig,
+                r.random_field_item_balance,used)
+            if #fresh>0 then candidate=fresh end
+        end
+        local chosen=candidate[1+M.hash(M.algorithm,seed,
+            "FIELD_ITEMS",sourceId,originalId)%#candidate]
+        if type(r.fieldItemAssignments)~="table" then
+            r.fieldItemAssignments={}
+        end
+        if type(r.fieldItemAssignments[scope])~="table" then
+            r.fieldItemAssignments[scope]={}
+        end
+        r.fieldItemAssignments[scope][sourceId]=chosen.id
+        r.used=true
+        return chosen.id
     end
 
     function M.replace(s, Pokemon, source, sourceId, original, entropy,

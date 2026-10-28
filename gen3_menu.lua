@@ -641,6 +641,13 @@ return function(mod, api)
         toggle("random_static_pokemon", "RANDOM STATIC")
         toggle("random_gift_pokemon", "RANDOM GIFTS")
         toggle("random_egg_gifts", "RANDOM EGGS")
+        toggle("random_field_items", "RANDOM FIELD ITEMS")
+        if config.get("random_field_items") then
+            cycle("random_field_item_balance", "ITEM BALANCE",
+                { "CHAOS", "SIM VALUE" })
+            cycle("random_field_item_repetition", "ITEM VARIETY",
+                { "NORMAL", "UNIQUE AREA" })
+        end
         if config.get("random_static_pokemon") then
             cycle("random_static_balance", "STATIC BALANCE",
                 { "CHAOS", "SIM BST" })
@@ -666,7 +673,8 @@ return function(mod, api)
             or config.get("random_starter")
             or config.get("random_static_pokemon")
             or config.get("random_gift_pokemon")
-            or config.get("random_egg_gifts") then
+            or config.get("random_egg_gifts")
+            or config.get("random_field_items") then
             cycle("random_species_generation", "SPECIES POOL",
                 { "ALL", "KANTO", "JOHTO", "HOENN" })
         end
@@ -693,6 +701,9 @@ return function(mod, api)
                     random_static_pokemon=true, random_static_balance=true,
                     random_gift_pokemon=true, random_egg_gifts=true,
                     random_gift_balance=true,
+                    random_field_items=true,
+                    random_field_item_balance=true,
+                    random_field_item_repetition=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]

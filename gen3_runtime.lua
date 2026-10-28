@@ -676,6 +676,93 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     -- never mutate an existing player's Pokémon or the ROM template.
     -- Versioned key includes the script address/label when available so
     -- two independent static encounters on one map are not conflated.
+    -- Rolls at the native pickup boundary, before bag capacity checks,
+    -- text, consumption flags or inventory changes. No replacement is
+    -- attempted for mandatory/rare story items or malformed item packs.
+    local function randomFieldItem(sourceId,original,scope)
+        local saved=loadState()
+        if not Randomizer.get(saved,"random_field_items") then return nil end
+        local ok,ItemsData=pcall(require,"src.core.game3.items_data")
+        if not ok then return nil end
+        local wasLocked=Randomizer.locked(saved)
+        local id=Randomizer.item(saved,ItemsData,sourceId,original,
+            function() return math.random(1,99999999) end,scope)
+        if id then
+            if not wasLocked then
+                Notices.add(saved,"RANDOMIZER_LOCK",
+                    "Field item choices fixed for this run; randomiser locked.")
+            end
+            writeState(saved)
+        end
+        return id
+    end
+    local function itemMapScope()
+        local map=areaNow() or (session() and session().map)
+        if map==nil or tostring(map)=="" then return nil end
+        return "MAP:"..tostring(map)
+    end
+    local function randomItemBall(ctx,op,row)
+        if op~="callstd" or type(row)~="table"
+            or tonumber(row.std or row[1])~=1 then return end
+        local runner=type(ctx)=="table" and (ctx.runner or ctx.vm)
+        local script=type(runner)=="table" and
+            (runner._scriptKey or (runner.ctx and runner.ctx.pc
+                and runner.ctx.pc.listKey))
+        -- Without a script address two pickup balls on the same map
+        -- could receive the wrong mapping. Fail open instead.
+        if type(script)~="string" or script=="" then return end
+        local scope=itemMapScope()
+        if not scope then return end
+        local original=scriptVar(ctx,0x8000)
+        if type(original)~="number" then return end
+        local sourceId="VISIBLE:"..scope..":"..script..":"..tostring(original)
+        local picked=randomFieldItem(sourceId,original,scope)
+        if picked then setScriptVar(ctx,0x8000,picked) end
+    end
+    local function installRandomHiddenItemGuards()
+        local ok,Field=pcall(require,"src.core.game3.field")
+        if not ok or type(Field)~="table" then return false end
+        for _,method in ipairs({"pickUpHiddenItem","digUpUnderfootItem"}) do
+            local marker="__nuzRandom_"..method
+            if type(Field[method])=="function"
+                and (Field[marker]~=Field[method]
+                    or Field.__nuzRandomOwner~=mod) then
+                local previous=Field[method]
+                local function guarded(g,hidden,...)
+                    if type(hidden)~="table"
+                        or type(hidden.item)~="number"
+                        or hidden.item==0 then
+                        return previous(g,hidden,...)
+                    end
+                    local scope=itemMapScope()
+                    if not scope then return previous(g,hidden,...) end
+                    local identity=hidden.flag or hidden.hiddenItemId
+                    if identity==nil then
+                        if hidden.x==nil or hidden.y==nil then
+                            return previous(g,hidden,...)
+                        end
+                        identity=tostring(hidden.x)..":"..tostring(hidden.y)
+                    end
+                    local key="HIDDEN:"..scope..":"..tostring(identity)
+                        ..":"..tostring(hidden.item)
+                    local id=randomFieldItem(key,hidden.item,scope)
+                    if not id then return previous(g,hidden,...) end
+                    local copy={}
+                    for k,v in pairs(hidden) do copy[k]=v end
+                    copy.item=id
+                    -- The original ROM event stays intact for the next
+                    -- field load; native routine owns hidden-item flags.
+                    return previous(g,copy,...)
+                end
+                Field[method]=guarded
+                Field[marker]=guarded
+                Field.__nuzRandomOwner=mod
+            end
+        end
+        return true
+    end
+    installRandomHiddenItemGuards()
+
     local function scriptedSource(ctx, kind, original, level)
         local runner = type(ctx)=="table" and (ctx.runner or ctx.vm)
         local script = type(runner)=="table"
@@ -774,6 +861,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         -- These streams must work even when Nuzlocke itself is OFF.
         row = starterScriptCommand(op,row)
         row = scriptReplacement(ctx,op,row)
+        randomItemBall(ctx,op,row)
         local handled,result=specialStatic(ctx,op,row,next)
         if handled then return result end
         if not Core.active(loadState()) or type(row)~="table" then
@@ -2622,6 +2710,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         nicknameTasks()
         installCandyGuard()
         installFieldItemGuards()
+        installRandomHiddenItemGuards()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2692,6 +2781,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         mercyBattle = nil
         installCandyGuard()
         installFieldItemGuards()
+        installRandomHiddenItemGuards()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2719,6 +2809,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         mercyBattle = nil
         installCandyGuard()
         installFieldItemGuards()
+        installRandomHiddenItemGuards()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2745,6 +2836,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installNicknameGuard()
         installCandyGuard()
         installFieldItemGuards()
+        installRandomHiddenItemGuards()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()

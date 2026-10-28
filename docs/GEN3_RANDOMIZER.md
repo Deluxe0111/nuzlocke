@@ -2,12 +2,14 @@
 
 The native Gen 3 Nuzlocke menu now exposes a deterministic species
 randomiser for **starter choices, static encounters, scripted gifts,
-NPC gift eggs, wild step encounters, fishing and trainer parties**.
+NPC gift eggs, visible/hidden field items, wild step encounters,
+fishing and trainer parties**.
 It does **not** require Nuzlocke Enabled to be ON.
 
 All other Randomizer settings in the legacy catalogue are marked **[Soon]**.
 They are not silently enabled: roaming Pokémon, non-scripted gifts,
-items, learnsets, TM moves, shops, evolution targets and other systems
+scripted NPC item gifts, learnsets, TM moves, shops, evolution targets
+and other systems
 remain native until their own implementations are verified.
 
 ## Menu and configuration
@@ -25,6 +27,9 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Random Gifts | OFF / ON | OFF |
 | Random Eggs | OFF / ON | OFF |
 | Gift Balance | CHAOS / SIM BST (when Gifts or Eggs ON) | CHAOS |
+| Random Field Items | OFF / ON | OFF |
+| Item Balance | CHAOS / SIM VALUE (when Field Items ON) | CHAOS |
+| Item Variety | NORMAL / UNIQUE AREA (when Field Items ON) | NORMAL |
 | Starter Balance | CHAOS / SIM BST (when Starters ON) | CHAOS |
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
@@ -102,6 +107,37 @@ avoids mixing incompatible rules in a single run. To start a genuinely new
 randomiser configuration, start a new disposable run/save; Nuz Dev must not
 silently relabel already generated content.
 
+## Visible item balls and hidden field items
+
+**Random Field Items** uses the native `STD_FIND_ITEM` item-ball
+transaction, plus the FRLG/RSE hidden-item pickup functions. It changes
+the species-independent **item identifier**, not the map script, item ball
+flag, bag contents after award, or displayed pickup text. Both visible
+and hidden item names are supplied by the native item-award UI after the
+replacement is chosen. Quantity, full-bag failures, pickup disappearance
+and save persistence remain native.
+
+Safe replacements are drawn from the active Gen 3 ROM item pack, limited
+to real, positive-price regular items, Poké Balls and berries. Key Items,
+TM/HMs, zero-price/important items, unknown IDs and required story
+objects are neither replaced **nor eligible as replacements**.
+`ITEM BALANCE: CHAOS` permits any other eligible item, and
+`SIM VALUE` prefers replacements of approximately comparable shop price.
+
+All pickups use a separate deterministic `FIELD_ITEMS` seed stream.
+Their individual map/script or hidden-item flag is stored with the
+run's assignment. `ITEM VARIETY: NORMAL` may repeat replacement items;
+`UNIQUE AREA` prefers unused items across visible and hidden pickups
+within the same map until the safe replacement pool is exhausted.
+Story item scripts that use `STD_OBTAIN_ITEM`, shop purchases,
+trainer rewards, and items generated in battle are not affected.
+
+FRLG's Itemfinder underfoot hidden pickups are supported too. Pokémon
+FireRed/LeafGreen and Ruby/Sapphire/Emerald use different hidden-item
+native branches; both are intercepted before they enter the bag.
+Unknown or unsafe map/script contexts fail open to the original item.
+The setting defaults OFF and is independent of Nuzlocke Enabled.
+
 ## Scripted static encounters and gifts
 
 **Random Static** replaces the species supplied by native `setwildbattle`
@@ -163,8 +199,8 @@ SIM BST first looks for replacements within 15% of the original Pokémon's
 base-stat total, widens to 25%, then 40%, before accepting the safe pool.
 The native named stat fields `hp,atk,def,spe,spa,spd` are used.
 
-The source namespaces `ENCOUNTERS`, `TRAINERS`, `STATIC`, `GIFTS`
-and `EGG_GIFTS` use independent
+The source namespaces `ENCOUNTERS`, `TRAINERS`, `STATIC`, `GIFTS`,
+`EGG_GIFTS` and `FIELD_ITEMS` use independent
 portable integer hashing (algorithm version 1), not `math.random`
 per roll. Enabling Trainer Randomiser must not move wild mappings or vice
 versa, and revisiting a source yields the same result. A mapping depends
@@ -284,6 +320,18 @@ Check Untamed's ordinary chain shinies still behave normally.
       Pokémon and rival teams remain unchanged. With both Random Starters
       and Random Trainers ON, the rival's starter retains its lineage
       while every other trainer team member still randomises normally.
+- [ ] **F01:** On a fresh FRLG run, turn on Random Field Items.
+      Pick up two visible item balls: the awarded/announced item names
+      must match the inventory, and collection flags persist on reload.
+- [ ] **F02:** Repeat with hidden items in FRLG and RSE, including an
+      underfoot Itemfinder item. A full bag must not consume the item flag.
+- [ ] **F03:** Verify Key Items, TM/HMs and special story pickups
+      remain native, even if field item randomisation is ON.
+- [ ] **F04:** Verify SIM VALUE and UNIQUE AREA independently; identical
+      seeds/settings replay the same choices after save/load. Normal
+      Wild/Trainer/Starter streams must be unaffected.
+- [ ] **F05:** With Random Field Items OFF, all item pickups must be
+      unchanged; NPC item gifts and shop purchases remain native.
 - [ ] **G01:** With Nuzlocke OFF and Random Static ON, fight a scripted
       legendary; the battle should use the same species on every reload.
       Level, item, transition, and the associated story flag must remain.
