@@ -9,7 +9,24 @@ FireRed, LeafGreen, Ruby, Sapphire and Emerald.
 
 The Generation 3 menu is designed for a GBA-native 240×160 screen.
 Unported options are shown as **[Soon]** and do not silently change
-gameplay. Feature availability and runtime certification are separate:
+gameplay. NUZ RULES keeps CORE, CLAUSES, HARDCORE, GAME DIFFICULTY,
+RUN / PARTY, LEVELS, PLAYSTYLES, RANDOMIZER, QOL and QOL SETUP ONLY at
+the top level, plus **ADVANCED RULES** directly after PLAYSTYLES.
+ADVANCED RULES contains Catch Rules, Battle Clauses, Status Bans,
+Variants, Battle Items, Field Items, Services & Economy, Pokémon Stats
+and Area Splits. These nine groups are still read-only [Soon] entries;
+the reorganisation changes menu navigation, not game rules or saves.
+The unimplemented WORLD and UI planning categories have been removed
+from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
+
+ALMANAC and MOD COMPAT are separate [Soon] placeholders on the Gen 3
+NUZ MENU. The former was a read-only run recap in legacy Nuzlocke
+(catches, deaths, progress, rule integrity, randomiser metadata);
+the latter allowed compatible external mod capability ownership
+selection where a safe integration contract existed. Neither screen
+is implemented for Gen 3 yet.
+
+Feature availability and runtime certification are separate:
 a working toggle is not proof that every edition and edge case is tested.
 
 ## What works now
