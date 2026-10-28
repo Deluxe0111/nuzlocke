@@ -142,6 +142,33 @@ The integration is safe when Untamed is absent (no hook caller).
 - [ ] **U08:** Repeat representative checks on FRLG, Ruby/Sapphire and
       Emerald using disposable saves.
 
+## Untamed-Advanced overworld shiny odds
+
+**CLAUSES → SHINY RATE** also applies to Untamed's ordinary generated
+wandering Pokémon, independently of the Random Wild toggle. The new
+optional `untamed.owe.shiny` hook runs after Untamed's native personality
+and encounter-chain checks but before assigning the world sprite.
+
+Nuzlocke uses the same increased-odds calculation as ordinary Gen 3
+wild battles and asks Untamed to turn a successful roll into a genuine
+shiny personality. The overworld palette, sparkle, non-despawn setting,
+wild battle and captured Pokémon then all agree on shininess. The
+already-spawned Pokémon is remembered so Nuzlocke does **not** reroll
+it again when battle starts. Untamed's native chain shiny boost is
+preserved and can exceed the configured base shiny rate.
+
+No shiny rate is added to special roamers, Feebas, outbreaks, scripted
+actors or followers. Install both updated mods; the hook is optional and
+the native overworld behaviour remains unchanged without a provider.
+This also works with Random Wild OFF and Nuzlocke Enabled OFF.
+
+**Test:** Set Shiny Rate ALWAYS on a disposable save and check that
+wandering Pokémon are visibly shiny *before* interacting; they remain
+shiny in battle and capture. At a lower rate, visible non-shinies stay
+non-shiny in battle. Spawn a non-shiny at NATIVE, then change to ALWAYS
+before touching it: the existing individual should not change.
+Check Untamed's ordinary chain shinies still behave normally.
+
 ## ROM regression checklist (back-up/disposable save)
 
 - [ ] **R01:** With Nuzlocke OFF but Random Wild ON and seed 12345678,
