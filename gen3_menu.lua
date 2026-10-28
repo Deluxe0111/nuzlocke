@@ -394,6 +394,27 @@ return function(mod, api)
                     end)
             end
         end
+        if group == "resources" then
+            rows[#rows + 1] = row("ABOUT START BALLS", nil, function()
+                info("START BALLS", {
+                    "EXTRA BALLS GO TO PC",
+                    "AFTER NATIVE CATCH UNLOCK",
+                    "NOT DURING FIRST BATTLE",
+                    "MONEY IS APPLIED AT START",
+                    "RARE CANDY GOES TO PC",
+                })
+            end)
+        elseif group == "pc" then
+            rows[#rows + 1] = row("ABOUT PC KITS", nil, function()
+                info("PC LOADOUTS", {
+                    "10 OF EACH SELECTED ITEM",
+                    "HEAL KIT: 9 ITEM TYPES",
+                    "VITAMINS: 6 ITEM TYPES",
+                    "GRANTED ONCE TO PLAYER PC",
+                    "NORMAL ITEM RULES APPLY",
+                })
+            end)
+        end
         return rows
     end
 
