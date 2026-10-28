@@ -2,7 +2,7 @@
 -- Never replace an existing overworld script/message or inject into menus.
 return function()
     local M = { api = 1 }
-    local MAX = 30
+    local MAX = 100
     local function clean(text)
         return tostring(text or ""):gsub("[%c]", " "):sub(1, 180)
     end
