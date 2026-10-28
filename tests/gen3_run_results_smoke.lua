@@ -7,11 +7,13 @@ local Display={
     areaName=function(id)return tostring(id or "UNKNOWN") end,
 }
 local mon={species=7,nickname="Shell",level=38,personality=781,
+    isShiny=true,
     hp=75,maxHp=92,atk=57,def=81,spe=61,spa=75,spd=80,
     moves={33,57},ivs={atk=19},evs={hp=15}}
 local dead={species=4,speciesName="Charmander",name="Pyro",
     nickname="Pyro",level=25,area="FR_MT_MOON",cause="Critical hit",
     archive={species=4,personality=123,level=25,hp=0,maxHp=57,
+        isShiny=true,
         atk=40,def=36,spe=44,spa=51,spd=40,moves={10,15}}}
 local session={name="RED",version="firered",
     party={mon},playTimeHours=12,playTimeMinutes=41,playTimeSeconds=5}
@@ -31,6 +33,42 @@ assert(failed.graveyard[1].name=="Pyro"
     and failed.graveyard[1].cause=="Critical hit")
 assert(failed.graveyard[1].area=="FR_MT_MOON")
 assert(failed.graveyard[1].hp==0 and failed.graveyard[1].maxHp==57)
+assert(failed.party[1].shinyKnown==true and failed.party[1].shiny==true)
+assert(failed.graveyard[1].shinyKnown==true
+    and failed.graveyard[1].shiny==true,
+    "archive isShiny flag must be kept, not lost as a missing shiny field")
+assert(Policy.shinyStatus({isShiny=false})==false)
+assert(Policy.shinyStatus({shiny=false})==false)
+assert(Policy.shinyStatus({species=4,personality=8})==nil,
+    "without OT or an explicit flag shiny identity is unknown")
+assert(Policy.shinyStatus({species=4,personality=8,otId=123},
+    {isShiny=function(mon)
+        return mon.otId==123
+    end})==true,"native OT-aware shiny resolver must be supported")
+do
+    -- A previously ended save might have falsely marked every shiny
+    -- FALSE because old code only read raw.shiny. Repair from the
+    -- original matching graveyard/party records without a new run.
+    local older={
+        finalResult={party={{species=7,personality=781,shiny=false}},
+            graveyard={{species=4,personality=123,shiny=false}}},
+        graveyard={dead},
+    }
+    assert(Policy.enrich(older,session))
+    assert(older.finalResult.party[1].shiny==true
+        and older.finalResult.party[1].shinyKnown==true)
+    assert(older.finalResult.graveyard[1].shiny==true
+        and older.finalResult.graveyard[1].shinyKnown==true)
+    assert(not Policy.enrich(older,session),
+        "already repaired saved snapshots must not be touched")
+    local unmatched={
+        finalResult={graveyard={{species=4,personality=999,
+            shiny=false}}},graveyard={dead},
+    }
+    assert(not Policy.enrich(unmatched,session)
+        and unmatched.finalResult.graveyard[1].shinyKnown==nil,
+        "never transplant another Pokemon's shiny status")
+end
 mon.level=99;dead.archive.hp=88
 assert(failed.party[1].level==38 and failed.graveyard[1].hp==0,
     "result snapshot must not alias mutable native party/archive")
@@ -102,7 +140,8 @@ assert(View.model().title=="IN MEMORIAM")
 assert(selectPrefix("1. Pyro"))
 local monScreen=View.model()
 assert(monScreen.title=="POKEMON RECORD"
-    and table.concat(monScreen.rows," "):find("Critical hit",1,true))
+    and table.concat(monScreen.rows," "):find("Critical hit",1,true)
+    and table.concat(monScreen.rows," "):find("SHINY: YES",1,true))
 press("b");press("b")
 assert(View.model().title=="NUZ RUN RESULTS")
 
@@ -113,6 +152,7 @@ local savedPng=nil
 local dimensions={}
 local allText={}
 local drawnSprites=0
+local shinySprites=0
 local exportCount=0
 local gfx={
     newCanvas=function(w,h)
@@ -150,7 +190,10 @@ setmetatable(love,{__index=function(_,key)
     end
 end})
 package.loaded["src.core.game3.pokemon"]={
-    monFrontPic=function()return {image={},w=64,h=64} end,
+    monFrontPic=function(pokemon)
+        if pokemon.isShiny==true then shinySprites=shinySprites+1 end
+        return {image={},w=64,h=64}
+    end,
     moveName=function(id)return "MOVE "..id end,
 }
 -- The actual test case has eight deaths; the last card MUST appear
@@ -161,6 +204,9 @@ for i=2,8 do
     copy.name="Memory"..i
     copy.speciesName="Species"..i
     copy.level=10+i
+    -- Check mixed shiny, normal and unverifiable legacy records.
+    if i==2 then copy.shiny=false;copy.shinyKnown=true end
+    if i==3 then copy.shiny=nil;copy.shinyKnown=false end
     failed.graveyard[#failed.graveyard+1]=copy
 end
 failed.deaths=#failed.graveyard
@@ -172,14 +218,15 @@ assert(selectPrefix("SHARE COMPLETE RUN PNG"))
 assert(View.model().title=="SHARE RESULT")
 assert(savedPng and savedPng:match("^nuzlocke_")
     and savedPng:match("_FULL%.png$")
-    and exportCount==1 and drawnSprites==9,
-    "single share image must include 1 party + all 8 fallen Pokemon")
+    and exportCount==1 and drawnSprites==9 and shinySprites==7,
+    "poster must draw correct shiny sprites for party and graveyard")
 local rendered=table.concat(allText," ")
 for _,expected in ipairs({
     "FINAL PARTY", "IN MEMORIAM", "Shell", "Pyro",
     "Memory2", "Memory3", "Memory4", "Memory5", "Memory6",
     "Memory7", "Memory8", "PLAY TIME", "BADGES",
     "CAUGHT", "FAINTED", "AREAS", "SLOTS USED",
+    "SHINY", "NORMAL", "UNKNOWN",
 }) do
     assert(rendered:find(expected,1,true),
         "whole-run PNG omitted "..expected)
@@ -202,10 +249,11 @@ assert(winning.outcome=="VICTORY")
 local previous=exportCount
 allText={}
 drawnSprites=0
+shinySprites=0
 assert(selectPrefix("SHARE COMPLETE RUN PNG"))
 assert(exportCount==previous+1)
-assert(drawnSprites==2,
-    "Champion poster must show living party plus fallen Pokemon")
+assert(drawnSprites==2 and shinySprites==2,
+    "Champion poster must show living party, fallen Pokemon and shiny art")
 press("b")
 assert(selectPrefix("CONTINUE ADVENTURE"))
 assert(not View.isOpen() and game.quit==true,
