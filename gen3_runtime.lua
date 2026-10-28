@@ -79,31 +79,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         return g and g.session
     end
 
-    -- Vanilla Gen 3 has no shiny variants for the tiny PC/menu icons.
-    -- When Nuzlocke is enabled, build two 32px icon frames from the
-    -- actual extracted shiny *front* RGBA instead of the standard icon
-    -- palette. The PC monitor uses the same artwork for its portrait.
-    -- This is scoped to this mod; no upstream engine changes are needed.
+    -- Gen 3 has no dedicated shiny mini-icon art. Leave Pokemon.monIcon
+    -- completely native for both PC box and party slots: shrinking a front
+    -- sprite into a mini-icon causes empty/incorrect native icon rendering.
+    -- The PC portrait still uses extracted shiny ROM artwork below.
     local function installShinyVisualGuards()
         local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
         if not okP or type(Pokemon)~="table" then return false end
-        local marker="__nuzVisualIconWrap"
-        if type(Pokemon.monIcon)=="function"
-            and (Pokemon[marker]~=Pokemon.monIcon
-                or Pokemon.__nuzVisualOwner~=mod) then
-            local native=Pokemon.monIcon
-            local function icon(mon,...)
-                if ShinyVisuals.isShiny(Pokemon,mon)
-                    and loadState().enabled then
-                    local ok,visual=pcall(ShinyVisuals.icon,Pokemon,mon)
-                    if ok and visual then return visual end
-                end
-                return native(mon,...)
-            end
-            Pokemon.monIcon=icon
-            Pokemon[marker]=icon
-            Pokemon.__nuzVisualOwner=mod
-        end
         local okC,Chrome=pcall(require,"src.ui.game3.pc_chrome")
         local panelMark="__nuzVisualPanelWrap"
         if okC and type(Chrome)=="table"
