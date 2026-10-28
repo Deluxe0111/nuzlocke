@@ -16,6 +16,14 @@ return function()
           default = false, kind = "toggle" },
         { key = "no_fishing", label = "No Fishing",
           default = false, kind = "toggle" },
+        { key = "allow_gifts", label = "Gift Pokemon",
+          default = true, kind = "toggle" },
+        { key = "gift_slot_policy", label = "Gift Slot Policy",
+          default = 0, kind = "slot" },
+        { key = "allow_trades", label = "In-Game Trades",
+          default = true, kind = "toggle" },
+        { key = "trade_slot_policy", label = "Trade Slot Policy",
+          default = 0, kind = "slot" },
         { key = "maximum_bst", label = "Maximum BST",
           default = 0, kind = "cycle" },
         { key = "alphabetlocke_mode", label = "Alphabetlocke",
@@ -54,6 +62,8 @@ return function()
         elseif d.kind == "letter" then
             return type(v)=="number" and v==math.floor(v)
                 and v>=1 and v<=26 and v or d.default
+        elseif d.kind == "slot" then
+            return (v==0 or v==1) and v or d.default
         end
         for _, option in ipairs(BST_LIMITS) do
             if v == option then return v end
@@ -73,6 +83,8 @@ return function()
         elseif d.kind == "letter" then
             if type(value)~="number" or value~=math.floor(value)
                 or value<1 or value>26 then return false,"invalid_letter" end
+        elseif d.kind == "slot" then
+            if value~=0 and value~=1 then return false,"invalid_slot" end
         else
             local valid = false
             for _, option in ipairs(BST_LIMITS) do
@@ -96,6 +108,7 @@ return function()
         if d.kind=="cycle" then return M.nextBst(current) end
         if d.kind=="alphabet_mode" then return (current+1)%3 end
         if d.kind=="letter" then return (current%26)+1 end
+        if d.kind=="slot" then return 1-current end
         return nil
     end
     function M.label(s,key)
@@ -114,6 +127,7 @@ return function()
             return ({"OFF","RANDOM","CHOOSE"})[v+1]
         end
         if d.kind=="letter" then return string.char(64+v) end
+        if d.kind=="slot" then return v==0 and "AREA" or "BONUS" end
         return "UNKNOWN"
     end
     function M.nextBst(value)
@@ -163,6 +177,55 @@ return function()
         end
         return true
     end
+    -- Scripted acquisitions use the native transaction but check legality
+    -- before the gift is granted / NPC trade is offered. A mandatory first
+    -- starter is exempt so a disabled Gift toggle cannot softlock the story.
+    function M.canAcquire(s, kind, species, mapId, pokemon, core, opts)
+        if not core or not core.active(s) then return true end
+        if kind~="gift" and kind~="trade" then return true end
+        opts=opts or {}
+        if kind=="gift" and opts.mandatoryStarter then return true end
+        local enabled=kind=="gift" and "allow_gifts" or "allow_trades"
+        if M.get(s,enabled)==false then
+            return false,kind=="gift"
+                and "Gift Pokemon: optional gifts are disabled."
+                or "In-Game Trades: NPC trades are disabled."
+        end
+        local eligible,why=M.check(s,species,pokemon,core,opts.seed)
+        if not eligible then return false,why end
+        local slotKey=kind=="gift" and "gift_slot_policy"
+            or "trade_slot_policy"
+        if M.get(s,slotKey)==0 and mapId
+            and core.enforced(s,"encounter_limit")
+            and not core.catchAllowed(s,mapId) then
+            return false,(kind=="gift" and "Gift Slot Policy: "
+                or "Trade Slot Policy: ")..
+                "the area encounter slot is already spent."
+        end
+        return true
+    end
+
+    function M.noteAcquired(s,kind,species,mapId,core)
+        if not core or not core.active(s) then return false end
+        if kind~="gift" and kind~="trade" then return false end
+        if type(s.acquisitionHistory)~="table" then
+            s.acquisitionHistory={}
+        end
+        local slot=M.get(s,kind=="gift" and "gift_slot_policy"
+            or "trade_slot_policy")
+        local entry={kind=kind, speciesId=species, area=mapId,
+            slot=slot==0 and "AREA" or "BONUS"}
+        s.acquisitionHistory[#s.acquisitionHistory+1]=entry
+        -- Bound ongoing history to avoid indefinite save growth.
+        if #s.acquisitionHistory>256 then table.remove(s.acquisitionHistory,1) end
+        if slot==0 and mapId and core.enforced(s,"encounter_limit") then
+            if type(s.areas)~="table" then s.areas={} end
+            s.areas[mapId]={speciesId=species,caughtSpeciesId=species,
+                caught=true,spent=true,attempts=1,source=kind}
+        end
+        return true
+    end
+
     function M.fishingBlocked(s, core)
         return core and core.active(s)
             and M.get(s, "no_fishing") == true or false
