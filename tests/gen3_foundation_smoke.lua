@@ -241,6 +241,22 @@ assert(#mod.exports.gen3_menu.model().rows>1,
 press("b");press("b")
 assert(mod.exports.gen3_menu.model().title=="RUN JOURNAL",
     "back returns to journal, not a second message-history root")
+press("down") -- RUN RULE DETAILS
+assert(mod.exports.gen3_menu.model().rows[8]=="RUN RULE DETAILS")
+press("a")
+local detailPage=mod.exports.gen3_menu.model()
+assert(detailPage.title=="RUN DETAILS"
+    and table.concat(detailPage.rows," "):find("CATCH: PER AREA",1,true),
+    "player-facing rules must describe configured areas, not raw maps")
+for _,line in ipairs(detailPage.rows) do
+    assert(#line<=25,"help text must wrap before native menu clips it")
+end
+for _=1,9 do press("down") end
+assert(mod.exports.gen3_menu.model().scroll>0
+    and mod.exports.gen3_menu.model().index>6,
+    "long details must scroll to every row")
+press("b")
+assert(mod.exports.gen3_menu.model().title=="RUN JOURNAL")
 press("b");press("b")
 game.session.map = "FR_ROUTE_2"
 fire("map.entered", { mapId = "FR_ROUTE_2" })
