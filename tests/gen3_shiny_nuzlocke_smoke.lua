@@ -390,6 +390,7 @@ assert(nativeSecondary.changeStat({},enemy,"accuracy",-1)=="blocked")
 assert(nativeSecondary.changeStat({},player,"accuracy",-1)=="blocked")
 assert(battleRules.setRule("other_stat_drop_scope",2))
 assert(nativeSecondary.changeStat({},enemy,"attack",-1)=="blocked")
+effectSource={user=player}
 assert(nativeSecondary.changeStat({},player,"attack",-1)=="worked"
     and player.stages.attack==-1)
 effectSource=nil
