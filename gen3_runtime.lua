@@ -2180,7 +2180,25 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             and battle._phase == "catch_nickname_prompt"
     end
 
-    -- Native catch prompts cannot be skipped when Nickname Rule is ON.
+    -- Starter/gift naming goes through the field script's ordinary yesnobox
+    -- (Choice.yesNo), not the battle.catch.nickname_required hook. The
+    -- actual native text is authoritative; never hijack unrelated yes/no
+    -- menus or a choice before a Pokemon exists.
+    local function nativeFieldNicknamePrompt()
+        local native=session()
+        if not (native and type(native.party)=="table"
+            and #native.party>0) then return false end
+        local ok,Message=pcall(require,"src.ui.game3.message")
+        if not ok or type(Message)~="table"
+            or type(Message.currentPage)~="function" then return false end
+        local answer=Message.currentPage()
+        if type(answer)~="string" then return false end
+        local normal=answer:lower():gsub("[%c]+"," ")
+        return normal:find("nickname",1,true)~=nil
+            or normal:find("nick name",1,true)~=nil
+    end
+
+    -- Native catch and field-script nickname prompts cannot be declined.
     -- The guarded naming screen repeats until a non-default name is given.
     -- The safe overworld task list handles gifts, trades and hatches.
     local function installNicknameGuard()
@@ -2202,10 +2220,10 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             or Ui.__nuzGen3NicknameWrap ~= Ui.askYesNo then
             local ask = Ui.askYesNo
             local function guardedAsk(prompt, callback, ...)
-                local nativeCatchPrompt = nativeCatchNicknamePrompt()
-                    and type(callback) == "function"
+                local namingPrompt = nativeCatchNicknamePrompt()
+                    or nativeFieldNicknamePrompt()
                 if Core.enforced(loadState(), "nickname_rule")
-                    and nativeCatchPrompt then
+                    and namingPrompt and type(callback)=="function" then
                     -- Ensure the native naming screen has its validator
                     -- before following the YES path. Do not display a
                     -- YES/NO prompt when No would violate the rule.
@@ -2231,7 +2249,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 or Choice.__nuzGen3NicknameWrap ~= Choice.yesNo) then
             local originalChoice = Choice.yesNo
             local function guardedChoice(callback, ...)
-                if nativeCatchNicknamePrompt()
+                if (nativeCatchNicknamePrompt()
+                    or nativeFieldNicknamePrompt())
                     and Core.enforced(loadState(), "nickname_rule")
                     and type(callback) == "function" then
                     notify("NICKNAME_FORCED",
@@ -2252,7 +2271,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
         local open = Naming.open
         local function guardedOpen(opts)
-            if type(opts) ~= "table" or opts.template ~= "CAUGHT_MON"
+            if type(opts) ~= "table"
+                or (opts.template ~= "CAUGHT_MON"
+                    and opts.template ~= "NICKNAME")
                 or not Core.enforced(loadState(), "nickname_rule")
                 or type(opts.onDone) ~= "function" then
                 return open(opts)
