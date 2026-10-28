@@ -14,6 +14,7 @@ return function(mod, api)
     local FieldRules = assert(api.fieldItemRules, "Gen 3 menu needs FIELD ITEMS policy")
     local Services = assert(api.serviceRules, "Gen 3 menu needs SERVICES policy")
     local Stats = assert(api.statRules, "Gen 3 menu needs POKEMON STATS policy")
+    local AreaSplits = assert(api.areaSplitRules, "Gen 3 menu needs AREA SPLITS policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -156,14 +157,14 @@ return function(mod, api)
         for key in pairs(s.areas) do ids[#ids + 1] = tostring(key) end
         table.sort(ids)
         local rows = {}
-        rows[#rows + 1] = row("AREA MAP", "wip", nil,
-            "Uses native map IDs. Cave floors are not grouped yet.")
+        rows[#rows + 1] = row("AREA LEDGER",nil,nil,
+            "The active Area Splits policy controls encounter keys.")
         for _, key in ipairs(ids) do
             local entry = s.areas[key]
             local didCatch = type(entry) == "table" and entry.caught
             local spent = Core.areaSpent(entry)
             local id = key
-            local place = Display.areaName(id)
+            local place = AreaSplits.name(id,Display.areaName)
             rows[#rows + 1] = row((didCatch and "C " or
                 (spent and "- " or "* ")) .. place, nil,
                 function() info("AREA DETAIL", {
@@ -1176,9 +1177,67 @@ return function(mod, api)
         return rows
     end
 
+    local function areaSplitRows(category)
+        local rows={}
+        local currentState=state()
+        for _,definition in ipairs(AreaSplits.descriptors()) do
+            local key,label=definition.key,definition.label
+            rows[#rows+1]=row(label..": "..
+                AreaSplits.label(currentState,key),nil,function()
+                local saved=state()
+                local desired=AreaSplits.next(saved,key)
+                local ok,reason=AreaSplits.set(saved,key,desired)
+                if not ok then
+                    info("AREA SPLITS",{tostring(reason)})
+                    return
+                end
+                api.setState(saved)
+                current().rows=areaSplitRows(category)
+            end)
+        end
+        -- Legacy Gen 2-specific fields are deliberately not actionable
+        -- in Gen 3. Keep them visible as an explicit edition note.
+        rows[#rows+1]=row("Time Split (Gen 2 only)","soon",function()
+            info("GEN 2 ONLY",{"MORNING / DAY / NIGHT",
+                "NOT A GEN 3 RULE"})
+        end)
+        rows[#rows+1]=row("Headbutt (Gen 2 only)","soon",function()
+            info("GEN 2 ONLY",{"HEADBUTT ENCOUNTERS",
+                "NOT A GEN 3 RULE"})
+        end)
+        rows[#rows+1]=row("  DETAILS: AREA SPLITS",nil,function()
+            local currentKey=api.currentEncounterArea
+                and api.currentEncounterArea(state()) or nil
+            info("AREA SPLITS HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "NATIVE MAP = OLD BEHAVIOUR",
+                "ONE/LOCATION: WHOLE CAVE",
+                "PER FLOOR: 1F / B1F...",
+                "KANTO / SEVII / HOENN",
+                "OVERRIDES: FOLLOW / ONE",
+                "/ FLOOR FOR EACH REGION",
+                "MT MOON: ITS OWN CHOICE",
+                "SAFARI: WHOLE OR AREAS",
+                "UNTIL CATCH: SAFARI",
+                "FLEES DO NOT SPEND",
+                "ROUTES 2/10: NORTH/SOUTH",
+                "ROUTE 20: WEST / EAST",
+                "ROUTE 21: GROUP OR SPLIT",
+                "ROUTE MIDLINE NEEDS XY",
+                "OLD CLAIMS STILL COUNT",
+                "NO DATA / NO SPLIT",
+                "CURRENT: "..(currentKey
+                    and AreaSplits.name(currentKey,Display.areaName)
+                    or "UNKNOWN"),
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
         if category.title == "SERVICES & ECONOMY" then return serviceRows(category) end
         if category.title == "POKEMON STATS" then return pokemonStatRows(category) end
+        if category.title == "AREA SPLITS" then return areaSplitRows(category) end
         if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
@@ -1216,6 +1275,7 @@ return function(mod, api)
             or c.title == "FIELD ITEMS"
             or c.title == "SERVICES & ECONOMY"
             or c.title == "POKEMON STATS"
+            or c.title == "AREA SPLITS"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
@@ -1377,7 +1437,8 @@ return function(mod, api)
         end
         return {
             row("RE-ARM CURRENT", nil, function()
-                local key = Dev.currentArea()
+                local key = api.currentEncounterArea and
+                    api.currentEncounterArea(state()) or Dev.currentArea()
                 if not key then
                     info("NO CURRENT MAP", { "ENTER AN OVERWORLD MAP" })
                     return
@@ -1387,7 +1448,8 @@ return function(mod, api)
                 end)
             end),
             row("EDIT CURRENT AREA", nil, function()
-                openAreaEditor(Dev.currentArea())
+                openAreaEditor(api.currentEncounterArea and
+                    api.currentEncounterArea(state()) or Dev.currentArea())
             end),
             row("EDIT ALL AREAS", nil, showDevAreas),
             row("CLEAR ALL AREAS", nil, function()
