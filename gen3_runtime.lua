@@ -18,6 +18,7 @@ return function(mod)
     local Core = readModule("gen3_core_rules.lua")()
     local Clauses = readModule("gen3_clauses.lua")()
     local CatchRules = readModule("gen3_catch_rules.lua")()
+    local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
     local Playstyles = readModule("gen3_playstyles.lua")()
@@ -367,11 +368,14 @@ return function(mod)
         if Core.active(saved) and not options.mandatoryStarter then
             local a=CatchRules.prepareAlphabet(saved,resolver,seed)
             local b=CatchRules.prepareColor(saved,resolver,seed)
-            if a or b then writeState(saved) end
+            local c=Variants.prepare(saved,resolver,seed)
+            if a or b or c then writeState(saved) end
         end
         options.seed=seed
-        return CatchRules.canAcquire(saved,kind,species,location,
-            resolver,Core,options)
+        local allowed,why=CatchRules.canAcquire(saved,kind,species,
+            location,resolver,Core,options)
+        if not allowed or options.mandatoryStarter then return allowed,why end
+        return Variants.check(saved,species,resolver,Core,seed)
     end
     local function scriptGiftSpecies(ctx,row)
         local id=type(row)=="table" and (row[1] or row.species)
@@ -1466,9 +1470,17 @@ return function(mod)
             okPokemon and Pokemon or nil,catchSeed)
         local colorSet=CatchRules.prepareColor(s,
             okPokemon and Pokemon or nil,catchSeed)
-        if alphabetSet or colorSet then writeState(s) end
+        local typeSet=Variants.prepare(s,
+            okPokemon and Pokemon or nil,catchSeed)
+        if alphabetSet or colorSet or typeSet then writeState(s) end
         local catchPermitted, bannedReason = CatchRules.check(s, species,
             okPokemon and Pokemon or nil, Core,catchSeed)
+        local typePermitted,typeReason=Variants.check(s,species,
+            okPokemon and Pokemon or nil,Core,catchSeed)
+        if not typePermitted then
+            catchPermitted=false
+            bannedReason=typeReason
+        end
         local sourcePermitted, sourceReason = CatchRules.checkBattle(s,
             ev.battle, Core,key)
         if not sourcePermitted then
@@ -1574,12 +1586,22 @@ return function(mod)
             okPokemon and Pokemon or nil,catchSeed)
         local colorSet=CatchRules.prepareColor(s,
             okPokemon and Pokemon or nil,catchSeed)
-        if alphabetSet or colorSet then writeState(s) end
+        local typeSet=Variants.prepare(s,
+            okPokemon and Pokemon or nil,catchSeed)
+        if alphabetSet or colorSet or typeSet then writeState(s) end
         local allowed, reason = CatchRules.check(s,
             (type(ctx) == "table" and ctx.speciesId)
                 or Clauses.speciesId(species)
                 or (type(mon) == "table" and (mon.speciesId or mon.species)),
             okPokemon and Pokemon or nil, Core,catchSeed)
+        if allowed then
+            allowed,reason=Variants.check(s,
+                (type(ctx)=="table" and ctx.speciesId)
+                    or Clauses.speciesId(species)
+                    or (type(mon)=="table"
+                        and (mon.speciesId or mon.species)),
+                okPokemon and Pokemon or nil,Core,catchSeed)
+        end
         if not allowed then
             -- No shake/clone/PC writeback or Shiny Clause exception.
             -- The matching battle-start check does not spend a route.
@@ -1775,6 +1797,7 @@ return function(mod)
             end,
         },
 
+        variants = Variants,
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -1922,6 +1945,22 @@ return function(mod)
             local ok,reason=BattleClauses.set(s,key,value)
             if ok then writeState(s) end
             return ok,reason
+        end,
+    }
+    mod.exports.gen3_variants = {
+        api=Variants.api,schema=Variants.schema,
+        definitions=Variants.descriptors,
+        getRule=function(key) return Variants.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=Variants.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+        check=function(species)
+            local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
+            return Variants.check(loadState(),species,
+                ok and Pokemon or nil,Core)
         end,
     }
     mod.exports.gen3_catch_rules = {
