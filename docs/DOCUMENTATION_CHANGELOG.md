@@ -14,6 +14,12 @@
 - Documented the randomised encounter-chain identity fix: public name uses the visible defeated species, internal repeated-spawn weighting uses the authored slot.
 - Updated packaging/release-version handling for the `3.0.0-BETA` manifest and `v3.0.0-BETA` prerelease tag.
 
+# 2.9.73 — historical documentation release
+
+- Published the Gen 3 new-game-only QoL setup/resource descriptions, native PC starter loadout behaviour and deferred Poké Ball unlock notes.
+- Updated standalone startup validation cases without making claims about later v3 rule/menu/results features.
+- This entry describes the published 2.9.73 release, not the completed v3.0.0-BETA.
+
 # 2.9.72
 
 - Documented Gen-II item-reference normalization, shop non-no-op selection, unified trainer tracing, and shiny private-image isolation.
