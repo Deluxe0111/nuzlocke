@@ -308,6 +308,159 @@ return function(mod)
         if Notices.add(saved, code, message) then writeState(saved) end
         if inBattle then Notices.battle(message) end
     end
+    -- Gen 3 scripted gifts have a pre-mutation script.command seam.
+    -- The gift opcode returns code 0/1 on success and 2 on failure.
+    -- Block the opcode itself rather than deleting an already-owned mon.
+    local function giftStarterExempt(mapId)
+        local party=session() and session().party
+        if type(party)~="table" or #party~=0 then return false end
+        return mapId=="FR_OAKS_LAB"
+            or mapId=="RU_ROUTE_101" or mapId=="SA_ROUTE_101"
+            or mapId=="EM_ROUTE_101"
+    end
+    local function scriptVar(ctx,id)
+        local vm=type(ctx)=="table" and (ctx.runner or ctx.vm)
+        local raw=type(vm)=="table" and vm.ctx
+        if type(raw)~="table" then return nil end
+        local ok,F=pcall(require,"src.core.game3.scripting.flags")
+        if not ok or type(F)~="table" or type(F.getVar)~="function" then
+            return nil
+        end
+        local space=package.loaded["src.core.game3.scripting.space"]
+        local store=space and space.store
+            or (session() and session().store)
+        local success,v=pcall(F.getVar,store,raw,id)
+        return success and v or nil
+    end
+    local function setScriptVar(ctx,id,value)
+        local vm=type(ctx)=="table" and (ctx.runner or ctx.vm)
+        local raw=type(vm)=="table" and vm.ctx
+        if type(raw)~="table" then return false end
+        local ok,F=pcall(require,"src.core.game3.scripting.flags")
+        if not ok or type(F)~="table" or type(F.setVar)~="function" then
+            return false
+        end
+        local space=package.loaded["src.core.game3.scripting.space"]
+        local store=space and space.store
+            or (session() and session().store)
+        return pcall(F.setVar,store,raw,id,value)
+    end
+    local function pokemonResolver()
+        local ok,P=pcall(require,"src.core.game3.pokemon")
+        return ok and P or nil
+    end
+    local function scriptGiftSpecies(ctx,row)
+        local id=type(row)=="table" and (row[1] or row.species)
+        local n=tonumber(id)
+        if n and n>=0x4000 then return scriptVar(ctx,n) end
+        return n or id
+    end
+    local function acquisitionReceipt(kind,species,location)
+        local saved=loadState()
+        if not CatchRules.noteAcquired(saved,kind,species,location,Core)
+            then return end
+        Clauses.noteCaught(saved,species,false)
+        writeState(saved)
+        notify("ACQUISITION", (kind=="gift" and "Gift Pokemon" or
+            "In-Game Trade")..": received Pokemon ("..
+            tostring(CatchRules.get(saved,kind=="gift"
+                and "gift_slot_policy" or "trade_slot_policy")==0
+                and "AREA" or "BONUS").." slot).")
+    end
+    mod.hooks:wrap("script.command",function(next,ctx,op,row)
+        if not Core.active(loadState()) or type(row)~="table" then
+            return next(ctx,op,row)
+        end
+        if op=="givemon" then
+            local species=scriptGiftSpecies(ctx,row)
+            local location=areaNow()
+            local saved=loadState()
+            local permitted,why=CatchRules.canAcquire(saved,"gift",
+                species,location,pokemonResolver(),Core,{
+                    mandatoryStarter=giftStarterExempt(location)
+                })
+            if not permitted and setScriptVar(ctx,0x800D,2) then
+                notify("GIFT_DENIED",why)
+                return false
+            end
+            local result=next(ctx,op,row)
+            local code=scriptVar(ctx,0x800D)
+            if permitted and (code==0 or code==1)
+                and not giftStarterExempt(location) then
+                acquisitionReceipt("gift",species,location)
+            end
+            return result
+        end
+        if op=="special" or op=="specialvar" then
+            local ok,Natives=pcall(require,
+                "src.core.game3.scripting.natives")
+            if ok and type(Natives)=="table"
+                and type(Natives.specialName)=="function" then
+                local id=op=="specialvar" and row[2]
+                    or (row.id or row[1])
+                local resolved,name=pcall(Natives.specialName,id)
+                if resolved and name=="GetInGameTradeSpeciesInfo" then
+                    local okTrade,Trade=pcall(require,
+                        "src.core.game3.scripting.natives_trade")
+                    local index=scriptVar(ctx,0x8004)
+                    local okEntry,entry=false,nil
+                    if okTrade and Trade and Trade.entry then
+                        okEntry,entry=pcall(Trade.entry,index)
+                    end
+                    if okEntry and type(entry)=="table" then
+                        local permitted,why=CatchRules.canAcquire(
+                            loadState(),"trade",entry.species,areaNow(),
+                            pokemonResolver(),Core)
+                        -- This native special only supplies the requested
+                        -- species for the NPC dialogue. Run it first so its
+                        -- display strings are still populated, then force
+                        -- a species mismatch BEFORE any exchange can start.
+                        if not permitted then
+                            local output=next(ctx,op,row)
+                            local dest=op=="specialvar" and row[1]
+                                or 0x800D
+                            if setScriptVar(ctx,dest,0) then
+                                notify("TRADE_DENIED",why)
+                            end
+                            return output
+                        end
+                    end
+                end
+            end
+        end
+        return next(ctx,op,row)
+    end)
+
+    -- The common FRLG/RSE NPC exchange writes the outgoing party slot in
+    -- Trade.tradeMons. Record only a completed swap; do not mistake the
+    -- preview/create-offered-Pokemon scratch party for a real acquisition.
+    local function installAcquisitionGuards()
+        local ok,Trade=pcall(require,
+            "src.core.game3.scripting.natives_trade")
+        if not ok or type(Trade)~="table"
+            or type(Trade.tradeMons)~="function" then return end
+        if Trade.__nuzAcquisitionOwner==mod
+            and Trade.tradeMons==Trade.__nuzAcquisitionWrap then return end
+        local previous=Trade.tradeMons
+        local function guarded(sess,slot,offered)
+            local species=type(offered)=="table"
+                and (offered.species or offered.speciesId)
+            local location=areaNow()
+            local permitted,why=CatchRules.canAcquire(loadState(),
+                "trade",species,location,pokemonResolver(),Core)
+            if not permitted then
+                notify("TRADE_DENIED",why)
+                return nil
+            end
+            local sent=previous(sess,slot,offered)
+            if sent then acquisitionReceipt("trade",species,location) end
+            return sent
+        end
+        Trade.tradeMons=guarded
+        Trade.__nuzAcquisitionOwner=mod
+        Trade.__nuzAcquisitionWrap=guarded
+    end
+
     local function refreshCapNotice()
         local saved = loadState()
         if not Core.active(saved)
@@ -1123,6 +1276,7 @@ return function(mod)
         installFishingGuard()
         installBattleClauseGuards()
         installStatusBanGuards()
+        installAcquisitionGuards()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -1180,6 +1334,7 @@ return function(mod)
         installFishingGuard()
         installBattleClauseGuards()
         installStatusBanGuards()
+        installAcquisitionGuards()
     end)
     mod.events:on("save.created", function()
         Randomizer.clearCache()
@@ -1195,6 +1350,7 @@ return function(mod)
         installFishingGuard()
         installBattleClauseGuards()
         installStatusBanGuards()
+        installAcquisitionGuards()
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -1212,6 +1368,7 @@ return function(mod)
         installCandyGuard()
         installBattleClauseGuards()
         installStatusBanGuards()
+        installAcquisitionGuards()
         reportedBattleClauses={}
         local starting = loadState()
         if Core.enforced(starting, "first_rival_forgiveness")
@@ -1645,6 +1802,7 @@ return function(mod)
                 installFishingGuard()
                 installBattleClauseGuards()
                 installStatusBanGuards()
+        installAcquisitionGuards()
                 Gen3Menu.open(g)
             end,
         })
