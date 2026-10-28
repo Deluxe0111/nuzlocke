@@ -1812,6 +1812,42 @@ return function(mod, api)
         present("EDIT ALL AREAS", listAreaRows(), listAreaRows)
     end
 
+    local function showDevRestore()
+        local function restoreRows()
+            local candidates=Dev.restoreCandidates()
+            local rows={}
+            for _,candidate in ipairs(candidates) do
+                local index=candidate.index
+                local archive=candidate.entry.archive
+                local label=Display.pokemonName(candidate.entry)
+                if type(label)~="string" or label=="" then
+                    label=Display.speciesName(archive)
+                end
+                rows[#rows+1]=row(label,nil,function()
+                    confirmDev("RESTORE","HALF HP, SAFE SLOT",function()
+                        return Dev.restorePokemon(index)
+                    end)
+                end)
+            end
+            if #rows==0 then
+                rows[1]=row("NO COMPLETE ARCHIVES")
+            end
+            rows[#rows+1]=row("ONLY FULL ARCHIVES",nil,function()
+                info("DEV RESTORE",{
+                    "TEST RUNS ONLY",
+                    "ORIGINAL STATS AND MOVES",
+                    "REVIVES AT HALF MAX HP",
+                    "PARTY FIRST, THEN PC",
+                    "DUPLICATES ARE BLOCKED",
+                    "NO ROOM: REFUSED",
+                    "LOST RUNS STAY SEALED",
+                })
+            end)
+            return rows
+        end
+        present("DEV RESTORE",restoreRows(),restoreRows)
+    end
+
     local function devRows()
         local d = Dev.status()
         if not d.enabled then
@@ -1873,6 +1909,7 @@ return function(mod, api)
             row("ADD TEST TOKEN", nil, function()
                 confirmDev("GRANT TOKEN", "DEV RUN ONLY", Dev.grantTestToken)
             end),
+            row("RESTORE FROM GRAVE",nil,showDevRestore),
         }
     end
 
@@ -2085,6 +2122,36 @@ return function(mod, api)
             row("KEEP PLAYING",nil,function() popPage() end),
         })
     end
+    -- Private, per-menu-session key sequence. It is an accidental-use
+    -- safeguard rather than a security secret: source-visible and never
+    -- persisted. The player must still confirm DEV activation separately.
+    local DEV_KEYS={"up","up","down","down","left","right","left","right"}
+    local devKeyProgress=0
+    local function devKeyPress(key)
+        if setupOnDone or not current()
+            or current().title~="NUZ MENU" then
+            devKeyProgress=0
+            return false
+        end
+        if key==DEV_KEYS[devKeyProgress+1] then
+            devKeyProgress=devKeyProgress+1
+        else
+            devKeyProgress=key==DEV_KEYS[1] and 1 or 0
+        end
+        if devKeyProgress~=#DEV_KEYS then return false end
+        devKeyProgress=0
+        present("DEV ACCESS",{
+            row("OPEN DEV TOOLS",nil,function()
+                popPage()
+                showDevTools()
+            end),
+            row("CANCEL",nil,popPage),
+            row("TEST RUNS ONLY"),
+            row("DEV ENABLE FLAGS SAVE"),
+        })
+        return true
+    end
+
     local function home()
         present("NUZ MENU", {
             row("NUZ RULES", nil, showRules),
@@ -2092,7 +2159,6 @@ return function(mod, api)
             row("RUN JOURNAL", nil, showRunJournal),
             row("GRAVEYARD", nil, showGraveyard),
             row("MOD SUPPORT", nil, showModSupport),
-            row("NUZ DEV", nil, showDevTools),
             row("NICKNAME TASKS", nil, showNicknameTasks),
             row("END RUN", nil, showEndRun),
         })
@@ -2149,6 +2215,7 @@ return function(mod, api)
         engineGame = game
         setupOnDone = done
         pages = {}
+        devKeyProgress=0
         present("NEW RUN SETUP", newRunRows(), newRunRows)
         return true
     end
@@ -2162,6 +2229,7 @@ return function(mod, api)
         setupOnDone = nil
         engineGame = game
         pages = {}
+        devKeyProgress=0
         home()
         local Stack = require("src.ui.game3.stack")
         Stack.push(MENU_ID, M, { isMenu = true, hideBelow = true, fullscreen = true })
@@ -2190,6 +2258,12 @@ return function(mod, api)
 
     function M.handleInput(input)
         if not input or not current() then return end
+        local pressed
+        for _,key in ipairs({"up","down","left","right"}) do
+            if input:wasPressed(key) then pressed=key break end
+        end
+        if pressed and devKeyPress(pressed) then return end
+        if not pressed then devKeyProgress=0 end
         if input:wasPressed("up") then move(-1)
         elseif input:wasPressed("down") then move(1)
         elseif input:wasPressed("a") then
