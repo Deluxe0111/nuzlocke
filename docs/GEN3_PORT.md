@@ -14,11 +14,14 @@ RUN / PARTY, LEVELS, PLAYSTYLES, RANDOMIZER, QOL and QOL SETUP ONLY at
 the top level, plus **ADVANCED RULES** directly after PLAYSTYLES.
 ADVANCED RULES contains Catch Rules, Battle Clauses, Status Bans,
 Variants, Battle Items, Field Items, Services & Economy, Pokémon Stats
-and Area Splits. **CATCH RULES now has ten working controls:**
+and Area Splits. **CATCH RULES now has fourteen working controls:**
 Town Catches, No Legendaries, No Mythicals, No Pseudos, Maximum BST,
-No Static Encounters, No Fishing, Alphabetlocke mode/letter and Allow
-Glitches. Gift/trade controls, Overworld, species picker and Colorlocke
-remain [Soon]; six other advanced groups are still placeholders.
+No Static Encounters, No Fishing, Alphabetlocke mode/letter,
+Allow Glitches, Gift Pokémon/Gift Slot Policy and In-Game
+Trades/Trade Slot Policy. Native Gen 3 gift opcodes and NPC swap
+transactions are intercepted before mutation, preserving mandatory
+starters. Overworld, species picker and Colorlocke remain [Soon];
+six other advanced groups are still placeholders.
 See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
 **BATTLE CLAUSES** now exposes Flinch, Trap, No Setup Moves, Evasion
 Clause, Accuracy Drops and Other Stat Drops as six working effect-level
