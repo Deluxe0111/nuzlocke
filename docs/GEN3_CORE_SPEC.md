@@ -64,8 +64,16 @@ Native boxes are in `session.storage.boxes[boxId].mons`.
 
 Nickname Tasks scans party and boxes for unnamed acquisitions, including
 gifts, trades and hatched Eggs. Unresolved tasks are visible to the player
-but **do not yet prevent use in battle**. The capture prompt now bypasses the native optional Yes/No choice
-entirely while CORE → NUZLOCKE and NICKNAME are ON. Captured Pokémon must
+but **do not yet prevent use in battle**. The capture prompt bypasses the native optional Yes/No choice
+entirely while CORE → NUZLOCKE and NICKNAME are ON **when using a
+Gen1Recomp build with the `battle.catch.nickname_required` hook**.
+This engine-level check is necessary because replacing the battle UI
+Yes/No function alone was not reliable in-game. Nuzlocke also installs
+a lower-level `Choice.yesNo` fallback for older builds, so a presented
+No choice cannot finish the catch unnamed, even if another UI override
+bypasses the higher-level wrapper. On older builds the redundant
+Yes/No prompt may still be shown; use the companion Gen1Recomp engine
+update to remove it completely. Captured Pokémon must
 enter a non-empty, non-species-default nickname before the native
 catch flow can complete. Empty, cancelled or default names return to
 the native naming screen; with the nickname rule OFF, native Yes/No is
