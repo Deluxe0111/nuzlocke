@@ -11,7 +11,7 @@ completed mechanics without WIP badges and keeps unsupported settings
 | --- | --- | --- | --- | --- |
 | `nuzlocke_enabled` | Nuzlocke Enabled | OFF (opt-in) | Working | Master rule enforcement switch; retains progress when switched off |
 | `permadeath` | Permadeath | ON | Working (battle) | Record death on `battle.fainted`, deny battle revivals, retire after writeback; field revival seam still needs certification |
-| `encounter_limit` | One Encounter Per Area | ON | Working (map ID) | Only one consumed eligible encounter per map; multi-floor area grouping is pending |
+| `encounter_limit` | One Encounter Per Area | ON | Working (area policy) | One eligible encounter per resolved area; Area Splits supports configurable grouping of multi-map regions |
 | `failed_encounter` | Failed Encounters Count | ON | Working (ordinary wild) | With area limit ON, first eligible wild attempt consumes the area even if missed; OFF means the first successful eligible catch closes it |
 | `nickname_rule` | Nickname Requirement | ON | Working | Native catch naming is mandatory; unnamed party/PC Pokémon appear in Nickname Tasks |
 | `first_rival_forgiveness` | First Rival Mercy | ON | Working | Opening rival battle consumes one-time mercy at start and protects Pokémon from Nuzlocke deaths |
@@ -37,9 +37,7 @@ encounters on upgrade. New entries contain `spent` and `attempts`.
 Existing entries that recorded a successful catch remain consumed if the user
 later disables/re-enables an enforcement rule.
 
-The future Dupes/Shiny/Gifts/Statics policy engine must determine eligibility
-**before** claiming an area. This is not yet implemented. Current tracking is
-ordinary wild encounters by native map ID, not full canonical Nuzlocke areas.
+Dupes, Shiny, gift/trade and static-catch legality is evaluated before a prohibited capture can spend an encounter slot. Area keys derive from native map sources and the [Area Splits](GEN3_AREA_SPLITS.md) policy; legacy map-only saves retain their historical records. Counting is deferred until native catching becomes possible.
 
 ## Whiteout / PC precedence (agreed)
 
@@ -115,8 +113,8 @@ every starter and edition remain mandatory.
   remains available; don't replace it without an explicit API migration.
 - `gen3_menu.lua` consumes the shared CORE descriptors; it does not define a
   second set of rule statuses/defaults. The **other** Gen 1/2 rules are still a
-  navigable WIP mirror and should be migrated to a unified registry in later
-  milestones.
+  navigable set of implemented categories backed by Gen 3-specific policy
+  modules and native action guards; unsupported edition-only rules stay inert.
 
 ## Next validation order
 
