@@ -41,6 +41,9 @@ return function()
             and v==math.floor(v) and v or 0
     end
     function M.set(s,key,v)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         local d = byKey[key]
         if not d then return false,"not_implemented" end
         if type(s)~="table" then return false,"invalid_state" end
