@@ -38,6 +38,7 @@ nativePrinter.tick = function()
     local p = nativePrinter.current
     if not p then return end
     if p.task < 2 then p.task = p.task + 1; return end
+    if p.printer == "pause" then p.delay = p.delay - 1; return end
     if p.printer == "char_delay" and p.delay > 0 then
         p.delay = p.delay - 1
         return
@@ -128,7 +129,7 @@ assert(prepared.index==5,
 prepared={task=2,mode=2,printer="pause",index=1,delay=60}
 nativePrinter.open(prepared)
 nativePrinter.tick()
-assert(prepared.index==2 or prepared.index==1,
+assert(prepared.index==1 and prepared.delay==59,
     "native RS pause remains under native timing control")
 
 -- Locks must describe the real reason instead of COMING SOON.
