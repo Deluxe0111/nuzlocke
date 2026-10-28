@@ -17,16 +17,17 @@ This is the human-in-the-loop test plan for [PR #1](https://github.com/Deluxe011
 ## NUZ DEV test reset controls (optional, recommended)
 
 Before repeating encounter tests on the same route, open **Start → NUZ MENU →
-[WIP] NUZ DEV → ENABLE DEV MODE**, confirm, then use **RE-ARM CURRENT**.
+NUZ MENU → **Up, Up, Down, Down, Left, Right, Left, Right** → OPEN DEV TOOLS → ENABLE DEV MODE**, confirm, then use **RE-ARM CURRENT**.
 See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 
-- [ ] **V01 — Enable dev tools.** Enable NUZ DEV and confirm. **Expected:** Available test controls; save marked as a development/test run.
+- [ ] **V01 — Hidden dev entry.** NUZ DEV is absent from the regular NUZ MENU. Enter the documented 8-direction code from the home screen. **Expected:** DEV ACCESS opens without changing the save; cancelling returns home; opening the tools and confirming ENABLE DEV MODE permanently flags the test save. The code is not accepted in a submenu or new-game setup.
 - [ ] **V02 — Re-arm current.** After consuming an area's first encounter, select RE-ARM CURRENT and confirm. **Expected:** The area's catch slot is open again, without touching actual caught Pokémon.
 - [ ] **V03 — Edit an area.** Use EDIT CURRENT AREA or EDIT ALL AREAS to mark one map OPEN, SPENT and CAUGHT. **Expected:** Area state and later catch decisions follow your edit.
 - [ ] **V04 — Cancel/global reset.** Try CLEAR ALL AREAS, cancel, confirm entries remain; repeat and confirm. **Expected:** All encounter records clear **only** after explicit confirmation.
 - [ ] **V05 — Inspect/export.** Open STATE INSPECTOR and PRINT DEBUG REPORT. **Expected:** Useful live values and `[NUZ DEV]` debug lines in the game console.
 - [ ] **V06 — Reset guard.** Attempt to clear run failure with an empty or fully fainted party. **Expected:** Refused. With a living party, manual un-fail is permitted, but no Pokémon is restored.
-- [ ] **V07 — Disable tools.** Disable NUZ DEV. **Expected:** Mutating features become inaccessible; permanent test-run marker remains.
+- [ ] **V07 — Disable tools.** Disable NUZ DEV. **Expected:** Mutating features become inaccessible; permanent test-run marker remains. Reopening the menu or restarting requires entering the hidden code again.
+- [ ] **V08 — Full archive restore.** On a disposable save, faint a Pokémon with full archive, then use NUZ DEV → RESTORE FROM GRAVE. **Expected:** confirmation, half max HP, original IVs/moves/identity/shiny, one removed graveyard entry; party-first or PC placement. Duplicate, incomplete-archive, full-PC and mid-battle cases refuse without any change. It must not unlock a permanently lost run.
 
 **Important:** Re-arming does not reverse an actual catch or return a Ball. For example, after completing E05, use V02 before testing E07 on the same map; otherwise use a new, unused route.
 
@@ -201,7 +202,7 @@ not something you can validate with a handful of normal encounters; use
   No forced-shiny behaviour on normal non-shiny Pokémon.
 - [ ] **AR01 — Death archives.** Let a new Pokémon faint and open the Graveyard.
   **Expected:** The existing readable memorial remains correct; archived
-  Pokémon data is retained for future recovery but no revival option appears.
+  Pokémon data is retained; a developer-only full-archive restore is available via the hidden NUZ DEV screen. Ordinary revival remains disabled.
 - [ ] **AR02 — Legacy deaths.** Reopen an older graveyard entry without the
   complete archive. **Expected:** It still shows species, level, nickname (if
   stored) and location, but does **not** offer approximate restoration.
@@ -231,7 +232,7 @@ twelve-case checklist and exact [WIP] limitations.
   cannot be reopened again.
 - [ ] **FG04 — Development testing:** NUZ DEV → ADD TEST TOKEN grants one
   test token after confirmation, leaving the test-run marker set.
-- [ ] **FG05 — Recovery limitation:** The Pokémon-revival option remains
+- [ ] **FG05 — Recovery limitation:** The ordinary Route Forgiveness Pokémon-revival option remains
   [Soon] and must never spend a token.
 
 ## E. Compatibility & known pending features
