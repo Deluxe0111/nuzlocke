@@ -40,6 +40,7 @@ assert(not V.set(s,"type_lock_draft",true))
 assert(not V.set(s,"wonderlocke",true))
 assert(V.next(s,"type_lock_mode")==1)
 assert(V.next(s,"type_lock_primary")==1)
+assert(Core.set(s,"nuzlocke_enabled",true), "Type Locke only enforces when the master is ON")
 assert(V.set(s,"type_lock_mode",1))
 assert(V.set(s,"type_lock_primary",10)) -- GBA FIRE
 assert(V.label(s,"type_lock_mode")=="MONO")
