@@ -1,92 +1,26 @@
 # Generation 3 beta — implementation overview
 
-**Release:** Nuzlocke **v3.0.0-BETA** · **Mod API:** 2 · **Save namespace:** `gen3_classic_v1`
+**Release target:** Nuzlocke **v3.0.0-BETA** · **Mod API:** 2 · **Save namespace:** `gen3_classic_v1`.
 
-Nuzlocke runs a separate Generation 3 implementation through
-[`entry.lua`](../entry.lua). The established `main.lua` continues to
-serve Red, Blue, Yellow, Gold, Silver and Crystal. The beta targets
-FireRed, LeafGreen, Ruby, Sapphire and Emerald.
+Gen 3 has an isolated `gen3_runtime.lua` selected by `entry.lua` for **FireRed, LeafGreen, Ruby, Sapphire and Emerald**. **Red, Blue, Yellow, Gold, Silver and Crystal** continue using the existing Gen 1/2 `main.lua`, including their original compatibility and save history.
 
-**NEW GAME integration (restored from PR #20):** FRLG and RS/Emerald
-open NEW RUN SETUP before entering the native intro. The player can
-configure the same CORE/CLAUSES/ADVANCED RULES pages as in-game,
-adjust the five QoL starting resources, and choose **LOCK FOR RUN**
-before selecting START NEW GAME. Cancelling leaves the prior save
-unchanged. The run lock is enforced by every working rule-category
-setter for the duration of the new save; Dev tools remain separate.
-The Gen 3 encounter ledger ignores pre-Ball wild fights entirely.
-Once the player has physically carried a native Ball (or a previous
-successful catch proves unlock), the encounter ledger stays unlocked
-even if all Balls are later spent. Extra QoL starting Balls are not
-available until that native capture boundary, and are delivered to
-Player PC exactly once. No engine changes are required.
+The definitive **ported / adapted / new** classification is the [Gen 3 feature matrix](GEN3_FEATURE_MATRIX.md). Only v3-specific features are claimed here; earlier releases and collaborators retain their historical credit in [CREDITS.md](../CREDITS.md).
 
-The Generation 3 menu is designed for a GBA-native 240×160 screen.
-Unported options are shown as **[Soon]** and do not silently change
-gameplay. NUZ RULES keeps CORE, CLAUSES, HARDCORE, GAME DIFFICULTY,
-RUN / PARTY, LEVELS, PLAYSTYLES, RANDOMIZER, QOL and QOL SETUP ONLY at
-the top level, plus **ADVANCED RULES** directly after PLAYSTYLES.
-ADVANCED RULES contains Catch Rules, Battle Clauses, Status Bans,
-Variants, Battle Items, Field Items, Services & Economy, Pokémon Stats
-and Area Splits. **CATCH RULES now has seventeen working controls:**
-Town Catches, No Legendaries, No Mythicals, No Pseudos, Maximum BST,
-No Static Encounters, No Fishing, Alphabetlocke mode/letter,
-Allow Glitches, Gift Pokémon/Gift Slot Policy, In-Game
-Trades/Trade Slot Policy, PKMN BAN's National Dex picker, and
-Colorlocke mode/colour. Native gift opcodes and NPC swaps are
-guarded before mutation. The canonical National Dex ban list also
-filters Nuzlocke's built-in randomiser replacement pools.
-The redundant Gen 3 Overworld Encounters row was removed: Untamed-
-Advanced's wandering wild Pokémon use normal Nuzlocke catch/area
-logic without a separate switch. Six other advanced groups remain
-placeholders.
-See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
-**BATTLE CLAUSES** implements OHKO Clause (ON/OFF for both sides)
-at the native OHKO accuracy boundary, as well as Flinch, Trap,
-No Setup Moves, Evasion Clause, Accuracy Drops and Other Stat Drops
-(see [Battle Clauses](GEN3_BATTLE_CLAUSES.md)).
-**STATUS BANS** adds eight working controls (No Status Moves bulk parent,
-six individual status scopes and a separate ON/OFF Sleep Clause). The
-Sleep Clause tracks inflicted sleep across switches within the battle;
-Rest/self-induced sleep is exempt.
-**VARIANTS** now implements Type Locke OFF/MONO/DUO/TRI/QUAD/PENTA/HEXA
-with six conditionally visible type selectors, saved deterministic RANDOM
-types, and species eligibility checks for wilds (including Untamed),
-optional gifts and NPC trades. **Catch Draft** is also implemented:
-successful wild catches establish unique type lanes, drafts persist,
-and optional gifts/trades must match already drafted types without
-filling new lanes.
-**BATTLE ITEMS** now has four working controls: No Healing Items,
-No X Items, No Catching, and Ball Per Encounter (OFF/1/2/3/5/10).
-Denials occur before native bag consumption; only eligible Ball
-transactions count towards each wild battle's budget.
-No Catching prevents wild battles from claiming an encounter slot.
-**FIELD ITEMS** adds seven working restrictions: No Repels,
-No Escape Rope, player-initiated Fly/Teleport Travel Restrictions,
-No Field Heal, No PP Items (including battle), No TMs (HM exempt),
-and No Rare Candy. Field bag, direct TM/PP/Rare Candy and native party
-paths are intercepted before mutation. Three other advanced categories
-remain [Soon]. See [Status Bans](GEN3_STATUS_BANS.md),
-[Variants](GEN3_VARIANTS.md), [Battle Items](GEN3_BATTLE_ITEMS.md)
-and [Field Items](GEN3_FIELD_ITEMS.md).
-The unimplemented WORLD and UI planning categories have been removed
-from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
+## Starting a run
 
-The former Almanac recap, NUZ STATUS and NUZ NOTICES are consolidated
-under **RUN JOURNAL** in the Gen 3 NUZ MENU. It displays live run
-state (outcome, playstyle, spent areas, area catches, deaths, shiny
-exceptions), opens the existing encounter/graveyard records and gives
-access to EVENT HISTORY with the latest 100 rule messages. Historical
-messages remain in the original `gen3_classic_v1.notices` save field;
-no save migration or duplicate data store is created. **MOD SUPPORT**
-is an active, read-only diagnostic screen for live Untamed detection,
-shiny-rate ownership and possible external randomiser overlap. Gen 3
-already composes its supported hooks automatically; unlike Gen 1/2,
-it does not implement per-capability ownership overrides, and a
-detected mod is not proof of combined-ROM compatibility.
+- **NEW GAME** opens the native **NEW RUN SETUP** before the introduction. Configure the same CORE/CLAUSES/ADVANCED RULES/PLAYSTYLES controls used in-game, plus setup-only QOL resources. **LOCK FOR RUN** optionally prevents later rule changes.
+- The first encounter counts **only after catch access is unlocked**, rather than exhausting early routes before the player has Poké Balls. Setup-only Balls are deferred to PC storage until the native catch-unlock point. On an existing save, Nuzlocke is opt-in under **NUZ RULES → CORE**.
+- **NUZ RULES** presents CORE, CLAUSES, HARDCORE, GAME DIFFICULTY, RUN/PARTY, LEVELS, PLAYSTYLES, ADVANCED RULES, RANDOMIZER, QOL and QOL SETUP ONLY. The nine advanced categories are **Catch Rules, Battle Clauses, Status Bans, Variants, Battle Items, Field Items, Services & Economy, Pokémon Stats and Area Splits**. These categories now have implemented options; only individual explicitly unsupported rules are unavailable.
+- The menu uses a 240×160 GBA-native layout with paginated/scrollable rows. Player-visible locations and Pokémon use friendly display names rather than raw internal IDs where resolvable.
+- Gen 3 has no visible Nuz Dev home row. Hold **Select + A** on the NUZ MENU to unlock the developer-only screen; enabling edits flags the save. See [Nuz Dev](GEN3_NUZ_DEV.md).
 
-Feature availability and runtime certification are separate:
-a working toggle is not proof that every edition and edge case is tested.
+## Journal, compatibility and results
+
+- **RUN JOURNAL** consolidates the former Almanac/Status/Notices concepts: run overview, encounter and graveyard shortcuts and the latest 100 saved rule-event notices. It reuses the old notice data with no save migration.
+- **MOD SUPPORT** reports live detection of Untamed and external shiny/randomiser providers. It is intentionally read-only; compatibility checks do not grant ownership or certify third-party combinations.
+- **END RUN** provides an explicit finalisation flow, preserves native save handling and opens the final screen. Champion and loss have different continuation policies; party/graveyard/stats export supports shiny details. See [Run results](GEN3_RUN_RESULTS.md).
+
+**Implemented is not the same as ROM-certified.** Automated tests and menu controls do not guarantee parity across all five editions or external mods.
 
 ## What works now
 
@@ -96,14 +30,14 @@ a working toggle is not proof that every edition and edge case is tested.
 | **CLAUSES** | Dupes, Shiny Catch Exception, Shiny Rate, Roamer Clause, Egg Encounter and Route Forgiveness. See [Clauses](GEN3_CLAUSES.md) and [Eggs and Forgiveness](GEN3_EGGS_FORGIVENESS.md). |
 | **PLAYSTYLES** | **Shiny Nuzlocke** restricts catches to shinies; **Hardcore Nuzlocke** forces strict encounter/death rules, SET style, no battle items except Balls, and Gym/League caps through Champion. Modes may combine. See [Playstyles](GEN3_PLAYSTYLES.md). |
 | **LEVELS** | Gym/Elite Four/Champion/Postgame cap scopes, native EXP clamping and optional EXP banking (EXP Edging). Native Rare Candy checks. See [LEVELS](GEN3_LEVELS.md). |
-| **RANDOMIZER** | Seeded normal wild step and fishing encounters and trainer species, with fixed/AUTO seed, presets, generation limits and BST balancing. See [Randomiser](GEN3_RANDOMIZER.md). |
+| **RANDOMIZER** | Seeded starter, step/fishing, static, gift/Egg, trainer, field/gift items, shop, TM, move-learnset and evolution randomisation with supported presets, generation/pool limits and balancing. See [Randomiser](GEN3_RANDOMIZER.md). |
 | **Overworld wild compatibility** | Untamed-Advanced's generated wandering Pokémon use the same Random Wild setting/seed via `untamed.owe.species`, before the sprite and battle are constructed. |
 | **Player feedback** | Rule explanations during relevant native battles plus RUN JOURNAL (run recap, event history, encounter/graveyard links). See [Feedback](GEN3_FEEDBACK.md). |
 | **Player tools** | Native encounter tracker, graveyard, nickname tasks and hidden Nuz Dev test utilities (including safe full-archive restoration). See [Nuz Dev](GEN3_NUZ_DEV.md). |
 
 ### Encounter and death handling
 
-The first eligible wild encounter is recorded against its **native map ID**.
+The first eligible wild encounter is recorded against its **resolved encounter area**. Native map IDs are used as the source identity, while [Area Splits](GEN3_AREA_SPLITS.md) can group or separate floors and sections depending on the configured policy.
 With Failed Encounters enabled, that attempt spends the area even if the
 Pokémon escapes or faints; when **Shiny Nuzlocke** is active, only an
 eligible *shiny* attempt can spend the area. When Failed Encounters is
@@ -142,17 +76,14 @@ the Nuzlocke compatibility integration there.
 
 ## Known beta boundaries
 
-- Not all Gen 1/2 modes, optional clauses, shops, items, starters, gifts,
-  static species, evolutions or move randomisation have Gen 3 adapters.
-- Route tracking currently uses **map IDs** rather than canonical
-  multi-floor area groupings.
+- Gen 1/2-only features are not automatically offered in Gen 3; the feature matrix records the supported Gen 3 controls.
+- Area grouping and splits operate on the native map source and configured policy; unknown third-party map identities still need testing.
 - Field/story revival, non-catch nickname eligibility, unusual trainer
   modes, special scripted losses, link/facility encounters and certain
   item-provider overlaps still need native-ROM validation.
 - Randomiser seed/settings lock after first successful replacement to
   prevent contradictory mappings on the same save.
-- Some UI/archive state displays additional detail but is not a PC-stored
-  resurrectable Pokémon. Back up saves before testing death/whiteout paths.
+- Ordinary Route Forgiveness Pokémon revival remains unavailable. A complete snapshot may be restored only with the hidden, tainting Nuz Dev tool; old/incomplete memorials cannot be reconstituted. Back up saves before testing death/whiteout paths.
 
 ## Testing and reference material
 
