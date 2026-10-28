@@ -37,7 +37,7 @@ check(overview.includes("RUN JOURNAL")&&overview.includes("MOD SUPPORT")
 check(!/^.*(?:six other advanced groups remain|three other advanced categories remain|PC Survivors Allowed is still \[Soon\]).*$/im.test(overview+"\n"+checklist),
   "stale Gen 3 implementation label");
 const files=[
- "README.md","RELEASE_NOTES.md","CREDITS.md",
+ "README.md","RELEASE_NOTES.md","CREDITS.md","docs/README.md",
  "docs/GEN3_FEATURE_MATRIX.md","docs/GEN3_PORT.md",
  "docs/GEN3_TEST_CHECKLIST.md","docs/GEN3_CORE_SPEC.md",
  "docs/GEN3_ADVANCED_RULES.md","docs/DEVELOPER_GEN3.md"
