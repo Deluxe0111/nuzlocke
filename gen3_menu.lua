@@ -9,6 +9,7 @@ return function(mod, api)
     local setupOnDone
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
+    local Qol = assert(api.qol, "Gen 3 menu needs setup-only QoL policy")
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
     local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
@@ -343,9 +344,63 @@ return function(mod, api)
         return rows
     end
 
+    local function startingQolRows(group)
+        local all = Qol.descriptors()
+        local rows = {}
+        local s = state()
+        local setup = s._setup == true
+        for _, d in ipairs(all) do
+            local resource = d.options ~= nil
+            if (group == "resources" and resource)
+                or (group == "pc" and not resource)
+                or group == nil then
+                local definition = d
+                local currentValue = Qol.get(s, definition.key)
+                local shown = type(currentValue) == "boolean"
+                    and (currentValue and "ON" or "OFF")
+                    or tostring(currentValue)
+                rows[#rows + 1] = row(definition.label .. ": " .. shown, nil,
+                    function()
+                        if not state()._setup then
+                            info("SETUP ONLY", {
+                                "NEW GAME CONFIG ONLY",
+                                "EXISTING SAVE UNCHANGED",
+                            })
+                            return
+                        end
+                        if definition.options then
+                            local choices = {}
+                            for _, number in ipairs(definition.options) do
+                                local selected = number
+                                choices[#choices + 1] = row(
+                                    (currentValue == selected and "* " or "  ")
+                                        .. tostring(selected),
+                                    nil, function()
+                                        local updated = state()
+                                        if Qol.set(updated, definition.key, selected) then
+                                            api.setState(updated)
+                                        end
+                                        popPage()
+                                    end)
+                            end
+                            present(definition.label, choices)
+                        else
+                            local updated = state()
+                            if Qol.set(updated, definition.key, not currentValue) then
+                                api.setState(updated)
+                                current().rows = startingQolRows(group)
+                            end
+                        end
+                    end)
+            end
+        end
+        return rows
+    end
+
     local function categoryRows(category)
         if category.title == "CORE" then return coreRows() end
         if category.title == "CLAUSES" then return clausesRows() end
+        if category.title == "QOL SETUP ONLY" then return startingQolRows() end
         local rows = {}
         for _, rule in ipairs(category.rules) do
             local key, label = rule[1], rule[2]
@@ -361,8 +416,8 @@ return function(mod, api)
         local rows = {}
         for _, cat in ipairs(CATALOG) do
             local c = cat
-            local kind = (c.title == "CORE" or c.title == "CLAUSES")
-                and "wip" or "soon"
+            local kind = (c.title == "CORE" or c.title == "CLAUSES"
+                or c.title == "QOL SETUP ONLY") and "wip" or "soon"
             rows[#rows + 1] = row(c.title, kind, function()
                 present(c.title, categoryRows(c))
             end)
@@ -586,6 +641,23 @@ return function(mod, api)
                 present("CLAUSES", clausesRows(), clausesRows)
             end),
             row("ALL NUZ RULES", nil, showRules),
+            row("START RESOURCES", nil, function()
+                present("START RESOURCES", startingQolRows("resources"),
+                    function() return startingQolRows("resources") end)
+            end),
+            row("PC LOADOUTS", nil, function()
+                present("PC LOADOUTS", startingQolRows("pc"),
+                    function() return startingQolRows("pc") end)
+            end),
+            row("OPENING SHORTCUTS", "soon", function()
+                info("OPENING SHORTCUTS", {
+                    "DEFAULT NAMES: SOON",
+                    "SKIP INTRO: SOON",
+                    "QUICK START: SOON",
+                    "SKIP CATCH DEMO: SOON",
+                    "NO QUEST FLAGS ALTERED",
+                })
+            end),
             row("LOCK FOR RUN: " .. (locked and "ON" or "OFF"), nil, function()
                 local saved = state()
                 saved.runSettingsLocked = not (saved.runSettingsLocked == true)
