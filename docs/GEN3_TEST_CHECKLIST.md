@@ -238,3 +238,10 @@ twelve-case checklist and exact [WIP] limitations.
 When reporting, send me the **test ID(s)** and observed result, e.g.:
 `E07 FAIL — FireRed, Failed Encounters OFF, ran from Pidgey, next wild capture still blocked.`
 
+
+## Shiny Nuzlocke playstyle (v3.0.0-BETA)
+
+Follow tests **S01–S11** in [Gen 3 Playstyles](GEN3_PLAYSTYLES.md):
+non-shiny Ball rejection and unused route slots, eligible shiny
+encounters with Failed Encounters ON/OFF, Shiny Clause precedence,
+shiny-rate independence, saves and Untamed wandering wild captures.

@@ -18,6 +18,7 @@ a working toggle is not proof that every edition and edge case is tested.
 | --- | --- |
 | **CORE** | Nuzlocke Enabled, Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run and PC Survivors Allowed. See [CORE specification](GEN3_CORE_SPEC.md). |
 | **CLAUSES** | Dupes, Shiny Catch Exception, Shiny Rate, Roamer Clause, Egg Encounter and Route Forgiveness. See [Clauses](GEN3_CLAUSES.md) and [Eggs and Forgiveness](GEN3_EGGS_FORGIVENESS.md). |
+| **PLAYSTYLES** | **Shiny Nuzlocke** restricts Ball captures to shinies; non-shinies do not spend a route, and Shiny Clause cannot bypass One Per Area. See [Playstyles](GEN3_PLAYSTYLES.md). |
 | **LEVELS** | Gym/Elite Four/Champion/Postgame cap scopes, native EXP clamping and optional EXP banking (EXP Edging). Native Rare Candy checks. See [LEVELS](GEN3_LEVELS.md). |
 | **RANDOMIZER** | Seeded normal wild step and fishing encounters and trainer species, with fixed/AUTO seed, presets, generation limits and BST balancing. See [Randomiser](GEN3_RANDOMIZER.md). |
 | **Overworld wild compatibility** | Untamed-Advanced's generated wandering Pokémon use the same Random Wild setting/seed via `untamed.owe.species`, before the sprite and battle are constructed. |
@@ -28,7 +29,9 @@ a working toggle is not proof that every edition and edge case is tested.
 
 The first eligible wild encounter is recorded against its **native map ID**.
 With Failed Encounters enabled, that attempt spends the area even if the
-Pokémon escapes or faints; when disabled, the first eligible successful
+Pokémon escapes or faints; when **Shiny Nuzlocke** is active, only an
+eligible *shiny* attempt can spend the area. When Failed Encounters is
+disabled, the first eligible successful
 catch closes the area. Dupes and Shiny eligibility are resolved before
 claiming the route. Native Balls still run through the normal catch
 transaction, which explains denial reasons.
