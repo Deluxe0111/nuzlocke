@@ -18,6 +18,7 @@ return function(mod)
     local Core = readModule("gen3_core_rules.lua")()
     local Clauses = readModule("gen3_clauses.lua")()
     local CatchRules = readModule("gen3_catch_rules.lua")()
+    local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local Playstyles = readModule("gen3_playstyles.lua")()
     local ShinyRate = readModule("gen3_shiny_rate.lua")()
     local Archive = readModule("gen3_archive.lua")()
@@ -448,6 +449,103 @@ return function(mod)
         return true
     end
 
+    -- Nuzlocke-only effect-level guards. These functions are shared by
+    -- primary moves, secondary effects and King's Rock. We never rewrite
+    -- native move definitions or damage, and only restrict sources proven
+    -- to be battle moves (not natural abilities/item stat changes).
+    local battleClauseSource
+    local reportedBattleClauses = {}
+    local function battleClauseNotice(key, message)
+        if reportedBattleClauses[key] then return end
+        reportedBattleClauses[key] = true
+        notify("BATTLE_CLAUSE", message, false)
+    end
+    local function installBattleClauseGuards()
+        local okS, Secondary = pcall(require,
+            "src.core.game3.battle.effects.secondary")
+        local okC, EffectCtx = pcall(require,
+            "src.core.game3.battle.effect_ctx")
+        if not okS or type(Secondary)~="table"
+            or not okC or type(EffectCtx)~="table" then return false end
+
+        if type(Secondary.set)=="function"
+            and (Secondary.__nuzGen3SetOwner~=mod
+                or Secondary.__nuzGen3SetWrap~=Secondary.set) then
+            local original = Secondary.set
+            local function guarded(M, effect, ...)
+                local source = type(M)=="table" and M.user or nil
+                local saved = loadState()
+                if source and BattleClauses.denyEffect(saved,
+                    effect, source, Core) then
+                    battleClauseNotice(effect, effect=="FLINCH"
+                        and "Flinch Clause: move flinch prevented."
+                        or "Trap Clause: partial trapping prevented.")
+                    return false
+                end
+                local previous = battleClauseSource
+                if source then battleClauseSource=source end
+                local ok, result, extra, more = pcall(original,
+                    M, effect, ...)
+                battleClauseSource=previous
+                if not ok then error(result,0) end
+                return result, extra, more
+            end
+            Secondary.set=guarded
+            Secondary.__nuzGen3SetWrap=guarded
+            Secondary.__nuzGen3SetOwner=mod
+        end
+
+        if type(Secondary.changeStat)=="function"
+            and (Secondary.__nuzGen3StatOwner~=mod
+                or Secondary.__nuzGen3StatWrap~=Secondary.changeStat) then
+            local original=Secondary.changeStat
+            local function guarded(adapter,target,stat,delta,flags)
+                local ctx=EffectCtx.current and EffectCtx.current()
+                local source=(ctx and ctx.user) or battleClauseSource
+                if source and BattleClauses.denyStat(loadState(),
+                    stat, delta, source, Core) then
+                    battleClauseNotice("stat:"..tostring(stat)..":"
+                        ..(delta>0 and "+" or "-"),
+                        "Battle Clause: move-caused "..tostring(stat)
+                        .." change prevented.")
+                    return "blocked"
+                end
+                return original(adapter,target,stat,delta,flags)
+            end
+            Secondary.changeStat=guarded
+            Secondary.__nuzGen3StatWrap=guarded
+            Secondary.__nuzGen3StatOwner=mod
+        end
+
+        -- Minimize has a second volatile flag besides its evasion stage.
+        -- Suppress that special state entirely when the Evasion Clause
+        -- prevents the move's stage boost.
+        local okE, Effects=pcall(require,
+            "src.core.game3.battle.effects.init")
+        if okE and type(Effects)=="table"
+            and type(Effects.run)=="function"
+            and (Effects.__nuzGen3RunOwner~=mod
+                or Effects.__nuzGen3RunWrap~=Effects.run) then
+            local original=Effects.run
+            Effects.run=function(id,adapter,user,target,...)
+                if id=="EXP_MINIMIZE_EFFECT" and user
+                    and BattleClauses.denyStat(loadState(),
+                        "evasion",1,user,Core) then
+                    battleClauseNotice("minimize",
+                        "Evasion Clause: Minimize was prevented.")
+                    if adapter and type(adapter.sayFail)=="function" then
+                        adapter:sayFail()
+                    end
+                    return true
+                end
+                return original(id,adapter,user,target,...)
+            end
+            Effects.__nuzGen3RunWrap=Effects.run
+            Effects.__nuzGen3RunOwner=mod
+        end
+        return true
+    end
+
     -- Shared after-change hook for the menu and versioned public API.
     local function onClauseChanged(saved, key)
         if key == "route_forgiveness" then
@@ -800,6 +898,7 @@ return function(mod)
         installCandyGuard()
         installNicknameGuard()
         installFishingGuard()
+        installBattleClauseGuards()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -855,6 +954,7 @@ return function(mod)
         installCandyGuard()
         installNicknameGuard()
         installFishingGuard()
+        installBattleClauseGuards()
     end)
     mod.events:on("save.created", function()
         Randomizer.clearCache()
@@ -868,6 +968,7 @@ return function(mod)
         installCandyGuard()
         installNicknameGuard()
         installFishingGuard()
+        installBattleClauseGuards()
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -883,6 +984,8 @@ return function(mod)
         installHardcoreSetGuard()
         installNicknameGuard()
         installCandyGuard()
+        installBattleClauseGuards()
+        reportedBattleClauses={}
         local starting = loadState()
         if Core.enforced(starting, "first_rival_forgiveness")
             and not starting.firstRivalMercyConsumed
@@ -1255,6 +1358,7 @@ return function(mod)
         notify = notify,
         getState = loadState, setState = writeState,
         core = Core, clauses = Clauses, catchRules = CatchRules,
+        battleClauses = BattleClauses,
         shinyRate = ShinyRate,
         playstyles = Playstyles,
         eggs = Eggs, forgiveness = Forgiveness,
@@ -1302,6 +1406,7 @@ return function(mod)
                 refreshForgiveness()
                 installCandyGuard()
                 installFishingGuard()
+                installBattleClauseGuards()
                 Gen3Menu.open(g)
             end,
         })
@@ -1374,6 +1479,17 @@ return function(mod)
         end,
     }
     -- Read-only diagnostic API. Mutators stay internal to the developer menu.
+    mod.exports.gen3_battle_clauses = {
+        api=BattleClauses.api, schema=BattleClauses.schema,
+        definitions=BattleClauses.descriptors,
+        getRule=function(key) return BattleClauses.get(loadState(),key) end,
+        setRule=function(key,value)
+            local s=loadState()
+            local ok,reason=BattleClauses.set(s,key,value)
+            if ok then writeState(s) end
+            return ok,reason
+        end,
+    }
     mod.exports.gen3_catch_rules = {
         api = CatchRules.api, schema = CatchRules.schema,
         definitions = CatchRules.descriptors,
@@ -1464,6 +1580,7 @@ return function(mod)
             "gen3_route_forgiveness_wip",
             "gen3_catch_species_bans", "gen3_catch_maximum_bst",
             "gen3_no_static_encounters", "gen3_no_fishing",
+            "gen3_effect_battle_clauses",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
             "pc_survivors_wip", "nickname_requirement_wip",

@@ -45,6 +45,31 @@ package.loaded["src.core.game3.pokemon"]={
 package.loaded["src.core.game3.battle.ui"]={
     push=function(line) battleText[#battleText+1]=line end,
 }
+local secondaryCalls={flinch=0,trap=0,stats=0}
+local nativeSecondary={
+    set=function(_,effect)
+        if effect=="FLINCH" then secondaryCalls.flinch=secondaryCalls.flinch+1 end
+        if effect=="WRAP" then secondaryCalls.trap=secondaryCalls.trap+1 end
+        return true
+    end,
+    changeStat=function(_,target,stat,delta)
+        secondaryCalls.stats=secondaryCalls.stats+1
+        target.stages[stat]=(target.stages[stat] or 0)+delta
+        return "worked"
+    end,
+}
+local effectSource
+package.loaded["src.core.game3.battle.effects.secondary"]=nativeSecondary
+package.loaded["src.core.game3.battle.effect_ctx"]={
+    current=function() return effectSource end,
+}
+local nativeEffects={
+    run=function(id,_,user)
+        if id=="EXP_MINIMIZE_EFFECT" then user.minimized=true end
+        return true
+    end,
+}
+package.loaded["src.core.game3.battle.effects.init"]=nativeEffects
 package.loaded["src.import.gba.map_sections_extract"]={
     getInfo=function(_,map) return {
         resolved=true,
@@ -323,6 +348,67 @@ assert(catch.setRule("no_fishing",false))
 assert(styles.setRule("shiny_nuzlocke",true),
     "restore initial playstyle state for existing menu regression")
 
+-- Runtime effect seam: both sides, King's Rock/shared flinch, partial
+-- trapping and primary/secondary move stat stages use native effect methods.
+local battleRules=assert(mod.exports.gen3_battle_clauses)
+assert(core.setRule("nuzlocke_enabled",true))
+map("FR_BATTLE_RULES_TEST")
+local player={side="player",stages={attack=0,accuracy=0,evasion=0}}
+local enemy={side="enemy",stages={attack=0,accuracy=0,evasion=0}}
+assert(battleRules.setRule("flinch_clause_scope",1))
+assert(not nativeSecondary.set({user=player},"FLINCH"),
+    "SELF flinch clause prevents King's Rock and move flinch")
+assert(secondaryCalls.flinch==0,
+    "blocked flinch must not execute the native effect")
+assert(nativeSecondary.set({user=enemy},"FLINCH"))
+assert(secondaryCalls.flinch==1,
+    "enemy flinch must be unchanged by SELF")
+assert(battleRules.setRule("trap_clause_scope",2))
+assert(not nativeSecondary.set({user=enemy},"WRAP"))
+assert(secondaryCalls.trap==0)
+assert(nativeSecondary.set({user=player},"WRAP"))
+assert(secondaryCalls.trap==1)
+assert(battleRules.setRule("setup_move_scope",1))
+effectSource={user=player}
+assert(nativeSecondary.changeStat({},player,"attack",2)=="blocked")
+assert(player.stages.attack==0)
+effectSource={user=enemy}
+assert(nativeSecondary.changeStat({},enemy,"attack",2)=="worked"
+    and enemy.stages.attack==2)
+assert(battleRules.setRule("evasion_clause",true))
+assert(nativeSecondary.changeStat({},enemy,"evasion",1)=="blocked"
+    and enemy.stages.evasion==0)
+assert(nativeEffects.run("EXP_MINIMIZE_EFFECT",
+    {sayFail=function()end},enemy,player))
+assert(not enemy.minimized,
+    "Minimize must not apply its non-stage volatile flag")
+assert(battleRules.setRule("evasion_clause",false))
+assert(nativeEffects.run("EXP_MINIMIZE_EFFECT",{},enemy,player))
+assert(enemy.minimized==true)
+assert(battleRules.setRule("status_accuracy_scope",3))
+assert(nativeSecondary.changeStat({},enemy,"accuracy",-1)=="blocked")
+assert(nativeSecondary.changeStat({},player,"accuracy",-1)=="blocked")
+assert(battleRules.setRule("other_stat_drop_scope",2))
+assert(nativeSecondary.changeStat({},enemy,"attack",-1)=="blocked")
+effectSource={user=player}
+assert(nativeSecondary.changeStat({},player,"attack",-1)=="worked"
+    and player.stages.attack==-1)
+effectSource=nil
+-- Native incidental non-move stat changes must not be blocked.
+assert(nativeSecondary.changeStat({},enemy,"accuracy",-1)=="worked")
+assert(enemy.stages.accuracy==-1)
+assert(secondaryCalls.stats>=3,
+    "native stat changes remain available when permitted")
+assert(core.setRule("nuzlocke_enabled",false))
+assert(nativeSecondary.set({user=player},"FLINCH"))
+assert(core.setRule("nuzlocke_enabled",true))
+for _,key in ipairs({"flinch_clause_scope","trap_clause_scope",
+    "setup_move_scope","status_accuracy_scope","other_stat_drop_scope"}) do
+    assert(battleRules.setRule(key,0))
+end
+assert(battleRules.setRule("evasion_clause",false))
+assert(core.setRule("nuzlocke_enabled",false))
+
 -- Menu exposes an actual PLAYSTYLES category and writes live state.
 local start=hooks["ui.start_menu.items"](function(_,items)return items end,g,{})
 assert(start[#start].label=="NUZ MENU")
@@ -399,8 +485,8 @@ assert(advanced.title=="ADVANCED RULES"
     and #advanced.rows==#expectedAdvanced,
     "Advanced Rules must contain exactly the nine requested categories")
 for i, name in ipairs(expectedAdvanced) do
-    assert(advanced.rows[i]==(name=="CATCH RULES" and name
-        or "[Soon] "..name),
+    assert(advanced.rows[i]==((name=="CATCH RULES"
+        or name=="BATTLE CLAUSES") and name or "[Soon] "..name),
         "advanced category "..i.." should reflect real feature readiness")
     press("a")
     local child=mod.exports.gen3_menu.model()
@@ -408,6 +494,24 @@ for i, name in ipairs(expectedAdvanced) do
         "advanced category must open its original rules")
     assert(child.rows[1]:find("[Soon]",1,true),
         "unsupported rows must stay read-only even in an active category")
+    if name=="BATTLE CLAUSES" then
+        assert(child.rows[1]=="[Soon] OHKO Clause"
+            and child.rows[2]=="Flinch Clause: OFF"
+            and child.rows[3]=="Trap Clause: OFF"
+            and child.rows[4]=="No Setup Moves: OFF"
+            and child.rows[5]=="Evasion Clause: OFF"
+            and child.rows[6]=="Accuracy Drops: OFF"
+            and child.rows[7]=="Other Stat Drops: OFF",
+            "battle menu must expose six working clauses and OHKO Soon")
+        press("down");press("a")
+        assert(child.title=="BATTLE CLAUSES"
+            and mod.exports.gen3_menu.model().rows[2]=="Flinch Clause: SELF")
+        assert(battleRules.getRule("flinch_clause_scope")==1)
+        press("a")
+        assert(battleRules.getRule("flinch_clause_scope")==2)
+        assert(battleRules.setRule("flinch_clause_scope",0))
+        press("up")
+    end
     if name=="CATCH RULES" then
         assert(child.rows[3]=="No Legendaries: OFF"
             and child.rows[4]=="No Mythicals: OFF"

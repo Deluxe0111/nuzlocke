@@ -9,6 +9,8 @@ return function(mod, api)
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
     local CatchRules = assert(api.catchRules, "Gen 3 menu needs CATCH RULES policy")
+    local BattleClauses = assert(api.battleClauses,
+        "Gen 3 menu needs BATTLE CLAUSES policy")
     local Playstyles = assert(api.playstyles, "Gen 3 menu needs PLAYSTYLES policy")
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
     local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
@@ -679,7 +681,56 @@ return function(mod, api)
         return rows
     end
 
+    local function battleClauseRows(category)
+        local rows={}
+        for _,entry in ipairs(category.rules) do
+            local key,label=entry[1],entry[2]
+            local value=BattleClauses.get(state(),key)
+            if value==nil then
+                rows[#rows+1]=row(label,"soon",function()
+                    disabledFeature(label,key)
+                end)
+            else
+                rows[#rows+1]=row(label..": "..
+                    BattleClauses.label(state(),key),nil,function()
+                    local saved=state()
+                    local nextValue=BattleClauses.next(saved,key)
+                    local ok,reason=BattleClauses.set(saved,key,nextValue)
+                    if not ok then
+                        info("BATTLE RULE UNAVAILABLE",{tostring(reason)})
+                        return
+                    end
+                    api.setState(saved)
+                    current().rows=battleClauseRows(category)
+                end)
+            end
+        end
+        rows[#rows+1]=row("  DETAILS: BATTLE",nil,function()
+            info("BATTLE CLAUSE HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "OFF: NORMAL BATTLE",
+                "SELF: YOUR MOVES",
+                "ENEMY: FOE MOVES",
+                "ALL: BOTH SIDES",
+                "FLINCH: NO FLINCH",
+                "TRAP: NO PARTIAL TRAP",
+                "SETUP: NO STAT BOOSTS",
+                "EVASION: NO EVA BOOST",
+                "ACCURACY: NO ACC DROPS",
+                "OTHER: NO OTHER DROPS",
+                "DAMAGE STILL APPLIES",
+                "OHKO CLAUSE: [SOON]",
+                "ITEM/ABILITY STAT FX",
+                "NOT BLOCKED BY SCOPE",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
+        if category.title == "BATTLE CLAUSES" then
+            return battleClauseRows(category)
+        end
         if category.title == "CATCH RULES" then return catchRuleRows(category) end
         if category.title == "CORE" then return coreRows() end
         if category.title == "CLAUSES" then return clausesRows() end
@@ -703,6 +754,7 @@ return function(mod, api)
     local function categoryActive(c)
         return c.title == "CORE" or c.title == "CLAUSES"
             or c.title == "CATCH RULES"
+            or c.title == "BATTLE CLAUSES"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
