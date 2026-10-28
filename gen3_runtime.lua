@@ -170,7 +170,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
 
     -- Gen 3 RANDOMIZER deliberately runs even if Nuzlocke rules are OFF.
-    local function randomSpecies(source, key, original, excluded, wildScope, wildSlot)
+    local function randomSpecies(source, key, original, excluded, wildScope, wildSlot, themeType)
         local saved = loadState()
         local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
         if not ok then return nil end
@@ -183,7 +183,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end,function(national)
                 return Core.active(saved)
                     and CatchRules.isBannedNational(saved,national)
-            end, excluded, wildScope, wildSlot)
+            end, excluded, wildScope, wildSlot, themeType)
         if result then
             if not usedBefore then
                 Notices.add(saved, "RANDOMIZER_LOCK",
@@ -563,6 +563,18 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
         local result, changed = {}, false
         local unique = Randomizer.get(loadState(), "random_trainer_diversity") == 1
+        local themeType
+        if Randomizer.get(loadState(),"random_trainer_theme")==1 then
+            local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
+            local lead=original[1]
+            local id=lead and tonumber(lead.speciesId or lead.species)
+            if okP and id and type(Pokemon.types)=="function" then
+                local okT,types=pcall(Pokemon.types,id)
+                if okT and type(types)=="table" then
+                    themeType=tonumber(types[1])
+                end
+            end
+        end
         local selected = {}
         for i, member in ipairs(original) do
             local newMember = {}
@@ -577,12 +589,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             local id, name = rivalStarter(trainerId, sourceSpecies)
             if not id then
                 id, name = randomSpecies("TRAINERS", key, sourceSpecies,
-                    unique and selected or nil)
+                    unique and selected or nil,nil,nil,themeType)
             end
             if not id and unique then
                 -- A tiny filtered pool may lack an unused candidate. Keep
                 -- native randomisation rather than deleting a team member.
-                id, name = randomSpecies("TRAINERS", key, sourceSpecies)
+                id, name = randomSpecies("TRAINERS", key, sourceSpecies,
+                    nil,nil,nil,themeType)
             end
             if id then
                 newMember.species, newMember.speciesId = name, id

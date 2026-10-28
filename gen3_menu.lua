@@ -635,6 +635,12 @@ return function(mod, api)
         toggle("random_trainers", "RANDOM TRAINERS")
         toggle("random_starter", "RANDOM STARTERS")
         if config.get("random_starter") then
+            cycle("random_starter_style", "STARTER STYLE",
+                { "ANY", "BASE FORMS", "FINAL FORMS" })
+            cycle("random_starter_trio_typing", "TRIO TYPING",
+                { "ANY", "DISTINCT" })
+            cycle("random_starter_rerolls", "STARTER REROLLS",
+                { "ONE", "THREE", "FIVE" })
             cycle("random_starter_balance", "STARTER BALANCE",
                 { "CHAOS", "SIM BST" })
         end
@@ -644,6 +650,8 @@ return function(mod, api)
         toggle("random_field_items", "RANDOM FIELD ITEMS")
         toggle("random_shops", "RANDOM SHOPS")
         toggle("random_tms", "RANDOM TMS")
+        cycle("randomizer_info_policy", "RNG INFO",
+            { "SHOW", "HIDE SEED" })
         cycle("random_tm_compatibility", "TM COMPAT", {
             "NATIVE", "RANDOM", "ALL" })
         if config.get("random_shops") then
@@ -669,12 +677,18 @@ return function(mod, api)
                 { "CHAOS", "SIM BST" })
             cycle("random_encounter_repetition", "WILD VARIETY",
                 { "NORMAL", "UNIQUE AREA" })
+            if config.get("random_encounter_repetition")==1 then
+                cycle("random_encounter_diversity_strength",
+                    "DIVERSITY", { "SPECIES", "PRIMARY TYPE", "BOTH TYPES" })
+            end
         end
         if config.get("random_trainers") then
             cycle("random_trainer_balance", "TRAINER BALANCE",
                 { "CHAOS", "SIM BST" })
             cycle("random_trainer_diversity", "TRAINER VARIETY",
                 { "NORMAL", "UNIQUE TEAM" })
+            cycle("random_trainer_theme", "TRAINER THEME",
+                { "ANY TYPE", "LEAD TYPE" })
         end
         if config.get("random_encounter_tables")
             or config.get("random_trainers")
@@ -686,13 +700,17 @@ return function(mod, api)
             cycle("random_species_generation", "SPECIES POOL",
                 { "ALL", "KANTO", "JOHTO", "HOENN" })
         end
-        rows[#rows + 1] = row("SEED: "
+        local hideSeed=config.get("randomizer_info_policy")==1
+            and config.locked()
+        rows[#rows + 1] = row(hideSeed and "SEED: HIDDEN" or ("SEED: "
             .. ((config.get("randomizer_seed") or 0) == 0
                 and "AUTO" or string.format("%08d",
-                config.get("randomizer_seed"))), nil, seedEditor)
-        rows[#rows + 1] = row("RUN SEED: "
+                config.get("randomizer_seed")))), nil,
+            hideSeed and nil or seedEditor)
+        rows[#rows + 1] = row(hideSeed and "RUN SEED: HIDDEN"
+            or ("RUN SEED: "
             .. ((config.seed() or 0) == 0 and "NOT ROLLED"
-                or string.format("%08d", config.seed())))
+                or string.format("%08d", config.seed()))))
         rows[#rows + 1] = row("CONFIG: "
             .. (config.locked() and "LOCKED" or "EDITABLE"))
         -- Keep other legacy settings visible as non-interactive placeholders.
@@ -714,6 +732,12 @@ return function(mod, api)
                     random_field_item_repetition=true,
                     random_shops=true, random_shop_balance=true,
                     random_tms=true, random_tm_compatibility=true,
+                    random_starter_style=true,
+                    random_starter_trio_typing=true,
+                    random_starter_rerolls=true,
+                    random_encounter_diversity_strength=true,
+                    randomizer_info_policy=true,
+                    random_trainer_theme=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]
