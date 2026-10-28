@@ -53,6 +53,14 @@ native.storage={boxes={{
 assert(H.allowSurvivors(s,Core,native,Extra))
 assert(#native.party==1 and native.party[1].species==7)
 assert(native.storage.boxes[1].mons[1]==nil)
+-- Egg-only parties count as zero usable survivors, not an occupied
+-- party that prevents access to a living rescue Pokemon.
+native.party={{species=9,hp=1,isEgg=true}}
+native.storage.boxes[1].mons[1]={species=7,personality=17,hp=20}
+assert(H.allowSurvivors(s,Core,native,Extra))
+assert(#native.party==2 and native.party[1].isEgg
+    and native.party[2].species==7)
+assert(native.storage.boxes[1].mons[1]==nil)
 native.party={}
 native.storage.boxes[1].mons[1]={
     species=7,personality=17,hp=20,nuzlockeDead=true}
@@ -78,6 +86,8 @@ local flags={
 }
 local badges={}
 assert(H.gymLocked(s,Core,"FR_PEWTER_CITY_GYM",flags,badges))
+assert(not H.gymLocked(s,Core,"FR_PEWTER_CITY_GYM",flags,badges,true),
+    "Gym Team Size requires a trip to PC; do not seal player inside")
 assert(not H.gymLocked(s,Core,"FR_CERULEAN_CITY",flags,badges))
 assert(not H.gymLocked(s,Core,"EM_RUSTBORO_CITY_GYM",flags,badges),
     "unrecognised edition badge data must fail open")
