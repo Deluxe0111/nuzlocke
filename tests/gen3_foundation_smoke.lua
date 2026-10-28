@@ -676,4 +676,122 @@ press("b")
 press("b")
 press("b")
 
+-- Scripted acquisition integration: the Gen 3 script.command hook must
+-- deny optional gifts BEFORE the native opcode and force its failure code.
+-- NPC trade admission must refuse before the script offers a swap; completed
+-- swaps alone write AREA/BONUS history. These are mocked native seams.
+package.loaded["src.core.game3.scripting.flags"] = {
+    getVar=function(_,raw,id) return raw.specialVars[id] or 0 end,
+    setVar=function(_,raw,id,value) raw.specialVars[id]=value end,
+}
+package.loaded["src.core.game3.scripting.natives"] = {
+    specialName=function(id)
+        if id==77 then return "GetInGameTradeSpeciesInfo" end
+    end,
+}
+local tradedCalls=0
+local npcTrades={
+    entry=function(id) return id==3 and {species=25} or nil end,
+    tradeMons=function(sess,slot,offered)
+        tradedCalls=tradedCalls+1
+        local old=sess.party[slot+1]
+        sess.party[slot+1]=offered
+        return old
+    end,
+}
+package.loaded["src.core.game3.scripting.natives_trade"]=npcTrades
+local catchRules=mod.exports.gen3_catch_rules
+values.gen3_classic_v1={enabled=true,failed=false,areas={},graveyard={}}
+game.session.map="FR_ROUTE_20"
+fire("map.entered",{mapId="FR_ROUTE_20"})
+assert(type(hooks["script.command"])=="function")
+local vm={ctx={specialVars={[0x8004]=3}}}
+local c={runner=vm}
+local giftCalls=0
+local function nativeGift()
+    giftCalls=giftCalls+1
+    game.session.party[#game.session.party+1]={species=25,hp=10}
+    vm.ctx.specialVars[0x800D]=0
+    return false
+end
+assert(catchRules.setRule("allow_gifts",false))
+assert(hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})==false)
+assert(giftCalls==0 and vm.ctx.specialVars[0x800D]==2,
+    "denied gift must not run the native opcode")
+assert(#game.session.party==1)
+assert(catchRules.setRule("allow_gifts",true))
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(giftCalls==1 and #game.session.party==2
+    and values.gen3_classic_v1.areas.FR_ROUTE_20.spent)
+local history=values.gen3_classic_v1.acquisitionHistory
+assert(#history==1 and history[1].slot=="AREA"
+    and history[1].kind=="gift")
+local giftSlot=c and mod.exports.gen3_catch_rules
+assert(giftSlot.setRule("gift_slot_policy",1))
+game.session.map="FR_ROUTE_21"
+fire("map.entered",{mapId="FR_ROUTE_21"})
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(giftCalls==2 and values.gen3_classic_v1.areas.FR_ROUTE_21==nil
+    and values.gen3_classic_v1.acquisitionHistory[2].slot=="BONUS")
+-- A mandatory starter remains obtainable even if optional gifts are OFF.
+assert(catchRules.setRule("allow_gifts",false))
+game.session.party={}
+game.session.map="FR_OAKS_LAB"
+fire("map.entered",{mapId="FR_OAKS_LAB"})
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(giftCalls==3 and #game.session.party==1
+    and #values.gen3_classic_v1.acquisitionHistory==2)
+-- Unknown/failed gifts leave the area available; AREA never claims it.
+assert(catchRules.setRule("allow_gifts",true))
+assert(catchRules.setRule("gift_slot_policy",0))
+game.session.map="FR_ROUTE_22"
+fire("map.entered",{mapId="FR_ROUTE_22"})
+hooks["script.command"](function()
+    vm.ctx.specialVars[0x800D]=2; return false
+end,c,"givemon",{op="givemon",species=25,level=5})
+assert(values.gen3_classic_v1.areas.FR_ROUTE_22==nil)
+-- NPC trade: preview special is allowed to populate display strings,
+-- but the returned required species is overridden to zero when banned.
+local previewCalls=0
+local function nativePreview()
+    previewCalls=previewCalls+1
+    vm.ctx.specialVars[0x800D]=25
+    return false
+end
+assert(catchRules.setRule("allow_trades",false))
+hooks["script.command"](nativePreview,c,"specialvar",
+    {op="specialvar",[1]=0x800D,[2]=77})
+assert(previewCalls==1 and vm.ctx.specialVars[0x800D]==0,
+    "banned NPC trade must advertise no matching required species")
+assert(catchRules.setRule("allow_trades",true))
+assert(catchRules.setRule("trade_slot_policy",0))
+game.session.map="FR_ROUTE_23"
+fire("map.entered",{mapId="FR_ROUTE_23"})
+hooks["script.command"](nativePreview,c,"specialvar",
+    {op="specialvar",[1]=0x800D,[2]=77})
+assert(vm.ctx.specialVars[0x800D]==25)
+local traded=npcTrades.tradeMons(game.session,0,{species=25,hp=10})
+assert(traded and tradedCalls==1
+    and values.gen3_classic_v1.areas.FR_ROUTE_23.source=="trade")
+-- A spent AREA slot blocks the preflight and swap without losing a mon.
+local offered={species=25,hp=10}
+local prior=game.session.party[1]
+hooks["script.command"](nativePreview,c,"specialvar",
+    {op="specialvar",[1]=0x800D,[2]=77})
+assert(vm.ctx.specialVars[0x800D]==0)
+assert(npcTrades.tradeMons(game.session,0,offered)==nil)
+assert(game.session.party[1]==prior and tradedCalls==1)
+assert(catchRules.setRule("trade_slot_policy",1))
+hooks["script.command"](nativePreview,c,"specialvar",
+    {op="specialvar",[1]=0x800D,[2]=77})
+assert(vm.ctx.specialVars[0x800D]==25)
+assert(npcTrades.tradeMons(game.session,0,offered))
+assert(tradedCalls==2
+    and values.gen3_classic_v1.acquisitionHistory[
+        #values.gen3_classic_v1.acquisitionHistory].slot=="BONUS")
+
 print("Gen3 experimental Nuzlocke smoke PASS")
