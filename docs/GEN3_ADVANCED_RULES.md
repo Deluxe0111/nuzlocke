@@ -18,6 +18,10 @@ Settings are saved and retained when the master switch is temporarily OFF.
 | **No Pseudos** | OFF | Bans the full Dragonite, Tyranitar, Salamence and Metagross evolutionary lines, including their first and second stages. |
 | **No Static Encounters** | OFF | Blocks Ball captures of native scripted wild encounters, including fixed legendary battles and Marowak; the battle itself continues normally. Roaming legendary Pokémon are excluded. |
 | **No Fishing** | OFF | Blocks rod use at the native field-entry point before the fishing minigame and prevents direct fishing encounter attempts. Rod items remain in the bag; surf and other encounter methods work normally. |
+| **Gift Pokémon** | ON | OFF refuses optional scripted `givemon` gifts before party/PC mutation, using the native failure result. The compulsory first starter remains exempt. |
+| **Gift Slot Policy** | AREA | AREA makes successful optional gifts consume the encounter slot on the receipt map when One Per Area is enabled. BONUS records the gift without spending that slot. |
+| **In-Game Trades** | ON | OFF rejects native NPC in-game trades at the requested-species preview, before the player gives up their Pokémon. This does not block linked player trades. |
+| **Trade Slot Policy** | AREA | AREA makes successful NPC exchanges consume the encounter slot on their map when One Per Area is enabled. BONUS records the exchange without using the ordinary slot. |
 | **Alphabetlocke** | OFF | OFF / RANDOM / CHOOSE. Restricts new wild catches by the first letter of the species' canonical ROM identity (not nickname or translated text). RANDOM chooses an available initial deterministically for the save and stores it; CHOOSE uses the Letter selector. |
 | **Letter** | A | A–Z selector, only shown when Alphabetlocke is CHOOSE; irrelevant in OFF and RANDOM modes. |
 | **Allow Glitches** | OFF | OFF refuses wild catches with invalid/unregistered or explicitly glitch-marked species IDs when the native registry can verify them. ON allows them through this check; all other catch bans still apply. Valid provider-registered custom species are not classified as glitches merely for lacking a National Dex number. |
@@ -64,16 +68,41 @@ the catch is denied rather than silently bypassing a hard maximum.
   `statusBans`-independent `catchRules.alphabetlocke_random_letter`.
   Changing Alphabetlocke mode resets that stored choice. The selector
   is visible in the menu after resolution as `RND:X`.
-- No changes are made to caught or boxed Pokémon retroactively.
-  This batch is **wild/Poké Ball capture enforcement**; non-wild
-  gifts, scripted static giveaways and NPC trades are not yet gated.
+- **Scripted gifts** are checked in the Gen 3 `script.command` pre-transaction
+  hook. On denial, the normal `givemon` opcode does not run and the VM
+  receives its native unsuccessful delivery result (`VAR_RESULT = 2`).
+  Native scripts still own their own dialogue, flags and retry handling.
+  The mandatory opening starter at Oak's Lab / the Route 101 rescue
+  remains obtainable even when optional gifts are disabled.
+- **NPC in-game trades** use the native
+  `GetInGameTradeSpeciesInfo` script special for early rejection: its
+  dialogue strings are left available but the requested species is
+  replaced with 0, so an ordinary party Pokémon cannot match.
+  The actual `Trade.tradeMons` mutation is also guarded; a completed
+  swap is the only event counted as a received trade. Linked trades
+  are not handled by this NPC-only rule.
+- **AREA vs BONUS:** AREA applies the same physical-map key as wild
+  encounters, and only commits a spent map entry following a successful
+  gift or exchange; an unsuccessful / prohibited transaction does not
+  spend a slot. BONUS logs the receipt without consuming the wild slot.
+  Both modes retain successful `acquisitionHistory` provenance and
+  mark the received species for Dupes Clause. With One Per Area OFF,
+  AREA cannot block a transaction based on old route slots.
+- Existing species restrictions (Legendary, Mythical, pseudo, BST and
+  Alphabetlocke where a canonical name is available) also gate these
+  supported new acquisitions. Gifts/trades produced by external mods
+  through unrelated transaction APIs are **not** intercepted.
+  Since the Gen 3 `pokemon.before_give` event does not honour veto,
+  a different mod changing the species after our preflight needs
+  separate compatibility testing; no destructive rollback is attempted.
+- No changes are made to already-owned Pokémon retroactively.
+  Gift/Trade scripts and PC-capacity handling remain native.
 
 ### Still [Soon]
 
-Overworld encounters, Gift Pokémon / Gift Slot Policy,
-In-Game Trades / Trade Slot Policy, PKMN BAN, Colorlocke and its colour. All remaining ADVANCED RULES categories also remain
-[Soon]. Their controls must not imply implementation until their
-underlying native transactions have been validated.
+Overworld encounters, PKMN BAN, Colorlocke and its colour.
+All remaining ADVANCED RULES categories remain [Soon]; unsupported
+rows are not editable.
 
 ## Manual verification
 
@@ -113,8 +142,24 @@ underlying native transactions have been validated.
     species from a developer/provider fixture; it must be rejected.
     ON permits it unless another rule blocks it. Ordinary Hoenn IDs
     must remain legal.
-13. Verify the other unfinished Catch Rules and advanced categories
-    remain [Soon] and cannot be toggled.
+13. Set **Gift Pokémon = OFF** on a disposable save, attempt an
+    optional scripted gift (e.g. the Celadon Eevee). No new Pokémon
+    should enter party/PC and the game should remain playable. Then
+    re-enable gifts, obtain it, and confirm exactly one receipt.
+    Confirm the compulsory opening starter still works with gifts OFF.
+14. Check Gift Slot **AREA**: receive a gift on an unused map, then
+    verify a wild catch there is blocked by One Per Area. On a fresh
+    map, select **BONUS** and verify the gift does not consume its
+    encounter slot. Check unsuccessful full-PC delivery does not claim it.
+15. In a native NPC trade, set **In-Game Trades = OFF** and confirm
+    the exchange never takes your offered Pokémon. Enable it, set
+    Trade Slot **AREA**, complete an NPC trade and confirm the source
+    map slot is spent. Repeat on a fresh map with **BONUS** and
+    confirm the map's normal slot remains available. Test FRLG and RSE.
+16. Verify prohibitions from Legendary/Mythical/pseudo/BST/Alphabetlocke
+    apply to supported optional gifts and received NPC trade Pokémon.
+17. Verify unported Catch Rules, including Colorlocke, species picker
+    and Overworld, remain [Soon].
 
 The automated smoke suite is not a substitute for exact-edition ROM
 testing in FireRed, LeafGreen, Ruby, Sapphire and Emerald.
