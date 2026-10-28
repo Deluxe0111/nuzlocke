@@ -375,7 +375,7 @@ return function(mod)
         local allowed,why=CatchRules.canAcquire(saved,kind,species,
             location,resolver,Core,options)
         if not allowed or options.mandatoryStarter then return allowed,why end
-        return Variants.check(saved,species,resolver,Core,seed)
+        return Variants.check(saved,species,resolver,Core,seed,kind)
     end
     local function scriptGiftSpecies(ctx,row)
         local id=type(row)=="table" and (row[1] or row.species)
@@ -1709,6 +1709,15 @@ return function(mod)
             ev.mon.nuzlockeShinyRateBoosted = true
         end
         Clauses.noteCaught(s, caughtSpecies, activeBattle.exception)
+        local drafted, draftedType, draftedCount, draftTarget
+        if not activeBattle.draftRecorded then
+            -- Native pokemon.caught is emitted only for a successful wild
+            -- capture. Do not infer a draft from Battle started, Ball
+            -- thrown, the mandatory starter, optional gifts or NPC swaps.
+            activeBattle.draftRecorded=true
+            drafted,draftedType,draftedCount,draftTarget=Variants.noteCatch(
+                s,caughtSpecies,pokemonResolver(),Core)
+        end
         -- A captured roamer closes its *species* slot, not the current route.
         -- Exceptional shiny captures never close the ordinary encounter slot.
         if activeBattle.roamer then
@@ -1722,6 +1731,11 @@ return function(mod)
             end
         end
         writeState(s)
+        if drafted then
+            notify("CATCH_DRAFT","Catch Draft: "..draftedType
+                .." selected ("..draftedCount.."/"..draftTarget
+                .." types).",true)
+        end
         if activeBattle.eligible and not activeBattle.roamer
             and not activeBattle.exception and Core.enforced(s, "encounter_limit") then
             notify("ENCOUNTER_CAUGHT", "One Per Area: "
