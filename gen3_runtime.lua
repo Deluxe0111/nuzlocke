@@ -23,6 +23,7 @@ return function(mod)
     local Services = readModule("gen3_services_economy.lua")()
     local Stats = readModule("gen3_pokemon_stats.lua")()
 local AreaSplits = readModule("gen3_area_splits.lua")()
+local RunParty = readModule("gen3_run_party.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -1026,6 +1027,140 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         return true
     end
 
+    -- Run/Party guards cover native transaction boundaries. Catches
+    -- are refused at catch.rate BEFORE dex/party writes; this second
+    -- catching guard covers direct callers and other catch providers.
+    -- In particular, never trim a live party or delete excess Mons.
+    local function installRunPartyGuards()
+        local okParty,Party=pcall(require,"src.core.game3.party")
+        if okParty and type(Party)=="table"
+            and type(Party.giveMon)=="function"
+            and Party.__nuzRunGive~=Party.giveMon then
+            local previous=Party.giveMon
+            local function guardedGive(native,...)
+                local reason=RunParty.addDenied(loadState(),Core,native)
+                if reason then
+                    notify("PARTY_LIMIT_GIFT",reason,false)
+                    return false,Party.MON_CANT_GIVE,nil
+                end
+                return previous(native,...)
+            end
+            Party.giveMon=guardedGive
+            Party.__nuzRunGive=guardedGive
+        end
+
+        local okCatch,Catching=pcall(require,
+            "src.core.game3.battle.catching")
+        if okCatch and type(Catching)=="table"
+            and type(Catching.storeCaught)=="function"
+            and Catching.__nuzRunStore~=Catching.storeCaught then
+            local previous=Catching.storeCaught
+            local function guardedStore(native,...)
+                local reason=RunParty.addDenied(loadState(),Core,native)
+                if reason then
+                    notify("PARTY_LIMIT_CATCH",reason,false)
+                    return {success=false,reason="party_size_limit",
+                        location=nil,firstTimeCaught=false,mon=nil}
+                end
+                return previous(native,...)
+            end
+            Catching.storeCaught=guardedStore
+            Catching.__nuzRunStore=guardedStore
+        end
+
+        local okStorage,Storage=pcall(require,"src.core.game3.storage")
+        if okStorage and type(Storage)=="table" then
+            local function wrap(method,deny)
+                local tag="__nuzRun_"..method
+                if type(Storage[method])~="function"
+                    or Storage[tag]==Storage[method] then return end
+                local previous=Storage[method]
+                local function guarded(native,...)
+                    local reason=RunParty.addDenied(loadState(),Core,native)
+                    if reason and deny(native,...) then
+                        notify("PARTY_LIMIT_PC",reason,false)
+                        return false,"party_size_limit"
+                    end
+                    return previous(native,...)
+                end
+                Storage[method]=guarded
+                Storage[tag]=guarded
+            end
+            wrap("withdraw",function() return true end)
+            wrap("moveMon",function(native,srcLoc,srcIdx,dstLoc,dstIdx)
+                if srcLoc~="box" or dstLoc~="party" then return false end
+                return not (native.party and native.party[dstIdx])
+            end)
+            wrap("placeHeldMon",function(native,mon,loc,slot)
+                return loc=="party" and not
+                    (native.party and native.party[slot])
+            end)
+        end
+
+        -- Gym limit must read the actually composed opponent party, after
+        -- trainers and Difficulty have supplied their final roster.
+        local okBattle,Battle=pcall(require,"src.core.game3.battle.init")
+        if okBattle and type(Battle)=="table"
+            and type(Battle.start)=="function"
+            and Battle.__nuzRunStart~=Battle.start then
+            local previous=Battle.start
+            local function guardedStart(opts,...)
+                if type(opts)=="table" then
+                    local native=session()
+                    local okTr,Trainers=pcall(require,
+                        "src.core.game3.scripting.trainers")
+                    local reason=RunParty.gymDenial(loadState(),Core,
+                        native,opts.foe,opts,okTr and Trainers or nil)
+                    if reason then
+                        notify("GYM_TEAM_LIMIT",reason,false)
+                        return nil,"gym_team_size"
+                    end
+                end
+                return previous(opts,...)
+            end
+            Battle.start=guardedStart
+            Battle.__nuzRunStart=guardedStart
+        end
+
+        -- All native evolution checks (level, stone, trade) converge on
+        -- targetSpecies. Deny BEFORE scenes or evolution item consumption.
+        local okE,Evolution=pcall(require,"src.core.game3.evolution")
+        if okE and type(Evolution)=="table" then
+            local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
+            if type(Evolution.targetSpecies)=="function"
+                and Evolution.__nuzRunTarget~=Evolution.targetSpecies then
+                local previous=Evolution.targetSpecies
+                local function guardedTarget(mon,...)
+                    local target,param=previous(mon,...)
+                    if okP and RunParty.evoDenied(loadState(),Core,
+                        mon,target,Pokemon) then return 0,0 end
+                    return target,param
+                end
+                Evolution.targetSpecies=guardedTarget
+                Evolution.__nuzRunTarget=guardedTarget
+            end
+            if type(Evolution.apply)=="function"
+                and Evolution.__nuzRunApply~=Evolution.apply then
+                local previous=Evolution.apply
+                local function guardedApply(mon,target,native,bag,via,...)
+                    -- Scripted progression transformations stay native.
+                    if (via==nil or via=="level" or via=="item"
+                        or via=="trade")
+                        and okP and RunParty.evoDenied(loadState(),Core,
+                            mon,target,Pokemon) then
+                        notify("EVOLUTION_DENIED",
+                            "Evolution Limits: this evolution is restricted.",
+                            false)
+                        return false
+                    end
+                    return previous(mon,target,native,bag,via,...)
+                end
+                Evolution.apply=guardedApply
+                Evolution.__nuzRunApply=guardedApply
+            end
+        end
+    end
+
     -- Unlike a capture-only ban, No Fishing must refuse a rod BEFORE the
     -- field starts its fishing minigame. The engine's Field.startFishing
     -- is the native rod-use boundary. Keep an additional guard on direct
@@ -1738,6 +1873,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         installFieldItemGuards()
         installServiceGuards()
         installStatGuards()
+        installRunPartyGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1799,6 +1935,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         installFieldItemGuards()
         installServiceGuards()
         installStatGuards()
+        installRunPartyGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1818,6 +1955,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         installFieldItemGuards()
         installServiceGuards()
         installStatGuards()
+        installRunPartyGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1841,6 +1979,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         installFieldItemGuards()
         installServiceGuards()
         installStatGuards()
+        installRunPartyGuards()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
@@ -2032,6 +2171,11 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
             return next(ball, mon, species, ctx)
         end
         local s = loadState()
+        local partyReason=RunParty.addDenied(s,Core,session())
+        if partyReason then
+            battle.pendingCatchReason=partyReason
+            return false,0
+        end
         local itemReason=BattleItemRules.catchDenial(s,Core,
             battle.ballThrows)
         if itemReason then
@@ -2300,6 +2444,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         fieldItemRules = FieldRules,
         serviceRules = Services,
         statRules = Stats,
+        runPartyRules = RunParty,
         areaSplitRules = AreaSplits,
         currentEncounterArea = encounterAreaNow,
         notices = function() return Notices.history(loadState()) end,
@@ -2450,6 +2595,18 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
             if ok then writeState(s) end
             return ok,reason
         end,
+    }
+    mod.exports.gen3_run_party = {
+        api=RunParty.api,schema=RunParty.schema,
+        definitions=RunParty.descriptors,
+        getRule=function(key) return RunParty.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=RunParty.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+        partyCap=function() return RunParty.partyCap(loadState(),Core) end,
     }
     mod.exports.gen3_area_splits = {
         api=AreaSplits.api,schema=AreaSplits.schema,
