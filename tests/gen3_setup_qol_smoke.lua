@@ -50,7 +50,8 @@ assert(not Qol.deliverBalls(s, native, Store),
     "scripted pre-Ball Emerald opener may not receive Balls")
 assert(Qol.applyNewGame(s, native, Store) == false,
     "repeated creation event must not double-grant items")
-native.bag.pockets.POKE_BALLS[1] = { id = 4, qty = 5 }
+-- The engine already observed a usable Ball, but it has since been spent.
+s.captureUnlocked = true
 assert(Qol.deliverBalls(s, native, Store),
     "first native usable Ball unlocks extra PC Balls")
 assert(s.qolBallsPending == 0 and s.qolBallsDelivered == true)
