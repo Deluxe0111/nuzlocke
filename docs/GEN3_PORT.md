@@ -99,7 +99,7 @@ a working toggle is not proof that every edition and edge case is tested.
 | **RANDOMIZER** | Seeded normal wild step and fishing encounters and trainer species, with fixed/AUTO seed, presets, generation limits and BST balancing. See [Randomiser](GEN3_RANDOMIZER.md). |
 | **Overworld wild compatibility** | Untamed-Advanced's generated wandering Pokémon use the same Random Wild setting/seed via `untamed.owe.species`, before the sprite and battle are constructed. |
 | **Player feedback** | Rule explanations during relevant native battles plus RUN JOURNAL (run recap, event history, encounter/graveyard links). See [Feedback](GEN3_FEEDBACK.md). |
-| **Player tools** | Native encounter tracker, graveyard, nickname tasks and Nuz Dev test utilities. See [Nuz Dev](GEN3_NUZ_DEV.md). |
+| **Player tools** | Native encounter tracker, graveyard, nickname tasks and hidden Nuz Dev test utilities (including safe full-archive restoration). See [Nuz Dev](GEN3_NUZ_DEV.md). |
 
 ### Encounter and death handling
 
