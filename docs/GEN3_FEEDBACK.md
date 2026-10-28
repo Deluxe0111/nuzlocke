@@ -13,7 +13,7 @@ change any old Gen 1 / Gen 2 saves. Selecting a notice shows its full text.
 | Action | Feedback |
 |---|---|
 | First eligible wild encounter | Clearly announces the first opportunity; warns that fleeing/fainting uses the chance if Failed Encounters is ON |
-| Blocked Poke Ball | One Per Area (including route name), Dupes Clause or claimed Roamer slot |
+| Blocked Poke Ball | One Per Area (including route name), Dupes Clause, claimed Roamer slot or Shiny Nuzlocke denying a non-shiny |
 | Successful area catch | Records that the area's encounter slot has been used |
 | Successful Shiny Clause exception | States that the extra encounter was allowed |
 | Captured roamer | Explains the species-specific roamer slot |
@@ -103,3 +103,8 @@ bag messages, battle animation timing and RSE item differences.
 - [ ] **F16:** Confirm the first eligible route encounter says
       "First encounter" / "your chance", not "Failed Encounters" as though
       the capture had already failed.
+
+**Shiny Nuzlocke:** A non-shiny Ball attempt is rejected with an explicit
+reason in the native battle dialogue and saved in NUZ NOTICES. The area
+remains available. Eligible shiny encounters follow One Per Area and
+Failed Encounters as described in [PLAYSTYLES](GEN3_PLAYSTYLES.md).
