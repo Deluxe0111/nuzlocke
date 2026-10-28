@@ -950,14 +950,14 @@ for i, name in ipairs(expectedAdvanced) do
         press("a") -- OFF
     end
     if name=="BATTLE CLAUSES" then
-        assert(child.rows[1]=="[Soon] OHKO Clause"
+        assert(child.rows[1]=="OHKO Clause: OFF"
             and child.rows[2]=="Flinch Clause: OFF"
             and child.rows[3]=="Trap Clause: OFF"
             and child.rows[4]=="No Setup Moves: OFF"
             and child.rows[5]=="Evasion Clause: OFF"
             and child.rows[6]=="Accuracy Drops: OFF"
             and child.rows[7]=="Other Stat Drops: OFF",
-            "battle menu must expose six working clauses and OHKO Soon")
+            "battle menu must expose seven working clauses including OHKO")
         press("down");press("a")
         assert(child.title=="BATTLE CLAUSES"
             and mod.exports.gen3_menu.model().rows[2]=="Flinch Clause: SELF")
