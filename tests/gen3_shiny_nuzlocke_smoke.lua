@@ -515,7 +515,7 @@ end
 press("a") -- NUZ RULES
 local mainRules=mod.exports.gen3_menu.model()
 local expectedMain={
-    "CORE","CLAUSES","[Soon] HARDCORE",
+    "CORE","CLAUSES","HARDCORE",
     "GAME DIFFICULTY","RUN / PARTY",
     "LEVELS","PLAYSTYLES","ADVANCED RULES",
     "RANDOMIZER","[Soon] QOL","[Soon] QOL SETUP ONLY",
@@ -578,6 +578,26 @@ press("b");press("b")
 assert(mod.exports.gen3_menu.model().title=="NUZ RULES"
     and mod.exports.gen3_menu.model().index==4)
 for _=1,3 do press("up") end
+assert(mod.exports.gen3_menu.model().index==1)
+-- HARDCORE: all five native-supported switches and their detail page.
+press("down");press("down");press("a")
+local hc=mod.exports.gen3_menu.model()
+assert(hc.title=="HARDCORE" and #hc.rows==6)
+local hcLabels={"No Escape","Whiteout","Gym Lock-In",
+    "Dungeon Lock-In","No Held Items"}
+for i,label in ipairs(hcLabels) do
+    assert(hc.rows[i]==label..": OFF")
+    press("a")
+    assert(mod.exports.gen3_menu.model().rows[i]==label..": ON")
+    press("a")
+    assert(mod.exports.gen3_menu.model().rows[i]==label..": OFF")
+    press("down")
+end
+press("a")
+assert(mod.exports.gen3_menu.model().title=="HARDCORE RULES HELP")
+press("b");press("b")
+assert(mod.exports.gen3_menu.model().title=="NUZ RULES")
+press("up");press("up")
 assert(mod.exports.gen3_menu.model().index==1)
 local catalog=mod.exports.gen3_menu.catalog()
 for _, category in ipairs(catalog) do
