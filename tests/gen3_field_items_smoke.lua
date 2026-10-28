@@ -25,11 +25,12 @@ assert(not Rules.set(s,"travel_restrictions",1.5))
 assert(not Rules.set(s,"travel_restrictions","1"))
 local Items={
     isTm=function(id)
-        local n=tonumber(id)
+        local n=tonumber(id) or (id=="TM01" and 289)
+            or (id=="HM01" and 339)
         return n and n>=289 and n<=346 or false
     end,
     isHm=function(id)
-        local n=tonumber(id)
+        local n=tonumber(id) or (id=="HM01" and 339)
         return n and n>=339 and n<=346 or false
     end,
     toNumericId=function(id)
