@@ -13773,8 +13773,9 @@ return function(mod)
                               Font.draw(Strings("^"), editX + valueShift + ((self.digitIndex - 1) + prefix) * 6, drawY - 8)
                           end
                       else
-                          local status = key == "dev_self_test_export" and "RUN"
-                              or (isWip and "WIP" or (val and "ON" or "OFF"))
+                          local status = item.isStartNewGameControl and "START"
+                              or (key == "dev_self_test_export" and "RUN"
+                              or (isWip and "WIP" or (val and "ON" or "OFF")))
                           Font.draw(Strings(status), 118 + valueShift, drawY)
                       end
 
