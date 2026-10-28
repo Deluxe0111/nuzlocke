@@ -37,6 +37,9 @@ return function()
         return v==true
     end
     function M.set(s,key,value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         local d=byKey[key]
         if not d then return false,"unknown_rule" end
         if d.status~="working" then return false,"unsupported_gen3" end
