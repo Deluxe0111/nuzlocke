@@ -120,8 +120,9 @@ return function()
     for _,entry in ipairs(TYPES) do TYPE_BY_ID[entry.id]=entry.name end
     local function draftList(s)
         local r=rows(s)
-        if type(r.drafted_types)~="table" then r.drafted_types={} end
-        return r.drafted_types
+        -- Checking a gift, menu label or progress must not initialise
+        -- an empty draft in the save. Only successful wild catches write.
+        return type(r.drafted_types)=="table" and r.drafted_types or {}
     end
     function M.draftProgress(s)
         local mode=M.mode(s)
@@ -179,6 +180,7 @@ return function()
         elseif TYPE_BY_ID[b] and not used[b] then choice=b end
         if choice==nil then return false end
         list[#list+1]=choice
+        rows(s).drafted_types=list
         return true,TYPE_BY_ID[choice],#list,mode
     end
     local function existingTypeIds(pokemon)
