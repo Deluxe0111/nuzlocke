@@ -22,7 +22,10 @@ Trades/Trade Slot Policy, PKMN BAN's National Dex picker, and
 Colorlocke mode/colour. Native gift opcodes and NPC swaps are
 guarded before mutation. The canonical National Dex ban list also
 filters Nuzlocke's built-in randomiser replacement pools.
-Overworld remains [Soon]; six other advanced groups are placeholders.
+The redundant Gen 3 Overworld Encounters row was removed: Untamed-
+Advanced's wandering wild Pokémon use normal Nuzlocke catch/area
+logic without a separate switch. Six other advanced groups remain
+placeholders.
 See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
 **BATTLE CLAUSES** now exposes Flinch, Trap, No Setup Moves, Evasion
 Clause, Accuracy Drops and Other Stat Drops as six working effect-level
