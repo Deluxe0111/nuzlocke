@@ -5,6 +5,7 @@ return {
   tags = { "ruleset", "hardcore", "quality-of-life", "ui" },
   differences = {
     changed = {
+      "Gen 3 PLAYSTYLES adds Shiny Nuzlocke: non-shiny wilds cannot be caught and never spend the route; eligible shinies still obey One Per Area, Failed Encounters and Dupes.",
       "v3.0.0-BETA introduces Generation 3 CORE, CLAUSES, LEVELS and RANDOMIZER, player notices, Graveyard/Dev tools and Untamed Advanced overworld wild compatibility; special chaining follows visible species.",
       "2.9.72 normalizes Gen-II item references, prevents legal Random Shop no-ops, exposes trainer boundary traces, and isolates shiny recoloring from shared engine ImageData; runtime retest required.",
       "2.9.71 repairs Gen-I Random Field Items by moving visible pickup composition to the public world.talk hook, adds focused hook/pipeline diagnostics, and preserves native pickup behavior; runtime retest is required.",
