@@ -1,5 +1,7 @@
 ## 3.0.0-BETA — Generation 3 and Untamed compatibility
 
+- Adds **PKMN BAN** (National Dex #001–#386 selectable picker with saved per-species bans) and **Colorlocke** (OFF/RANDOM/CHOOSE, ten canonical species colours, persisted random choice) to Gen 3 Catch Rules. Both apply to native wild, optional gifts and NPC trades; PKMN BAN also excludes banned National Dex species from Nuzlocke's wild/trainer randomiser candidate pools. Menu, policy, deterministic save, and randomiser regression tests added.
+
 - Implements **Gift Pokémon**, **Gift Slot Policy** (AREA/BONUS), **In-Game Trades** and **Trade Slot Policy** (AREA/BONUS) in Gen 3 Advanced Catch Rules. Scripted gift refusal uses the native failure return without giving a mon; NPC trade refusal changes the requested-species preflight before the exchange, and completed native swaps alone claim the map slot. Mandatory first starters remain exempt. Adds independent regression cases for script commands, NPC swaps, default-ON toggles, receipt history and sandbox isolation.
 
 - Implements **ADVANCED RULES → STATUS BANS**: No Status Moves bulk parent and six independently scoped bans (Paralysis, Confusion, Sleep, Poison/Toxic, Burn, Freeze). Parent controls sync/hide child rows; native status, secondary-effect and Yawn checks prevent mutation while retaining move damage. Rest/self-induced sleep remains legal. Adds independent **Sleep Clause** ON/OFF enforcement with per-battle provenance across switches, delayed Yawn checks and the Rest exemption.
