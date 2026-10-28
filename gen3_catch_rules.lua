@@ -55,7 +55,8 @@ return function()
         local rules = asState(s)
         local v = rules[key]
         if d.kind == "toggle" then
-            return type(v) == "boolean" and v or d.default
+            if type(v)=="boolean" then return v end
+            return d.default
         elseif d.kind == "alphabet_mode" then
             return type(v)=="number" and v==math.floor(v)
                 and v>=0 and v<=2 and v or d.default
