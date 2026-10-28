@@ -2398,6 +2398,51 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         notify("BATTLE_CLAUSE", message, false)
     end
     local function installBattleClauseGuards()
+        -- OHKO has its own resolver in engine.lua, outside Secondary.set
+        -- and the regular damage calculator. Intercept the native context's
+        -- first ("lockon") accuracy check, which happens AFTER the engine
+        -- prints the move and spends PP, but BEFORE any OHKO hit/damage
+        -- or focus-band roll. Fail through the normal native path.
+        -- Engine.newContext exposes the same metatable used by real moves;
+        -- obtain it with a synthetic, never-dispatched context instead of
+        -- changing ROM moves or requiring a base-engine patch.
+        local okE, Engine = pcall(require,
+            "src.core.game3.battle.engine")
+        if okE and type(Engine)=="table"
+            and type(Engine.newContext)=="function" then
+            local dummy={displayName=function() return "" end}
+            local okCtx, context=pcall(Engine.newContext,
+                {side="player"},{side="enemy"},12,nil,
+                dummy,nil,{}, {},{})
+            local mt=okCtx and type(context)=="table"
+                and getmetatable(context) or nil
+            if type(mt)=="table"
+                and type(mt.accuracyCheck)=="function"
+                and (mt.__nuzOHKOOwner~=mod
+                    or mt.__nuzOHKOWrap~=mt.accuracyCheck) then
+                local native=mt.accuracyCheck
+                local function guarded(self,mode,...)
+                    if mode=="lockon" and type(self)=="table"
+                        and tonumber(self.effect)==38
+                        and BattleClauses.denyOHKO(loadState(),
+                            self.user,Core) then
+                        self.failed=true
+                        self.missReason="fail"
+                        if self.adapter and
+                            type(self.adapter.sayFail)=="function" then
+                            self.adapter:sayFail()
+                        end
+                        battleClauseNotice("ohko",
+                            "OHKO Clause: one-hit KO move prevented.")
+                        return false
+                    end
+                    return native(self,mode,...)
+                end
+                mt.accuracyCheck=guarded
+                mt.__nuzOHKOWrap=guarded
+                mt.__nuzOHKOOwner=mod
+            end
+        end
         local okS, Secondary = pcall(require,
             "src.core.game3.battle.effects.secondary")
         local okC, EffectCtx = pcall(require,
