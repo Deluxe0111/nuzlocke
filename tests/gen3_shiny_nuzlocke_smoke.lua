@@ -580,7 +580,8 @@ assert(advanced.title=="ADVANCED RULES"
 for i, name in ipairs(expectedAdvanced) do
     assert(advanced.rows[i]==((name=="CATCH RULES"
         or name=="BATTLE CLAUSES"
-        or name=="STATUS BANS") and name or "[Soon] "..name),
+        or name=="STATUS BANS" or name=="VARIANTS")
+        and name or "[Soon] "..name),
         "advanced category "..i.." should reflect real feature readiness")
     press("a")
     local child=mod.exports.gen3_menu.model()
@@ -593,7 +594,7 @@ for i, name in ipairs(expectedAdvanced) do
             assert(not label:find("Overworld",1,true),
                 "visible overworld Pokémon use native catch rules")
         end
-    elseif name~="STATUS BANS" then
+    elseif name~="STATUS BANS" and name~="VARIANTS" then
         assert(child.rows[1]:find("[Soon]",1,true),
             "unsupported rows must stay read-only even in an active category")
     end
@@ -644,6 +645,26 @@ for i, name in ipairs(expectedAdvanced) do
         assert(battleRules.setRule("flinch_clause_scope",0))
         press("up")
     end
+    if name=="VARIANTS" then
+        assert(child.rows[1]=="Type Locke: OFF"
+            and child.rows[2]=="[Soon] Catch Draft"
+            and child.rows[3]=="[Soon] Wonderlocke WIP",
+            "Type Locke is working while Catch Draft/Wonderlocke remain Soon")
+        press("a") -- MONO
+        assert(mod.exports.gen3_menu.model().rows[1]=="Type Locke: MONO"
+            and mod.exports.gen3_menu.model().rows[3]=="Type 1: RANDOM")
+        press("a") -- DUO
+        assert(mod.exports.gen3_menu.model().rows[4]=="Type 2: RANDOM")
+        press("down");press("down");press("a") -- Type 1: NORMAL
+        assert(mod.exports.gen3_menu.model().rows[3]=="Type 1: NORMAL")
+        press("up");press("up")
+        for _=1,5 do press("a") end -- TRI, QUAD, PENTA, HEXA, OFF
+        assert(mod.exports.gen3_menu.model().rows[1]=="Type Locke: OFF"
+            and mod.exports.gen3_menu.model().rows[3]=="[Soon] Wonderlocke WIP")
+        -- Restore the lane default without enabling the mode.
+        assert(mod.exports.gen3_variants.setRule("type_lock_primary",0))
+        assert(mod.exports.gen3_variants.getRule("type_lock_mode")==0)
+    end
     if name=="CATCH RULES" then
         assert(child.rows[2]=="No Legendaries: OFF"
             and child.rows[3]=="No Mythicals: OFF"
@@ -692,7 +713,8 @@ for i, name in ipairs(expectedAdvanced) do
     end
     -- All STATUS BANS entries now work; other advanced sections still
     -- contain genuine placeholders that explain unimplemented rules.
-    if name~="STATUS BANS" and name~="CATCH RULES" then
+    if name~="STATUS BANS" and name~="CATCH RULES"
+        and name~="VARIANTS" then
         press("a")
         assert(mod.exports.gen3_menu.model().title~=name,
             "[Soon] entry must open its unavailable explanation")
