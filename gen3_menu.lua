@@ -2127,6 +2127,22 @@ return function(mod, api)
     -- persisted. The player must still confirm DEV activation separately.
     local DEV_KEYS={"up","up","down","down","left","right","left","right"}
     local devKeyProgress=0
+    -- Prefer the native SELECT-held + A edge: no D-pad auto-repeat,
+    -- timing or repeated identical key presses are required. Keep the
+    -- old eight-direction sequence available as an alternative.
+    local function openDevAccess()
+        devKeyProgress=0
+        present("DEV ACCESS",{
+            row("OPEN DEV TOOLS",nil,function()
+                popPage()
+                showDevTools()
+            end),
+            row("CANCEL",nil,popPage),
+            row("TEST RUNS ONLY"),
+            row("DEV ENABLE FLAGS SAVE"),
+        })
+        return true
+    end
     local function devKeyPress(key)
         if setupOnDone or not current()
             or current().title~="NUZ MENU" then
@@ -2139,17 +2155,7 @@ return function(mod, api)
             devKeyProgress=key==DEV_KEYS[1] and 1 or 0
         end
         if devKeyProgress~=#DEV_KEYS then return false end
-        devKeyProgress=0
-        present("DEV ACCESS",{
-            row("OPEN DEV TOOLS",nil,function()
-                popPage()
-                showDevTools()
-            end),
-            row("CANCEL",nil,popPage),
-            row("TEST RUNS ONLY"),
-            row("DEV ENABLE FLAGS SAVE"),
-        })
-        return true
+        return openDevAccess()
     end
 
     local function home()
@@ -2258,6 +2264,13 @@ return function(mod, api)
 
     function M.handleInput(input)
         if not input or not current() then return end
+        if not setupOnDone and current().title=="NUZ MENU"
+            and type(input.isDown)=="function"
+            and input:isDown("select")
+            and input:wasPressed("a") then
+            openDevAccess()
+            return
+        end
         local pressed
         for _,key in ipairs({"up","down","left","right"}) do
             if input:wasPressed(key) then pressed=key break end
