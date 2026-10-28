@@ -1046,14 +1046,25 @@ for i, name in ipairs(expectedAdvanced) do
             and mod.exports.gen3_menu.model().rows[14]=="Alphabetlocke: OFF")
         for _=1,12 do press("up") end -- return to Town Catches
     end
-    -- All STATUS BANS entries now work; other advanced sections still
-    -- contain genuine placeholders that explain unimplemented rules.
-    if name~="STATUS BANS" and name~="CATCH RULES"
-        and name~="VARIANTS" and name~="BATTLE ITEMS"
-        and name~="FIELD ITEMS" then
+    -- Check a genuine remaining placeholder rather than expecting
+    -- every advanced category's first row to be unimplemented.
+    if name=="VARIANTS" then
+        local menu=mod.exports.gen3_menu.model()
+        local pending
+        for k,label in ipairs(menu.rows) do
+            if label:find("[Soon] Wonderlocke",1,true) then
+                pending=k
+                break
+            end
+        end
+        assert(pending,"Wonderlocke must remain visible as a placeholder")
+        for _=1,#menu.rows+1 do
+            if mod.exports.gen3_menu.model().index==pending then break end
+            press("down")
+        end
+        assert(mod.exports.gen3_menu.model().index==pending)
         press("a")
-        assert(mod.exports.gen3_menu.model().title~=name,
-            "[Soon] entry must open its unavailable explanation")
+        assert(mod.exports.gen3_menu.model().title=="COMING SOON")
         press("b")
         assert(mod.exports.gen3_menu.model().title==name)
     end
