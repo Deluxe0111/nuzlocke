@@ -581,7 +581,7 @@ for i, name in ipairs(expectedAdvanced) do
     assert(advanced.rows[i]==((name=="CATCH RULES"
         or name=="BATTLE CLAUSES"
         or name=="STATUS BANS" or name=="VARIANTS"
-        or name=="BATTLE ITEMS")
+        or name=="BATTLE ITEMS" or name=="FIELD ITEMS")
         and name or "[Soon] "..name),
         "advanced category "..i.." should reflect real feature readiness")
     press("a")
@@ -596,9 +596,40 @@ for i, name in ipairs(expectedAdvanced) do
                 "visible overworld Pokémon use native catch rules")
         end
     elseif name~="STATUS BANS" and name~="VARIANTS"
-        and name~="BATTLE ITEMS" then
+        and name~="BATTLE ITEMS" and name~="FIELD ITEMS" then
         assert(child.rows[1]:find("[Soon]",1,true),
             "unsupported rows must stay read-only even in an active category")
+    end
+    if name=="FIELD ITEMS" then
+        assert(child.rows[1]=="No Repels: OFF"
+            and child.rows[2]=="No Escape Rope: OFF"
+            and child.rows[3]=="Travel Restrictions: NORMAL"
+            and child.rows[4]=="No Field Heal: OFF"
+            and child.rows[5]=="No PP Items: OFF"
+            and child.rows[6]=="No TMs: OFF"
+            and child.rows[7]=="No Rare Candy: OFF",
+            "all seven Field Items must be working")
+        press("a")
+        assert(mod.exports.gen3_menu.model().rows[1]=="No Repels: ON")
+        press("a");press("down");press("a")
+        assert(mod.exports.gen3_menu.model().rows[2]=="No Escape Rope: ON")
+        press("a");press("down")
+        for _,label in ipairs({"NO FLY","NO FLY+TELEPORT","NORMAL"}) do
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[3]
+                =="Travel Restrictions: "..label)
+        end
+        for i=4,7 do
+            press("down");press("a")
+            assert(mod.exports.gen3_menu.model().rows[i]:find(": ON",1,true),
+                "Field Items toggle should activate")
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[i]:find(": OFF",1,true))
+        end
+        press("down");press("a")
+        assert(mod.exports.gen3_menu.model().title=="FIELD ITEMS HELP")
+        press("b")
+        for _=1,7 do press("up") end
     end
     if name=="BATTLE ITEMS" then
         assert(child.rows[1]=="No Healing Items: OFF"
@@ -762,7 +793,8 @@ for i, name in ipairs(expectedAdvanced) do
     -- All STATUS BANS entries now work; other advanced sections still
     -- contain genuine placeholders that explain unimplemented rules.
     if name~="STATUS BANS" and name~="CATCH RULES"
-        and name~="VARIANTS" and name~="BATTLE ITEMS" then
+        and name~="VARIANTS" and name~="BATTLE ITEMS"
+        and name~="FIELD ITEMS" then
         press("a")
         assert(mod.exports.gen3_menu.model().title~=name,
             "[Soon] entry must open its unavailable explanation")
