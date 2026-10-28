@@ -104,7 +104,7 @@ assert(R.replace(replay,P,"ENCOUNTERS","different level",1,
 -- repeats after both are used, not alter native species or stop encounters.
 local small={randomizer={randomizer_seed=1234,
     random_encounter_tables=true,random_encounter_repetition=1}}
-local function onlyTwo(n) return n~=3 and n~=4 and n~=7 end
+local function onlyTwo(n) return n~=3 and n~=4 end
 local slot1=R.replace(small,P,"ENCOUNTERS","slot1",1,nil,onlyTwo,nil,
     "STEP:SMALL:grass","1")
 local slot2=R.replace(small,P,"ENCOUNTERS","slot2",2,nil,onlyTwo,nil,
