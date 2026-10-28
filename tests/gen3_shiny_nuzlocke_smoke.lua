@@ -109,6 +109,7 @@ local nativeField={
 }
 package.loaded["src.core.game3.field"]=nativeField
 local g={generation=3,session={version="firered",map="FR_ROUTE_1",
+    bag={pockets={POKE_BALLS={{id=4,qty=5}}}},
     party={{species=25,personality=10,level=9,hp=35}},flags={}}}
 local stack={}
 package.loaded["src.ui.game3.stack"]={
