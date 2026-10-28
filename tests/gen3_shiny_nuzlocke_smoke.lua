@@ -647,9 +647,9 @@ for i, name in ipairs(expectedAdvanced) do
     end
     if name=="VARIANTS" then
         assert(child.rows[1]=="Type Locke: OFF"
-            and child.rows[2]=="[Soon] Catch Draft"
+            and child.rows[2]=="Catch Draft: OFF"
             and child.rows[3]=="[Soon] Wonderlocke WIP",
-            "Type Locke is working while Catch Draft/Wonderlocke remain Soon")
+            "Type Locke and Catch Draft work; Wonderlocke remains Soon")
         press("a") -- MONO
         assert(mod.exports.gen3_menu.model().rows[1]=="Type Locke: MONO"
             and mod.exports.gen3_menu.model().rows[3]=="Type 1: RANDOM")
@@ -657,7 +657,20 @@ for i, name in ipairs(expectedAdvanced) do
         assert(mod.exports.gen3_menu.model().rows[4]=="Type 2: RANDOM")
         press("down");press("down");press("a") -- Type 1: NORMAL
         assert(mod.exports.gen3_menu.model().rows[3]=="Type 1: NORMAL")
-        press("up");press("up")
+        press("up");press("a") -- Catch Draft ON
+        local draftMenu=mod.exports.gen3_menu.model()
+        assert(draftMenu.rows[2]=="Catch Draft: ON"
+            and draftMenu.rows[3]=="Type 1: AWAIT CATCH"
+            and draftMenu.rows[4]=="Type 2: AWAIT CATCH"
+            and draftMenu.rows[6]=="DRAFT: 0/2 TYPES",
+            "draft mode hides manual lane selection and shows progress")
+        press("down");press("a") -- Type 1 cannot change manually
+        assert(mod.exports.gen3_menu.model().rows[3]
+            =="Type 1: AWAIT CATCH")
+        press("up");press("a") -- Catch Draft OFF, restores manual types
+        assert(mod.exports.gen3_menu.model().rows[3]
+            =="Type 1: NORMAL")
+        press("up")
         for _=1,5 do press("a") end -- TRI, QUAD, PENTA, HEXA, OFF
         assert(mod.exports.gen3_menu.model().rows[1]=="Type Locke: OFF"
             and mod.exports.gen3_menu.model().rows[3]=="[Soon] Wonderlocke WIP")
