@@ -88,7 +88,10 @@ return function()
     LEAGUE_FLAGS.sapphire = LEAGUE_FLAGS.ruby
     local function nativeFlags(native)
         local flags = native and native.flags
-        local space = package.loaded["src.core.game3.scripting.space"]
+        -- Direct package.loaded access fails inside the mod sandbox.
+        local okSpace, space = pcall(require,
+            "src.core.game3.scripting.space")
+        if not okSpace then space = nil end
         if type(space) == "table" and type(space.getStore) == "function" then
             local ok, store = pcall(space.getStore)
             if ok and type(store) == "table"
