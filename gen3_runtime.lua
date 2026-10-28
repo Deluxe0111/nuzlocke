@@ -21,6 +21,7 @@ return function(mod)
     local BattleItemRules = readModule("gen3_battle_items.lua")()
     local FieldRules = readModule("gen3_field_items.lua")()
     local Services = readModule("gen3_services_economy.lua")()
+    local Stats = readModule("gen3_pokemon_stats.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -834,6 +835,167 @@ return function(mod)
         return true
     end
 
+    -- Pokemon Stats: install only at native creation/award boundaries.
+    -- Never mutate ROM templates or existing party members on rule toggles.
+    local function installStatGuards()
+        local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
+        if not okP or type(Pokemon)~="table" then return false end
+        local function playerOwned(mon)
+            return Stats.playerMon(loadState(),Core,session(),mon)
+        end
+        local function guardGrowth(name)
+            local marker="__nuzStats_"..name
+            if type(Pokemon[name])~="function"
+                or Pokemon[marker]==Pokemon[name] then return end
+            local previous=Pokemon[name]
+            local function wrapped(mon,...)
+                if playerOwned(mon) then return nil end
+                return previous(mon,...)
+            end
+            Pokemon[name]=wrapped
+            Pokemon[marker]=wrapped
+        end
+        guardGrowth("gainEVs")
+        guardGrowth("raiseEvFromItem")
+
+        local okI,ItemUse=pcall(require,"src.core.game3.item_use")
+        if okI and type(ItemUse)=="table"
+            and type(ItemUse.useVitamin)=="function"
+            and ItemUse.__nuzStatsVitamin~=ItemUse.useVitamin then
+            local previous=ItemUse.useVitamin
+            local function guardedVitamin(native,mon,item,...)
+                if playerOwned(mon) then
+                    local okItems,Items=pcall(require,
+                        "src.core.game3.items_data")
+                    local id=okItems and type(Items)=="table"
+                        and type(Items.toNumericId)=="function"
+                        and Items.toNumericId(item) or tonumber(item)
+                    -- Ordinary EV vitamins only. EV-reduction berries
+                    -- remain legal and retain friendship side effects.
+                    if id==63 or id==64 or id==65 or id==66
+                        or id==67 or id==70 then
+                        notify("STAT_EV_DENIED",
+                            "No EV Gain: vitamins cannot raise EVs.",false)
+                        return false,"no_effect","No EV Gain: vitamin refused."
+                    end
+                end
+                return previous(native,mon,item,...)
+            end
+            ItemUse.useVitamin=guardedVitamin
+            ItemUse.__nuzStatsVitamin=guardedVitamin
+        end
+        if okI and type(ItemUse)=="table"
+            and type(ItemUse.applyEnigmaItem)=="function"
+            and ItemUse.__nuzStatsEnigma~=ItemUse.applyEnigmaItem then
+            local previous=ItemUse.applyEnigmaItem
+            local function guardedEnigma(native,mon,move,...)
+                if playerOwned(mon) then
+                    local okE,Enigma=pcall(require,
+                        "src.core.game3.rs.enigma")
+                    if okE and type(Enigma)=="table"
+                        and Enigma.matches and Enigma.matches(native)
+                        and Enigma.effectType and Enigma.itemEffect then
+                        local typ=Enigma.effectType(
+                            Enigma.itemEffect(native))
+                        if type(typ)=="number"
+                            and typ>=12 and typ<=17 then
+                            return false,{mon=mon,restored=0}
+                        end
+                    end
+                end
+                return previous(native,mon,move,...)
+            end
+            ItemUse.applyEnigmaItem=guardedEnigma
+            ItemUse.__nuzStatsEnigma=guardedEnigma
+        end
+
+        local okParty,Party=pcall(require,"src.core.game3.party")
+        if okParty and type(Party)=="table"
+            and type(Party.giveMon)=="function"
+            and Party.__nuzStatsGive~=Party.giveMon then
+            local previous=Party.giveMon
+            local function guardedGive(...)
+                local ok,code,mon,box,slot=previous(...)
+                if ok and type(mon)=="table" then
+                    Stats.player(loadState(),Core,mon,Pokemon)
+                end
+                return ok,code,mon,box,slot
+            end
+            Party.giveMon=guardedGive
+            Party.__nuzStatsGive=guardedGive
+        end
+        local okTrade,Trade=pcall(require,
+            "src.core.game3.scripting.natives_trade")
+        if okTrade and type(Trade)=="table"
+            and type(Trade.tradeMons)=="function"
+            and Trade.__nuzStatsTrade~=Trade.tradeMons then
+            local previous=Trade.tradeMons
+            local function guardedTrade(native,slot,offered,...)
+                local result=previous(native,slot,offered,...)
+                if result and native and native.party then
+                    local received=native.party[(tonumber(slot) or 0)+1]
+                    if received==offered then
+                        Stats.player(loadState(),Core,received,Pokemon)
+                    end
+                end
+                return result
+            end
+            Trade.tradeMons=guardedTrade
+            Trade.__nuzStatsTrade=guardedTrade
+        end
+        -- Game3 creates fresh enemy Mons inside Battle.start. Prepare
+        -- cloned encounter descriptors BEFORE engine stat calculation,
+        -- keeping the original trainer/encounter source tables unchanged.
+        local okB,Battle=pcall(require,"src.core.game3.battle.init")
+        if okB and type(Battle)=="table"
+            and type(Battle.start)=="function"
+            and Battle.__nuzStatsStart~=Battle.start then
+            local previous=Battle.start
+            local function guardedStart(opts,...)
+                if type(opts)~="table"
+                    or opts.link or opts.recordedLink or opts.oldManTutorial
+                    or opts.pokedude or (opts.foe and opts.foe.link)
+                    or not Core.active(loadState()) then
+                    return previous(opts,...)
+                end
+                local source=opts.wild and "wild" or "trainer"
+                local saved=loadState()
+                local function transform(v)
+                    if type(v)~="table" then return v end
+                    return Stats.foe(saved,Core,source,v,Pokemon)
+                end
+                local result={}
+                for k,v in pairs(opts) do result[k]=v end
+                if type(opts.foe)=="table" then
+                    local foe=transform(opts.foe)
+                    if type(opts.foe.party)=="table" then
+                        if foe==opts.foe then
+                            foe={}
+                            for k,v in pairs(opts.foe) do foe[k]=v end
+                        end
+                        local party={}
+                        for i,v in ipairs(opts.foe.party) do
+                            party[i]=transform(v)
+                        end
+                        foe.party=party
+                    end
+                    result.foe=foe
+                end
+                if type(opts.foeParty)=="table" then
+                    local party={}
+                    for i,v in ipairs(opts.foeParty) do
+                        party[i]=transform(v)
+                    end
+                    result.foeParty=party
+                end
+                return previous(result,...)
+            end
+            Battle.start=guardedStart
+            Battle.__nuzStatsStart=guardedStart
+        end
+        return true
+    end
+
     -- Unlike a capture-only ban, No Fishing must refuse a rod BEFORE the
     -- field starts its fishing minigame. The engine's Field.startFishing
     -- is the native rod-use boundary. Keep an additional guard on direct
@@ -1545,6 +1707,7 @@ return function(mod)
         installCandyGuard()
         installFieldItemGuards()
         installServiceGuards()
+        installStatGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1605,6 +1768,7 @@ return function(mod)
         installCandyGuard()
         installFieldItemGuards()
         installServiceGuards()
+        installStatGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1623,6 +1787,7 @@ return function(mod)
         installCandyGuard()
         installFieldItemGuards()
         installServiceGuards()
+        installStatGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1645,6 +1810,7 @@ return function(mod)
         installCandyGuard()
         installFieldItemGuards()
         installServiceGuards()
+        installStatGuards()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
@@ -1963,6 +2129,14 @@ return function(mod)
     end)
 
     mod.events:on("pokemon.caught", function(ev)
+        -- Native event contains the stored party/PC object, not a
+        -- template. Modify only this freshly acquired Pokemon.
+        if type(ev)=="table" and type(ev.mon)=="table" then
+            local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
+            if okP and type(Pokemon)=="table" then
+                Stats.player(loadState(),Core,ev.mon,Pokemon)
+            end
+        end
         -- Capture may have loaded or replaced the native UI after battle
         -- start. Reassert both hooks before the nickname prompt appears.
         installNicknameGuard()
@@ -2087,6 +2261,7 @@ return function(mod)
         battleItemRules = BattleItemRules,
         fieldItemRules = FieldRules,
         serviceRules = Services,
+        statRules = Stats,
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -2233,6 +2408,17 @@ return function(mod)
             local s=loadState()
             local ok,reason=BattleClauses.set(s,key,value)
             if ok then writeState(s) end
+            return ok,reason
+        end,
+    }
+    mod.exports.gen3_pokemon_stats = {
+        api=Stats.api,schema=Stats.schema,
+        definitions=Stats.descriptors,
+        getRule=function(key) return Stats.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=Stats.set(saved,key,value)
+            if ok then writeState(saved) end
             return ok,reason
         end,
     }
