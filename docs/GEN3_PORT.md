@@ -55,7 +55,7 @@ types, and species eligibility checks for wilds (including Untamed),
 optional gifts and NPC trades. **Catch Draft** is also implemented:
 successful wild catches establish unique type lanes, drafts persist,
 and optional gifts/trades must match already drafted types without
-filling new lanes. Wonderlocke remains [Soon].
+filling new lanes.
 **BATTLE ITEMS** now has four working controls: No Healing Items,
 No X Items, No Catching, and Ball Per Encounter (OFF/1/2/3/5/10).
 Denials occur before native bag consumption; only eligible Ball
@@ -72,12 +72,15 @@ and [Field Items](GEN3_FIELD_ITEMS.md).
 The unimplemented WORLD and UI planning categories have been removed
 from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
 
-ALMANAC and MOD COMPAT are separate [Soon] placeholders on the Gen 3
-NUZ MENU. The former was a read-only run recap in legacy Nuzlocke
-(catches, deaths, progress, rule integrity, randomiser metadata);
-the latter allowed compatible external mod capability ownership
-selection where a safe integration contract existed. Neither screen
-is implemented for Gen 3 yet.
+The former Almanac recap, NUZ STATUS and NUZ NOTICES are consolidated
+under **RUN JOURNAL** in the Gen 3 NUZ MENU. It displays live run
+state (outcome, playstyle, spent areas, area catches, deaths, shiny
+exceptions), opens the existing encounter/graveyard records and gives
+access to EVENT HISTORY with the latest 100 rule messages. Historical
+messages remain in the original `gen3_classic_v1.notices` save field;
+no save migration or duplicate data store is created. **MOD COMPAT**
+is still a separate [Soon] placeholder for selecting safe external
+mod ownership in the future.
 
 Feature availability and runtime certification are separate:
 a working toggle is not proof that every edition and edge case is tested.
@@ -92,7 +95,7 @@ a working toggle is not proof that every edition and edge case is tested.
 | **LEVELS** | Gym/Elite Four/Champion/Postgame cap scopes, native EXP clamping and optional EXP banking (EXP Edging). Native Rare Candy checks. See [LEVELS](GEN3_LEVELS.md). |
 | **RANDOMIZER** | Seeded normal wild step and fishing encounters and trainer species, with fixed/AUTO seed, presets, generation limits and BST balancing. See [Randomiser](GEN3_RANDOMIZER.md). |
 | **Overworld wild compatibility** | Untamed-Advanced's generated wandering Pokémon use the same Random Wild setting/seed via `untamed.owe.species`, before the sprite and battle are constructed. |
-| **Player feedback** | Rule explanations during relevant native battles plus a persistent NUZ NOTICES history. See [Feedback](GEN3_FEEDBACK.md). |
+| **Player feedback** | Rule explanations during relevant native battles plus RUN JOURNAL (run recap, event history, encounter/graveyard links). See [Feedback](GEN3_FEEDBACK.md). |
 | **Player tools** | Native encounter tracker, graveyard, nickname tasks and Nuz Dev test utilities. See [Nuz Dev](GEN3_NUZ_DEV.md). |
 
 ### Encounter and death handling
