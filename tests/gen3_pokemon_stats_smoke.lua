@@ -48,7 +48,7 @@ assert(fresh.ivs.hp==5 and fresh.evs.atk==2)
 assert(Core.set(s,"nuzlocke_enabled",true))
 for preset=1,5 do
     assert(Stats.set(s,"wild_start_stat_exp",preset))
-    local base={species=25,hp=4,maxHp=40,
+    local base={species=25,hp=4,maxHp=40,attack=32,
         ivs={hp=5,atk=6,def=7,spe=8,spa=9,spd=10},
         evs={hp=1,atk=2,def=3,spe=4,spa=5,spd=6}}
     local foe=Stats.foe(s,Core,"wild",base,pokemon)
@@ -58,8 +58,8 @@ for preset=1,5 do
     assert(total(foe.evs)<=510)
     assert(base.ivs.hp==5 and base.evs.hp==1,
         "native encounter input must not be mutated")
-    assert(foe.hp>0 and foe.hp<=foe.maxHp,
-        "wild stat recompute must not revive or overflow")
+    assert(foe.hp==4 and foe.maxHp==nil and foe.attack==nil,
+        "native generator must calculate stats after personality assignment")
 end
 assert(Stats.presetAmount(5)==85)
 assert(Stats.set(s,"perfect_wild_ivs",true))
