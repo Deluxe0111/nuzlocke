@@ -17,6 +17,7 @@ return function(mod)
     end
     local Core = readModule("gen3_core_rules.lua")()
     local Clauses = readModule("gen3_clauses.lua")()
+    local Playstyles = readModule("gen3_playstyles.lua")()
     local ShinyRate = readModule("gen3_shiny_rate.lua")()
     local Archive = readModule("gen3_archive.lua")()
     local Eggs = readModule("gen3_eggs.lua")()
@@ -687,9 +688,12 @@ return function(mod)
             return Pokemon.isShiny(mon)
         end)
         if not isActive() or type(ev) ~= "table" or ev.kind ~= "wild" then return end
-        local key = areaNow()
-        if not key then return end -- fail open rather than block unknown maps
         local s = loadState()
+        local shinyOnly = Playstyles.active(s, Core)
+        local key = areaNow()
+        -- Unknown maps cannot claim a route; still enforce shiny-only
+        -- catches rather than silently disabling the playstyle.
+        if not key and not shinyOnly then return end
         local native = session()
         local enemy = ev.battle and ev.battle.enemy
         local wildMon = enemy and enemy.mon
@@ -708,13 +712,17 @@ return function(mod)
         local roamer = Clauses.roamerActive(s)
             and (markedRoamer or eventRoamer) and spId ~= nil
         local roamerOpen = not roamer or Clauses.roamerAvailable(s, spId)
-        local areaEligible = roamer or Core.catchAllowed(s, key)
+        local areaEligible = roamer or not key or Core.catchAllowed(s, key)
         -- The roamer's species slot replaces the map slot; a free roamer
         -- encounter never consumes this map, even if it flees or faints.
         local dupe = Clauses.isDuplicate(s, species, native, edition)
+        local shiny = Clauses.isShiny(wildMon)
+        -- Ordinary wild Pokémon are NEVER eligible encounters in this
+        -- playstyle: Failed Encounters must not spend a route on them.
         local eligible = areaEligible and roamerOpen and not dupe
-        local entry = s.areas[key]
-        if eligible and not roamer then
+            and Playstyles.qualifies(s, Core, shiny)
+        local entry = key and s.areas[key] or nil
+        if eligible and key and not roamer then
             -- Failed encounters spend normal eligible encounters only.
             -- Skipped duplicate species never claim a route.
             if type(entry) ~= "table" then
@@ -729,12 +737,17 @@ return function(mod)
         activeBattle = {
             battle = ev.battle, area = key, eligible = eligible,
             areaEligible = areaEligible, duplicate = dupe,
-            shiny = Clauses.isShiny(wildMon),
+            shiny = shiny, shinyOnly = shinyOnly,
             exception = false,
             roamer = roamer, roamerOpen = roamerOpen,
             roamerSpecies = spId,
         }
-        if eligible and not roamer and Core.get(s, "encounter_limit") then
+        if shinyOnly and eligible then
+            notify("SHINY_ENCOUNTER",
+                "Shiny Nuzlocke: shiny found! This is a valid catch"
+                .. (key and (" on " .. Display.areaName(key)) or "")
+                .. ".", true)
+        elseif eligible and not roamer and Core.get(s, "encounter_limit") then
             if Core.shouldSpendOnStart(s) then
                 notify("FIRST_ENCOUNTER",
                     "First encounter on " .. Display.areaName(key)
@@ -785,14 +798,40 @@ return function(mod)
             return next(ball, mon, species, ctx)
         end
         local s = loadState()
+        local shinyOnly = Playstyles.active(s, Core)
+        local shiny = battle.shiny or Clauses.isShiny(mon)
+        if shinyOnly and not shiny then
+            battle.pendingCatchReason = "Shiny Nuzlocke: only shiny Pokemon"
+                .. " can be caught. Your route chance remains open."
+            return false, 0
+        end
+        -- Recover from native wilds whose enemy is not populated until
+        -- ball use: the target's shiny identity is authoritative.
+        if shinyOnly and shiny and not battle.shiny then
+            battle.shiny = true
+            battle.eligible = battle.areaEligible and battle.roamerOpen
+                and not battle.duplicate
+            if battle.eligible and battle.area and not battle.roamer then
+                local entry = s.areas[battle.area]
+                if type(entry) ~= "table" then
+                    entry = { species = species, caught = false,
+                        spent = false, attempts = 0 }
+                end
+                entry.attempts = (tonumber(entry.attempts) or 0) + 1
+                if Core.shouldSpendOnStart(s) then entry.spent = true end
+                s.areas[battle.area] = entry
+                writeState(s)
+            end
+        end
         local limited = Core.get(s, "encounter_limit")
         local blockedByArea = limited and not battle.areaEligible
         local blockedByDupe = battle.duplicate
         local blockedByRoamer = battle.roamer and not battle.roamerOpen
         local exception = not blockedByRoamer
             and (blockedByArea or blockedByDupe)
+            and Playstyles.allowShinyException(s, Core)
             and Clauses.canUseShinyException(s)
-            and (Clauses.isShiny(mon) or battle.shiny)
+            and shiny
         if blockedByRoamer
             or ((blockedByArea or blockedByDupe) and not exception) then
             battle.pendingCatchReason = Notices.catchReason({
@@ -873,6 +912,14 @@ return function(mod)
                 .. Display.areaName(activeBattle.area)
                 .. " capture recorded. This area's slot is now used.", true)
         end
+        if Playstyles.active(s, Core) and activeBattle.eligible
+            and not activeBattle.exception then
+            notify("SHINY_CATCH",
+                "Shiny Nuzlocke: shiny Pokemon caught"
+                .. (activeBattle.area
+                    and (" on " .. Display.areaName(activeBattle.area)) or "")
+                .. ".", true)
+        end
         if activeBattle.exception then
             notify("SHINY_EXCEPTION",
                 "Shiny Clause: an extra catch was allowed.", true)
@@ -937,6 +984,7 @@ return function(mod)
         notify = notify,
         getState = loadState, setState = writeState,
         core = Core, clauses = Clauses, shinyRate = ShinyRate,
+        playstyles = Playstyles,
         eggs = Eggs, forgiveness = Forgiveness,
         onClauseChanged = onClauseChanged,
         dev = Dev, display = Display,
@@ -999,6 +1047,25 @@ return function(mod)
         end,
         effectiveSeed = function() return Randomizer.seed(loadState()) end,
         locked = function() return Randomizer.locked(loadState()) end,
+    }
+    mod.exports.gen3_playstyles = {
+        api = Playstyles.api, schema = Playstyles.schema,
+        definitions = Playstyles.descriptors,
+        getRule = function(key)
+            return Playstyles.get(loadState(), key)
+        end,
+        setRule = function(key, value)
+            local saved = loadState()
+            local ok, reason = Playstyles.set(saved, key, value)
+            if ok then
+                writeState(saved)
+                notify("PLAYSTYLE_CHANGED",
+                    "Shiny Nuzlocke " .. (value and "enabled: only shinies"
+                        or "disabled: ordinary catch rules")
+                    .. (value and " may be caught." or " restored."), false)
+            end
+            return ok, reason
+        end,
     }
     mod.exports.gen3_notices = {
         api = Notices.api,
@@ -1093,7 +1160,7 @@ return function(mod)
         stage = "EXPERIMENTAL",
         features = { "first_wild_per_area", "optional_failed_encounters",
             "gen3_dupes_clause", "gen3_shiny_clause", "gen3_roamer_clause",
-            "gen3_shiny_rate", "gen3_eggs_wip",
+            "gen3_shiny_rate", "gen3_shiny_nuzlocke", "gen3_eggs_wip",
             "gen3_route_forgiveness_wip",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
