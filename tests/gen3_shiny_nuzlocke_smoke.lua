@@ -247,10 +247,32 @@ assert(position and position>1)
 for i=2,position do press("down") end
 press("a")
 assert(mod.exports.gen3_menu.model().title=="PLAYSTYLES")
-assert(mod.exports.gen3_menu.model().rows[1]=="SHINY NUZ: ON")
+local rows=mod.exports.gen3_menu.model().rows
+assert(#rows==4, "PLAYSTYLES must have only toggle/details pairs")
+assert(rows[1]=="SHINY NUZ: ON" and rows[2]=="  DETAILS: SHINY NUZ"
+    and rows[3]=="HARDCORE: OFF" and rows[4]=="  DETAILS: HARDCORE",
+    "each playstyle switch must be followed immediately by its DETAILS")
 press("a")
 assert(mod.exports.gen3_menu.model().rows[1]=="SHINY NUZ: OFF")
 assert(styles.getRule("shiny_nuzlocke")==false)
+press("down");press("a") -- Shiny details
+local details=mod.exports.gen3_menu.model()
+assert(details.title=="SHINY NUZLOCKE"
+    and #details.rows>=10, "shiny conditions must live on details page")
+assert(table.concat(details.rows,";"):find("SHINY CLAUSE: NO BONUS",1,true))
+press("b") -- keep position at Shiny details
+assert(mod.exports.gen3_menu.model().index==2)
+press("down");press("a") -- Hardcore ON
+assert(mod.exports.gen3_menu.model().rows[3]=="HARDCORE: ON")
+assert(styles.getRule("hardcore_nuzlocke")==true)
+press("down");press("a") -- Hardcore details
+details=mod.exports.gen3_menu.model()
+assert(details.title=="HARDCORE NUZLOCKE"
+    and #details.rows>=12,"hardcore restrictions must live on details page")
+assert(table.concat(details.rows,";"):find("FORCED SET BATTLE STYLE",1,true))
+press("b");press("up");press("a") -- Hardcore OFF
+assert(mod.exports.gen3_menu.model().rows[3]=="HARDCORE: OFF")
+assert(styles.getRule("hardcore_nuzlocke")==false)
 press("b");press("b");press("b")
 assert(#stack==0)
 print("Gen3 Shiny Nuzlocke policy, native catches, area precedence, feedback and menu: PASS")

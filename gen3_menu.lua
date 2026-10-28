@@ -25,7 +25,10 @@ return function(mod, api)
     { title = "GAME DIFFICULTY", rules = {{ "difficulty_profile", "Game Difficulty" } } },
     { title = "RUN / PARTY", rules = {{ "gym_team_size", "Gym Team Size" }, { "party_size_limit", "Party Size Limit" }, { "evolution_limit", "Evolution Limits" } } },
     { title = "LEVELS", rules = {{ "level_cap_scope", "Level Cap Scope" }, { "exp_edging", "EXP Edging" } } },
-    { title = "PLAYSTYLES", rules = {{ "shiny_nuzlocke", "Shiny Nuzlocke" }} },
+    { title = "PLAYSTYLES", rules = {
+        { "shiny_nuzlocke", "Shiny Nuzlocke" },
+        { "hardcore_nuzlocke", "Hardcore Nuzlocke" },
+    } },
     { title = "CATCH RULES", rules = {{ "overworld_encounters", "Overworld" }, { "town_catches", "Town Catches" }, { "ban_legendaries", "No Legendaries" }, { "ban_mythicals", "No Mythicals" }, { "ban_pseudos", "No Pseudos" }, { "no_static_encounters", "No Static Enc" }, { "no_fishing", "No Fishing" }, { "allow_gifts", "Gift Pokemon" }, { "gift_slot_policy", "Gift Slot Policy" }, { "allow_trades", "In-Game Trades" }, { "trade_slot_policy", "Trade Slot Policy" }, { "maximum_bst", "Maximum BST" }, { "pkmn_ban", "PKMN BAN" }, { "colorlocke_mode", "Colorlocke" }, { "colorlocke_color", "Color" }, { "alphabetlocke_mode", "Alphabetlocke" }, { "alphabetlocke_letter", "Letter" }, { "allow_glitch_pokemon", "Allow Glitches" } } },
     { title = "BATTLE CLAUSES", rules = {{ "ohko_clause", "OHKO Clause" }, { "flinch_clause_scope", "Flinch Clause" }, { "trap_clause_scope", "Trap Clause" }, { "setup_move_scope", "No Setup Moves" }, { "evasion_clause", "Evasion Clause" }, { "status_accuracy_scope", "Accuracy Drops" }, { "other_stat_drop_scope", "Other Stat Drops" } } },
     { title = "STATUS BANS", rules = {{ "status_move_scope", "No Status Moves" }, { "status_paralysis_scope", "Paralysis" }, { "status_confusion_scope", "Confusion" }, { "status_sleep_scope", "Sleep Ban" }, { "status_poison_scope", "Poison/Toxic" }, { "status_burn_scope", "Burn Ban" }, { "status_freeze_scope", "Freeze" }, { "sleep_clause", "Sleep Clause" } } },
@@ -319,80 +322,91 @@ return function(mod, api)
         present("FORGIVENESS", forgivenessRows(), forgivenessRows)
     end
 
+    -- Each playstyle has exactly two rows: its switch, then its own
+    -- detail screen. The compact 240x160 menu stays navigable.
+    local PLAYSTYLE_DETAILS = {
+        shiny_nuzlocke = {
+            title = "SHINY NUZLOCKE",
+            lines = {
+                "REQUIRES CORE NUZLOCKE",
+                "ONLY SHINY WILDS CATCH",
+                "NORMALS: ROUTE STAYS OPEN",
+                "FIRST ELIGIBLE SHINY",
+                "ONE PER AREA STILL APPLIES",
+                "FAILED SHINY COUNTS*",
+                "*IF FAILED ENC. IS ON",
+                "DUPES & ROAMERS APPLY",
+                "SHINY CLAUSE: NO BONUS",
+                "ODDS IN CLAUSES > RATE",
+                "OVERWORLD WILDS COUNT",
+                "CAN COMBINE WITH HARDCORE",
+                "CORE OFF: INACTIVE",
+            },
+        },
+        hardcore_nuzlocke = {
+            title = "HARDCORE NUZLOCKE",
+            lines = {
+                "REQUIRES CORE NUZLOCKE",
+                "PERMADEATH FORCED ON",
+                "ONE PER AREA FORCED",
+                "FAILED ENC. FORCED ON",
+                "WHITEOUT ENDS RUN",
+                "BATTLE ITEMS: NO USE",
+                "EXCEPT POKE BALLS",
+                "FORCED SET BATTLE STYLE",
+                "GYM/ELITE/CHAMPION CAPS",
+                "EXP & CANDY CAPS APPLY",
+                "HELD ITEMS STILL ALLOWED",
+                "FIELD HEALING ALLOWED",
+                "BASE SETTINGS PRESERVED",
+                "CAN COMBINE WITH SHINY",
+                "CORE OFF: INACTIVE",
+            },
+        },
+    }
+
     local function playstyleRows()
-        local s = state()
-        local enabled = Playstyles.get(s, "shiny_nuzlocke")
-        return {
-            row("SHINY NUZ: " .. (enabled and "ON" or "OFF"), nil, function()
-                local updated = state()
-                local value = not Playstyles.get(updated, "shiny_nuzlocke")
-                local ok, reason = Playstyles.set(updated, "shiny_nuzlocke", value)
-                if not ok then
-                    info("PLAYSTYLE UNAVAILABLE", { tostring(reason) })
-                    return
-                end
-                api.setState(updated)
-                if api.notify then
-                    api.notify("PLAYSTYLE_CHANGED",
-                        value and "Shiny Nuzlocke ON: only shiny Pokemon can"
-                            .. " be caught. Non-shinies do not use routes."
-                            or "Shiny Nuzlocke OFF: ordinary catch rules restored.",
-                        false)
-                end
-                current().rows = playstyleRows()
-            end),
-            row("HARDCORE: " ..
-                (Playstyles.get(s, "hardcore_nuzlocke") and "ON" or "OFF"),
+        local rows = {}
+        local styles = {
+            { key = "shiny_nuzlocke", label = "SHINY NUZ" },
+            { key = "hardcore_nuzlocke", label = "HARDCORE" },
+        }
+        for _, style in ipairs(styles) do
+            local key, label = style.key, style.label
+            local enabled = Playstyles.get(state(), key)
+            rows[#rows + 1] = row(label .. ": " .. (enabled and "ON" or "OFF"),
                 nil, function()
                     local updated = state()
-                    local value = not Playstyles.get(updated, "hardcore_nuzlocke")
-                    local ok, reason = Playstyles.set(updated,
-                        "hardcore_nuzlocke", value)
+                    local value = not Playstyles.get(updated, key)
+                    local ok, reason = Playstyles.set(updated, key, value)
                     if not ok then
                         info("PLAYSTYLE UNAVAILABLE", { tostring(reason) })
                         return
                     end
                     api.setState(updated)
                     if api.notify then
-                        api.notify("PLAYSTYLE_CHANGED", value
-                            and "Hardcore ON: no battle items except Poke Balls; "
-                                .. "forced SET, strict catches/deaths, boss caps."
-                            or "Hardcore OFF: previous CORE, LEVELS and "
-                                .. "battle style settings restored.", false)
+                        if key == "shiny_nuzlocke" then
+                            api.notify("PLAYSTYLE_CHANGED", value
+                                and "Shiny Nuzlocke ON: only shinies may be "
+                                    .. "caught; normals leave routes open."
+                                or "Shiny Nuzlocke OFF: normal catch rules restored.",
+                                false)
+                        else
+                            api.notify("PLAYSTYLE_CHANGED", value
+                                and "Hardcore ON: SET, no battle items except "
+                                    .. "Balls, strict catches/deaths, boss caps."
+                                or "Hardcore OFF: original rule settings restored.",
+                                false)
+                        end
                     end
                     current().rows = playstyleRows()
-                end),
-            row("A: HARDCORE DETAILS", nil, function()
-                info("HARDCORE NUZLOCKE", {
-                    "REQUIRES NUZLOCKE ON",
-                    "NO BATTLE ITEMS",
-                    "POKE BALLS ALLOWED",
-                    "FORCED SET STYLE",
-                    "ONE CATCH PER AREA",
-                    "FAILED ENC. COUNT",
-                    "PERMADEATH + WHITEOUT",
-                    "CAP THROUGH CHAMPION",
-                    "BASE SETTINGS SAVED",
-                    "COMBINES WITH SHINY NUZ",
-                })
-            end),
-            row("ONLY SHINIES CATCHABLE"),
-            row("OTHERS: ROUTE STAYS OPEN"),
-            row("1 SHINY PER AREA*"),
-            row("FAILED SHINIES COUNT*"),
-            row("SHINY RATE IS SEPARATE"),
-            row("A: RULE DETAILS", nil, function()
-                info("SHINY NUZLOCKE", {
-                    "REQUIRES NUZLOCKE ON",
-                    "ONLY SHINIES CAN CATCH",
-                    "NORMALS DO NOT COUNT",
-                    "ONE PER AREA APPLIES",
-                    "FAILED ENC. APPLIES",
-                    "SHINY CLAUSE NO BONUS",
-                    "ODDS IN CLAUSES MENU",
-                })
-            end),
-        }
+                end)
+            rows[#rows + 1] = row("  DETAILS: " .. label, nil, function()
+                local details = PLAYSTYLE_DETAILS[key]
+                info(details.title, details.lines)
+            end)
+        end
+        return rows
     end
 
     local function clausesRows()

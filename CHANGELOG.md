@@ -1,5 +1,7 @@
 ## 3.0.0-BETA — Generation 3 and Untamed compatibility
 
+- Streamlines PLAYSTYLES into toggle + dedicated DETAILS pairs for Shiny and Hardcore, keeping the four-row menu clean and moving explanatory rules into scrollable detail views.
+- Strengthens capture Nickname Requirement: skips the native No choice, rejects empty/default/cancelled names, and restores the optional prompt when the rule is OFF. Re-checks native UI hooks after capture to handle late-loaded/overridden interfaces.
 - Promotes the package version to **3.0.0-BETA** while retaining Mod API 2 and Generation 1/2 save/runtime compatibility.
 - Adds the native Generation 3 CORE, CLAUSES, LEVELS, seeded wild/fishing/trainer RANDOMIZER, and player feedback / Graveyard / developer testing pages.
 - Adds **PLAYSTYLES → Shiny Nuzlocke**, requiring shiny wild Pokémon for Ball captures while ordinary non-shiny encounters never spend the area. One Per Area, Failed Encounters and Dupes continue to apply; bonus Shiny Clause catches are suppressed in this variant.

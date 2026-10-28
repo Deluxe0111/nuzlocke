@@ -64,7 +64,15 @@ Native boxes are in `session.storage.boxes[boxId].mons`.
 
 Nickname Tasks scans party and boxes for unnamed acquisitions, including
 gifts, trades and hatched Eggs. Unresolved tasks are visible to the player
-but **do not yet prevent use in battle**. The catch prompt itself is enforced.
+but **do not yet prevent use in battle**. The capture prompt now bypasses the native optional Yes/No choice
+entirely while CORE → NUZLOCKE and NICKNAME are ON. Captured Pokémon must
+enter a non-empty, non-species-default nickname before the native
+catch flow can complete. Empty, cancelled or default names return to
+the native naming screen; with the nickname rule OFF, native Yes/No is
+restored. This applies to ordinary Gen 3 catches, including Untamed
+wandering wild encounters, which use the same native battle flow.
+The capture naming guard is also reinstalled if another integration
+replaces the UI method after a battle starts.
 
 Opening rival mercy is consumed at battle start, restricted to the three
 Oak Lab matchups in FRLG or Route 103 first matchups in R/S/E. Native battle

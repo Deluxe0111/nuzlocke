@@ -647,32 +647,46 @@ return function(mod)
         -- Install the prompt hook even if the naming UI has not loaded yet.
         -- The old all-or-nothing pcall(require, Naming) silently skipped BOTH
         -- hooks when native naming assets were unavailable at battle start.
-        if Ui.__nuzGen3NicknameOwner ~= mod then
+        -- The native captured-mon prompt is emitted in battle/init.lua,
+        -- which may be loaded under its .init path instead of the .lua alias.
+        -- Both aliases must be checked: otherwise the player's No choice
+        -- is left available on some module-loading paths.
+        --
+        -- Reinstall if a later integration replaces askYesNo. The owner
+        -- marker alone used to incorrectly claim our hook was still active.
+        if Ui.__nuzGen3NicknameOwner ~= mod
+            or Ui.__nuzGen3NicknameWrap ~= Ui.askYesNo then
             local ask = Ui.askYesNo
-            Ui.askYesNo = function(prompt, callback, ...)
-                local battle = package.loaded["src.core.game3.battle"]
+            local function guardedAsk(prompt, callback, ...)
+                local battle = package.loaded["src.core.game3.battle.init"]
+                    or package.loaded["src.core.game3.battle"]
+                local phase = type(battle) == "table" and battle._phase
+                local nativeCatchPrompt = phase == "catch_nickname_prompt"
+                    and type(callback) == "function"
                 if Core.enforced(loadState(), "nickname_rule")
-                    and battle and battle._phase == "catch_nickname_prompt"
-                    and type(callback) == "function" then
-                    -- The native prompt is redundant when names are required.
-                    -- Go to the capture naming screen, never accept "No".
+                    and nativeCatchPrompt then
+                    -- Ensure the native naming screen has its validator
+                    -- before following the YES path. Do not display a
+                    -- YES/NO prompt when No would violate the rule.
+                    installNicknameGuard()
                     notify("NICKNAME_FORCED",
                         "Nickname Rule: give your new Pokemon a nickname.", false)
-                    -- Naming may have loaded only now (at the capture
-                    -- prompt rather than battle.started). Wrap it before the
-                    -- native YES branch opens the screen.
-                    installNicknameGuard()
                     return callback(true)
                 end
                 return ask(prompt, callback, ...)
             end
+            Ui.askYesNo = guardedAsk
+            Ui.__nuzGen3NicknameWrap = guardedAsk
             Ui.__nuzGen3NicknameOwner = mod
         end
         if not okN or type(Naming) ~= "table"
             or type(Naming.open) ~= "function" then return true end
-        if Naming.__nuzGen3NicknameOwner == mod then return true end
+        if Naming.__nuzGen3NicknameOwner == mod
+            and Naming.__nuzGen3NicknameWrap == Naming.open then
+            return true
+        end
         local open = Naming.open
-        Naming.open = function(opts)
+        local function guardedOpen(opts)
             if type(opts) ~= "table" or opts.template ~= "CAUGHT_MON"
                 or not Core.enforced(loadState(), "nickname_rule")
                 or type(opts.onDone) ~= "function" then
@@ -692,6 +706,8 @@ return function(mod)
             wrapped.onDone = validated
             return open(wrapped)
         end
+        Naming.open = guardedOpen
+        Naming.__nuzGen3NicknameWrap = guardedOpen
         Naming.__nuzGen3NicknameOwner = mod
         return true
     end
@@ -1017,6 +1033,9 @@ return function(mod)
     end)
 
     mod.events:on("pokemon.caught", function(ev)
+        -- Capture may have loaded or replaced the native UI after battle
+        -- start. Reassert both hooks before the nickname prompt appears.
+        installNicknameGuard()
         if not isActive() or not activeBattle then return end
         if type(ev) ~= "table" or ev.battle ~= activeBattle.battle then return end
         local s = loadState()

@@ -140,6 +140,63 @@ assert(nativeNaming.opened == 2 and namedValue == nil,
 nativeNaming.last.onDone("Bolt")
 assert(namedValue == "Bolt", "custom nickname completes native flow")
 
+-- The battle module can be imported as .init, with the plain path absent.
+-- Capture must still skip the YES/NO dialog entirely.
+package.loaded["src.core.game3.battle"] = nil
+package.loaded["src.core.game3.battle.init"] = engineBattle
+engineBattle._phase = "catch_nickname_prompt"
+local promptResponded
+nativeUi.askYesNo("NAME?", function(v) promptResponded = v end)
+assert(promptResponded == true and originalAsks == 0,
+    "native .init alias must not expose the No choice")
+-- Other confirmations remain fully usable.
+engineBattle._phase = "command"
+nativeUi.askYesNo("OTHER?", function() end)
+assert(originalAsks == 1,"unrelated Yes/No dialogs are unchanged")
+
+-- If another mod replaces the UI functions after battle start, the
+-- capture event reasserts both validation and forced-YES hooks.
+local overwrittenCalls = 0
+nativeUi.askYesNo = function(prompt, cb)
+    overwrittenCalls = overwrittenCalls + 1
+    if cb then cb(false) end
+end
+nativeNaming.open = function(opts)
+    nativeNaming.opened = nativeNaming.opened + 1
+    nativeNaming.last = opts
+end
+fire("pokemon.caught", {})
+engineBattle._phase = "catch_nickname_prompt"
+promptResponded = nil
+nativeUi.askYesNo("NAME?", function(v) promptResponded = v end)
+assert(promptResponded == true and overwrittenCalls == 0,
+    "a late UI wrapper must not restore the decline option")
+local forcedName
+nativeNaming.open({template="CAUGHT_MON",species=25,
+    onDone=function(n) forcedName=n end})
+local attempts=nativeNaming.opened
+nativeNaming.last.onDone(nil)
+assert(nativeNaming.opened == attempts+1 and forcedName == nil,
+    "cancel/empty nickname must reopen the naming modal")
+nativeNaming.last.onDone("  ")
+assert(nativeNaming.opened == attempts+2 and forcedName == nil,
+    "whitespace nickname is prohibited")
+nativeNaming.last.onDone("PIKACHU")
+assert(nativeNaming.opened == attempts+3 and forcedName == nil,
+    "species-default nickname is prohibited")
+nativeNaming.last.onDone("Sparky")
+assert(forcedName == "Sparky","only a custom nickname completes capture")
+
+-- Nickname OFF restores the regular native decision, even mid-run.
+assert(mod.exports.gen3_core.setRule("nickname_rule",false))
+engineBattle._phase = "catch_nickname_prompt"
+promptResponded = nil
+nativeUi.askYesNo("NAME?",function(v) promptResponded=v end)
+assert(promptResponded == false and overwrittenCalls == 1,
+    "native No is legal when nickname rule is disabled")
+assert(mod.exports.gen3_core.setRule("nickname_rule",true))
+package.loaded["src.core.game3.battle"] = engineBattle
+
 game.session.party[1].hp = 21
 local secondCopy = mon(25, 123, 0, "Spark")
 local second = { earlyRival = true, trainerId = 326,
