@@ -801,8 +801,11 @@ return function(mod)
         local shinyOnly = Playstyles.active(s, Core)
         local shiny = battle.shiny or Clauses.isShiny(mon)
         if shinyOnly and not shiny then
+            local suffix = battle.areaEligible
+                and " Non-shinies do not use your route chance."
+                or " This route is already used."
             battle.pendingCatchReason = "Shiny Nuzlocke: only shiny Pokemon"
-                .. " can be caught. Your route chance remains open."
+                .. " can be caught." .. suffix
             return false, 0
         end
         -- Recover from native wilds whose enemy is not populated until
