@@ -39,7 +39,11 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 - [ ] **M05 — Master toggle.** Switch NUZLOCKE OFF → ON → OFF → ON. **Expected:** Label changes immediately; rule values in other rows do not reset.
 - [ ] **M06 — Compact PLAYSTYLES.** Open NUZ RULES → PLAYSTYLES. **Expected:** Exactly four rows: SHINY NUZ toggle, its DETAILS directly below, HARDCORE toggle, its DETAILS directly below. No stray rule-description lines.
 - [ ] **M07 — Details and return.** Open both DETAILS screens, scroll their explanations and press B. **Expected:** Complete rules are visible in the correct details screen and the selector returns to the same row. Each toggle changes only its corresponding playstyle.
-- [ ] **M06 — Save persistence.** Enable Nuzlocke, change one rule, save **in game**, restart and reopen the menu. **Expected:** Master switch and saved rule values persist.
+- [ ] **M08 — Advanced Rules navigation.** Open NUZ RULES → ADVANCED RULES. **Expected:** Exactly nine categories in order: CATCH RULES, BATTLE CLAUSES, STATUS BANS, VARIANTS, BATTLE ITEMS, FIELD ITEMS, SERVICES & ECONOMY, POKEMON STATS, AREA SPLITS.
+- [ ] **M09 — Advanced placeholder behaviour.** Open each ADVANCED RULES category and one rule inside; go back twice. **Expected:** Its original [Soon] rules and unavailable explanation remain visible; B returns to the same selected advanced category, then to ADVANCED RULES in NUZ RULES.
+- [ ] **M10 — Removed categories.** Look through NUZ RULES, including ADVANCED RULES. **Expected:** Neither WORLD nor UI appears; ALMANAC and MOD COMPAT remain separate [Soon] placeholders on NUZ MENU.
+- [ ] **M11 — No rule-state changes.** Switch one working rule, open ADVANCED RULES and return. **Expected:** The working rule remains at its chosen value; advanced categories have no gameplay effect.
+- [ ] **M12 — Save persistence.** Enable Nuzlocke, change one rule, save **in game**, restart and reopen the menu. **Expected:** Master switch and saved rule values persist.
 
 ## A2. New CORE clauses (disposable saves; WIP)
 
