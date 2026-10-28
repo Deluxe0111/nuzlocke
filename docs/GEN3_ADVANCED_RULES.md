@@ -22,6 +22,9 @@ Settings are saved and retained when the master switch is temporarily OFF.
 | **Gift Slot Policy** | AREA | AREA makes successful optional gifts consume the encounter slot on the receipt map when One Per Area is enabled. BONUS records the gift without spending that slot. |
 | **In-Game Trades** | ON | OFF rejects native NPC in-game trades at the requested-species preview, before the player gives up their Pokémon. This does not block linked player trades. |
 | **Trade Slot Policy** | AREA | AREA makes successful NPC exchanges consume the encounter slot on their map when One Per Area is enabled. BONUS records the exchange without using the ordinary slot. |
+| **PKMN BAN** | 0 BANNED | Opens a 20-species-per-page National Dex picker (#001–#386). Select any species to toggle its individual ban. Uses National Dex rather than internal Hoenn species IDs. Applies to wild catches, optional gifts, NPC trades, and the Nuzlocke randomiser's wild/trainer replacement pools. The mandatory first starter is exempt. |
+| **Colorlocke** | OFF | OFF / RANDOM / CHOOSE. Restricts new acquisitions to the canonical species colour; RANDOM picks one available colour deterministically and persists it for the run. CHOOSE uses the Colour selector. Unknown custom species with no colour metadata are allowed rather than guessing a sprite colour. |
+| **Color** | BLACK | CHOOSE-only selector cycling BLACK, BLUE, BROWN, GRAY, GREEN, PINK, PURPLE, RED, WHITE and YELLOW. Based on canonical species identity, not shiny/sprite palettes. |
 | **Alphabetlocke** | OFF | OFF / RANDOM / CHOOSE. Restricts new wild catches by the first letter of the species' canonical ROM identity (not nickname or translated text). RANDOM chooses an available initial deterministically for the save and stores it; CHOOSE uses the Letter selector. |
 | **Letter** | A | A–Z selector, only shown when Alphabetlocke is CHOOSE; irrelevant in OFF and RANDOM modes. |
 | **Allow Glitches** | OFF | OFF refuses wild catches with invalid/unregistered or explicitly glitch-marked species IDs when the native registry can verify them. ON allows them through this check; all other catch bans still apply. Valid provider-registered custom species are not classified as glitches merely for lacking a National Dex number. |
@@ -63,6 +66,23 @@ the catch is denied rather than silently bypassing a hard maximum.
 - Town Catches is checked before an encounter can claim a route's first
   attempt, and rechecked at the Poké Ball transaction. Town catches are
   therefore ineligible while OFF, including with Failed Encounters ON.
+- **PKMN BAN** operates on the 386 original National Dex numbers, stores
+  only selected entries under `catchRules.bannedNational`, and checks the
+  actual battled/received species' `Pokemon.national()` identity.
+  The in-game picker is paged in groups of 20 with previous/next controls.
+  Native randomiser candidates exclude banned national species while
+  CORE Nuzlocke is active, including trainer-team replacements; when no
+  legal replacement remains, the original species is retained rather
+  than fabricating an invalid Pokémon. Already-owned Pokémon are untouched.
+- **Colorlocke** maps the 386 original National Dex species to their
+  canonical colour IDs (PokeAPI species-colour dataset: BLACK, BLUE, BROWN,
+  GRAY, GREEN, PINK, PURPLE, RED, WHITE, YELLOW). It uses the final
+  Pokémon's National Dex mapping and never samples sprites or shiny
+  palettes. Explicit provider metadata can supply a colour for a custom
+  Pokémon; otherwise unknown-colour customs fail open. RANDOM picks a
+  represented colour from the installed species registry, saves it as
+  `catchRules.colorlocke_random_color`, and displays it as RND:COLOUR
+  after resolution; switching modes resets the random selection.
 - RANDOM Alphabetlocke chooses from initials represented in the active
   native National Dex registry (1–386) and persists the chosen letter in
   `statusBans`-independent `catchRules.alphabetlocke_random_letter`.
@@ -100,7 +120,7 @@ the catch is denied rather than silently bypassing a hard maximum.
 
 ### Still [Soon]
 
-Overworld encounters, PKMN BAN, Colorlocke and its colour.
+Overworld encounters remain [Soon] in Catch Rules.
 All remaining ADVANCED RULES categories remain [Soon]; unsupported
 rows are not editable.
 
@@ -158,8 +178,22 @@ rows are not editable.
     confirm the map's normal slot remains available. Test FRLG and RSE.
 16. Verify prohibitions from Legendary/Mythical/pseudo/BST/Alphabetlocke
     apply to supported optional gifts and received NPC trade Pokémon.
-17. Verify unported Catch Rules, including Colorlocke, species picker
-    and Overworld, remain [Soon].
+17. In PKMN BAN, open the National Dex picker, page forward and back,
+    ban #025 Pikachu, then attempt a Pikachu catch. Confirm it is
+    refused without spending a route; unban Pikachu and retry on a fresh
+    route. Save/restart and verify the ban list persists. Check Treecko
+    (National #252, Gen 3 internal species 277) for ID-mapping correctness.
+18. With the Nuzlocke randomiser enabled, ban multiple National Dex
+    species and verify neither wild nor trainer replacement results
+    select them. Confirm Nuzlocke master OFF restores native/randomiser
+    eligibility without deleting saved bans.
+19. Set Colorlocke CHOOSE = YELLOW and verify Pikachu is eligible while
+    Charmander (RED) is not. Repeat with randomised and Untamed wilds,
+    plus an optional gift/NPC trade. Switch to RANDOM and confirm its
+    selected colour persists after a save/reload (including if the first
+    allowed acquisition is a gift).
+20. Verify Overworld remains [Soon] and all other unported advanced
+    categories remain unavailable.
 
 The automated smoke suite is not a substitute for exact-edition ROM
 testing in FireRed, LeafGreen, Ruby, Sapphire and Emerald.
