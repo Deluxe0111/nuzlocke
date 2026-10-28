@@ -26,6 +26,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
 local RunParty = readModule("gen3_run_party.lua")()
 local Difficulty = readModule("gen3_difficulty.lua")()
     local Hardcore = readModule("gen3_hardcore_rules.lua")()
+    local Qol = readModule("gen3_qol.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -236,6 +237,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         -- individual still keeps the shiny status it was spawned with.
         noteOWEShiny(final.species, final.personality)
         return final
+    end)
+
+    -- QOL movement operates at Gen 3's native player step-frame hook;
+    -- keeping it there leaves bicycles, scripts and other systems intact.
+    mod.hooks:wrap("movement.speed",function(next,frames,ctx)
+        local base=next(frames,ctx)
+        return Qol.frames(loadState(),base,ctx)
     end)
 
     -- Fishing has an independent engine hook, NOT encounter.species.
@@ -921,6 +929,40 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
     end
 
+    -- QOL hooks are idempotent across save/map loads, and read live
+    -- settings each time. No in-place mutation of session options.
+    local function installQolGuards()
+        local okM,Message=pcall(require,"src.ui.game3.message")
+        if okM and type(Message)=="table"
+            and type(Message.show)=="function"
+            and Message.__nuzQolShow~=Message.show then
+            local previous=Message.show
+            local function guardedShow(text,opts,...)
+                return previous(text,Qol.textOptions(loadState(),opts),...)
+            end
+            Message.show=guardedShow
+            Message.__nuzQolShow=guardedShow
+        end
+        local okB,Bag=pcall(require,"src.core.game3.bag")
+        local okI,ItemsData=pcall(require,"src.core.game3.items_data")
+        if okB and okI and type(Bag)=="table"
+            and type(ItemsData)=="table" then
+            for _,method in ipairs({"canAdd","add"}) do
+                local tag="__nuzQol_"..method
+                if type(Bag[method])=="function"
+                    and Bag[tag]~=Bag[method] then
+                    local previous=Bag[method]
+                    local function guarded(bag,id,...)
+                        return Qol.withBagCapacity(loadState(),
+                            ItemsData,id,previous,bag,id,...)
+                    end
+                    Bag[method]=guarded
+                    Bag[tag]=guarded
+                end
+            end
+        end
+    end
+
     -- Reinstallable native guards. Rules never rewrite game data.
     local function installServiceGuards()
         local okD,Daycare=pcall(require,"src.core.game3.daycare")
@@ -1271,8 +1313,15 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             if type(Evolution.targetSpecies)=="function"
                 and Evolution.__nuzRunTarget~=Evolution.targetSpecies then
                 local previous=Evolution.targetSpecies
-                local function guardedTarget(mon,...)
-                    local target,param=previous(mon,...)
+                local function guardedTarget(mon,mode,...)
+                    local target,param=previous(mon,mode,...)
+                    local okI,ItemsData=pcall(require,
+                        "src.core.game3.items_data")
+                    if okP then
+                        target,param=Qol.tradeLevelTarget(loadState(),
+                            mon,target,param,mode,session(),Evolution,
+                            Pokemon,okI and ItemsData or nil)
+                    end
                     if okP and RunParty.evoDenied(loadState(),Core,
                         mon,target,Pokemon) then return 0,0 end
                     return target,param
@@ -1332,6 +1381,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                         end
                     end
                     local changed=previous(mon,target,native,bag,via,...)
+                    if changed and okP then
+                        local okI,ItemsData=pcall(require,
+                            "src.core.game3.items_data")
+                        Qol.consumeTradeItem(loadState(),mon,oldSpecies,
+                            target,via,Pokemon,Evolution,
+                            okI and ItemsData or nil)
+                    end
                     if changed and moveExtra and native
                         and native.party and #native.party>count then
                         local extra=native.party[#native.party]
@@ -2081,6 +2137,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installStatGuards()
         installRunPartyGuards()
         installHardcoreGuards()
+        installQolGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -2145,6 +2202,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installStatGuards()
         installRunPartyGuards()
         installHardcoreGuards()
+        installQolGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -2167,6 +2225,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installStatGuards()
         installRunPartyGuards()
         installHardcoreGuards()
+        installQolGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -2192,6 +2251,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installStatGuards()
         installRunPartyGuards()
         installHardcoreGuards()
+        installQolGuards()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
@@ -2659,6 +2719,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         runPartyRules = RunParty,
         gameDifficulty = Difficulty,
         hardcoreRules = Hardcore,
+        qolRules = Qol,
         areaSplitRules = AreaSplits,
         currentEncounterArea = encounterAreaNow,
         notices = function() return Notices.history(loadState()) end,
@@ -2807,6 +2868,17 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             local s=loadState()
             local ok,reason=BattleClauses.set(s,key,value)
             if ok then writeState(s) end
+            return ok,reason
+        end,
+    }
+    mod.exports.gen3_qol = {
+        api=Qol.api,schema=Qol.schema,
+        definitions=Qol.descriptors,
+        getRule=function(key) return Qol.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=Qol.set(saved,key,value)
+            if ok then writeState(saved) end
             return ok,reason
         end,
     }
