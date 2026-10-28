@@ -118,11 +118,16 @@ the catch is denied rather than silently bypassing a hard maximum.
 - No changes are made to already-owned Pokémon retroactively.
   Gift/Trade scripts and PC-capacity handling remain native.
 
-### Still [Soon]
+### Remaining advanced work
 
-Overworld encounters remain [Soon] in Catch Rules.
-All remaining ADVANCED RULES categories remain [Soon]; unsupported
-rows are not editable.
+All Gen 3 Catch Rules rows are now functional. The redundant Overworld
+Encounters toggle has been removed: if Untamed-Advanced supplies
+wandering Pokémon, those wild battles use the same encounter-slot and
+catch-legality rules as ordinary native wild encounters. Untamed controls
+the visible spawns; Nuzlocke does not need a separate enable switch.
+
+The remaining advanced categories outside Catch Rules, Battle Clauses
+and Status Bans are still [Soon].
 
 ## Manual verification
 
@@ -192,8 +197,11 @@ rows are not editable.
     plus an optional gift/NPC trade. Switch to RANDOM and confirm its
     selected colour persists after a save/reload (including if the first
     allowed acquisition is a gift).
-20. Verify Overworld remains [Soon] and all other unported advanced
-    categories remain unavailable.
+20. Verify that Overworld Encounters no longer appears in Gen 3
+    Catch Rules. With Untamed-Advanced enabled, catch a visible wandering
+    wild and confirm it uses the normal map encounter slot, without any
+    separate overworld toggle. Other unported advanced categories
+    remain unavailable.
 
 The automated smoke suite is not a substitute for exact-edition ROM
 testing in FireRed, LeafGreen, Ruby, Sapphire and Emerald.
