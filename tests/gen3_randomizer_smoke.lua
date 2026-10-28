@@ -682,10 +682,41 @@ assert(api.set("random_field_items", true))
 assert(api.set("random_shops", true))
 assert(api.set("random_tms", true))
 assert(api.set("random_tm_compatibility", 1))
+assert(api.set("random_tm_locations", true))
+assert(api.set("random_gift_items", true))
+assert(api.set("random_learnsets", true))
+assert(api.set("random_learnset_stab", 2))
+assert(api.set("random_evolutions", true))
+assert(api.set("random_trainer_theme", 1))
 assert(api.set("random_encounter_tables", true))
 assert(api.set("random_encounter_repetition", 1))
+assert(api.set("random_encounter_diversity_strength", 1))
 assert(api.set("random_trainers", true))
 assert(api.set("random_trainer_diversity", 1))
+-- Progression accessors must deliver changed, stable content to the
+-- same native routines used for level-up moves and evolution scans.
+do
+    local nativeLearn={{1,12},{5,18},{9,21}}
+    local learned=P.learnset(2)
+    assert(learned and #learned==3
+        and learned~=nativeLearn and learned[1][1]==1
+        and learned[2][1]==5 and learned[3][1]==9,
+        "native Pokemon.learnset should expose randomised level-up moves")
+    for _,e in ipairs(learned) do
+        assert(P.battleMove(e[2]) and P.battleMove(e[2]).type==2,
+            "native learnsets must follow selected STAB constraint")
+    end
+    assert(P.learnset(2)[1][2]==learned[1][2],
+        "native learnset must not reroll on repeated access")
+    local evo=P.evolutions(1)
+    local nativeEvo=P.__nuzNativeEvolutions(1)
+    assert(evo and evo[1] and nativeEvo[1]
+        and evo[1].method==nativeEvo[1].method
+        and evo[1].param==nativeEvo[1].param,
+        "evolution methods and prerequisites stay native")
+    assert(evo[1].target~=1 and P.evolutions(1)[1].target==evo[1].target,
+        "randomised native evolution target must be stable")
+end
 -- Native Pokemon APIs feed the TM Case, item-use and party preflight.
 -- TM and compatibility wrappers must agree, and HM01 is never changed.
 local taught=P.moveFromTmItem(289)
@@ -870,8 +901,34 @@ assert(itemStore.vars[0x8000]==289,
     "TM/HM pickups must remain progression-safe")
 itemStore.vars[0x8000]=13
 hooks["script.command"](nativeScript,ballContext,"callstd",{op="callstd",[1]=0})
-assert(itemStore.vars[0x8000]==13,
-    "scripted NPC item gift is not a field pickup")
+assert(itemStore.vars[0x8000]~=13,
+    "ordinary NPC gift item must be randomised at the native award var")
+local giftReceived=itemStore.vars[0x8000]
+itemStore.vars[0x8000]=13
+hooks["script.command"](nativeScript,ballContext,"callstd",
+    {op="callstd",[1]=0})
+assert(itemStore.vars[0x8000]==giftReceived,
+    "NPC gift item assignment must persist across calls")
+itemStore.vars[0x8000]=4
+hooks["script.command"](nativeScript,ballContext,"callstd",
+    {op="callstd",[1]=0})
+assert(itemStore.vars[0x8000]==4,
+    "native early-game Poké Ball gifts must remain available")
+itemStore.vars[0x8000]=289
+hooks["script.command"](nativeScript,ballContext,"callstd",
+    {op="callstd",[1]=0})
+local movedTm=itemStore.vars[0x8000]
+assert(movedTm and movedTm>=289 and movedTm<=338,
+    "scripted TM award must be remapped to another TM, never an HM")
+itemStore.vars[0x8000]=289
+hooks["script.command"](nativeScript,ballContext,"callstd",ballScript)
+assert(itemStore.vars[0x8000]==movedTm,
+    "visible TM pickup and NPC gift must use same TM permutation")
+itemStore.vars[0x8000]=339
+hooks["script.command"](nativeScript,ballContext,"callstd",
+    {op="callstd",[1]=0})
+assert(itemStore.vars[0x8000]==339,
+    "HMs stay native, including via standard NPC gifts")
 package.loaded["src.core.game3.scripting.flags"]=oldItemFlags
 package.loaded["src.core.game3.scripting.space"]=oldItemSpace
 -- Hidden pickups in both FRLG and RSE must pass a COPY to native field
@@ -892,6 +949,13 @@ local keyHidden={item=261,x=9,y=9,flag=1005}
 assert(FakeField.pickUpHiddenItem(game,keyHidden))
 assert(fieldReceipts[3].record==keyHidden,
     "hidden key item must pass unchanged to native")
+do
+    local hiddenTM={item=289,x=11,y=7,flag=1111}
+    assert(FakeField.pickUpHiddenItem(game,hiddenTM))
+    assert(fieldReceipts[4].record~=hiddenTM
+        and fieldReceipts[4].record.item==movedTm,
+        "native hidden TM pickups use same safe TM permutation")
+end
 local count=0
 local wild={species="ALPHA",speciesId=1,level=7,item="BERRY"}
 local ctx={mapId="FR_ROUTE_1",terrain="grass"}
@@ -976,6 +1040,10 @@ assert(out[1].speciesId ~= out[2].speciesId,
 assert(out[1].level==13 and out[2].heldItem=="POTION"
     and out[1].moves[1]=="TACKLE")
 assert(trainerParty[1].speciesId==1 and trainerParty[2].speciesId==2)
+for _,member in ipairs(out) do
+    assert(P.types(member.speciesId)[1]==P.types(trainerParty[1].speciesId)[1],
+        "LEAD TYPE trainer theme must use the first native party type")
+end
 assert(api.locked() and api.effectiveSeed()==12345678)
 assert(not api.set("random_trainer_balance", 1))
 assert(#mod.exports.gen3_notices.history()>0,
@@ -1036,12 +1104,13 @@ for _,expected in ipairs({
     "STARTER BALANCE: CHAOS","RANDOM STATIC: ON",
     "RANDOM GIFTS: ON","RANDOM EGGS: ON",
     "RANDOM FIELD ITEMS: ON","RANDOM SHOPS: ON",
-    "RANDOM TMS: ON","RANDOM TM LOCATIONS: OFF",
-    "RANDOM GIFT ITEMS: OFF","RANDOM LEARNSETS: OFF",
-    "RANDOM EVOS: OFF","RNG INFO: SHOW","TM COMPAT: RANDOM",
+    "RANDOM TMS: ON","RANDOM TM LOCATIONS: ON",
+    "RANDOM GIFT ITEMS: ON","RANDOM LEARNSETS: ON",
+    "LEARNSET GEN: ALL","LEARNSET STAB: ONLY",
+    "RANDOM EVOS: ON","EVO BALANCE: CHAOS","RNG INFO: SHOW","TM COMPAT: RANDOM",
     "SHOP BALANCE: CHAOS","ITEM BALANCE: CHAOS",
     "ITEM VARIETY: NORMAL","WILD VARIETY: UNIQUE AREA",
-    "DIVERSITY: SPECIES","TRAINER THEME: ANY TYPE"
+    "DIVERSITY: PRIMARY TYPE","TRAINER THEME: LEAD TYPE"
 }) do
     assert(allLabels[expected],"missing implemented RNG row "..expected)
 end
