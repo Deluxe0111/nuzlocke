@@ -147,6 +147,8 @@ return function()
                     g.print(text(mon.speciesName):sub(1,23),x+112,y+46)
                     g.print("LEVEL "..text(mon.level),x+112,y+69)
                     if mon.area then
+                        g.print("ATK "..text(mon.attack).."  DEF "
+                            ..text(mon.defense),x+112,y+92)
                         g.print(text(mon.area):sub(1,29),x+12,y+116)
                     else
                         g.print("HP "..text(mon.hp).."/"..text(mon.maxHp),
@@ -236,6 +238,9 @@ return function()
             row("SHARE "..(rosterMode=="party" and "PARTY" or "MEMORIAL")
                 .." PNG",exportPage),
         }
+        if result.saveError then
+            rows[#rows+1]=row("AUTOSAVE FAILED")
+        end
         if result.outcome~="VICTORY" and opts
             and type(opts.onSave)=="function" then
             rows[#rows+1]=row("RETRY / SAVE RUN",function()
@@ -269,6 +274,17 @@ return function()
     end
     function M.isOpen()
         return stack and stack.has and stack.has(ID) or false
+    end
+    function M.ensureTop()
+        if not M.isOpen() or not stack or not stack.top then
+            return false
+        end
+        local top=stack.top()
+        if top and top.id==ID then return true end
+        -- Preserve the current result subpage if another native
+        -- menu gets layered above the failed-run terminal overlay.
+        stack.push(ID,M,{hideBelow=true,fullscreen=true})
+        return true
     end
     function M.close()
         if stack then stack.pop(ID) end

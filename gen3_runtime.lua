@@ -112,7 +112,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 end
                 return false
             end,
-            onSave=saveTerminalRecord,
+            onSave=function()
+                local hadError=record.saveError
+                record.saveError=nil
+                local ok,why=saveTerminalRecord()
+                if not ok then record.saveError=tostring(why or hadError) end
+                return ok,why
+            end,
         })
         -- Headless test harnesses and early save-load callbacks may not
         -- have the Game 3 UI stack available yet. The terminal record
@@ -131,6 +137,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         if auto or outcome~="VICTORY" then
             local ok,why=saveTerminalRecord()
             if not ok then
+                record.saveError=tostring(why)
                 Notices.add(saved,"RUN_SAVE_WARNING",
                     "Run ended, but autosave failed: "..tostring(why)
                         ..". Retry from the results screen.")
@@ -3069,8 +3076,12 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         deliverPendingStartingBalls()
         installChampionResultHook()
         local saved=loadState()
-        if Results.isTerminal(saved) and not ResultsScreen.isOpen() then
-            openFinalScreen(saved.finalResult)
+        if Results.isTerminal(saved) then
+            if not ResultsScreen.isOpen() then
+                openFinalScreen(saved.finalResult)
+            else
+                ResultsScreen.ensureTop()
+            end
         end
     end)
 
@@ -3082,6 +3093,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         if Results.isTerminal(saved) then
             if not ResultsScreen.isOpen() then
                 openFinalScreen(saved.finalResult)
+            else
+                ResultsScreen.ensureTop()
             end
             return
         end
