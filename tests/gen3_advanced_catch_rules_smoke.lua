@@ -8,6 +8,8 @@ assert(Rules.get(s,"ban_mythicals")==false)
 assert(Rules.get(s,"ban_pseudos")==false)
 assert(Rules.get(s,"maximum_bst")==0)
 assert(not Rules.anyEnabled(s))
+assert(Core.set(s,"nuzlocke_enabled",true),
+    "enable the master challenge before testing catch restrictions")
 local pokemon={
     national=function(id)
         return ({[277]=252,[400]=380,[401]=373,[402]=385})[id] or id
