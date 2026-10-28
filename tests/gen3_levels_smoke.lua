@@ -394,7 +394,6 @@ assert(result=="error" and not turn and battleUseCalls==0,
 assert(nativeItems.isBattleUsable(13)==true,
     "No Field Heal must not automatically ban in-battle Potion")
 events["battle.ended"]({battle=trainer,result="win"})
-assert(Core.set==nil or true) -- no policy changes outside the mod interface
 assert(mod.exports.gen3_core.setRule("nuzlocke_enabled",false))
 assert(fieldUse(68)==true,"master OFF restores field candy use")
 assert(moves.MENU_HANDLERS[19]({}).ok
