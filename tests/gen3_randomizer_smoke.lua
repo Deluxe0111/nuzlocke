@@ -14,6 +14,35 @@ local P = {
         return {hp=n,atk=n,def=n,spe=n,spa=n,spd=n}
     end,
 }
+-- The native game resolves TM01..50 to move IDs and HM01..08 to
+-- separate native field moves. The shared Pokemon methods are consumed
+-- by the Case, party labels, preflight, and item teaching.
+local nativeTms={}
+for i=1,50 do nativeTms[i]=70+i end
+P.battleMove=function(id)
+    if type(id)=="number" and id>=1 and id<=190 then
+        return {pp=10, power=50}
+    end
+end
+P.moveName=function(id)
+    if id and id>=1 and id<=190 then return "MOVE "..id end
+end
+P.isHmMove=function(id)
+    return id==15 or id==19 or id==57 or id==70
+        or id==148 or id==249 or id==127 or id==291
+end
+P.moveFromTmItem=function(item)
+    local id=tonumber(item)
+    if id and id>=289 and id<=338 then
+        return nativeTms[id-288]
+    elseif id and id>=339 and id<=346 then return 15 end
+end
+P.canLearnTmIndex=function(species,index)
+    return species==1 and index==0
+end
+P.canLearnTmItem=function(species,item)
+    return P.canLearnTmIndex(species,item-289)
+end
 local saved = {}
 assert(R.get(saved, "random_encounter_tables") == false)
 assert(R.get(saved, "random_trainers") == false)
@@ -26,6 +55,8 @@ assert(R.get(saved, "random_gift_pokemon") == false)
 assert(R.get(saved, "random_egg_gifts") == false)
 assert(R.get(saved, "random_shops") == false)
 assert(R.get(saved, "random_shop_balance") == 0)
+assert(R.get(saved, "random_tms") == false)
+assert(R.get(saved, "random_tm_compatibility") == 0)
 assert(R.get(saved, "random_encounter_repetition") == 0)
 assert(R.set(saved, "randomizer_seed", 12345678))
 assert(R.set(saved, "random_encounter_tables", true))
@@ -49,6 +80,8 @@ assert(not R.set(saved, "random_trainer_diversity", 1))
 assert(not R.set(saved, "random_starter", true))
 assert(not R.set(saved, "random_static_pokemon", true))
 assert(not R.set(saved, "random_shops", true))
+assert(not R.set(saved, "random_tms", true))
+assert(not R.set(saved, "random_tm_compatibility", 2))
 assert(not R.set(saved, "random_encounter_repetition", 1))
 local recovered = {randomizer = {
     randomizer_seed = 12345678, random_encounter_tables=true,
@@ -212,6 +245,68 @@ local badStock={randomizer={random_shops=true,randomizer_seed=12345678,
     shopAssignments=shopState.randomizer.shopAssignments}}
 assert(R.shop(badStock,ItemsData,sourceMart,{4,13,14,50,261,289})
     ==nil, "saved stock must never be reused against a changed native list")
+-- TM move pool and compatibility have separate seed namespaces, and
+-- no TM may become an HM field move or Struggle.
+local nativeTmList={}
+for i=1,50 do nativeTmList[i]=nativeTms[i] end
+local tmState={randomizer={random_tms=true,randomizer_seed=9876543}}
+local tmResult=assert(R.tms(tmState,P,nativeTmList))
+assert(#tmResult==50 and R.locked(tmState))
+local seenMoves={}
+for i,m in ipairs(tmResult) do
+    assert(m~=nativeTmList[i]
+        and P.battleMove(m) and not P.isHmMove(m)
+        and m~=165 and not seenMoves[m],
+        "TM must teach a unique, valid non-HM/non-Struggle move")
+    seenMoves[m]=true
+end
+assert(not R.set(tmState,"random_tm_compatibility",2),
+    "TM move selection locks the run")
+local tmReload={randomizer={
+    random_tms=true,randomizer_seed=9876543,
+    tmMoves=tmState.randomizer.tmMoves,
+    tmOriginals=tmState.randomizer.tmOriginals}}
+local sameTm=assert(R.tms(tmReload,P,nativeTmList))
+local freshTm=assert(R.tms({randomizer={
+    random_tms=true,randomizer_seed=9876543}},P,nativeTmList))
+for i=1,50 do
+    assert(sameTm[i]==tmResult[i] and freshTm[i]==tmResult[i])
+end
+assert(sameTm~=tmState.randomizer.tmMoves,
+    "return cloned TM map, not mutable saved table")
+local changedNative={}
+for i,m in ipairs(nativeTmList) do changedNative[i]=m end
+changedNative[1]=64
+assert(R.tms(tmReload,P,changedNative)==nil,
+    "saved mapping must not be silently applied to a different ROM")
+assert(R.tms({randomizer={randomizer_seed=9876543}},
+    P,nativeTmList)==nil,"Random TMs default OFF")
+assert(R.tms({randomizer={random_tms=true,randomizer_seed=11}},
+    P,{1,2,3})==nil,"incomplete ROM mapping fails open")
+local nativeCompat={randomizer={randomizer_seed=9876543}}
+assert(R.tmCanLearn(nativeCompat,P,1,0)==nil)
+local randomCompat={randomizer={random_tm_compatibility=1,
+    randomizer_seed=9876543}}
+local compatMap={}
+for index=0,49 do
+    compatMap[index]=R.tmCanLearn(randomCompat,P,2,index)
+    assert(type(compatMap[index])=="boolean")
+end
+assert(R.locked(randomCompat))
+local compatReload={randomizer={random_tm_compatibility=1,
+    randomizer_seed=9876543}}
+for index=0,49 do
+    assert(R.tmCanLearn(compatReload,P,2,index)==compatMap[index])
+end
+assert(R.tmCanLearn(randomCompat,P,1,50)==nil,
+    "HMs must preserve native compatibility")
+assert(R.tmCanLearn(randomCompat,P,999,0)==nil,
+    "invalid internal species must fail open")
+local allCompat={randomizer={random_tm_compatibility=2,
+    randomizer_seed=9876543}}
+assert(R.tmCanLearn(allCompat,P,1,1)==true)
+assert(R.tmCanLearn(allCompat,P,3,49)==true)
+assert(R.tmCanLearn(allCompat,P,3,50)==nil)
 -- Candidate exclusion is deterministic and does not disturb existing
 -- mappings when Trainer Variety is OFF.
 local distinct = {randomizer={
@@ -477,10 +572,30 @@ assert(api.set("random_gift_pokemon", true))
 assert(api.set("random_egg_gifts", true))
 assert(api.set("random_field_items", true))
 assert(api.set("random_shops", true))
+assert(api.set("random_tms", true))
+assert(api.set("random_tm_compatibility", 1))
 assert(api.set("random_encounter_tables", true))
 assert(api.set("random_encounter_repetition", 1))
 assert(api.set("random_trainers", true))
 assert(api.set("random_trainer_diversity", 1))
+-- Native Pokemon APIs feed the TM Case, item-use and party preflight.
+-- TM and compatibility wrappers must agree, and HM01 is never changed.
+local taught=P.moveFromTmItem(289)
+assert(taught and taught~=nativeTms[1]
+    and not P.isHmMove(taught))
+assert(P.moveFromTmItem(289)==taught,
+    "shared TM resolver must return same move on repeated reads")
+assert(P.moveFromTmItem(339)==15,
+    "HM items must continue to teach the native move")
+for species=1,3 do
+    for index=0,49 do
+        local one=P.canLearnTmIndex(species,index)
+        assert(one==P.canLearnTmItem(species,index+289),
+            "TM item compatibility must agree with per-index result")
+    end
+end
+assert(P.canLearnTmIndex(1,50)==false,
+    "HM compatibility cannot inherit random TM rules")
 -- Shop.show is the native inventory display/transaction boundary.
 -- Install via the normal map-entered lifecycle, not manual hook calls.
 assert(type(handlers["map.entered"])=="function")
@@ -808,10 +923,12 @@ assert(model.title=="RANDOMIZER"
     and model.rows[8]=="RANDOM EGGS: ON"
     and model.rows[9]=="RANDOM FIELD ITEMS: ON"
     and model.rows[10]=="RANDOM SHOPS: ON"
-    and model.rows[11]=="SHOP BALANCE: CHAOS"
-    and model.rows[12]=="ITEM BALANCE: CHAOS"
-    and model.rows[13]=="ITEM VARIETY: NORMAL"
-    and model.rows[17]=="WILD VARIETY: UNIQUE AREA",
+    and model.rows[11]=="RANDOM TMS: ON"
+    and model.rows[12]=="TM COMPAT: RANDOM"
+    and model.rows[13]=="SHOP BALANCE: CHAOS"
+    and model.rows[14]=="ITEM BALANCE: CHAOS"
+    and model.rows[15]=="ITEM VARIETY: NORMAL"
+    and model.rows[19]=="WILD VARIETY: UNIQUE AREA",
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do
