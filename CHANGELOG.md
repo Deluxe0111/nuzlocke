@@ -1,33 +1,41 @@
-## 3.0.0-BETA — Generation 3 and Untamed compatibility
+## 3.0.0-BETA — Generation 3 compatibility and features
 
-- Implements **ADVANCED RULES → FIELD ITEMS** with all seven controls: No Repels, No Escape Rope, Travel Restrictions (NORMAL/NO FLY/NO FLY+TELEPORT), No Field Heal, No PP Items, No TMs (HMs remain legal) and No Rare Candy. Intercepts item.use, direct native TM/Escape Rope/PP mutations, bypassing party-menu Candy/TM branches, battle PP-item transactions and player party-menu Fly/Teleport dispatch. Independent persisted settings, modular and native integration tests, menu regression and manual edition checklist included.
+**First Generation 3 beta release:** FireRed, LeafGreen, Ruby, Sapphire and Emerald. Adds a separate native Game3 implementation and `gen3_classic_v1` state while preserving the Gen 1/2 runtime, save schema, Mod API 2 and pre-3.0 release history.
 
-- Implements **ADVANCED RULES → BATTLE ITEMS**: No Healing Items, No X Items, No Catching and Ball Per Encounter (OFF/1/2/3/5/10). Blocks disallowed native item use before bag consumption or turn use, includes status/restorative berries and native/custom Balls, and guards direct catch transactions. Only legal throws count, reset per wild battle. No Catching prevents failed-encounter route claims. Includes standalone/native transaction/menu tests and manual verification guide.
+### Ported from Generation 1/2
 
-- Implements **Catch Draft** in Gen 3 VARIANTS: successful wild captures progressively draft distinct type lanes (preferring an undrafted secondary type), while unfilled drafts allow wild catches without type restrictions. Gifts/NPC trades must already match drafted types and never add lanes, with mandatory first starters exempt. Completing the draft restores normal Type Locke enforcement. Adds saved progress, read-only active lane labels, progress notices, and catch/gift/trade/dupe/reload regression tests.
+- CORE: Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run and PC Survivors.
+- CLAUSES: Dupes, Shiny Catch Exception/Rate, Roamer, Egg Encounter and Route Forgiveness token redemption.
+- LEVELS, HARDCORE, GAME DIFFICULTY and RUN/PARTY: cap scopes, EXP Edging, SET and other battle restrictions, party/evolution limits and difficulty settings.
+- ADVANCED RULES: species/capture bans, gifts/trades, Colorlocke/Alphabetlocke, Type Locke/Catch Draft, OHKO/Battle Clauses, Status Bans/Sleep Clause, Battle Items, Field Items, Services & Economy, Pokémon Stats and Gen 3 Area Splits.
+- QOL: Instant Text, Run/Surf, bag limits and trade-evolution options.
+- Seeded Randomiser: starter, wild, static, gift/Egg, trainer, field/gift-item, shop, TM, learnset and evolution pools with generation/BST/options as supported by Gen 3 hooks.
 
-- Implements **ADVANCED RULES → VARIANTS → Type Locke**, from MONO through HEXA with six conditional type selectors and deterministic, saved RANDOM types. Denies off-type wild catches before spending an encounter slot or processing a Ball, checks supported gifts/NPC trades before mutation, composes with shiny/catch bans, and preserves mandatory starters. Catch Draft and Wonderlocke remain [Soon]; added policy, runtime and navigation smoke tests.
-- Removes the redundant Gen 3 Overworld Encounters row: Untamed-Advanced's wandering Pokémon use native wild encounter and area rules without an additional catch toggle.
+### Adapted for native Gen 3
 
-- Adds **PKMN BAN** (National Dex #001–#386 selectable picker with saved per-species bans) and **Colorlocke** (OFF/RANDOM/CHOOSE, ten canonical species colours, persisted random choice) to Gen 3 Catch Rules. Both apply to native wild, optional gifts and NPC trades; PKMN BAN also excludes banned National Dex species from Nuzlocke's wild/trainer randomiser candidate pools. Menu, policy, deterministic save, and randomiser regression tests added.
+- Implemented Game3 encounter/acquisition, battle, item/PP/TM, move, scripted gift/NPC trade, progression and PC-storage hooks, applying legality checks before native mutations where supported.
+- First encounters do not count until the player can obtain Pokémon; native Ball access establishes the durable catch-unlock boundary.
+- Native battle-copy writeback, graveyard archives and survivor rescue handle Permadeath and whiteout without deleting native game saves or patching the base engine.
+- Shiny integration retains Gen 3 individual identity, native PC/party mini-icons and ROM shiny portraits where supported; other verified shiny providers retain rate ownership.
+- GBA-native 240×160 menus use implemented-status controls, scoped descriptions and readable species/area names.
 
-- Implements **Gift Pokémon**, **Gift Slot Policy** (AREA/BONUS), **In-Game Trades** and **Trade Slot Policy** (AREA/BONUS) in Gen 3 Advanced Catch Rules. Scripted gift refusal uses the native failure return without giving a mon; NPC trade refusal changes the requested-species preflight before the exchange, and completed native swaps alone claim the map slot. Mandatory first starters remain exempt. Adds independent regression cases for script commands, NPC swaps, default-ON toggles, receipt history and sandbox isolation.
+### New v3 Gen 3 functionality
 
-- Implements **ADVANCED RULES → STATUS BANS**: No Status Moves bulk parent and six independently scoped bans (Paralysis, Confusion, Sleep, Poison/Toxic, Burn, Freeze). Parent controls sync/hide child rows; native status, secondary-effect and Yawn checks prevent mutation while retaining move damage. Rest/self-induced sleep remains legal. Adds independent **Sleep Clause** ON/OFF enforcement with per-battle provenance across switches, delayed Yawn checks and the Rest exemption.
-- Implements six **ADVANCED RULES → BATTLE CLAUSES**: Flinch (including King's Rock), partial Trap, No Setup Moves, Evasion (including Minimize), Accuracy Drops and Other Stat Drops. Side scopes are OFF/SELF/ENEMY/ALL where applicable, all default OFF, and move damage/PP remain native. OHKO remains [Soon] until independently validated. Adds effect-boundary tests and in-game checklist.
-- Extends **ADVANCED RULES → CATCH RULES** with No Fishing (blocks native rod use before the fishing task begins, plus a direct-encounter guard) and No Static Encounters (blocks capture in scripted wild/legendary battles while preserving native battle/story handling and exempting roaming Pokémon). Both rules are optional, persist in the existing Gen 3 save, and do not spend prohibited first encounters.
-- Begins implementing **ADVANCED RULES → CATCH RULES**: No Legendaries, No Mythicals, No Pseudos (whole three-stage families) and Maximum BST with selectable limits. Blocked wilds do not spend route encounters, are denied before native capture and shiny exceptions, and show an explicit reason. Uses National Dex mappings for Hoenn internal species IDs; the remaining advanced settings stay [Soon].
-- Cleans up **NUZ RULES** by grouping nine unported rule categories under **ADVANCED RULES**, preserving their existing [Soon] status and navigation. Removes obsolete Gen 3 WORLD and UI placeholders while leaving Gen 1/2 menus and all rule/save values unchanged. Retains the ALMANAC and MOD COMPAT future-feature placeholders.
-- Fixes mandatory nickname enforcement on standard Gen1Recomp builds without an engine PR: the earlier Gen 3 UI/Choice guards incorrectly accessed `package.loaded`, which is unavailable in the real mod sandbox. Both now resolve the native battle module through permitted `require`, so the nickname Yes/No can be skipped and blank/default nicknames rejected. A new package-free sandbox test prevents recurrence. The same audit also repairs `package` access in Gen 3 notices, level caps and badge handling. The optional native engine hook remains supported, not required.
-- Streamlines PLAYSTYLES into toggle + dedicated DETAILS pairs for Shiny and Hardcore, keeping the four-row menu clean and moving explanatory rules into scrollable detail views.
-- Strengthens capture Nickname Requirement: skips the native No choice, rejects empty/default/cancelled names, and restores the optional prompt when the rule is OFF. Re-checks native UI hooks after capture to handle late-loaded/overridden interfaces.
-- Promotes the package version to **3.0.0-BETA** while retaining Mod API 2 and Generation 1/2 save/runtime compatibility.
-- Adds the native Generation 3 CORE, CLAUSES, LEVELS, seeded wild/fishing/trainer RANDOMIZER, and player feedback / Graveyard / developer testing pages.
-- Adds **PLAYSTYLES → Shiny Nuzlocke**, requiring shiny wild Pokémon for Ball captures while ordinary non-shiny encounters never spend the area. One Per Area, Failed Encounters and Dupes continue to apply; bonus Shiny Clause catches are suppressed in this variant.
-- Adds **PLAYSTYLES → Hardcore Nuzlocke**, forcing strict encounters/death, SET-style trainer replacement, no used battle items except Poké Balls, and badge/league level caps through Champion. Restores original CORE/LEVELS/SHIFT settings on disable; compatible with Shiny Nuzlocke.
-- Integrates Nuzlocke Random Wild with Untamed Advanced's visible wandering Pokémon through the opt-in `untamed.owe.species` hook. The overworld sprite, battle, and caught Pokémon match.
-- Untamed Advanced credits **Deluxe0111** for the Nuzlocke compatibility integration. Its chain popup now reports the visible Pokémon (e.g. Feraligatr) while using the original native species slot only for repeat-spawn odds.
-- Preserves legacy 2.9.x release history below and keeps unported Gen 3 settings inactive. Full edition-by-edition ROM certification is still a separate task.
+- Shiny Nuzlocke and Hardcore Nuzlocke playstyles (may combine); NEW RUN SETUP and LOCK FOR RUN; native starting items and PC loadouts with deferred Balls.
+- Untamed-Advanced visible overworld spawn integration, preserving matching sprite/battle/capture species and respecting scripted special exclusions.
+- RUN JOURNAL merges status, Graveyard/Tracker shortcuts and retained rule-event history, replacing duplicate Almanac and NUZ NOTICES screens.
+- Native End Run/Champion/failure final-results experience and shareable full-team/graveyard/stats poster with shiny identification.
+- Read-only MOD SUPPORT replaces an unsafe/unimplemented manual Gen 3 compatibility ownership placeholder.
+- Hidden production Nuz Dev access (Select held + A) and audited full-archive Pokémon restoration for developer testing. It never unlocks a terminal run.
+- Removed the unimplemented Wonderlocke entry and the redundant Overworld Encounters toggle from the Gen 3 rules catalogue.
+- Added policy/native-smoke and menu regression coverage, with manual FireRed/LeafGreen/Ruby/Sapphire/Emerald checks maintained separately.
+
+### Scope, safety and authorship
+
+- Ordinary Route Forgiveness Pokémon revival is still not implemented; full-archive restoration is developer-only. Some non-catch nickname eligibility and third-party scripted gifts/trades still require further verification.
+- Passing automated tests is not proof of exact-ROM or third-party mod compatibility; v3 remains explicitly **BETA**.
+- Earlier Gen 1/2 contributors and the original Shiny Pokémon lineage retain credits: **bryanthaboi**, **Stone696**, **masterwebx**. **Deluxe0111** is credited for the Gen 3 port and new features. See [CREDITS.md](CREDITS.md).
+- For a feature-by-feature categorisation, see [Gen 3 feature matrix](docs/GEN3_FEATURE_MATRIX.md), [release notes](RELEASE_NOTES.md) and [manual test checklist](docs/GEN3_TEST_CHECKLIST.md).
 
 ## 2.9.72
 
