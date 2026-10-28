@@ -34,6 +34,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
     local Playstyles = readModule("gen3_playstyles.lua")()
     local ShinyRate = readModule("gen3_shiny_rate.lua")()
+    local ModSupport = readModule("gen3_mod_support.lua")()
     local Archive = readModule("gen3_archive.lua")()
     local Eggs = readModule("gen3_eggs.lua")()
     local Forgiveness = readModule("gen3_forgiveness.lua")()
@@ -3855,6 +3856,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         areaSplitRules = AreaSplits,
         currentEncounterArea = encounterAreaNow,
         notices = function() return Notices.history(loadState()) end,
+        modSupport = function()
+            return ModSupport.inspect(mod,ShinyRate,Randomizer,loadState())
+        end,
         notify = notify,
         getState = loadState, setState = writeState,
         core = Core, clauses = Clauses, catchRules = CatchRules,
