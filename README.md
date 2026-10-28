@@ -48,6 +48,7 @@ See [Gen 3 Randomiser documentation](docs/GEN3_RANDOMIZER.md) for the exact beha
 | CORE rules and precedence | [CORE specification](docs/GEN3_CORE_SPEC.md) |
 | Shiny and Hardcore Nuzlocke rules, tests and compatibility | [PLAYSTYLES](docs/GEN3_PLAYSTYLES.md) |
 | Encounter clauses, Eggs and Forgiveness | [Clauses](docs/GEN3_CLAUSES.md) · [Eggs and Forgiveness](docs/GEN3_EGGS_FORGIVENESS.md) |
+| Advanced Catch Rules and exact supported bans | [Advanced Rules](docs/GEN3_ADVANCED_RULES.md) |
 | Level caps and EXP Edging | [LEVELS](docs/GEN3_LEVELS.md) |
 | Randomiser including Untamed overworld integration | [RANDOMIZER](docs/GEN3_RANDOMIZER.md) |
 | Notifications and Rare Candy/nickname tests | [Player feedback](docs/GEN3_FEEDBACK.md) |
