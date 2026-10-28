@@ -216,6 +216,95 @@ return function()
         return { chosen[1], chosen[2], chosen[3] }
     end
 
+    -- Read the actual ROM evolution graph. Do not infer an evolution by
+    -- adding 1 or 2 to the internal species ID: Gen 3 has holes/forms and
+    -- branched evolution lines, particularly across FRLG and RSE.
+    local function evolutionTargets(Pokemon, species, poolMode, denyNational)
+        if type(Pokemon.evolutions) ~= "function" then return {} end
+        local ok, evolutions = pcall(Pokemon.evolutions, species)
+        if not ok or type(evolutions) ~= "table" then return {} end
+        local out, seen = {}, {}
+        for _, row in ipairs(evolutions) do
+            if type(row) == "table" then
+                local id = tonumber(row.target or row[3])
+                if id and id == math.floor(id) and id > 0
+                    and not seen[id] then
+                    local entry = eligiblePokemon(Pokemon, id)
+                    if entry and (not poolMode or poolMode == 0
+                        or generation(entry.national) == poolMode)
+                        and not (denyNational
+                            and denyNational(entry.national)) then
+                        seen[id] = true
+                        out[#out + 1] = id
+                    end
+                end
+            end
+        end
+        table.sort(out)
+        return out
+    end
+    local function nativeStage(Pokemon, original, encountered)
+        if original == encountered then return 0 end
+        -- Original FRLG/RSE starter lines have at most two evolutions.
+        -- Never traverse farther: a rogue ROM cyclic graph must not loop.
+        for _, first in ipairs(evolutionTargets(Pokemon, original)) do
+            if first == encountered then return 1 end
+            for _, second in ipairs(evolutionTargets(Pokemon, first)) do
+                if second == encountered then return 2 end
+            end
+        end
+        return nil
+    end
+
+    -- Substitute only the native rival's ORIGINAL starter lineage.
+    -- The rival ID whitelist lives at the runtime trainer.party boundary.
+    -- Preserve the other trainers/teammates and native party progression.
+    function M.rivalStarter(s, Pokemon, source, originals, nativeSpecies,
+        denyNational)
+        local r = state(s)
+        if not r.random_starter or r.starterSource ~= source
+            or type(r.starterOptions) ~= "table"
+            or #r.starterOptions ~= 3 or type(originals) ~= "table"
+            or #originals ~= 3 or type(Pokemon) ~= "table" then return nil end
+        local id = tonumber(nativeSpecies)
+        if not id and type(nativeSpecies) == "string"
+            and type(Pokemon.speciesFromName) == "function" then
+            local ok, numeric = pcall(Pokemon.speciesFromName, nativeSpecies)
+            if ok then id = tonumber(numeric) end
+        end
+        if not id then return nil end
+        for i, base in ipairs(originals) do
+            local root = tonumber(base)
+            if root then
+                local stage = nativeStage(Pokemon, root, id)
+                if stage ~= nil then
+                    local replacement = tonumber(r.starterOptions[i])
+                    if not replacement
+                        or not eligiblePokemon(Pokemon, replacement) then
+                        return nil
+                    end
+                    -- A single-stage Pokémon stays itself. Branched
+                    -- evolutions choose a repeatable path using the saved
+                    -- run seed rather than world encounter RNG.
+                    local seed = M.seed(s)
+                    for depth = 1, stage do
+                        local targets = evolutionTargets(Pokemon, replacement,
+                            r.random_species_generation, denyNational)
+                        if #targets == 0 then break end
+                        local pick = seed ~= 0 and
+                            (1 + M.hash(M.algorithm, seed, "RIVAL_LINEAGE",
+                                source, i, depth, replacement) % #targets) or 1
+                        replacement = targets[pick]
+                    end
+                    local info = eligiblePokemon(Pokemon, replacement)
+                    return info and info.id or nil,
+                        info and info.key or nil, i, stage
+                end
+            end
+        end
+        return nil
+    end
+
     function M.replace(s, Pokemon, source, sourceId, original, entropy,
         denyNational, excluded, wildScope, wildSlot)
         local r = state(s)

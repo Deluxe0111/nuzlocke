@@ -51,10 +51,21 @@ and `givemon` actions. The `GetStarterSpecies` resolver uses the
 same persisted three choices for subsequent queries. Native starter selection indices and VAR_STARTER_MON remain
 unchanged for progression.
 
-The opening one-Pokémon rival battle also uses the corresponding replacement
-when its native starter species can be identified, regardless of the general
-Random Trainers toggle. Later evolved rival teams are **not yet remapped**,
-and the feature does not change gift Pokémon, other scripted wilds or roamers.
+The rival's starter remains linked through its **entire native evolution
+progression**, including larger multi-Pokémon parties and late-game rematches:
+FireRed/LeafGreen rival and Champion battles, and Brendan/May's scripted
+Ruby/Sapphire/Emerald story battles. Only known ROM story rival IDs and
+the original starter evolutionary line are eligible; Wally and unrelated
+trainer Pokémon remain untouched by this override. This works whether
+Random Trainers is ON or OFF.
+
+The rival replacement follows its own real evolution data. For example, a
+two-stage replacement can evolve when the original rival starter reaches its
+second form. A Pokémon with no further evolutions stays the same species;
+the mod does **not** invent unrelated evolution stages. Branching evolution
+choices are deterministic from the run seed and stored starter slot.
+An unavailable or disallowed evolved form leaves the last valid form in
+place. Other scripted gifts, static wilds and roaming Pokémon are unchanged.
 All three selections are allocated together and saved, rather than rerolled
 on screen navigation. A missing/unsafe candidate leaves the original starter
 trio unchanged. As with other randomiser options, the first successful
@@ -136,7 +147,8 @@ on source key, original Pokémon, settings, seed, algorithm, and ROM data.
 - Randomised trainer teams keep their authored moves and items; abilities
   and stat creation stay under the engine's native construction.
 - Randomisation of scripted wilds, static legendaries, ordinary gifts
-  and later evolved rival-starter lineage requires further native integration.
+  require further native integration. Rival starter evolution now uses the
+  actual ROM evolution graph, not inferred internal species ID offsets.
 - There is currently no safe mid-run configuration reset/migration.
 - This is an experimental native-Gen 3 feature. Gen 1/2 paths are unchanged.
 
@@ -224,13 +236,16 @@ Check Untamed's ordinary chain shinies still behave normally.
 - [ ] **S02:** On a fresh Ruby, Sapphire and Emerald save, the three
       bag labels, portraits, cries and actual starter must match.
       Reject a starter choice and reselect: it must not reroll.
-- [ ] **S03:** Verify the first single-Pokémon rival battle uses the
-      appropriate random starter, even with Random Trainers OFF.
-      Later rival evolutions are still native pending lineage support.
+- [ ] **S03:** Verify opening, middle and Champion/rematch rival battles
+      track the same random starter line, even with Random Trainers OFF.
+      Check a two-stage evolutionary line, a single-stage species and
+      a branched evolution. Other party slots and Wally stay native.
 - [ ] **S04:** Repeat with fixed seed, with STARTER BALANCE SIM BST,
       and with an empty/restricted pool. Other gifts must be unchanged.
 - [ ] **S05:** With Random Starters OFF, verify all native starting
-      Pokémon and opening rival teams remain unchanged.
+      Pokémon and rival teams remain unchanged. With both Random Starters
+      and Random Trainers ON, the rival's starter retains its lineage
+      while every other trainer team member still randomises normally.
 - [ ] **R01:** With Nuzlocke OFF but Random Wild ON and seed 12345678,
       encounter a wild Pokémon. Verify a safe replacement with original
       encounter level, ball/catch handling and item metadata.

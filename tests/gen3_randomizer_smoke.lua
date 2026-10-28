@@ -196,6 +196,70 @@ assert(R.replace(banSave,P,"ENCOUNTERS","depleted",1,nil,
     function()return true end)==nil,
     "fully banned replacement pool leaves native original unchanged")
 
+-- A separate ROM-shaped registry validates evolution stages without
+-- disturbing established randomiser seeds/pool mock sizes.
+local EvoP = {
+    national = function(id) if id >= 1 and id <= 16 then return id end end,
+    keyName = function(id)
+        if id >= 1 and id <= 16 then return "EV" .. tostring(id) end
+    end,
+    speciesFromName = function(name)
+        return tonumber(tostring(name):match("^EV(%d+)$"))
+    end,
+    stats = function(id)
+        if id < 1 or id > 16 then return nil end
+        return {hp=60,atk=60,def=60,spe=60,spa=60,spd=60}
+    end,
+    evolutions = function(id)
+        local paths = {
+            [1] = {{method=4,param=16,target=2}},
+            [2] = {{method=4,param=36,target=3}},
+            [4] = {{method=4,param=16,target=5}},
+            [5] = {{method=4,param=36,target=6}},
+            [7] = {{method=4,param=16,target=8},
+                   {method=7,param=1,target=9}},
+            [8] = {{method=4,param=36,target=10}},
+            [9] = {{method=4,param=36,target=11}},
+            [12] = {{method=4,param=16,target=13}},
+            [13] = {{method=4,param=36,target=14}},
+        }
+        return paths[id] or {}
+    end,
+}
+local evoRun = {randomizer={random_starter=true,
+    starterSource="frlg",starterOptions={7,4,15},
+    randomizer_seed=991234}}
+local bases = {1,4,12}
+local function mapped(original)
+    local id,key,slot,stage=R.rivalStarter(evoRun,EvoP,
+        "frlg",bases,original)
+    return id,key,slot,stage
+end
+assert(mapped(1)==7 and mapped(4)==4 and mapped(12)==15,
+    "rival's first battle must use the saved starter options")
+local middle,_,slot,stage=mapped(2)
+assert((middle==8 or middle==9) and slot==1 and stage==1,
+    "middle rival battle must follow a real branch of the new starter")
+local final=mapped(3)
+assert((middle==8 and final==10) or (middle==9 and final==11),
+    "final rival battle must follow the SAME deterministic branch")
+assert(mapped(5)==5 and mapped(6)==6,
+    "second starter must advance through its two native stages")
+assert(mapped(13)==15 and mapped(14)==15,
+    "single-stage replacement must not invent evolutions")
+assert(mapped(3)==final and mapped(2)==middle,
+    "replayed rival battles must not reroll the lineage")
+assert(mapped(16)==nil,
+    "non-starter native party members must not be replaced by lineage")
+assert(R.rivalStarter({randomizer={random_starter=false}},EvoP,
+    "frlg",bases,1)==nil,
+    "Random Starters OFF must not touch rival lineages")
+local hoennRun={randomizer={random_starter=true,starterSource="rse",
+    starterOptions={7,4,15},randomizer_seed=991234}}
+assert(R.rivalStarter(hoennRun,EvoP,"rse",bases,3)==final,
+    "Hoenn rival lineage must independently match original evolution")
+assert(R.rivalStarter(evoRun,EvoP,"rse",bases,1)==nil,
+    "trio must never leak between game families")
 -- Runtime hook integration: compose downstream rules, retain levels/metadata.
 package.loaded["src.core.game3.pokemon"] = P
 local starterView={species={1,2,3}}

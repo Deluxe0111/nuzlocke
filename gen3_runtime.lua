@@ -300,12 +300,20 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         return copy
     end
 
-    local FIRST_RIVALS_FRLG = { [326]=true, [327]=true, [328]=true }
-    local FIRST_RIVALS_RSE = {
-        [520]=true, [523]=true, [526]=true,
-        [529]=true, [532]=true, [535]=true,
-    }
-    local function firstRivalStarter(trainerId, sourceSpecies)
+    -- Explicit ROM story rival IDs, not trainer classes. The game also
+    -- contains other rivals, Wally and player-vs-player trainers whose
+    -- teams must not inherit the protagonist's random starter trio.
+    local FRLG_RIVALS = {}
+    for id = 326, 334 do FRLG_RIVALS[id] = true end
+    for id = 426, 441 do FRLG_RIVALS[id] = true end
+    for id = 739, 741 do FRLG_RIVALS[id] = true end
+    local RSE_RIVALS = {}
+    for id = 520, 537 do RSE_RIVALS[id] = true end
+    for _, id in ipairs({
+        592, 593, 599, 600, 768, 769,
+        661, 662, 663, 664, 665, 666
+    }) do RSE_RIVALS[id] = true end
+    local function rivalStarter(trainerId, sourceSpecies)
         local native = session()
         local edition = tostring(native and
             (native.version or native.edition or native.gameId) or ""):lower()
@@ -313,8 +321,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         local isRse = edition == "ruby" or edition == "sapphire"
             or edition == "emerald"
         local id = tonumber(trainerId)
-        if not id or not ((isFrlg and FIRST_RIVALS_FRLG[id])
-            or (isRse and FIRST_RIVALS_RSE[id])) then return nil end
+        if not id or not ((isFrlg and FRLG_RIVALS[id])
+            or (isRse and RSE_RIVALS[id])) then return nil end
         local saved = loadState()
         local rng = saved.randomizer
         if type(rng) ~= "table" or not rng.random_starter
@@ -331,12 +339,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             originals = manifest and manifest.species
         end
         if type(originals) ~= "table" then return nil end
-        for i, original in ipairs(originals) do
-            if tonumber(sourceSpecies) == tonumber(original) then
-                return rng.starterOptions[i]
-            end
-        end
-        return nil
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return nil end
+        return Randomizer.rivalStarter(saved, Pokemon, source, originals,
+            sourceSpecies, function(national)
+                return Core.active(saved)
+                    and CatchRules.isBannedNational(saved, national)
+            end)
     end
 
     mod.hooks:wrap("encounter.species", function(next, encounter, ctx)
@@ -476,10 +485,6 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
         local result, changed = {}, false
         local unique = Randomizer.get(loadState(), "random_trainer_diversity") == 1
-        -- Only the first one-Pokemon rival battle uses a native starter
-        -- substitution. Later evolved teams need explicit lineage handling.
-        local firstRival = #original == 1 and firstRivalStarter(trainerId,
-            original[1] and (original[1].speciesId or original[1].species))
         local selected = {}
         for i, member in ipairs(original) do
             local newMember = {}
@@ -488,16 +493,10 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 .. tostring(trainerId) .. ":" .. tostring(i)
                 .. ":" .. tostring(member.speciesId or member.species or "")
             local sourceSpecies = member.speciesId or member.species
-            local id, name
-            if i == 1 and firstRival then
-                id = firstRival
-                local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
-                if ok then
-                    local good, label = pcall(Pokemon.keyName, id)
-                    if good then name = label end
-                end
-                if not name then id = nil end
-            end
+            -- The rival's original starter can occupy any party slot.
+            -- Resolve before general Trainer Randomisation so it remains
+            -- the same lineage even when both options are enabled.
+            local id, name = rivalStarter(trainerId, sourceSpecies)
             if not id then
                 id, name = randomSpecies("TRAINERS", key, sourceSpecies,
                     unique and selected or nil)
