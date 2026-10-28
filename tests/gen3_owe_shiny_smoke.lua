@@ -101,12 +101,14 @@ assert(startBattle(51,false).nuzlockeShinyRateChecked,
 
 -- Higher native chain odds remain authoritative; external providers own
 -- the shiny policy if explicitly installed and advertising compatibility.
+-- Configure odds before external ownership; the public API refuses changes
+-- while another shiny mod owns generation.
+assert(rate.setMode("shiny_rate_mode",6))
 mod.find = function(_,id)
     if id ~= "SHINY_POKEMON" then return nil end
     return { id = id, exports = {shiny_compat = {
         isShiny = function() return true end }} }
 end
-assert(rate.setMode("shiny_rate_mode",6))
 local external = spawn(source(61,false))
 assert(not external.shiny and external.personality == 61,
     "external shiny owner must not be overridden")
