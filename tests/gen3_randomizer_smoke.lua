@@ -897,8 +897,9 @@ assert(itemStore.vars[0x8000]==261,
     "key item ball must never be randomised")
 itemStore.vars[0x8000]=289
 hooks["script.command"](nativeScript,ballContext,"callstd",ballScript)
-assert(itemStore.vars[0x8000]==289,
-    "TM/HM pickups must remain progression-safe")
+assert(itemStore.vars[0x8000]>=289 and itemStore.vars[0x8000]<=338
+    and itemStore.vars[0x8000]~=289,
+    "TM pickup must relocate only to a different TM, never an HM")
 itemStore.vars[0x8000]=13
 hooks["script.command"](nativeScript,ballContext,"callstd",{op="callstd",[1]=0})
 assert(itemStore.vars[0x8000]~=13,
