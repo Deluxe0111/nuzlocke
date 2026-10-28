@@ -39,10 +39,24 @@ return function(mod, api)
     { title = "POKEMON STATS", rules = {{ "player_start_stat_exp", "Player Stat EXP" }, { "wild_start_stat_exp", "Wild Stat EXP" }, { "trainer_start_stat_exp", "Trainer Stat EXP" }, { "no_player_stat_exp_gain", "No Stat EXP Gain" }, { "perfect_player_ivs", "Perfect Player IVs" }, { "perfect_wild_ivs", "Perfect Wild IVs" }, { "perfect_trainer_ivs", "Perfect Trainer IVs" } } },
     { title = "AREA SPLITS", rules = {{ "route_2_split", "Route 2" }, { "route_10_split", "Route 10" }, { "route_20_split", "Route 20" }, { "mt_moon_splits", "Mt. Moon" }, { "safari_zone_splits", "Safari Clause" }, { "gold_time_split", "Time Split" }, { "gold_headbutt_split", "Headbutt Split" } } },
     { title = "RANDOMIZER", rules = {{ "randomizer_preset", "Rndm Preset" }, { "randomizer_seed", "Rndm Seed" }, { "random_starter", "Rndm Strtr" }, { "random_starter_style", "Strtr Style" }, { "random_starter_balance", "Strtr Balance" }, { "random_starter_trio_typing", "Trio Typing" }, { "random_starter_rerolls", "Starter Rerolls" }, { "random_encounter_tables", "Random Encounters" }, { "random_field_items", "Random Field Items" }, { "random_field_item_balance", "Field Item Balance" }, { "random_field_item_repetition", "Field Item Repeats" }, { "random_encounter_balance", "Encounter Balance" }, { "random_encounter_repetition", "Encounter Repeats" }, { "random_encounter_diversity_strength", "Diversity Strength" }, { "randomizer_info_policy", "Randomizer Info" }, { "random_species_generation", "Species Pool" }, { "random_learnsets", "Random Learnsets" }, { "random_trainers", "Random Trainers" }, { "random_evolutions", "Random Evolutions" }, { "random_evolution_balance", "Evolution Balance" }, { "random_shops", "Random Shops" }, { "random_shop_balance", "Shop Balance" }, { "random_tms", "Random TMs" }, { "random_tm_compatibility", "TM Compatibility" }, { "random_tm_locations", "Random TM Locations" }, { "random_gift_items", "Random Gift Items" }, { "random_trainer_balance", "Trainer Balance" }, { "random_trainer_diversity", "Trainer Diversity" }, { "random_trainer_theme", "Trainer Theme" }, { "random_learnset_generation", "Learnset Gen" }, { "random_learnset_stab", "Learnset STAB" } } },
-    { title = "WORLD", rules = {{ "world_building_tier", "World Building" }, { "gold_radio_world_building", "Radio Nuzlocke" } } },
     { title = "QOL", rules = {{ "progression_pc_catches", "PC-Only Catches" }, { "instant_text", "Instant Text" }, { "skip_cherrygrove_tour", "Skip Cherrygrove Tour" }, { "run_surf", "Run / Surf" }, { "unlimited_bag_space", "Unlimited Bag Space" }, { "trade_evolutions", "Trade Evolutions" }, { "system_clock_sync", "System Clock Sync" }, { "infinite_rare_candies", "Gym Guide Rare Candy" } } },
     { title = "QOL SETUP ONLY", rules = {{ "system_date_time", "System Date/Time" }, { "automatic_default_names", "Default Names" }, { "skip_opening_intro", "Skip Opening Intro" }, { "quick_nuzlocke_start", "Quick Nuzlocke Start" }, { "skip_catch_tutorial", "Skip Catch Demo" }, { "starting_pokeballs", "Starting Poke Balls" }, { "starting_rare_candies", "Starting Rare Candy" }, { "starting_money", "Starting Money" }, { "gold_starting_pokeballs", "Starting Poke Balls" }, { "gold_starting_rare_candies", "Starting Rare Candy" }, { "gold_starting_money", "Starting Money" }, { "pc_starting_heal_items", "Heal Loadout" }, { "pc_starting_vitamins", "PC Vitamins" } } },
-    { title = "UI", rules = {{ "catch_info", "Catch Page" }, { "stat_info", "Stat Page" }, { "move_info", "Move Page" }, { "area_guide_enabled", "Area Guide" }, { "battle_menu_ui", "Battle Menu UI" }, { "dev_mode", "Dev Mode" } } },
+    }
+
+    -- Less commonly used legacy rule groups live one level down to keep
+    -- NUZ RULES focused on the currently relevant Gen 3 functionality.
+    -- Preserve each category's original key/label definitions and [Soon]
+    -- status; this changes navigation only, not saved rule values.
+    local ADVANCED_RULES = {
+        ["CATCH RULES"] = true,
+        ["BATTLE CLAUSES"] = true,
+        ["STATUS BANS"] = true,
+        ["VARIANTS"] = true,
+        ["BATTLE ITEMS"] = true,
+        ["FIELD ITEMS"] = true,
+        ["SERVICES & ECONOMY"] = true,
+        ["POKEMON STATS"] = true,
+        ["AREA SPLITS"] = true,
     }
 
     local function state()
@@ -626,19 +640,43 @@ return function(mod, api)
         return rows
     end
 
+    -- The same category opener is shared by ordinary and advanced groups.
+    -- Nested [Soon] entries remain read-only; all working categories retain
+    -- their original refresh callbacks.
+    local function categoryActive(c)
+        return c.title == "CORE" or c.title == "CLAUSES"
+            or c.title == "PLAYSTYLES"
+            or c.title == "LEVELS" or c.title == "RANDOMIZER"
+    end
+
+    local function categoryLink(c)
+        local active = categoryActive(c)
+        return row(c.title, active and "working" or "soon", function()
+            present(c.title, categoryRows(c),
+                active and function() return categoryRows(c) end or nil)
+        end)
+    end
+
+    local function showAdvancedRules()
+        local rows = {}
+        for _, c in ipairs(CATALOG) do
+            if ADVANCED_RULES[c.title] then
+                rows[#rows + 1] = categoryLink(c)
+            end
+        end
+        present("ADVANCED RULES", rows)
+    end
+
     local function showRules()
         local rows = {}
-        for _, cat in ipairs(CATALOG) do
-            local c = cat
-            -- CORE and CLAUSES are active categories; their individual
-            -- policy rows still distinguish unsupported mechanics.
-            local active = c.title == "CORE" or c.title == "CLAUSES"
-                or c.title == "PLAYSTYLES"
-                or c.title == "LEVELS" or c.title == "RANDOMIZER"
-            rows[#rows + 1] = row(c.title, active and "working" or "soon", function()
-                present(c.title, categoryRows(c),
-                    active and function() return categoryRows(c) end or nil)
-            end)
+        for _, c in ipairs(CATALOG) do
+            if not ADVANCED_RULES[c.title] then
+                rows[#rows + 1] = categoryLink(c)
+                if c.title == "PLAYSTYLES" then
+                    rows[#rows + 1] = row("ADVANCED RULES", nil,
+                        showAdvancedRules)
+                end
+            end
         end
         present("NUZ RULES", rows)
     end
