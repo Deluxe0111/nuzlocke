@@ -21,15 +21,17 @@ All four options work independently of the CORE Nuzlocke master switch.
 
 ### Instant Text
 
-The native Gen 3 field dialogue printer receives a cloned options
-table with speed zero. Ordinary messages reveal their current page
-immediately but **do not** skip A/B prompts, pages, dialogue choices
-or adjacent story scripts. The game's own saved text-speed preference
-is not overwritten.
+Instant Text now covers **all known native Gen 3 text-printer
+paths** without rewriting save options: field and battle messages
+use native speed zero; advancing a page or entering an automated
+scroll reveals its new glyphs immediately. FireRed/LeafGreen's Oak
+intro printer and RSE cutscene printer also receive instant speed,
+while Ruby/Sapphire's independent native field auto-scroll printer
+flushes its contiguous glyphs in one frame.
 
-FRLG and RSE have partly different text rendering paths, including
-Hoenn's automated field scroll messages; those paths still need
-real-ROM compatibility checks.
+**Dialogue choices, paragraph boundaries, script waits and explicit
+pauses are preserved.** No gameplay script is fast-forwarded. This
+remains subject to real-ROM testing across all five Gen 3 editions.
 
 ### Run / Surf
 
