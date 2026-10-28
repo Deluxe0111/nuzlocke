@@ -998,6 +998,115 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             Message.show=guardedShow
             Message.__nuzQolShow=guardedShow
         end
+        if okM and type(Message)=="table" then
+            -- A new page uses Message.advance, bypassing show(speed=0).
+            -- Skip ONLY the reveal, not a paragraph/choice wait.
+            if type(Message.advance)=="function"
+                and Message.__nuzQolAdvance~=Message.advance then
+                local oldAdvance=Message.advance
+                local function fastAdvance(...)
+                    local answer=oldAdvance(...)
+                    if Qol.enabled(loadState(),"instant_text")
+                        and Message.skipReveal then Message.skipReveal() end
+                    return answer
+                end
+                Message.advance=fastAdvance
+                Message.__nuzQolAdvance=fastAdvance
+            end
+            -- The native auto-scroller can create the next page in tick.
+            if type(Message.tick)=="function"
+                and Message.__nuzQolTick~=Message.tick then
+                local oldTick=Message.tick
+                local function fastTick(...)
+                    local answer=oldTick(...)
+                    if Qol.enabled(loadState(),"instant_text")
+                        and Message.skipReveal then Message.skipReveal() end
+                    return answer
+                end
+                Message.tick=fastTick
+                Message.__nuzQolTick=fastTick
+            end
+        end
+        -- Ruby/Sapphire's native field auto-scroll printer does not use
+        -- Message._speedIdx. Flush character glyphs without crossing a
+        -- scripted PAUSE, button wait, scroll or clear boundary.
+        local okRS,RsPrinter=pcall(require,
+            "src.ui.game3.rs.field_auto_scroll_message")
+        if okRS and type(RsPrinter)=="table" then
+            if type(RsPrinter.open)=="function"
+                and RsPrinter.__nuzQolOpen~=RsPrinter.open then
+                local oldOpen=RsPrinter.open
+                local function fastOpen(prepared,...)
+                    local ok=oldOpen(prepared,...)
+                    if ok then RsPrinter.__nuzQolActive=prepared end
+                    return ok
+                end
+                RsPrinter.open=fastOpen
+                RsPrinter.__nuzQolOpen=fastOpen
+            end
+            if type(RsPrinter.tick)=="function"
+                and RsPrinter.__nuzQolTick~=RsPrinter.tick then
+                local oldTick=RsPrinter.tick
+                local function fastTick(...)
+                    local result=oldTick(...)
+                    if not Qol.enabled(loadState(),"instant_text") then
+                        return result
+                    end
+                    local p=RsPrinter.__nuzQolActive
+                    if type(p)~="table" or p.task~=2
+                        or p.mode~=RsPrinter.AUTO_SCROLL then
+                        return result
+                    end
+                    for _=1,4096 do
+                        local stage=p.printer
+                        if stage~="begin" and stage~="normal"
+                            and stage~="newline"
+                            and stage~="char_delay" then break end
+                        if stage=="char_delay" then p.delay=0 end
+                        oldTick(...)
+                        if p.mode~=RsPrinter.AUTO_SCROLL then break end
+                    end
+                    return result
+                end
+                RsPrinter.tick=fastTick
+                RsPrinter.__nuzQolTick=fastTick
+            end
+        end
+        -- Emerald/RSE intro/cutscene printers are separate from field text.
+        local okKit,Kit=pcall(require,"src.ui.game3.rse.scene_kit")
+        if okKit and type(Kit)=="table"
+            and type(Kit.printer)=="function"
+            and Kit.__nuzQolPrinter~=Kit.printer then
+            local oldPrinter=Kit.printer
+            local function fastPrinter(source,opts,...)
+                if not Qol.enabled(loadState(),"instant_text") then
+                    return oldPrinter(source,opts,...)
+                end
+                local cfg={}
+                if type(opts)=="table" then
+                    for k,v in pairs(opts) do cfg[k]=v end
+                end
+                cfg.speed=0
+                return oldPrinter(source,cfg,...)
+            end
+            Kit.printer=fastPrinter
+            Kit.__nuzQolPrinter=fastPrinter
+        end
+        -- FRLG's Professor Oak intro uses its own text printer, too.
+        local okIntro,Intro=pcall(require,"src.ui.game3.new_game_scene")
+        if okIntro and type(Intro)=="table"
+            and type(Intro.new)=="function"
+            and Intro.__nuzQolNew~=Intro.new then
+            local oldNew=Intro.new
+            local function fastNew(...)
+                local scene=oldNew(...)
+                if Qol.enabled(loadState(),"instant_text")
+                    and type(scene)=="table" then scene.textSpeed=0 end
+                return scene
+            end
+            Intro.new=fastNew
+            Intro.__nuzQolNew=fastNew
+        end
         local okB,Bag=pcall(require,"src.core.game3.bag")
         local okI,ItemsData=pcall(require,"src.core.game3.items_data")
         if okB and okI and type(Bag)=="table"
@@ -2833,6 +2942,10 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end,
         },
     })
+
+    -- Install text hooks before the native new-game intro loads.
+    -- Later save/map events reapply guards for lazy-loaded RSE modules.
+    installQolGuards()
 
     -- Intercept native FRLG + Ruby/Sapphire/Emerald NEW GAME before intro.
     -- A cancelled setup does not write to the previously loaded save.
