@@ -24,7 +24,7 @@ The Generation 3 randomiser works independently of the master Nuzlocke challenge
 | **PLAYSTYLES** | **Shiny Nuzlocke:** catch only shinies; **Hardcore Nuzlocke:** strict encounters/permadeath, SET style, no battle bag items except Balls, and Champion-level caps. Both modes can be combined. |
 | **LEVELS** | Gym / Elite Four / Champion / Postgame level-cap scopes; optional banked EXP Edging |
 | **RANDOMIZER** | Seeded wild Pokémon (grass, water and fishing) and trainer teams; presets, species-generation filters and optional BST balancing |
-| **ADVANCED RULES** | A compact submenu for nine unported Gen 1/2 rule categories: Catch Rules, Battle Clauses, Status Bans, Variants, Battle Items, Field Items, Services & Economy, Pokémon Stats and Area Splits. Entries remain **[Soon]** pending real Gen 3 implementations. |
+| **ADVANCED RULES** | Nine legacy rule categories live in one submenu. **CATCH RULES** now has four working controls: No Legendaries, No Mythicals, No Pseudos and Maximum BST. Other options remain **[Soon]**. |
 | **Player tools** | Encounter Tracker, Graveyard, Nickname Tasks, Nuz Dev testing tools and a persistent NUZ NOTICES history |
 
 Unavailable Gen 1/2 rules are shown as **[Soon]** in Generation 3 rather than silently enabled. The obsolete Gen 3 **WORLD** and **UI** planning categories are hidden; Generation 1/2 menus are unaffected. Some implemented features still require edition-specific game testing; for example, acquiring an unnamed gift Pokémon is tracked but is not necessarily blocked from battle.
