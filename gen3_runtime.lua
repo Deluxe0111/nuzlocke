@@ -19,6 +19,7 @@ return function(mod)
     local Clauses = readModule("gen3_clauses.lua")()
     local CatchRules = readModule("gen3_catch_rules.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
+    local StatusBans = readModule("gen3_status_bans.lua")()
     local Playstyles = readModule("gen3_playstyles.lua")()
     local ShinyRate = readModule("gen3_shiny_rate.lua")()
     local Archive = readModule("gen3_archive.lua")()
@@ -546,6 +547,124 @@ return function(mod)
         return true
     end
 
+    -- STATUS BANS: prevent the native status mutation, not the damaging
+    -- move. Shared Secondary.set handles primary and secondary move effects;
+    -- Adapter.new covers direct status transactions (abilities and Yawn).
+    local function installStatusBanGuards()
+        local okS, Secondary=pcall(require,
+            "src.core.game3.battle.effects.secondary")
+        if okS and type(Secondary)=="table"
+            and type(Secondary.set)=="function"
+            and (Secondary.__nuzStatusOwner~=mod
+                or Secondary.__nuzStatusWrap~=Secondary.set) then
+            local original=Secondary.set
+            local function guarded(M,effect,...)
+                local user=type(M)=="table" and M.user
+                local target=type(M)=="table" and M.target
+                local affectsUser=select(3,...)
+                if affectsUser==true then target=user end
+                if user and StatusBans.deny(loadState(),effect,
+                    user,target,Core) then
+                    battleClauseNotice("status:"..tostring(effect),
+                        "Status Ban: "..tostring(effect)..
+                        " from this side was prevented.")
+                    return false
+                end
+                return original(M,effect,...)
+            end
+            Secondary.set=guarded
+            Secondary.__nuzStatusWrap=guarded
+            Secondary.__nuzStatusOwner=mod
+        end
+
+        -- Yawn only applies sleep after an end-of-turn delay and uses the
+        -- victim as its direct native status source. Reject Yawn before
+        -- drowsiness is scheduled, rather than undoing a later sleep.
+        local okT, Status=pcall(require,
+            "src.core.game3.battle.effects.status")
+        if okT and type(Status)=="table"
+            and type(Status.yawn)=="function"
+            and (Status.__nuzYawnOwner~=mod
+                or Status.__nuzYawnWrap~=Status.yawn) then
+            local original=Status.yawn
+            local function guarded(ctx,...)
+                if type(ctx)=="table" and ctx.user
+                    and StatusBans.deny(loadState(),"SLEEP",
+                        ctx.user,ctx.target,Core) then
+                    battleClauseNotice("status:yawn",
+                        "Sleep Ban: Yawn was prevented.")
+                    if ctx.adapter and type(ctx.adapter.sayFail)=="function"
+                        then ctx.adapter:sayFail() end
+                    return nil
+                end
+                local result=original(ctx,...)
+                if type(ctx)=="table" and type(ctx.target)=="table"
+                    and ctx.target.expYawnTurns
+                    and ctx.user and ctx.user.side then
+                    ctx.target._nuzYawnSource=ctx.user.side
+                end
+                return result
+            end
+            Status.yawn=guarded
+            Status.__nuzYawnWrap=guarded
+            Status.__nuzYawnOwner=mod
+        end
+
+        local okA, Adapter=pcall(require,
+            "src.core.game3.battle.adapter")
+        if okA and type(Adapter)=="table"
+            and type(Adapter.new)=="function"
+            and (Adapter.__nuzStatusOwner~=mod
+                or Adapter.__nuzStatusWrap~=Adapter.new) then
+            local original=Adapter.new
+            local function guarded(...)
+                local ad=original(...)
+                if type(ad)~="table" then return ad end
+                if type(ad.applyStatus)=="function" then
+                    local native=ad.applyStatus
+                    ad.applyStatus=function(self,target,status,source,opts)
+                        local actualSource=source
+                        if (status=="SLP" or status=="SLEEP")
+                            and source==target and type(target)=="table"
+                            and target._nuzYawnSource then
+                            actualSource=target._nuzYawnSource
+                        end
+                        if StatusBans.deny(loadState(),status,
+                            actualSource,target,Core) then
+                            battleClauseNotice("direct:"..tostring(status),
+                                "Status Ban: "..tostring(status)..
+                                " was prevented.")
+                            if target then target._nuzYawnSource=nil end
+                            return false
+                        end
+                        local result=native(self,target,status,source,opts)
+                        if target and (status=="SLP" or status=="SLEEP") then
+                            target._nuzYawnSource=nil
+                        end
+                        return result
+                    end
+                end
+                if type(ad.applyConfusion)=="function" then
+                    local native=ad.applyConfusion
+                    ad.applyConfusion=function(self,target,turns,source)
+                        if StatusBans.deny(loadState(),"CONFUSION",
+                            source,target,Core) then
+                            battleClauseNotice("direct:CONFUSION",
+                                "Status Ban: confusion was prevented.")
+                            return false
+                        end
+                        return native(self,target,turns,source)
+                    end
+                end
+                return ad
+            end
+            Adapter.new=guarded
+            Adapter.__nuzStatusWrap=guarded
+            Adapter.__nuzStatusOwner=mod
+        end
+        return true
+    end
+
     -- Shared after-change hook for the menu and versioned public API.
     local function onClauseChanged(saved, key)
         if key == "route_forgiveness" then
@@ -899,6 +1018,7 @@ return function(mod)
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
+        installStatusBanGuards()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -955,6 +1075,7 @@ return function(mod)
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
+        installStatusBanGuards()
     end)
     mod.events:on("save.created", function()
         Randomizer.clearCache()
@@ -969,6 +1090,7 @@ return function(mod)
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
+        installStatusBanGuards()
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -985,6 +1107,7 @@ return function(mod)
         installNicknameGuard()
         installCandyGuard()
         installBattleClauseGuards()
+        installStatusBanGuards()
         reportedBattleClauses={}
         local starting = loadState()
         if Core.enforced(starting, "first_rival_forgiveness")
@@ -1358,7 +1481,7 @@ return function(mod)
         notify = notify,
         getState = loadState, setState = writeState,
         core = Core, clauses = Clauses, catchRules = CatchRules,
-        battleClauses = BattleClauses,
+        battleClauses = BattleClauses, statusBans = StatusBans,
         shinyRate = ShinyRate,
         playstyles = Playstyles,
         eggs = Eggs, forgiveness = Forgiveness,
@@ -1407,6 +1530,7 @@ return function(mod)
                 installCandyGuard()
                 installFishingGuard()
                 installBattleClauseGuards()
+                installStatusBanGuards()
                 Gen3Menu.open(g)
             end,
         })
@@ -1479,6 +1603,17 @@ return function(mod)
         end,
     }
     -- Read-only diagnostic API. Mutators stay internal to the developer menu.
+    mod.exports.gen3_status_bans = {
+        api=StatusBans.api,schema=StatusBans.schema,
+        definitions=StatusBans.descriptors,
+        getRule=function(key) return StatusBans.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=StatusBans.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+    }
     mod.exports.gen3_battle_clauses = {
         api=BattleClauses.api, schema=BattleClauses.schema,
         definitions=BattleClauses.descriptors,
@@ -1581,6 +1716,7 @@ return function(mod)
             "gen3_catch_species_bans", "gen3_catch_maximum_bst",
             "gen3_no_static_encounters", "gen3_no_fishing",
             "gen3_effect_battle_clauses",
+            "gen3_status_bans",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
             "pc_survivors_wip", "nickname_requirement_wip",
