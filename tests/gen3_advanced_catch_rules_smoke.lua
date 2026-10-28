@@ -2,12 +2,16 @@
 local Rules = assert(loadfile("gen3_catch_rules.lua"))()()
 local Core = assert(loadfile("gen3_core_rules.lua"))()()
 local s = Core.normalise({})
-assert(#Rules.descriptors()==6)
+assert(#Rules.descriptors()==10)
 assert(Rules.get(s,"ban_legendaries")==false)
 assert(Rules.get(s,"ban_mythicals")==false)
 assert(Rules.get(s,"ban_pseudos")==false)
 assert(Rules.get(s,"maximum_bst")==0)
 assert(not Rules.get(s,"no_fishing") and not Rules.get(s,"no_static_encounters"))
+assert(Rules.get(s,"town_catches")==false)
+assert(Rules.get(s,"alphabetlocke_mode")==0)
+assert(Rules.get(s,"alphabetlocke_letter")==1)
+assert(Rules.get(s,"allow_glitch_pokemon")==false)
 assert(not Rules.anyEnabled(s))
 assert(Core.set(s,"nuzlocke_enabled",true),
     "enable the master challenge before testing catch restrictions")
@@ -16,7 +20,14 @@ local pokemon={
         return ({[277]=252,[400]=380,[401]=373,[402]=385})[id] or id
     end,
     speciesFromName=function(name)
-        return ({LATIAS=400,SALAMENCE=401,JIRACHI=402})[name]
+        return ({LATIAS=400,SALAMENCE=401,JIRACHI=402,PIKACHU=25})[name]
+    end,
+    speciesFromNational=function(nat)
+        return ({[1]=25,[2]=400,[3]=401,[4]=402})[nat]
+    end,
+    keyName=function(id)
+        return ({[25]="PIKACHU",[400]="LATIAS",[401]="SALAMENCE",
+                 [402]="JIRACHI",[277]="TREECKO"})[id]
     end,
     stats=function(id)
         if id==25 then return {35,55,40,90,50,50} end -- 320
@@ -83,6 +94,65 @@ assert(Rules.set(s,"no_fishing",false))
 assert(Rules.set(s,"no_static_encounters",false))
 assert(allowed(99),"unknown stats not relevant with limit OFF")
 assert(Rules.get({}, "maximum_bst")==0,"legacy saves default OFF")
+assert(Rules.isTownMap("FR_PALLET_TOWN"))
+assert(Rules.isTownMap("FR_CERULEAN_CITY"))
+assert(Rules.isTownMap("RS_LITTLEROOT_TOWN"))
+assert(Rules.isTownMap("EM_LILYCOVE_CITY"))
+assert(Rules.isTownMap("FR_FOUR_ISLAND"))
+assert(not Rules.isTownMap("FR_ROUTE_1"))
+assert(not Rules.isTownMap("FR_BIRTH_ISLAND"),
+    "not every island is a settlement")
+assert(not Rules.isTownMap("FR_CERULEAN_CITY_POKEMON_CENTER_1F"))
+assert(not Rules.isTownMap("OTHER_CITY"),
+    "only verified Gen3 map-id formats count")
+assert(not Rules.checkBattle(s,{},Core,"FR_PALLET_TOWN"),
+    "Town Catches defaults OFF when Nuzlocke is active")
+assert(not Rules.checkBattle(s,{},Core,"RS_PETALBURG_CITY"))
+assert(Rules.checkBattle(s,{},Core,"FR_ROUTE_1"))
+assert(Rules.set(s,"town_catches",true))
+assert(Rules.checkBattle(s,{},Core,"FR_PALLET_TOWN"))
+assert(Rules.set(s,"town_catches",false))
+assert(Rules.get(s,"town_catches")==false)
+assert(Core.set(s,"nuzlocke_enabled",false))
+assert(Rules.checkBattle(s,{},Core,"FR_PALLET_TOWN"),
+    "town bans must be inactive with CORE off")
+assert(Core.set(s,"nuzlocke_enabled",true))
+-- The native canonical name, never a nickname or localized display,
+-- controls the Alphabetlocke choose letter.
+for _,key in ipairs({"ban_legendaries","ban_mythicals","ban_pseudos"}) do
+    assert(Rules.set(s,key,false))
+end
+assert(Rules.set(s,"maximum_bst",0))
+assert(Rules.set(s,"alphabetlocke_mode",2))
+assert(Rules.set(s,"alphabetlocke_letter",12))
+assert(Rules.label(s,"alphabetlocke_letter")=="L")
+assert(Rules.label(s,"alphabetlocke_mode")=="CHOOSE")
+assert(allowed(400),"LATIAS must match letter L")
+assert(not allowed(401),"SALAMENCE must fail selected letter L")
+assert(not Rules.set(s,"alphabetlocke_mode",3))
+assert(not Rules.set(s,"alphabetlocke_letter",27))
+assert(Rules.next(s,"alphabetlocke_letter")==13)
+assert(Rules.set(s,"alphabetlocke_mode",1))
+assert(Rules.label(s,"alphabetlocke_mode")=="RANDOM")
+assert(Rules.prepareAlphabet(s,pokemon,"trainer:1234"))
+local picked=Rules.selectedLetter(s,pokemon,"trainer:1234")
+assert(picked and picked>=1 and picked<=26)
+assert(not Rules.prepareAlphabet(s,pokemon,"different seed"),
+    "random letter must not reroll once chosen")
+assert(Rules.selectedLetter(s,pokemon,"different seed")==picked)
+assert(({[10]=true,[12]=true,[16]=true,[19]=true})[picked],
+    "random mode must choose an initial present in the registry")
+local persisted={enabled=true,catchRules=s.catchRules}
+assert(Rules.selectedLetter(persisted,pokemon)==picked,
+    "random initial must persist in the existing save namespace")
+assert(Rules.set(s,"alphabetlocke_mode",0))
+assert(Rules.selectedLetter(s,pokemon)==nil)
+assert(not allowed(0),"unknown/glitch species blocked by default")
+assert(not allowed(9999),"unregistered species blocked by default")
+assert(Rules.set(s,"allow_glitch_pokemon",true))
+assert(allowed(9999),"Allow Glitches permits unregistered species")
+assert(Rules.set(s,"allow_glitch_pokemon",false))
+assert(Rules.get(s,"allow_glitch_pokemon")==false)
 local restored={enabled=true,catchRules={ban_legendaries=true,
     ban_mythicals=true,ban_pseudos=true,maximum_bst=500}}
 assert(Rules.get(restored,"ban_legendaries")
