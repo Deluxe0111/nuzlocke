@@ -3,8 +3,7 @@
 The CLAUSES screen uses the original Gen 1/2 **option meanings** where safe,
 but is scoped to Generation 3. The original Johto **Bug Catching Contest**
 setting is intentionally omitted. Dupes and Shiny Catch Exceptions were
-confirmed in live FireRed testing; Roamer Clause is the next [WIP] implementation.
-Egg Encounter and Route Forgiveness are now partial [WIP] features; full gift provenance and Pokémon restoration remain pending.
+subject to real-ROM verification. Roamer, Egg Encounter and Route Forgiveness route-token/redemption controls are implemented in Gen 3; **ordinary Pokémon revival is not implemented**. Their native edition and external-provider edge cases still need testing.
 
 ## Implemented policy and status
 
