@@ -2696,6 +2696,12 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             and tostring(a.nickname or a.name or "") == tostring(b.nickname or b.name or "")
     end
 
+    local function memorialShiny(mon,entry)
+        local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
+        local flag=Results.shinyStatus(mon,ok and Pokemon or nil)
+        if flag~=nil then entry.isShiny=flag end
+    end
+
     local function retireFainted(outcome, endedBattle)
         local s = loadState()
         if not Core.active(s) then return end
@@ -2768,12 +2774,6 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             notify("PC_SURVIVOR",
                 "Party empty: a living PC survivor joined your team.", false)
         end
-    end
-
-    local function memorialShiny(mon,entry)
-        local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
-        local flag=Results.shinyStatus(mon,ok and Pokemon or nil)
-        if flag~=nil then entry.isShiny=flag end
     end
 
     local function recordBattleFaint(ev)
