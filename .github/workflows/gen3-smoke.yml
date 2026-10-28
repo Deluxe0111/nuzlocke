@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check release docs, version and credits
         run: node tests/gen3_docs_gate.js
+      - name: Check installable runtime-only ZIP
+        run: bash tests/package_gate.sh "$RUNNER_TEMP/nuzlocke-pkg"
       - name: Install Lua 5.1
         run: sudo apt-get update && sudo apt-get install -y lua5.1
       - name: Parse-check packaged Lua and all Gen 3 tests
