@@ -157,7 +157,7 @@ return function()
                 and matchPlace(body,place) then
                 local _,at=body:find(place.id,1,true)
                 local suffix=body:sub((at or #body)+1)
-                local floor=suffix:match("^_([B]?[0-9]+F)")
+                local floor=suffix:match("_([B]?[0-9]+F)")
                     or suffix:match("^_(ROOF)")
                     or suffix:match("^_(BASE)")
                     or suffix:match("^_(SUMMIT)")
