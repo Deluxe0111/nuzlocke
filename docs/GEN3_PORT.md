@@ -24,8 +24,10 @@ See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
 Clause, Accuracy Drops and Other Stat Drops as six working effect-level
 restrictions (see [Battle Clauses](GEN3_BATTLE_CLAUSES.md)).
 OHKO Clause remains [Soon].
-**STATUS BANS** adds seven working controls (No Status Moves bulk parent,
-and six individual status scopes), with Sleep Clause still [Soon].
+**STATUS BANS** adds eight working controls (No Status Moves bulk parent,
+six individual status scopes and a separate ON/OFF Sleep Clause). The
+Sleep Clause tracks inflicted sleep across switches within the battle;
+Rest/self-induced sleep is exempt.
 The remaining six advanced categories remain [Soon].
 See [Status Bans](GEN3_STATUS_BANS.md).
 The unimplemented WORLD and UI planning categories have been removed
