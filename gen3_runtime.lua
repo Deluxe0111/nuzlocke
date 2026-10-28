@@ -27,6 +27,7 @@ local RunParty = readModule("gen3_run_party.lua")()
 local Difficulty = readModule("gen3_difficulty.lua")()
     local Hardcore = readModule("gen3_hardcore_rules.lua")()
     local Qol = readModule("gen3_qol.lua")()
+    local QolSetup = readModule("gen3_qol_setup.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -237,6 +238,18 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         -- individual still keeps the shiny status it was spawned with.
         noteOWEShiny(final.species, final.personality)
         return final
+    end)
+
+    -- Gen 3's pristine save is prepared before save.created and before
+    -- first map entry. Apply optional setup resources exactly at that
+    -- native transaction, so an old loaded save cannot be backfilled.
+    mod.hooks:wrap("save.new_game",function(next,fresh)
+        local native=next(fresh)
+        if type(native)~="table" then return native end
+        local ok,Storage=pcall(require,"src.core.game3.storage")
+        if not ok then return native end
+        QolSetup.apply(loadState(),native,Storage)
+        return native
     end)
 
     -- QOL movement operates at Gen 3's native player step-frame hook;
@@ -2720,6 +2733,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         gameDifficulty = Difficulty,
         hardcoreRules = Hardcore,
         qolRules = Qol,
+        qolSetupRules = QolSetup,
         areaSplitRules = AreaSplits,
         currentEncounterArea = encounterAreaNow,
         notices = function() return Notices.history(loadState()) end,
@@ -2870,6 +2884,18 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             if ok then writeState(s) end
             return ok,reason
         end,
+    }
+    mod.exports.gen3_qol_setup = {
+        api=QolSetup.api,schema=QolSetup.schema,
+        definitions=QolSetup.descriptors,
+        getRule=function(key) return QolSetup.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=QolSetup.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+        preview=function() return QolSetup.plan(loadState()) end,
     }
     mod.exports.gen3_qol = {
         api=Qol.api,schema=Qol.schema,
