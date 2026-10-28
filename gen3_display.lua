@@ -118,5 +118,60 @@ return function()
         }
     end
 
+    -- Identity is resolved at display time because the native nickname prompt
+    -- can run AFTER pokemon.caught. Never substitute today's level for the
+    -- level stored at capture, and never guess details for old save rows.
+    function M.trackerCatch(entry, native, graveyard)
+        if type(entry) ~= "table" or entry.caught ~= true then return nil end
+        local speciesId = entry.caughtSpeciesId
+        local personality = entry.caughtPersonality
+        local owner = entry.caughtTrainerId
+        local function matches(mon)
+            return type(mon) == "table" and personality ~= nil
+                and mon.personality == personality
+                and tostring(mon.species or mon.speciesId or "")
+                    == tostring(speciesId or "")
+                and (owner == nil or tostring(mon.otId or mon.trainerId or "")
+                    == tostring(owner))
+        end
+        local found
+        if type(native) == "table" then
+            for _, mon in ipairs(native.party or {}) do
+                if matches(mon) then found = mon; break end
+            end
+            if not found then
+                for _, box in ipairs(native.storage and native.storage.boxes or {}) do
+                    for slot = 1, 30 do
+                        local mon = box and box.mons and box.mons[slot]
+                        if matches(mon) then found = mon; break end
+                    end
+                    if found then break end
+                end
+            end
+        end
+        if not found then
+            for _, death in ipairs(graveyard or {}) do
+                if type(death) == "table" and matches(death.archive) then
+                    found = death
+                    break
+                end
+            end
+        end
+        local species = (found and M.speciesName(found))
+            or (nonblank(entry.caughtSpeciesName)
+                and displayCase(entry.caughtSpeciesName))
+            or (speciesId ~= nil
+                and M.speciesName({species = speciesId}))
+            or "Unknown Pokémon"
+        local nickname = found and found.nickname or entry.caughtNickname
+        if not nonblank(nickname) then nickname = nil end
+        return {
+            name = nickname or species,
+            species = species,
+            level = tonumber(entry.caughtLevel),
+            known = speciesId ~= nil,
+        }
+    end
+
     return M
 end

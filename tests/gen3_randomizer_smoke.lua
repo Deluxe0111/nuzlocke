@@ -18,6 +18,7 @@ local saved = {}
 assert(R.get(saved, "random_encounter_tables") == false)
 assert(R.get(saved, "random_trainers") == false)
 assert(R.get(saved, "randomizer_seed") == 0)
+assert(R.get(saved, "random_trainer_diversity") == 0)
 assert(R.set(saved, "randomizer_seed", 12345678))
 assert(R.set(saved, "random_encounter_tables", true))
 assert(R.set(saved, "random_trainers", true))
@@ -36,6 +37,7 @@ assert(R.locked(saved))
 assert(not R.set(saved, "randomizer_seed", 999),
     "fixed randomiser settings cannot change after species results exist")
 assert(not R.set(saved, "random_trainers", false))
+assert(not R.set(saved, "random_trainer_diversity", 1))
 local recovered = {randomizer = {
     randomizer_seed = 12345678, random_encounter_tables=true,
     random_trainers=true, random_encounter_balance=1,
@@ -52,6 +54,19 @@ local other = {randomizer = {
 assert(R.replace(other, P, "ENCOUNTERS", "FR_ROUTE_1:GRASS:1:5", 1)
     == R.replace(recovered, P, "ENCOUNTERS", "FR_ROUTE_1:GRASS:1:5", 1),
     "trainer ON/OFF must not perturb encounters")
+-- Candidate exclusion is deterministic and does not disturb existing
+-- mappings when Trainer Variety is OFF.
+local distinct = {randomizer={
+    randomizer_seed=12345678, random_trainers=true,
+    random_trainer_diversity=1 }}
+local one = R.replace(distinct,P,"TRAINERS","LEADER:1",1)
+local two = R.replace(distinct,P,"TRAINERS","LEADER:2",1,nil,nil,
+    { [one] = true })
+assert(one and two and one ~= two,
+    "unique-team mode must exclude already selected replacements")
+assert(R.replace(distinct,P,"TRAINERS","LEADER:2",1,nil,nil,
+    { [one] = true }) == two,
+    "unique-team exclusion must be reproducible without mutable RNG")
 local empty = {randomizer={ randomizer_seed=99,
     random_encounter_tables=true }}
 assert(not R.replace(empty, P, "ENCOUNTERS", "route", 511),
@@ -120,6 +135,7 @@ local api=mod.exports.gen3_randomizer
 assert(api.set("randomizer_seed", 12345678))
 assert(api.set("random_encounter_tables", true))
 assert(api.set("random_trainers", true))
+assert(api.set("random_trainer_diversity", 1))
 local count=0
 local wild={species="ALPHA",speciesId=1,level=7,item="BERRY"}
 local ctx={mapId="FR_ROUTE_1",terrain="grass"}
@@ -173,6 +189,8 @@ local trainerParty={
 local out=hooks["trainer.party"](function(_,_,party)
     return party end,"LEADER",414,trainerParty)
 assert(#out==2 and out[1].speciesId ~= 1 and out[2].speciesId ~= 2)
+assert(out[1].speciesId ~= out[2].speciesId,
+    "Trainer Variety should avoid duplicate team replacements")
 assert(out[1].level==13 and out[2].heldItem=="POTION"
     and out[1].moves[1]=="TACKLE")
 assert(trainerParty[1].speciesId==1 and trainerParty[2].speciesId==2)

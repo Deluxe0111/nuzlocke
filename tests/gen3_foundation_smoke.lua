@@ -126,7 +126,8 @@ assert(not values.gen3_classic_v1.areas.FR_ROUTE_1,
     "pre-Ball wild battle must not spend or register any route")
 fire("battle.ended")
 game.session.bag.pockets.POKE_BALLS[1].qty = 5
-local first = {}
+local first = { enemy = { mon = {
+    species = 16, level = 4, personality = 991 } } }
 fire("battle.started", { battle = first, kind = "wild", species = "PIDGEY", speciesId = 16 })
 local firstNotice = mod.exports.gen3_notices.history()
 firstNotice = firstNotice[#firstNotice]
@@ -137,9 +138,33 @@ assert(firstNotice.code == "FIRST_ENCOUNTER"
     "first encounter notice should describe the chance, not announce a failure")
 local caught, shakes, invoked = throw(first)
 assert(caught and shakes == 4 and invoked, "first battle may catch")
-fire("pokemon.caught", { battle = first })
+local justCaught = { species = 16, level = 4, personality = 991 }
+fire("pokemon.caught", { battle = first, speciesId = 16, mon = justCaught })
 assert(values.gen3_classic_v1.areas.FR_ROUTE_1.caught == true)
+assert(values.gen3_classic_v1.areas.FR_ROUTE_1.caughtLevel == 4
+    and values.gen3_classic_v1.areas.FR_ROUTE_1.caughtSpeciesId == 16,
+    "capture-time species and level must be persisted")
 fire("battle.ended")
+-- Native naming happens after the caught event. Tracker follows the
+-- individual through PC and retains the level from the original capture.
+game.session.storage.boxes = { { mons = { [1] = justCaught } } }
+justCaught.nickname = "Skye"
+justCaught.level = 22
+openMenu()
+press("down"); press("a") -- ENC TRACKER
+local tracked = mod.exports.gen3_menu.model()
+assert(tracked.title == "ENC TRACKER"
+    and tracked.rows[2]:find("Skye", 1, true),
+    "tracker ledger should show the new nickname, not the battle slot")
+press("down"); press("a")
+local details = mod.exports.gen3_menu.model()
+local detailText = table.concat(details.rows, "\n")
+assert(detailText:find("NAME: Skye", 1, true)
+    and detailText:find("SPECIES: Pidgey", 1, true)
+    and detailText:find("LEVEL CAUGHT: 4", 1, true),
+    "tracker detail must show nickname, species and capture-time level")
+press("b"); press("b"); press("b")
+game.session.storage.boxes = nil
 local repeatBattle = {}
 fire("battle.started", { battle = repeatBattle, kind = "wild" })
 caught, shakes, invoked = throw(repeatBattle)

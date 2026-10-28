@@ -21,6 +21,7 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Trainer Balance | CHAOS / SIM BST (when Trainers ON) | CHAOS |
 | Species Pool | ALL / KANTO / JOHTO / HOENN | ALL |
+| Trainer Variety | NORMAL / UNIQUE TEAM | NORMAL |
 | Seed | 8-digit FIXED or AUTO (00000000) | AUTO |
 | Run Seed | Effective fixed/resolved seed (read-only) | NOT ROLLED |
 | Config | EDITABLE / LOCKED | EDITABLE |
@@ -35,6 +36,13 @@ AUTO seed is resolved at its first successful randomisation and persisted
 inside the Gen 3 save, so restarting/reloading continues the same mapping.
 A fixed seed 1–99999999 reproduces mappings across equivalent versions of
 the ROM species registry and equivalent randomiser settings.
+
+**Trainer Variety: UNIQUE TEAM** chooses trainer replacements without repeating
+species already assigned to earlier members of that same trainer party. It
+preserves slot count, levels, items and moves. If a restricted pool has no
+unused replacement for a slot, that slot falls back to ordinary deterministic
+randomisation. NORMAL is the existing mapping behaviour. This setting only
+affects trainers; wild and Untamed mappings are unchanged.
 
 **Settings lock at the first successful randomised species result.** This
 avoids mixing incompatible rules in a single run. To start a genuinely new
@@ -81,8 +89,8 @@ on source key, original Pokémon, settings, seed, algorithm, and ROM data.
 - This first stage randomises **rolled species**, not a visual edit of
   the entire ROM encounter table. Species sharing identical map/terrain/
   original-species/level source identity will share the replacement.
-- There is no DIVERSE/UNIQUE source-slot policy yet; those rows are
-  intentionally [Soon].
+- Wild encounter DIVERSE/UNIQUE source-slot mapping is still [Soon].
+  Trainer Variety's UNIQUE TEAM policy applies only within one trainer party.
 - Native fishing and trainer hooks are used; third-party randomiser
   ownership has not been arbitrated yet. Do not enable two mods that both
   rewrite the same sources until their precedence is tested.
@@ -184,6 +192,10 @@ Check Untamed's ordinary chain shinies still behave normally.
       flags are preserved; no crash in single/double battles.
 - [ ] **R06:** Trainer OFF and Wild ON: trainer teams native. Repeat with
       toggles reversed; wild replacements unaffected by Trainer ON.
+- [ ] **R06a:** With Trainer Variety UNIQUE TEAM, a trainer with two or more
+      Pokémon should have no duplicate replacements when its legal pool
+      has enough candidates. Reload to confirm identical team composition.
+      Test a tiny restricted pool for safe duplicate fallback.
 - [ ] **R07:** Select CHAOS and BALANCED presets. SIM BST replacement
       should fall near original BST if valid candidates exist.
 - [ ] **R08:** Species Pool KANTO, JOHTO, HOENN; no Pokémon outside the

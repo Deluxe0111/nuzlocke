@@ -11,6 +11,7 @@ return function()
         random_encounter_balance = { kind="number", default=0, min=0, max=1 },
         random_trainer_balance = { kind="number", default=0, min=0, max=1 },
         random_species_generation = { kind="number", default=0, min=0, max=3 },
+        random_trainer_diversity = { kind="number", default=0, min=0, max=1 },
         randomizer_preset = { kind="number", default=0, min=0, max=2 },
     }
     local cachedPool, cachedOwner
@@ -54,6 +55,7 @@ return function()
                 r.random_encounter_balance = value == 2 and 1 or 0
                 r.random_trainer_balance = value == 2 and 1 or 0
                 r.random_species_generation = 0
+                r.random_trainer_diversity = 0
             end
         else
             r[key] = value
@@ -125,7 +127,7 @@ return function()
         if n >= 252 and n <= 386 then return 3 end
         return nil
     end
-    local function candidates(Pokemon, original, poolMode, balance, denyNational)
+    local function candidates(Pokemon, original, poolMode, balance, denyNational, excluded)
         local all = M.pool(Pokemon)
         local originalId = tonumber(original)
         if not originalId and type(original) == "string"
@@ -140,7 +142,8 @@ return function()
         for _, item in ipairs(all) do
             if item.id ~= originalId
                 and (poolMode == 0 or generation(item.national) == poolMode)
-                and not (denyNational and denyNational(item.national)) then
+                and not (denyNational and denyNational(item.national))
+                and not (excluded and excluded[item.id]) then
                 pool[#pool + 1] = item
             end
         end
@@ -159,7 +162,7 @@ return function()
         return pool
     end
     function M.replace(s, Pokemon, source, sourceId, original, entropy,
-        denyNational)
+        denyNational, excluded)
         local r = state(s)
         local enabled = source == "ENCOUNTERS" and r.random_encounter_tables
             or source == "TRAINERS" and r.random_trainers
@@ -168,7 +171,7 @@ return function()
         local balance = source == "ENCOUNTERS"
             and r.random_encounter_balance or r.random_trainer_balance
         local legal = candidates(Pokemon, original,
-            r.random_species_generation, balance,denyNational)
+            r.random_species_generation, balance,denyNational,excluded)
         if not legal or #legal == 0 then return nil end
         local seed = M.seed(s, entropy)
         if seed == 0 then return nil end

@@ -170,7 +170,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
 
     -- Gen 3 RANDOMIZER deliberately runs even if Nuzlocke rules are OFF.
-    local function randomSpecies(source, key, original)
+    local function randomSpecies(source, key, original, excluded)
         local saved = loadState()
         local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
         if not ok then return nil end
@@ -183,7 +183,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end,function(national)
                 return Core.active(saved)
                     and CatchRules.isBannedNational(saved,national)
-            end)
+            end, excluded)
         if result then
             if not usedBefore then
                 Notices.add(saved, "RANDOMIZER_LOCK",
@@ -324,16 +324,25 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             return original
         end
         local result, changed = {}, false
+        local unique = Randomizer.get(loadState(), "random_trainer_diversity") == 1
+        local selected = {}
         for i, member in ipairs(original) do
             local newMember = {}
             for k, v in pairs(member) do newMember[k] = v end
             local key = tostring(trainerClass or "") .. ":"
                 .. tostring(trainerId) .. ":" .. tostring(i)
                 .. ":" .. tostring(member.speciesId or member.species or "")
-            local id, name = randomSpecies("TRAINERS", key,
-                member.speciesId or member.species)
+            local sourceSpecies = member.speciesId or member.species
+            local id, name = randomSpecies("TRAINERS", key, sourceSpecies,
+                unique and selected or nil)
+            if not id and unique then
+                -- A tiny filtered pool may lack an unused candidate. Keep
+                -- native randomisation rather than deleting a team member.
+                id, name = randomSpecies("TRAINERS", key, sourceSpecies)
+            end
             if id then
                 newMember.species, newMember.speciesId = name, id
+                selected[id] = true
                 changed = true
             end
             result[i] = newMember
@@ -2853,6 +2862,24 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 area.caught = true
                 area.spent = true
                 area.caughtSpeciesId = caughtSpecies
+                -- Persist capture-time facts, not the Pokemon's future level.
+                -- The nickname may be entered after this native event; the
+                -- tracker resolves the same individual from party/PC later.
+                local caughtMon = type(ev.mon) == "table"
+                    and ev.mon or battleMon
+                if type(caughtMon) == "table" then
+                    area.caughtSpeciesId = caughtMon.species
+                        or caughtMon.speciesId or caughtSpecies
+                    area.caughtSpeciesName = Display.speciesName(caughtMon)
+                    area.caughtNickname = caughtMon.nickname
+                    area.caughtLevel = tonumber(caughtMon.level)
+                        or (battleMon and tonumber(battleMon.level))
+                    area.caughtPersonality = caughtMon.personality
+                    area.caughtTrainerId = caughtMon.otId
+                        or caughtMon.trainerId
+                elseif type(battleMon) == "table" then
+                    area.caughtLevel = tonumber(battleMon.level)
+                end
             end
         end
         writeState(s)

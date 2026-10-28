@@ -186,14 +186,34 @@ return function(mod, api)
             local spent = Core.areaSpent(entry)
             local id = key
             local place = AreaSplits.name(id,Display.areaName)
-            rows[#rows + 1] = row((didCatch and "C " or
-                (spent and "- " or "* ")) .. place, nil,
-                function() info("AREA DETAIL", {
+            local caught = didCatch and Display.trackerCatch(entry,
+                engineGame and engineGame.session, s.graveyard) or nil
+            local label = (didCatch and "C " or
+                (spent and "- " or "* ")) .. place
+            if caught and caught.known then
+                label = label .. ": " .. caught.name
+            end
+            rows[#rows + 1] = row(label, nil, function()
+                local details = {
                     "LOCATION: " .. place,
                     didCatch and "CAUGHT: YES" or "CAUGHT: NO",
                     spent and "ENCOUNTER USED" or "CATCH STILL OPEN",
                     "ATTEMPTS: " .. tostring(entry.attempts or 1),
-                }) end)
+                }
+                if caught then
+                    if caught.known then
+                        details[#details + 1] = "NAME: " .. caught.name
+                        details[#details + 1] = "SPECIES: " .. caught.species
+                        details[#details + 1] = "LEVEL CAUGHT: "
+                            .. (caught.level and tostring(caught.level)
+                                or "UNKNOWN")
+                    else
+                        details[#details + 1] = "CAPTURE DETAILS UNAVAILABLE"
+                        details[#details + 1] = "OLDER SAVE RECORD"
+                    end
+                end
+                info("AREA DETAIL", details)
+            end)
         end
         if #ids == 0 then
             rows[#rows + 1] = row("NO AREAS CLAIMED")
@@ -620,6 +640,8 @@ return function(mod, api)
         if config.get("random_trainers") then
             cycle("random_trainer_balance", "TRAINER BALANCE",
                 { "CHAOS", "SIM BST" })
+            cycle("random_trainer_diversity", "TRAINER VARIETY",
+                { "NORMAL", "UNIQUE TEAM" })
         end
         if config.get("random_encounter_tables")
             or config.get("random_trainers") then
@@ -643,6 +665,7 @@ return function(mod, api)
                     random_trainers=true, randomizer_seed=true,
                     random_encounter_balance=true, random_trainer_balance=true,
                     random_species_generation=true,
+                    random_trainer_diversity=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]
