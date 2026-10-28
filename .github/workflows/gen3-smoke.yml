@@ -16,6 +16,9 @@ on:
       - 'gen3_playstyles.lua'
       - 'gen3_menu.lua'
       - 'gen3_dev.lua'
+      - 'tests/gen3_docs_gate.js'
+      - 'CREDITS.md'
+      - 'docs/GEN3_FEATURE_MATRIX.md'
       - 'tests/gen3_dev_restore_smoke.lua'
       - 'gen3_display.lua'
       - 'gen3_clauses.lua'
@@ -86,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Gen 3 release documentation and history links
+        run: node tests/gen3_docs_gate.js
       - name: Install Lua 5.1
         run: sudo apt-get update && sudo apt-get install -y lua5.1
       - name: Validate new setup Lua syntax
