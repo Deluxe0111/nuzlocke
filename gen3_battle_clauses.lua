@@ -25,7 +25,7 @@ return function()
         local result = {}
         for i,d in ipairs(definitions) do
             result[i] = {key=d.key,label=d.label,kind=d.kind,
-                status="working"}
+                default=d.default,status="working"}
         end
         return result
     end
