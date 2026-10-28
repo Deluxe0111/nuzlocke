@@ -30,7 +30,11 @@ on:
       - 'gen3_hardcore_rules.lua'
       - 'gen3_qol.lua'
       - 'gen3_qol_setup.lua'
+      - 'gen3_run_setup.lua'
+      - 'gen3_title_setup.lua'
       - 'tests/gen3_qol_setup_smoke.lua'
+      - 'tests/gen3_title_setup_smoke.lua'
+      - 'tests/gen3_run_setup_smoke.lua'
       - 'tests/gen3_qol_smoke.lua'
       - 'tests/gen3_hardcore_rules_smoke.lua'
       - 'tests/gen3_difficulty_smoke.lua'
@@ -76,6 +80,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Lua 5.1
         run: sudo apt-get update && sudo apt-get install -y lua5.1
+      - name: Validate new setup Lua syntax
+        run: |
+          luac5.1 -p gen3_runtime.lua gen3_menu.lua gen3_title_setup.lua gen3_run_setup.lua gen3_qol_setup.lua
+      - name: Test FRLG and RSE NEW GAME interception
+        run: lua5.1 tests/gen3_title_setup_smoke.lua
+      - name: Test new run settings lock and draft isolation
+        run: lua5.1 tests/gen3_run_setup_smoke.lua
       - name: Run isolated Gen 3 hook/state smoke
         run: lua5.1 tests/gen3_foundation_smoke.lua
       - name: Run nickname, rival and PC survivors smoke
