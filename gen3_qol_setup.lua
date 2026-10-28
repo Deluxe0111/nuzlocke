@@ -44,7 +44,7 @@ return function()
         local d=byKey[key]
         if not d then return false,"unknown_rule" end
         if type(s)~="table" then return false,"invalid_state" end
-        if s.failed then return false,"run_failed" end
+        -- Setup configures the *next* new game, even after a lost run.
         if d.kind=="bool" then
             if type(v)~="boolean" then return false,"boolean_required" end
         elseif type(v)~="number" or v~=math.floor(v)
