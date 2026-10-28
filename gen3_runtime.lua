@@ -471,7 +471,9 @@ return function(mod)
 
         if type(Secondary.set)=="function"
             and (Secondary.__nuzGen3SetOwner~=mod
-                or Secondary.__nuzGen3SetWrap~=Secondary.set) then
+                or (Secondary.__nuzGen3SetWrap~=Secondary.set
+                    and not (Secondary.__nuzStatusOwner==mod
+                        and Secondary.__nuzStatusWrap==Secondary.set))) then
             local original = Secondary.set
             local function guarded(M, effect, ...)
                 local source = type(M)=="table" and M.user or nil
@@ -526,7 +528,9 @@ return function(mod)
         if okE and type(Effects)=="table"
             and type(Effects.run)=="function"
             and (Effects.__nuzGen3RunOwner~=mod
-                or Effects.__nuzGen3RunWrap~=Effects.run) then
+                or (Effects.__nuzGen3RunWrap~=Effects.run
+                    and not (Effects.__nuzStatusRunOwner==mod
+                        and Effects.__nuzStatusRunWrap==Effects.run))) then
             local original=Effects.run
             Effects.run=function(id,adapter,user,target,...)
                 if id=="EXP_MINIMIZE_EFFECT" and user
