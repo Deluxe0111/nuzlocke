@@ -132,10 +132,14 @@ local gfx={
     draw=function()drawnSprites=drawnSprites+1 end,
 }
 local loveBefore=love
-love={graphics=gfx,filesystem={
-    createDirectory=function(path)assert(path=="nuzlocke_results");return true end,
-    getSaveDirectory=function()return "/SAVEDATA" end,
-}}
+-- Match the real mod sandbox: the love.filesystem member throws on
+-- access. Encoding a PNG through ImageData is permitted by that sandbox.
+love={graphics=gfx}
+setmetatable(love,{__index=function(_,key)
+    if key=="filesystem" then
+        error("love.filesystem is not available to mods",2)
+    end
+end})
 package.loaded["src.core.game3.pokemon"]={
     monFrontPic=function()
         return {image={},w=64,h=64}
@@ -146,7 +150,7 @@ assert(selectPrefix("SHARE MEMORIAL PNG"))
 assert(View.model().title=="SHARE MEMORIAL")
 assert(selectPrefix("SAVE PAGE AS PNG"))
 assert(View.model().title=="SHARE RESULT")
-assert(savedPng and savedPng:find("nuzlocke_results/",1,true)
+assert(savedPng and savedPng:match("^nuzlocke_")
     and savedPng:find(".png",1,true) and drawnSprites>=1,
     "export must produce a shareable PNG in LÖVE save directory")
 press("b");press("b")

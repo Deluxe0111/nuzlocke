@@ -16,9 +16,11 @@ Manual End Run finalises as a **FORFEIT** (loss). On confirmation the mod:
    Pokémon species/nicknames, levels and available saved stats.
 2. Marks the Nuzlocke as failed, recording `finalResult` in the existing
    `gen3_classic_v1` mod save namespace.
-3. Calls the engine's real `game:writeSave()` once. This is the same
-   native atomic-save path used by Game/Game2 and invokes the usual
-   `save.write` veto and `save.writing` hooks.
+3. Calls the **native Gen 3** `game:saveGame()` once. The raw
+   `Game3` service exposed through `mod.game` does **not** implement
+   the Gen 1/2 `writeSave()` method. The native Gen 3 writer persists
+   script flags, the live party and normal mod-data fields using the
+   standard save hooks and save pipeline.
 4. Opens a dedicated full-screen Gen 3 results UI.
 
 If a native battle ends with a whiteout/no usable survivors and the
@@ -78,9 +80,14 @@ front artwork, species, names, levels and selected stats/details.
 Graveyards larger than six Pokémon expose a **PAGE N / M** control.
 Select **SAVE PAGE AS PNG** to export each page independently.
 
-PNG files are saved locally under the game’s LÖVE save folder:
+PNG files are saved in the **root of the game’s LÖVE save folder**:
 
-`<LÖVE save directory>/nuzlocke_results/<trainer>_<result>_<date>_<page>.png`
+`<LÖVE save directory>/nuzlocke_<trainer>_<result>_<date>_<page>.png`
+
+The game’s mod sandbox does **not** allow access to `love.filesystem`.
+The PNG export therefore uses the sanctioned
+`ImageData:encode("png", filename)` path, which saves directly into
+the game’s writable LÖVE directory without creating folders.
 
 The popup confirms the filename. Players can then attach that PNG to
 Discord, forum posts or social media. The mod does **not** automatically
@@ -142,5 +149,5 @@ screenshot or a modification of the actual Hall of Fame ROM scene.
   lock, victory continuation, record navigation and PNG encoding.
 - `tests/gen3_run_results_runtime_smoke.lua` exercises the actual
   Gen 3 runtime callback wiring: End Run confirmation, native
-  `writeSave`, failed CONTINUE reload, battle whiteout and HoF close.
+  `saveGame`, failed CONTINUE reload, battle whiteout and HoF close.
 - Both run in `.github/workflows/gen3-smoke.yml` with Lua 5.1.

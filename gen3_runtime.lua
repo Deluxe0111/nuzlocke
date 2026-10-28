@@ -88,16 +88,21 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
     local function saveTerminalRecord()
         local running=game()
-        -- Game and Game2 both expose writeSave(), which performs native
-        -- world capture, save.write veto, save.writing mod persistence,
-        -- and SaveData's atomic write. saveGame() is not a public method.
-        if not running or type(running.writeSave)~="function" then
-            return false,"Native writeSave unavailable"
+        -- mod.game is the LIVE Game3 instance, NOT a Gen 1/Game2 owner.
+        -- Native Game3:saveGame persists script flags, the live Gen3
+        -- session, mod save data and all standard save.write safeguards.
+        -- Calling writeSave here ALWAYS fails: Game3 does not have it.
+        -- Do not invoke quickSaveAllowed: terminal UI is intentionally
+        -- modal, and that optional player hotkey policy rejects open menus.
+        if not running or type(running.saveGame)~="function" then
+            return false,"Gen 3 saveGame unavailable"
         end
-        local ok,written=pcall(running.writeSave,running)
+        local ok,written,err=pcall(running.saveGame,running)
         if not ok then return false,tostring(written) end
         if written~=true then
-            return false,"Game save was not confirmed"
+            return false,tostring(err or
+                (written==false and "Game refused the save"
+                    or "Game save returned no confirmation"))
         end
         return true
     end

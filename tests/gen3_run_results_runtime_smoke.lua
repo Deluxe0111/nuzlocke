@@ -40,7 +40,10 @@ end
 local session={version="firered",map="FR_ROUTE_1",
     name="RED",party={pokemon(1,28,"Leaf")},flags={}}
 local game={generation=3,session=session}
-function game:writeSave()
+-- Match the native Game3 API exactly: saveGame exists, writeSave does
+-- not. This would have caught the original failed-autosave regression.
+assert(game.writeSave==nil)
+function game:saveGame()
     writes=writes+1
     disk=copy(values.gen3_classic_v1)
     return true

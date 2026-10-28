@@ -96,8 +96,11 @@ return function()
         end
     end
     local function exportImage(mode,offset)
-        if not (love and love.graphics and love.filesystem
-            and love.graphics.newCanvas) then
+        -- The mod sandbox exposes love.graphics / ImageData:encode but
+        -- explicitly DENIES love.filesystem. ImageData:encode with a
+        -- relative filename writes into the active LÖVE save directory.
+        -- Use the save root so no direct directory creation is needed.
+        if not (love and love.graphics and love.graphics.newCanvas) then
             return false,"PNG EXPORT UNAVAILABLE"
         end
         local g=love.graphics
@@ -174,12 +177,14 @@ return function()
             pushed=false
             local name=tostring(result.trainer):gsub("[^%w%-_]","_")
             local suffix=os.date and os.date("!%Y%m%d_%H%M%S") or "run"
-            local rel="nuzlocke_results/"..name.."_"..result.outcome
+            local rel="nuzlocke_"..name.."_"..result.outcome
                 .."_"..suffix.."_"..tostring(offset+1)..".png"
-            assert(love.filesystem.createDirectory("nuzlocke_results"))
             local data=canvas:newImageData()
+            -- This ImageData API is the sandbox-supported export path.
+            -- A filename writes a genuine PNG into the LÖVE save root;
+            -- do not try to reach love.filesystem through a sandbox mod.
             data:encode("png",rel)
-            return love.filesystem.getSaveDirectory().."/"..rel
+            return rel
         end)
         if ok then return true,filename end
         -- Restore the graphics stack even if an external sprite renderer
@@ -210,8 +215,7 @@ return function()
                     if ok then
                         rows[#rows+1]=row("PNG SAVED")
                         rows[#rows+1]=row("LOVE SAVE FOLDER")
-                        rows[#rows+1]=row("nuzlocke_results/")
-                        rows[#rows+1]=row(path:match("([^/]+)$") or path)
+                        rows[#rows+1]=row(path)
                     else
                         rows[#rows+1]=row("EXPORT FAILED")
                         rows[#rows+1]=row(tostring(path):sub(1,65))
