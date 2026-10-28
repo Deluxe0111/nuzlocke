@@ -31,6 +31,7 @@ on:
       - 'tests/gen3_levels_smoke.lua'
       - 'tests/gen3_randomizer_smoke.lua'
       - 'tests/gen3_shiny_nuzlocke_smoke.lua'
+      - 'tests/gen3_hardcore_nuzlocke_smoke.lua'
       - '.github/workflows/gen3-smoke.yml'
   workflow_dispatch:
 
@@ -52,6 +53,8 @@ jobs:
         run: lua5.1 tests/gen3_levels_smoke.lua
       - name: Run Gen 3 Shiny Nuzlocke playstyle smoke
         run: lua5.1 tests/gen3_shiny_nuzlocke_smoke.lua
+      - name: Run Gen 3 Hardcore Nuzlocke playstyle smoke
+        run: lua5.1 tests/gen3_hardcore_nuzlocke_smoke.lua
       - name: Run Gen 3 seeded randomizer native hook smoke
         run: lua5.1 tests/gen3_randomizer_smoke.lua
       - name: Run isolated Gen 3 clauses policy smoke
