@@ -1565,6 +1565,69 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end
         end
         local okS,Shop=pcall(require,"src.ui.game3.shop_menu")
+        -- Use the final native inventory list at shop opening, not a
+        -- global ROM mart edit. The extracted pointer is required for
+        -- a stable shop identity; unidentified/non-normal shops fail open.
+        if okS and type(Shop)=="table"
+            and type(Shop.show)=="function"
+            and (Shop.__nuzRandomShopOwner~=mod
+                or Shop.__nuzRandomShopWrap~=Shop.show) then
+            local previous=Shop.show
+            local function randomShopShow(opts)
+                if type(opts)~="table" or type(opts.items)~="table"
+                    or not Randomizer.get(loadState(),"random_shops")
+                    or (opts.martType and opts.martType~="NORMAL") then
+                    return previous(opts)
+                end
+                local okM,Marts=pcall(require,"src.core.game3.marts")
+                local mart=opts.mart
+                if not mart and okM and type(Marts)=="table" then
+                    for _,entry in pairs(Marts._byKey or {}) do
+                        if type(entry)=="table"
+                            and entry.items==opts.items then
+                            mart=entry
+                            break
+                        end
+                    end
+                end
+                if type(mart)~="table"
+                    or (mart.martType and mart.martType~="NORMAL")
+                    or (mart.ptr==nil and mart.key==nil) then
+                    return previous(opts)
+                end
+                local map=areaNow() or (session() and session().map)
+                if map==nil or tostring(map)=="" then
+                    return previous(opts)
+                end
+                local okI,ItemsData=pcall(require,
+                    "src.core.game3.items_data")
+                if not okI then return previous(opts) end
+                local saved=loadState()
+                local locked=Randomizer.locked(saved)
+                local identity="MAP:"..tostring(map)..":MART:"
+                    ..tostring(mart.ptr or mart.key)
+                local stock=Randomizer.shop(saved,ItemsData,identity,
+                    opts.items,function()
+                        return math.random(1,99999999)
+                    end)
+                if not stock then return previous(opts) end
+                local newOpts,newMart={},{}
+                for k,v in pairs(opts) do newOpts[k]=v end
+                for k,v in pairs(mart) do newMart[k]=v end
+                newMart.items=stock
+                newOpts.items=stock
+                newOpts.mart=newMart
+                if not locked then
+                    Notices.add(saved,"RANDOMIZER_LOCK",
+                        "Shop stock fixed for this run; randomiser locked.")
+                end
+                writeState(saved)
+                return previous(newOpts)
+            end
+            Shop.show=randomShopShow
+            Shop.__nuzRandomShopWrap=randomShopShow
+            Shop.__nuzRandomShopOwner=mod
+        end
         if okS and type(Shop)=="table"
             and type(Shop.handleInput)=="function"
             and Shop.__nuzServiceInput~=Shop.handleInput then

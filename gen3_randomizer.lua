@@ -19,6 +19,8 @@ return function()
         random_field_items = { kind="boolean", default=false },
         random_field_item_balance = { kind="number", default=0, min=0, max=1 },
         random_field_item_repetition = { kind="number", default=0, min=0, max=1 },
+        random_shops = { kind="boolean", default=false },
+        random_shop_balance = { kind="number", default=0, min=0, max=1 },
         randomizer_seed = { kind="number", default=0, min=0, max=MAX_SEED },
         random_encounter_balance = { kind="number", default=0, min=0, max=1 },
         -- Preserve a distinct replacement per native wild source within
@@ -70,6 +72,7 @@ return function()
         -- assignments. Changing setup options must not retain stale slots.
         r.encounterAssignments = nil
         r.fieldItemAssignments = nil
+        r.shopAssignments = nil
         r.starterOptions = nil
         r.starterSource = nil
         if key == "randomizer_preset" then
@@ -437,6 +440,82 @@ return function()
         r.fieldItemAssignments[scope][sourceId]=chosen.id
         r.used=true
         return chosen.id
+    end
+
+    -- Each native Pokemart pointer/map gets one saved transaction.
+    -- This is a display stock rewrite; native purchase pricing, bags,
+    -- transaction callbacks, inventory limits and story logic own awards.
+    function M.shop(s, ItemsData, sourceId, originals, entropy)
+        local r=state(s)
+        if not r.random_shops or type(sourceId)~="string"
+            or sourceId=="" or type(originals)~="table"
+            or #originals==0 or #originals>128 then return nil end
+        local native={}
+        for i=1,#originals do
+            local id=tonumber(originals[i])
+            if not id or id~=math.floor(id) or id<1
+                or id>=0x4000 then return nil end
+            native[i]=id
+        end
+        local pool=M.itemPool(ItemsData)
+        if #pool<2 then return nil end
+        local prev=type(r.shopAssignments)=="table"
+            and r.shopAssignments[sourceId] or nil
+        if prev~=nil then
+            if type(prev)~="table" or type(prev.originals)~="table"
+                or type(prev.items)~="table"
+                or #prev.originals~=#native
+                or #prev.items~=#native then return nil end
+            local copy={}
+            for i=1,#native do
+                if tonumber(prev.originals[i])~=native[i] then return nil end
+                local id=tonumber(prev.items[i])
+                if id~=native[i] and not itemEntry(ItemsData,id) then
+                    return nil
+                end
+                if not id then return nil end
+                copy[i]=id
+            end
+            r.used=true
+            return copy
+        end
+        local seed=M.seed(s,entropy)
+        if seed==0 then return nil end
+        local result,protected,changed={},{},false
+        -- The starter Poké Ball remains available in marts that
+        -- originally carry it. Story/key/TM stock is untouched too.
+        -- Reserve these slots before assigning any replacement.
+        for i,id in ipairs(native) do
+            if id==4 or not itemEntry(ItemsData,id) then
+                result[i]=id
+                protected[id]=true
+            end
+        end
+        for i,id in ipairs(native) do
+            if not result[i] then
+                local orig=itemEntry(ItemsData,id)
+                local candidates=itemCandidates(pool,orig,
+                    r.random_shop_balance,protected)
+                if #candidates==0 then
+                    result[i]=id
+                else
+                    local index=1+M.hash(M.algorithm,seed,"SHOPS",
+                        sourceId,i,id)%#candidates
+                    result[i]=candidates[index].id
+                    if result[i]~=id then changed=true end
+                end
+                protected[result[i]]=true
+            end
+        end
+        if not changed then return nil end
+        if type(r.shopAssignments)~="table" then
+            r.shopAssignments={}
+        end
+        r.shopAssignments[sourceId]={
+            originals=native,items=result
+        }
+        r.used=true
+        return result
     end
 
     function M.replace(s, Pokemon, source, sourceId, original, entropy,

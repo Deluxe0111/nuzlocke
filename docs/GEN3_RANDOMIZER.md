@@ -2,8 +2,8 @@
 
 The native Gen 3 Nuzlocke menu now exposes a deterministic species
 randomiser for **starter choices, static encounters, scripted gifts,
-NPC gift eggs, visible/hidden field items, wild step encounters,
-fishing and trainer parties**.
+NPC gift eggs, visible/hidden field items, ordinary Poké Marts,
+wild step encounters, fishing and trainer parties**.
 It does **not** require Nuzlocke Enabled to be ON.
 
 All other Randomizer settings in the legacy catalogue are marked **[Soon]**.
@@ -30,6 +30,8 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Random Field Items | OFF / ON | OFF |
 | Item Balance | CHAOS / SIM VALUE (when Field Items ON) | CHAOS |
 | Item Variety | NORMAL / UNIQUE AREA (when Field Items ON) | NORMAL |
+| Random Shops | OFF / ON | OFF |
+| Shop Balance | CHAOS / SIM VALUE (when Shops ON) | CHAOS |
 | Starter Balance | CHAOS / SIM BST (when Starters ON) | CHAOS |
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
@@ -106,6 +108,35 @@ affects trainers; wild and Untamed mappings are unchanged.
 avoids mixing incompatible rules in a single run. To start a genuinely new
 randomiser configuration, start a new disposable run/save; Nuz Dev must not
 silently relabel already generated content.
+
+## Ordinary Poké Mart inventory
+
+**Random Shops** runs when the native `ShopMenu.show` receives a
+regular mart's extracted ROM stock list. The original mart entry and
+its pointers stay untouched. Each **map + mart pointer** gets a stable,
+persistent list of replacements: revisiting, saving or reopening the
+shop never changes its stock. Changing unrelated randomiser categories
+does not perturb its `SHOPS` hash stream.
+
+The default **CHAOS** mode draws from the valid positive-price
+consumable/ball/berry pool. **SIM VALUE** prefers roughly comparable
+native item prices, widening the price range when needed. Different
+replaceable slots do not reuse an item in the same shop if there are
+enough safe choices. Buy prices, money deductions, bag checks, in-bag
+counts, selling and transaction records all remain native.
+
+**Poké Ball (item ID 4)** is always kept if present in a mart's
+original stock, so randomising shops cannot remove the primary early
+Poké Ball supply. Key Items, TMs/HMs, zero-price/story entries and
+missing item metadata remain native and are excluded as replacement
+choices. Decoration shops are untouched: they have a different item
+ID namespace. Shops with unidentified ROM pointers fail open rather
+than claiming potentially unrelated inventories.
+
+This option is independent from Random Field Items and the Nuzlocke
+toggle, though existing Shop Restrictions still apply to buying and
+selling. Item gifts, prizes, and other purchases outside ordinary
+Poké Mart inventory do not pass through this hook.
 
 ## Visible item balls and hidden field items
 
@@ -320,6 +351,16 @@ Check Untamed's ordinary chain shinies still behave normally.
       Pokémon and rival teams remain unchanged. With both Random Starters
       and Random Trainers ON, the rival's starter retains its lineage
       while every other trainer team member still randomises normally.
+- [ ] **M01:** On a new run, enable Random Shops. In an early
+      Poké Mart check Poké Balls remain available if originally stocked,
+      while other regular items may be replaced. Check replacement prices.
+- [ ] **M02:** Revisit the same mart, reload, and repeat in Emerald.
+      The stock list must remain identical for its saved map/pointer.
+- [ ] **M03:** Check SIM VALUE, item uniqueness, and preserved Key
+      Items/TMs/HMs. Decoration shops and mart data are unchanged.
+- [ ] **M04:** Check native Shop Restrictions still deny purchases
+      when configured. Sales, quantity, bag-full errors and money
+      handling remain native.
 - [ ] **F01:** On a fresh FRLG run, turn on Random Field Items.
       Pick up two visible item balls: the awarded/announced item names
       must match the inventory, and collection flags persist on reload.
