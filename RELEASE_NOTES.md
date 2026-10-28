@@ -45,6 +45,12 @@
 
 ---
 
+# Nuzlocke 2.9.73 — Historical pre-v3 setup update
+
+**Published 28 October 2026.** This preceding 2.9.x release focused on early Generation 3 new-run resource setup: native PC starter supplies, deferred Poké Ball delivery after catch unlock, the `save.created` integration and supporting regression tests. It did **not** include the completed v3 menu, rules, results, journal or developer features described above.
+
+The original public release remains available as [v2.9.73](https://github.com/Deluxe0111/nuzlocke/releases/tag/v2.9.73). Older release sections below are unchanged.
+
 # Nuzlocke 2.9.72 — Randomizer tracing and shiny isolation
 
 2.9.72 is a focused runtime-repair/diagnostic build from exact sealed 2.9.71. It addresses the confirmed Gen-II numeric item-reference mismatch, removes legal Random Shop no-op selections, exposes the existing Random Trainer pipeline end-to-end, and prevents Nuzlocke shiny recoloring from mutating shared engine ImageData.
