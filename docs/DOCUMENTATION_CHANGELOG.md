@@ -1,5 +1,13 @@
 # 3.0.0-BETA
 
+- Completed the release-facing Gen 3 **ported / adapted / new** feature matrix and recast README/RELEASE_NOTES/CHANGELOG around the final implementation rather than chronological feature development.
+- Preserved the earlier 2.9 release notes and restored the missing **v2.9.73** historical entry from its published release without claiming later Gen 3 features for that version.
+- Restored distinct original-mod, shiny-project, Gen 1/2 maintenance and Gen 3 port attribution in **CREDITS.md**.
+- Updated the Gen 3 overview, CORE, Advanced Rules, developer guide and manual test checklist to match current menus, native area splits, OHKO, Egg/Forgiveness tokens, Run Journal, Mod Support and hidden Nuz Dev recovery.
+- Flagged early Gen 3 clause-planning text as historical, not an active status catalogue; added CI checks for v3 feature/credit/version consistency and broken local documentation links.
+- Kept older user guides and legacy source documentation rather than moving or deleting them.
+
+
 - Replaced the historical 2.9.x README introduction with a concise Generation 1–3 v3 beta overview and linked the legacy guide/changelogs.
 - Reconciled Gen 3 implementation status, Randomiser, levels and player-feedback documentation; beta limitations remain explicit.
 - Added Untamed Advanced visible-wild compatibility to both projects' existing README structure and credited Deluxe0111 in Untamed's CREDITS.md.
