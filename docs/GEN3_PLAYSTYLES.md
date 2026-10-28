@@ -1,4 +1,4 @@
-# Generation 3 playstyles — Shiny Nuzlocke
+# Generation 3 playstyles — Shiny & Hardcore Nuzlocke
 
 **Version:** v3.0.0-BETA · **Menu:** Start → NUZ MENU → NUZ RULES → PLAYSTYLES
 
@@ -120,3 +120,79 @@ refused once the Nuzlocke run is marked failed.
 Automated Lua smoke tests cover menu/state/hook policy. Native ROM,
 battle animation, special encounters and external shiny-provider
 interactions require in-game validation.
+
+---
+
+## Hardcore Nuzlocke
+
+**Version:** v3.0.0-BETA · **Menu:** Start → NUZ MENU → NUZ RULES → PLAYSTYLES → **HARDCORE**
+
+Hardcore is an optional **policy overlay**: enabling it never changes the
+player's original CORE, LEVELS, or Options settings. It only enforces the
+following while **CORE → NUZLOCKE is ON** and the run has not failed:
+
+- **Permadeath**, **One Per Area**, **Failed Encounters Count**, and
+  **Whiteout Ends Run** are effectively enabled, even if the original
+  CORE toggles are OFF. Attempts to disable those options during an active
+  Hardcore run are rejected. Any original OFF values are restored when
+  Hardcore is disabled.
+- **No bag items during battle, except Poké Balls**. Medicine, X items,
+  Poké Dolls and battle-usable modded consumables are denied before their
+  inventory can change. Poké Balls still use the existing Catch/Area/Shiny
+  restrictions. Held items and overworld healing remain allowed.
+- **SET battle style** is forced for normal trainer battles, so the game
+  does not offer a free switch after the opponent's Pokémon faints. Normal
+  player-chosen switches and forced switches remain available. The
+  underlying game Options setting is untouched.
+- **Boss level caps through Champion** apply even when LEVELS → CAP SCOPE
+  is NONE, preserving existing EXP and Rare Candy protections. The player's
+  original cap scope and EXP Edging preference remain saved. The familiar
+  game's edition, badges and league progress determine caps.
+
+Hardcore works alongside **Shiny Nuzlocke**. If both are ON, only shiny
+Pokémon may be captured, and the first eligible shiny is subject to
+Hardcore's One Per Area and Failed Encounters rules. Shininess odds remain
+controlled separately under CLAUSES → SHINY RATE.
+
+**Exclusions/limits:** Hardcore does not affect trading, gifts, scripted
+acquisitions, or player-held items. The current level-cap system caps EXP
+and blocks Rare Candy; it does not yet remove a previously over-levelled
+Pokémon from the battle party. Forced SET applies through the native
+battleStyle query and should be confirmed in a real trainer battle.
+Multiplayer/tutorial battle item interactions are excluded. No existing
+save schema is replaced; playstyle state is
+`gen3_classic_v1.playstyles.hardcore_nuzlocke` (default OFF).
+
+### Hardcore ROM test checklist (disposable save)
+
+- [ ] **H01:** Set CORE → NUZLOCKE ON, switch Permadeath, One Per Area,
+      Failed Encounters and Whiteout OFF, then enable Hardcore. The CORE
+      page displays **FORCED ON**; an attempt to turn a forced rule OFF
+      shows an explanation.
+- [ ] **H02:** In trainer battle, opponent's first Pokémon faints. The
+      game sends its next Pokémon with no SHIFT prompt (even if saved
+      Options → Battle Style says SHIFT).
+- [ ] **H03:** In battle, attempt Potion, X Attack, Poké Doll and Revive.
+      They cannot be used and are not removed from the bag; no turn lost.
+      A wild Poké Ball remains usable (subject to catch rules).
+- [ ] **H04:** Set LEVELS scope NONE then enable Hardcore. The cap
+      becomes Brock's ace (FRLG Lv14) or the local first Gym's ace.
+      EXP stops at cap and Rare Candy cannot exceed it.
+- [ ] **H05:** On a disposable save after earning eight badges, caps
+      progress through the Elite Four and Champion.
+- [ ] **H06:** With Failed Encounters originally OFF, flee an eligible
+      first wild encounter. Hardcore consumes the route anyway.
+- [ ] **H07:** A fainted Pokémon retires and a whiteout loses the run
+      while Hardcore is enforced, even if the underlying rules were OFF.
+- [ ] **H08:** Turn Hardcore OFF. Previously saved CORE toggles, LEVELS
+      scope and SHIFT style resume without requiring a restart.
+- [ ] **H09:** Enable Shiny and Hardcore together: normal wilds do not
+      spend a route, first eligible shiny does.
+- [ ] **H10:** Turn Nuzlocke master OFF while Hardcore is toggled ON:
+      normal battle items, SHIFT and original level settings apply.
+- [ ] **H11:** Check FRLG, Ruby, Sapphire, Emerald and, separately,
+      Untamed-Advanced wandering wild battles.
+
+Automated Lua smoke tests validate policy overrides, native battle item
+transaction guards, SET-style query behaviour, level caps, and restoration.
+They cannot certify full ROM rendering or progression.
