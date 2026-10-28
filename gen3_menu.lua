@@ -9,6 +9,7 @@ return function(mod, api)
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
     local CatchRules = assert(api.catchRules, "Gen 3 menu needs CATCH RULES policy")
+    local Variants = assert(api.variants, "Gen 3 menu needs VARIANTS policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -868,7 +869,70 @@ return function(mod, api)
         return rows
     end
 
+    local function variantRows(category)
+        local rows={}
+        local saved=state()
+        local mode=Variants.mode(saved)
+        for _,entry in ipairs(category.rules) do
+            local key,label=entry[1],entry[2]
+            local lane=tonumber(key:match("^type_lock_") and
+                ({type_lock_primary=1,type_lock_secondary=2,
+                  type_lock_tertiary=3,type_lock_quaternary=4,
+                  type_lock_quinary=5,type_lock_senary=6})[key])
+            if lane and lane>mode then
+                -- Only show type selectors for active lanes.
+            elseif key=="type_lock_draft" or key=="wonderlocke" then
+                rows[#rows+1]=row(label,"soon",function()
+                    disabledFeature(label,key)
+                end)
+            else
+                local value=Variants.get(saved,key)
+                if value==nil then
+                    rows[#rows+1]=row(label,"soon",function()
+                        disabledFeature(label,key)
+                    end)
+                else
+                    rows[#rows+1]=row(label..": "
+                        ..Variants.label(saved,key),nil,function()
+                        local nextState=state()
+                        local nextValue=Variants.next(nextState,key)
+                        local ok,why=Variants.set(nextState,key,nextValue)
+                        if not ok then
+                            info("VARIANT UNAVAILABLE",{tostring(why)})
+                            return
+                        end
+                        api.setState(nextState)
+                        current().rows=variantRows(category)
+                        current().index=math.min(current().index,
+                            #current().rows)
+                    end)
+                end
+            end
+        end
+        rows[#rows+1]=row("  DETAILS: TYPE LOCKE",nil,function()
+            info("TYPE LOCKE HELP",{
+                "CORE NUZLOCKE: REQUIRED",
+                "OFF: ALL TYPES ALLOWED",
+                "MONO..HEXA: 1..6 TYPES",
+                "SELECT A TYPE PER LANE",
+                "RANDOM: FIXED PER SAVE",
+                "RANDOM LANES UNIQUE",
+                "MATCH EITHER POKEMON TYPE",
+                "OFF-TYPE CANNOT CATCH",
+                "OFF-TYPE SPENDS NO SLOT",
+                "SHINY CANNOT BYPASS",
+                "GIFT AND TRADE CHECKED",
+                "FIRST STARTER EXEMPT",
+                "UNLISTED TYPES: ALLOWED",
+                "CATCH DRAFT: [SOON]",
+                "WONDERLOCKE: [SOON]",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
+        if category.title == "VARIANTS" then return variantRows(category) end
         if category.title == "STATUS BANS" then return statusBanRows(category) end
         if category.title == "BATTLE CLAUSES" then
             return battleClauseRows(category)
@@ -898,6 +962,7 @@ return function(mod, api)
             or c.title == "CATCH RULES"
             or c.title == "BATTLE CLAUSES"
             or c.title == "STATUS BANS"
+            or c.title == "VARIANTS"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
