@@ -442,6 +442,11 @@ local sourceEnemy={side="enemy"}
 local targetPlayer={side="player"}
 local targetEnemy={side="enemy"}
 assert(statusRules.setRule("status_move_scope",1))
+local composedSet,composedRun=nativeSecondary.set,nativeEffects.run
+map("FR_STATUS_GUARD_REENTRY_1")
+map("FR_STATUS_GUARD_REENTRY_2")
+assert(nativeSecondary.set==composedSet and nativeEffects.run==composedRun,
+    "re-entering maps must not stack battle and status guard wrappers")
 assert(not nativeSecondary.set({user=sourcePlayer,target=targetEnemy},
     "PARALYSIS",true,false,false))
 assert(not nativeSecondary.set({user=sourcePlayer,target=targetEnemy},
