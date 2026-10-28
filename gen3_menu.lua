@@ -11,6 +11,7 @@ return function(mod, api)
     local CatchRules = assert(api.catchRules, "Gen 3 menu needs CATCH RULES policy")
     local Variants = assert(api.variants, "Gen 3 menu needs VARIANTS policy")
     local BattleItemRules = assert(api.battleItemRules, "Gen 3 menu needs BATTLE ITEMS policy")
+    local FieldRules = assert(api.fieldItemRules, "Gen 3 menu needs FIELD ITEMS policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -1011,7 +1012,58 @@ return function(mod, api)
         return out
     end
 
+    local function fieldItemRows(category)
+        local rows={}
+        local currentState=state()
+        for _,definition in ipairs(category.rules) do
+            local key,label=definition[1],definition[2]
+            local value=FieldRules.get(currentState,key)
+            if value==nil then
+                rows[#rows+1]=row(label,"soon",function()
+                    disabledFeature(label,key)
+                end)
+            else
+                rows[#rows+1]=row(label..": "
+                    ..FieldRules.label(currentState,key),nil,function()
+                    local saved=state()
+                    local desired=FieldRules.next(saved,key)
+                    local ok,why=FieldRules.set(saved,key,desired)
+                    if not ok then
+                        info("FIELD ITEM RULE",{tostring(why)})
+                        return
+                    end
+                    api.setState(saved)
+                    current().rows=fieldItemRows(category)
+                end)
+            end
+        end
+        rows[#rows+1]=row("  DETAILS: FIELD ITEMS",nil,function()
+            info("FIELD ITEMS HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "REPELS: BLOCK ALL THREE",
+                "ESCAPE ROPE: BLOCK USE",
+                "TRAVEL: NORMAL / NO FLY",
+                "NO FLY + NO TELEPORT",
+                "DIG AND STORY TRAVEL OK",
+                "FIELD HEAL: HP STATUS",
+                "AND REVIVAL MEDICINES",
+                "PP ITEMS: FIELD + BATTLE",
+                "ETHERS / ELIXIRS /",
+                "LEPPA / PP UP / PP MAX",
+                "NO TMS: HMS STILL OK",
+                "NO RARE CANDY: BLOCK",
+                "PARTY AND BAG USE",
+                "NO ITEMS CONSUMED",
+                "BATTLE HEAL SEPARATE",
+                "FIELD MOVE TRAVEL ONLY",
+                "NO FISH/STORY CHANGE",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
+        if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
         if category.title == "STATUS BANS" then return statusBanRows(category) end
@@ -1045,6 +1097,7 @@ return function(mod, api)
             or c.title == "STATUS BANS"
             or c.title == "VARIANTS"
             or c.title == "BATTLE ITEMS"
+            or c.title == "FIELD ITEMS"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
