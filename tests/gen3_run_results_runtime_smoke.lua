@@ -31,6 +31,22 @@ package.loaded["src.ui.game3.hall_of_fame"]=Hof
 package.loaded["src.ui.game3.pc_chrome"]={
     drawLeftDataPanel=function()return true end,
 }
+-- Model the real engine's exported newContext/accuracyCheck boundary.
+-- The OHKO resolver calls this after native move display and PP spending,
+-- before applying one-hit damage. No base-engine modifications are needed.
+local nativeAccuracyCalls,failedMoveMessages=0,0
+local moveContextMT={};moveContextMT.__index=moveContextMT
+function moveContextMT:accuracyCheck()
+    nativeAccuracyCalls=nativeAccuracyCalls+1
+    return true
+end
+package.loaded["src.core.game3.battle.engine"]={
+    newContext=function(user,target,moveId,slot,adapter)
+        return setmetatable({user=user,target=target,moveId=moveId,
+            effect=38,adapter=adapter,anim={}},moveContextMT)
+    end,
+}
+local nativeAccuracy=moveContextMT.accuracyCheck
 package.loaded["src.core.game3.pokemon"]={
     monIcon=function()return {native=true} end,
     isShiny=function(mon)return mon.isShiny==true end,
@@ -92,6 +108,47 @@ assert(chrome.__nuzVisualOwner==mod
 assert(corePokemon.monIcon({species=56,isShiny=true}).native==true
     and corePokemon.monIcon({species=56,isShiny=false}).native==true,
     "shiny and normal Pokemon must use the standard visible native icon")
+-- OHKO Clause must block the real engine context's OHKO accuracy
+-- entry without touching move effect/PP/damage, and only when enabled.
+local mkCtx=package.loaded["src.core.game3.battle.engine"].newContext
+assert(moveContextMT.accuracyCheck~=nativeAccuracy
+    and moveContextMT.__nuzOHKOOwner==mod)
+local target={hp=75,side="enemy"}
+local player={side="player",mon={pp={5}}}
+local adapter={sayFail=function() failedMoveMessages=failedMoveMessages+1 end}
+local function doOHKO(side,effect)
+    local actor={side=side,mon={pp={5}}}
+    local ctx=mkCtx(actor,target,12,1,adapter)
+    ctx.effect=effect
+    -- Native OHKO has already spent PP by the time this hook runs.
+    actor.mon.pp[1]=actor.mon.pp[1]-1
+    local allowed=ctx:accuracyCheck("lockon",true)
+    if allowed then target.hp=0 end
+    return ctx,actor,allowed
+end
+local blockedMon,blockedUser,allowed=doOHKO("enemy",38)
+assert(allowed==true and target.hp==0 and blockedUser.mon.pp[1]==4,
+    "default OFF must preserve native OHKO")
+target.hp=75
+local s=values.gen3_classic_v1
+s.battleClauses={ohko_clause=true}
+local ctx,actor,hit=doOHKO("enemy",38)
+assert(hit==false and ctx.failed and ctx.missReason=="fail"
+    and target.hp==75 and actor.mon.pp[1]==4
+    and failedMoveMessages==1,
+    "ON must fail before lethal OHKO damage, with native PP spent")
+local _,_,hitPlayer=doOHKO("player",38)
+assert(hitPlayer==false and target.hp==75 and failedMoveMessages==2,
+    "both sides must be protected")
+local _,_,ordinaryHit=doOHKO("enemy",0)
+assert(ordinaryHit==true and target.hp==0,
+    "non-OHKO moves must use native accuracy")
+target.hp=75
+s.enabled=false
+local _,_,masterOff=doOHKO("enemy",38)
+assert(masterOff==true, "master OFF must restore native OHKO")
+s.enabled=true
+assert(nativeAccuracyCalls==3)
 -- User chooses END RUN, receives a separate irreversible confirmation.
 assert(mod.exports.gen3_menu.open(game))
 local function pressTop(button)
