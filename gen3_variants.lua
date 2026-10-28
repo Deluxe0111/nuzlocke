@@ -1,5 +1,5 @@
 -- Gen 3 VARIANTS: Type Locke and Catch Draft (successful wild catches).
--- Wonderlocke deliberately stays unavailable pending trade certification.
+-- Wonderlocke is not part of the Gen 3 rule catalogue.
 return function()
     local M={api=1,schema=1}
     local MODES={"OFF","MONO","DUO","TRI","QUAD","PENTA","HEXA"}
