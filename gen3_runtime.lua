@@ -17,6 +17,7 @@ return function(mod)
     end
     local Core = readModule("gen3_core_rules.lua")()
     local Clauses = readModule("gen3_clauses.lua")()
+    local CatchRules = readModule("gen3_catch_rules.lua")()
     local Playstyles = readModule("gen3_playstyles.lua")()
     local ShinyRate = readModule("gen3_shiny_rate.lua")()
     local Archive = readModule("gen3_archive.lua")()
@@ -892,7 +893,9 @@ return function(mod)
         local key = areaNow()
         -- Unknown maps cannot claim a route; still enforce shiny-only
         -- catches rather than silently disabling the playstyle.
-        if not key and not shinyOnly then return end
+        if not key and not shinyOnly and not CatchRules.anyEnabled(s) then
+            return
+        end
         local native = session()
         local enemy = ev.battle and ev.battle.enemy
         local wildMon = enemy and enemy.mon
@@ -915,11 +918,14 @@ return function(mod)
         -- The roamer's species slot replaces the map slot; a free roamer
         -- encounter never consumes this map, even if it flees or faints.
         local dupe = Clauses.isDuplicate(s, species, native, edition)
+        local okPokemon, Pokemon = pcall(require, "src.core.game3.pokemon")
+        local catchPermitted, bannedReason = CatchRules.check(s, species,
+            okPokemon and Pokemon or nil, Core)
         local shiny = Clauses.isShiny(wildMon)
         -- Ordinary wild Pokémon are NEVER eligible encounters in this
         -- playstyle: Failed Encounters must not spend a route on them.
         local eligible = areaEligible and roamerOpen and not dupe
-            and Playstyles.qualifies(s, Core, shiny)
+            and catchPermitted and Playstyles.qualifies(s, Core, shiny)
         local entry = key and s.areas[key] or nil
         if eligible and key and not roamer then
             -- Failed encounters spend normal eligible encounters only.
@@ -939,7 +945,7 @@ return function(mod)
             shiny = shiny, shinyOnly = shinyOnly,
             exception = false,
             roamer = roamer, roamerOpen = roamerOpen,
-            roamerSpecies = spId,
+            roamerSpecies = spId, prohibitedReason = bannedReason,
         }
         if shinyOnly and eligible then
             notify("SHINY_ENCOUNTER",
@@ -997,6 +1003,18 @@ return function(mod)
             return next(ball, mon, species, ctx)
         end
         local s = loadState()
+        local okPokemon, Pokemon = pcall(require, "src.core.game3.pokemon")
+        local allowed, reason = CatchRules.check(s,
+            (type(ctx) == "table" and ctx.speciesId)
+                or Clauses.speciesId(species)
+                or (type(mon) == "table" and (mon.speciesId or mon.species)),
+            okPokemon and Pokemon or nil, Core)
+        if not allowed then
+            -- No shake/clone/PC writeback or Shiny Clause exception.
+            -- The matching battle-start check does not spend a route.
+            battle.pendingCatchReason = reason
+            return false, 0
+        end
         local shinyOnly = Playstyles.active(s, Core)
         local shiny = battle.shiny or Clauses.isShiny(mon)
         if shinyOnly and not shiny then
@@ -1189,7 +1207,8 @@ return function(mod)
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
-        core = Core, clauses = Clauses, shinyRate = ShinyRate,
+        core = Core, clauses = Clauses, catchRules = CatchRules,
+        shinyRate = ShinyRate,
         playstyles = Playstyles,
         eggs = Eggs, forgiveness = Forgiveness,
         onClauseChanged = onClauseChanged,
@@ -1307,6 +1326,22 @@ return function(mod)
         end,
     }
     -- Read-only diagnostic API. Mutators stay internal to the developer menu.
+    mod.exports.gen3_catch_rules = {
+        api = CatchRules.api, schema = CatchRules.schema,
+        definitions = CatchRules.descriptors,
+        getRule = function(key) return CatchRules.get(loadState(), key) end,
+        setRule = function(key, value)
+            local s = loadState()
+            local ok, reason = CatchRules.set(s, key, value)
+            if ok then writeState(s) end
+            return ok, reason
+        end,
+        check = function(species)
+            local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+            return CatchRules.check(loadState(), species,
+                ok and Pokemon or nil, Core)
+        end,
+    }
     mod.exports.gen3_clauses = {
         api = 1, schema = Clauses.schema,
         definitions = Clauses.descriptors,
@@ -1379,6 +1414,7 @@ return function(mod)
             "gen3_shiny_rate", "gen3_shiny_nuzlocke",
             "gen3_hardcore_nuzlocke", "gen3_eggs_wip",
             "gen3_route_forgiveness_wip",
+            "gen3_catch_species_bans", "gen3_catch_maximum_bst",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
             "pc_survivors_wip", "nickname_requirement_wip",
