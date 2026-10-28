@@ -1153,7 +1153,55 @@ local RunParty = readModule("gen3_run_party.lua")()
                             false)
                         return false
                     end
-                    return previous(mon,target,native,bag,via,...)
+                    -- Nincada -> Ninjask can create a separate Shedinja
+                    -- when a native party slot exists. Redirect ONLY that
+                    -- newly-created mon to PC if the configured cap is met.
+                    -- No space in PC = refuse before mutating either species.
+                    local moveExtra=false
+                    local cap=RunParty.partyCap(loadState(),Core)
+                    local count=RunParty.partyCount(native)
+                    local oldSpecies=type(mon)=="table" and
+                        tonumber(mon.species or mon.speciesId)
+                    if cap<6 and count and count>=cap
+                        and count<6 and oldSpecies and okP
+                        and type(Pokemon.evolutions)=="function" then
+                        local rows=Pokemon.evolutions(oldSpecies)
+                        local first=type(rows)=="table" and rows[1]
+                        local second=type(rows)=="table" and rows[2]
+                        if first and second
+                            and tonumber(first.method or first[1])
+                                ==Evolution.EVO_LEVEL_NINJASK
+                            and tonumber(first.target or first[3])
+                                ==tonumber(target)
+                            and tonumber(second.method or second[1])
+                                ==Evolution.EVO_LEVEL_SHEDINJA then
+                            local okS,Storage=pcall(require,
+                                "src.core.game3.storage")
+                            if not okS or not Storage
+                                or not Storage.findOpenSlot
+                                or not Storage.sendMonToPC
+                                or not Storage.findOpenSlot(
+                                    Storage.ensure(native)) then
+                                notify("PARTY_LIMIT_SHEDINJA",
+                                    "Party Size Limit: PC is full; "
+                                    .."cannot safely create Shedinja.",false)
+                                return false
+                            end
+                            moveExtra=Storage
+                        end
+                    end
+                    local changed=previous(mon,target,native,bag,via,...)
+                    if changed and moveExtra and native
+                        and native.party and #native.party>count then
+                        local extra=native.party[#native.party]
+                        local ok=moveExtra.sendMonToPC(native,extra)
+                        if ok then
+                            table.remove(native.party)
+                            notify("PARTY_LIMIT_SHEDINJA",
+                                "Party Size Limit: Shedinja sent to PC.",false)
+                        end
+                    end
+                    return changed
                 end
                 Evolution.apply=guardedApply
                 Evolution.__nuzRunApply=guardedApply
