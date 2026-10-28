@@ -48,6 +48,22 @@ transaction. Untamed still owns overworld rendering and chaining,
 while Nuzlocke enforces the capture rule. Random Wild may remap species
 without changing whether the individual is shiny.
 
+With **both updated mods** installed, **CLAUSES → SHINY RATE** also
+affects Untamed's ordinary **visible wandering wild Pokémon**, regardless
+of whether Random Wild or Shiny Nuzlocke is enabled. The roll is made
+at overworld spawn, before the sprite appears, using a real shiny
+personality. The same personality is carried into battle and capture,
+without a second Nuzlocke shiny roll when the wandering Pokémon is
+touched. This means an overworld non-shiny does not suddenly become
+shiny in battle. An already spawned Pokémon keeps its original result
+even if the rate is changed while it remains on screen.
+
+Untamed's own encounter-chain shiny bonuses remain active, and can
+raise the final shiny chance above Nuzlocke's selected base rate.
+Scripted encounters, roamers, Feebas, outbreaks and followers are not
+changed by the new shiny spawn hook. Shiny-rate integration is inert
+when Untamed is absent or the other mod hasn't been updated.
+
 The playstyle does not restrict starters, gifts, Eggs, in-game trades
 or scripted non-ball acquisition. Restricting those to shiny Pokémon
 would be an additional challenge rule requiring a separate acquisition
@@ -88,6 +104,14 @@ refused once the Nuzlocke run is marked failed.
       overworld wandering encounters can be captured and non-shiny
       wandering encounters cannot. Their sprites/battles match, and
       encounter chaining shows the actual species.
+- [ ] **S09a:** Set Shiny Rate ALWAYS and spawn a normal wandering
+      Untamed Pokémon. It should already have shiny colours/sparkle
+      before battle, then remain shiny in battle and after capture.
+- [ ] **S09b:** Set Shiny Rate NATIVE, let a non-shiny wandering
+      Pokémon spawn, then switch the rate to ALWAYS before touching it.
+      That existing Pokémon must remain non-shiny in battle.
+- [ ] **S09c:** With a lower boosted rate, confirm normal wandering
+      Pokémon remain normal when battled, with no surprise reroll.
 - [ ] **S10:** Confirm save/reload preserves the toggle and its
       encounter history, and NUZ NOTICES shows denied-catch reasons.
 - [ ] **S11:** Test FRLG, Ruby, Sapphire and Emerald separately, including
