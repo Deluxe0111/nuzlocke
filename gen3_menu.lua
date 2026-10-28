@@ -8,6 +8,7 @@ return function(mod, api)
     local engineGame
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
+    local CatchRules = assert(api.catchRules, "Gen 3 menu needs CATCH RULES policy")
     local Playstyles = assert(api.playstyles, "Gen 3 menu needs PLAYSTYLES policy")
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
     local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
@@ -623,7 +624,59 @@ return function(mod, api)
         return rows
     end
 
+    local function catchRuleRows(category)
+        local rows = {}
+        local s = state()
+        for _, entry in ipairs(category.rules) do
+            local key, label = entry[1], entry[2]
+            local value = CatchRules.get(s, key)
+            if value == nil then
+                rows[#rows+1] = row(label, "soon", function()
+                    disabledFeature(label, key)
+                end)
+            else
+                local caption = value == true and "ON"
+                    or value == false and "OFF"
+                    or (value == 0 and "OFF" or tostring(value))
+                rows[#rows+1] = row(label .. ": " .. caption, nil, function()
+                    local saved = state()
+                    local currentValue = CatchRules.get(saved, key)
+                    local nextValue = key == "maximum_bst"
+                        and CatchRules.nextBst(currentValue) or not currentValue
+                    local ok, reason = CatchRules.set(saved, key, nextValue)
+                    if not ok then
+                        info("CATCH RULE UNAVAILABLE", {tostring(reason)})
+                        return
+                    end
+                    api.setState(saved)
+                    current().rows = catchRuleRows(category)
+                end)
+            end
+        end
+        rows[#rows+1] = row("  DETAILS: CATCH BANS", nil, function()
+            info("CATCH RULES HELP", {
+                "CORE NUZLOCKE: REQUIRED",
+                "BANNED MONS CANNOT CATCH",
+                "BANNED MONS DO NOT SPEND",
+                "THE AREA ENCOUNTER SLOT",
+                "LEGENDARY/MYTHICAL SPLIT",
+                "PSEUDOS: WHOLE EVO LINE",
+                "MAX BST: SIX BASE STATS",
+                "BST > LIMIT IS BANNED",
+                "BST OFF: NO STAT LIMIT",
+                "UNKNOWN BST: CATCH BLOCK",
+                "NO SHINY CLAUSE BYPASS",
+                "NATIVE CATCH FLOW KEPT",
+                "RANDOM WILDS APPLY",
+                "UNTAMED WILDS APPLY",
+                "UNPORTED ROWS: [SOON]",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
+        if category.title == "CATCH RULES" then return catchRuleRows(category) end
         if category.title == "CORE" then return coreRows() end
         if category.title == "CLAUSES" then return clausesRows() end
         if category.title == "PLAYSTYLES" then return playstyleRows() end
@@ -645,6 +698,7 @@ return function(mod, api)
     -- their original refresh callbacks.
     local function categoryActive(c)
         return c.title == "CORE" or c.title == "CLAUSES"
+            or c.title == "CATCH RULES"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
