@@ -1,3 +1,13 @@
+## 3.0.1-beta — Gen 3 beta release polish and clean player distribution
+
+- Refined the Generation 3-facing README, player description, release notes and credit attribution. The existing v3.0.0-BETA feature implementation and historical 2.9.x entries are retained below.
+- Replaced the oversized source-tree release archive with a verified **runtime-only, reproducible ZIP** that excludes development smokes, workflows and historical documentation while retaining all Gen 1/2 and Gen 3 runtime files.
+- Simplified Gen 3 CI by automatically discovering separate Lua smoke cases; retired obsolete Gen 1-only packaging assumptions without removing those source files.
+- Added 240×160 player-menu text wrapping, improved scrolling test coverage and more accurate resolved-area labels.
+- Made subsequent release publication deliberate, version-checked and backed by curated notes, with no unexpected auto-publication for normal merges.
+- No new gameplay rules are claimed in this packaging follow-up; see v3.0.0-BETA below for the original Gen 3 feature port and [feature matrix](docs/GEN3_FEATURE_MATRIX.md) for the full list.
+- **Beta limitation:** in-game edition/provider certification remains separate from automated Lua tests.
+
 ## 3.0.0-BETA — Generation 3 compatibility and features
 
 **First Generation 3 beta release:** FireRed, LeafGreen, Ruby, Sapphire and Emerald. Adds a separate native Game3 implementation and `gen3_classic_v1` state while preserving the Gen 1/2 runtime, save schema, Mod API 2 and pre-3.0 release history.
