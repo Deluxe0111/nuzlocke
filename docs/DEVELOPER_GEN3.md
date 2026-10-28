@@ -54,7 +54,7 @@ A productive VS Code workspace has the two folders side by side:
 | `gen3_core_rules.lua` | Our **CORE rule contract**. Eight stable rule IDs, defaults, support status, configuration validation and pure catch/whiteout decisions. |
 | `gen3_clauses.lua` | Gen 3 Dupes Clause, Shiny Clause allowances, Shiny Rate settings, Roamer Clause and the approved Egg/Forgiveness roadmap. |
 | `gen3_shiny_rate.lua` | One-time wild/static shiny generation; honours a verified external shiny provider. |
-| `gen3_archive.lua` | Complete Pokémon snapshots for new deaths, preparing for safe Route Forgiveness without reviving approximate legacy records. |
+| `gen3_archive.lua` | Complete Pokémon snapshots for new deaths and guarded Nuz Dev recovery. Ordinary Route Forgiveness Pokémon revival remains disabled. |
 | `docs/GEN3_CLAUSES.md` | Clause modes, compatibility limitations and fourteen manual test cases. |
 | `gen3_menu.lua` | Our **current Gen 3 UI**. Presents NUZ MENU, reads CORE rules from the registry and shows all remaining Gen 1/2 rules as planned features. |
 | `gen3_dev.lua` | Developer-only save-local area editor and recovery utilities. All mutations require deliberate opt-in and are recorded in the test-run audit trail. |
@@ -136,25 +136,17 @@ after battle writeback.
 
 ## Menu roadmap
 
-The new Gen 3 `NUZ MENU` mirrors the top-level Gen 1/2 structure:
+The Generation 3 `NUZ MENU` is a native 240×160 interface rather than the Gen 1/2 menu runtime. It includes:
 
-- **NUZ RULES [WIP]**: eight approved CORE rules. Nuzlocke, Permadeath,
-  One Per Area, Failed Encounters are working switches; Whiteout Ends Run
-  is [WIP]; Nickname, Rival Mercy and PC Survivors stay [Soon].
-  All other original rule-catalog rows remain discoverable, but [Soon].
-- **ENC TRACKER [WIP]**: real claimed-map list and capture indicator; canonical
-  combined locations and full tracker UI are pending.
-- **NUZ STATUS**: working current mode, claimed-area/death counts and state.
-- **GRAVEYARD [WIP]**: recorded deaths with minimal details, but not the mature
-  memorial viewer.
-- **ALMANAC [Soon]** and **MOD COMPAT [Soon]**: placeholder details only.
-- **DEV TOOLS [WIP]**: basic live counters, no full diagnostics.
-- **END RUN [Soon]**: deliberately inert; no destructive action.
+- **NUZ RULES** with working CORE/CLAUSES/LEVELS/PLAYSTYLES/RANDOMIZER/QOL categories, HARDCORE, GAME DIFFICULTY, RUN/PARTY and nine ADVANCED RULES categories.
+- **ENC TRACKER** uses the effective [Area Splits](GEN3_AREA_SPLITS.md) policy and displays readable names.
+- **RUN JOURNAL** consolidates former NUZ STATUS/ALMANAC/NUZ NOTICES into one live summary and saved event history.
+- **GRAVEYARD** displays archived individuals and readable causes/locations, with shareable results after run finalisation.
+- **MOD SUPPORT** is an active, read-only external provider diagnostic screen; it does not offer unsupported manual ownership switches.
+- **END RUN** opens an irreversible confirmation and a native saved terminal results screen.
+- **NUZ DEV** is hidden from production navigation; from the NUZ MENU, hold Select and tap A (default keyboard Tab+Enter). Read-only inspector, encounter edits and complete-archive restore are guarded and saved as dev-tainted test actions.
 
-In this convention, **unmarked = implemented**, **[WIP] = partially working**,
-**[Soon] = discoverable but not implemented**. The original full rule catalogue
-is still in `rule_catalog.lua`; the Gen 3 mirror lives in `gen3_menu.lua` so
-the old games cannot accidentally use an unimplemented Gen 3 rule.
+Rules that cannot operate in Gen 3 are not enabled just because their names exist in the older Gen 1/2 catalogue. The feature matrix in [GEN3_FEATURE_MATRIX.md](GEN3_FEATURE_MATRIX.md) records the current implementation and outstanding live-ROM certification.
 
 ## Testing and iteration
 
