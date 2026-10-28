@@ -10,6 +10,10 @@ return function()
           default = false, kind = "toggle" },
         { key = "ban_pseudos", label = "No Pseudos",
           default = false, kind = "toggle" },
+        { key = "no_static_encounters", label = "No Static Enc",
+          default = false, kind = "toggle" },
+        { key = "no_fishing", label = "No Fishing",
+          default = false, kind = "toggle" },
         { key = "maximum_bst", label = "Maximum BST",
           default = 0, kind = "cycle" },
     }
@@ -69,6 +73,25 @@ return function()
             if M.get(s, d.key) ~= d.default then return true end
         end
         return false
+    end
+
+    -- Scripted wild battles expose both flags on the native Gen 3 battle
+    -- state, unlike the public battle.started event's short payload.
+    -- Roamers are intentionally excluded even when a battle is marked
+    -- legendary: they are roaming, not fixed overworld/scripted encounters.
+    function M.checkBattle(s, battle, core)
+        if not core or not core.active(s)
+            or not M.get(s, "no_static_encounters") then return true end
+        if type(battle) == "table" and battle.roamer ~= true
+            and (battle.wildScripted == true or battle.legendary == true) then
+            return false,
+                "No Static Encounters: scripted wild Pokemon cannot be caught."
+        end
+        return true
+    end
+    function M.fishingBlocked(s, core)
+        return core and core.active(s)
+            and M.get(s, "no_fishing") == true or false
     end
 
     -- National Dex IDs, NOT internal Gen 3 species IDs! Hoenn internal IDs
