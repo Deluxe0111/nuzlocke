@@ -652,6 +652,36 @@ for i, name in ipairs(expectedAdvanced) do
         press("a")
         assert(catch.getRule("ban_legendaries")==false)
         press("up");press("up")
+        for _=1,12 do press("down") end -- PKMN BAN row
+        assert(mod.exports.gen3_menu.model().rows[13]=="PKMN BAN: 0 BANNED")
+        press("a") -- National Dex picker
+        assert(mod.exports.gen3_menu.model().title=="PKMN BAN")
+        press("down");press("down");press("down") -- #001
+        press("a")
+        assert(mod.exports.gen3_menu.model().rows[4]:find(": BAN",1,true))
+        assert(catch.getRule("pkmn_ban")==1)
+        press("b")
+        assert(mod.exports.gen3_menu.model().rows[13]
+            =="PKMN BAN: 1 BANNED","ban count persists in parent")
+        press("a") -- revisit picker and clear ban
+        press("down");press("down");press("down");press("a")
+        assert(catch.getRule("pkmn_ban")==0)
+        press("b")
+        press("down") -- Colorlocke
+        assert(mod.exports.gen3_menu.model().rows[14]=="Colorlocke: OFF")
+        press("a")
+        assert(mod.exports.gen3_menu.model().rows[14]=="Colorlocke: RANDOM")
+        press("a")
+        local cr=mod.exports.gen3_menu.model().rows
+        assert(cr[14]=="Colorlocke: CHOOSE"
+            and cr[15]=="Color: BLACK",
+            "Color picker only appears for CHOOSE mode")
+        press("down");press("a")
+        assert(mod.exports.gen3_menu.model().rows[15]=="Color: BLUE")
+        press("up");press("a") -- hide Color row by switching mode OFF
+        assert(mod.exports.gen3_menu.model().rows[14]=="Colorlocke: OFF"
+            and mod.exports.gen3_menu.model().rows[15]=="Alphabetlocke: OFF")
+        for _=1,13 do press("up") end -- return to [Soon] Overworld
     end
     -- All STATUS BANS entries now work; other advanced sections still
     -- contain genuine placeholders that explain unimplemented rules.
