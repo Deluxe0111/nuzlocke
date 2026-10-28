@@ -1,5 +1,7 @@
 ## 3.0.0-BETA — Generation 3 and Untamed compatibility
 
+- Implements **Catch Draft** in Gen 3 VARIANTS: successful wild captures progressively draft distinct type lanes (preferring an undrafted secondary type), while unfilled drafts allow wild catches without type restrictions. Gifts/NPC trades must already match drafted types and never add lanes, with mandatory first starters exempt. Completing the draft restores normal Type Locke enforcement. Adds saved progress, read-only active lane labels, progress notices, and catch/gift/trade/dupe/reload regression tests.
+
 - Implements **ADVANCED RULES → VARIANTS → Type Locke**, from MONO through HEXA with six conditional type selectors and deterministic, saved RANDOM types. Denies off-type wild catches before spending an encounter slot or processing a Ball, checks supported gifts/NPC trades before mutation, composes with shiny/catch bans, and preserves mandatory starters. Catch Draft and Wonderlocke remain [Soon]; added policy, runtime and navigation smoke tests.
 - Removes the redundant Gen 3 Overworld Encounters row: Untamed-Advanced's wandering Pokémon use native wild encounter and area rules without an additional catch toggle.
 
