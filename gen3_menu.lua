@@ -13,6 +13,7 @@ return function(mod, api)
     local BattleItemRules = assert(api.battleItemRules, "Gen 3 menu needs BATTLE ITEMS policy")
     local FieldRules = assert(api.fieldItemRules, "Gen 3 menu needs FIELD ITEMS policy")
     local Services = assert(api.serviceRules, "Gen 3 menu needs SERVICES policy")
+    local Stats = assert(api.statRules, "Gen 3 menu needs POKEMON STATS policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -1112,8 +1113,72 @@ return function(mod, api)
         return rows
     end
 
+    local function pokemonStatRows(category)
+        local rows={}
+        for _,definition in ipairs(category.rules) do
+            local key,label=definition[1],definition[2]
+            local saved=state()
+            local value=Stats.get(saved,key)
+            if value==nil then
+                rows[#rows+1]=row(label,"soon",function()
+                    disabledFeature(label,key)
+                end)
+            else
+                -- Keep the existing catalogue keys, display Gen 3 EV names.
+                local title=label
+                if key=="player_start_stat_exp" then
+                    title="Player Starting EVs"
+                elseif key=="wild_start_stat_exp" then
+                    title="Wild Starting EVs"
+                elseif key=="trainer_start_stat_exp" then
+                    title="Trainer Starting EVs"
+                elseif key=="no_player_stat_exp_gain" then
+                    title="No EV Gain"
+                end
+                rows[#rows+1]=row(title..": "..Stats.label(saved,key),
+                    nil,function()
+                    local currentState=state()
+                    local desired=Stats.next(currentState,key)
+                    local ok,why=Stats.set(currentState,key,desired)
+                    if not ok then
+                        info("POKEMON STATS",{tostring(why)})
+                        return
+                    end
+                    api.setState(currentState)
+                    current().rows=pokemonStatRows(category)
+                end)
+            end
+        end
+        rows[#rows+1]=row("  DETAILS: POKEMON STATS",nil,function()
+            info("POKEMON STATS HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "GEN 3: EV NOT STAT EXP",
+                "START EVS: 0 / 16 / 32",
+                "48 / 64 / 85 EACH STAT",
+                "EV CAP: 510 TOTAL",
+                "85 EACH = FULL 510",
+                "PLAYER: NEW ACQUISITIONS",
+                "WILD: NEW ENCOUNTERS",
+                "TRAINER: NEW FOES",
+                "DEFAULT 0: NATIVE EVS",
+                "NO EV GAIN: NO NEW",
+                "BATTLE / VITAMIN EVS",
+                "EXISTING EVS ARE KEPT",
+                "PERFECT IVS: 31 EACH",
+                "HP/ATK/DEF/SPE/SPA/SPD",
+                "PERFECT PLAYER: NEW",
+                "PERFECT WILD / TRAINER",
+                "LINK BATTLES EXCLUDED",
+                "EXISTING MONS UNCHANGED",
+                "NUZ OFF: NATIVE STATS",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
         if category.title == "SERVICES & ECONOMY" then return serviceRows(category) end
+        if category.title == "POKEMON STATS" then return pokemonStatRows(category) end
         if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
@@ -1150,6 +1215,7 @@ return function(mod, api)
             or c.title == "BATTLE ITEMS"
             or c.title == "FIELD ITEMS"
             or c.title == "SERVICES & ECONOMY"
+            or c.title == "POKEMON STATS"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
