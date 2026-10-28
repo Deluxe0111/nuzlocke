@@ -756,6 +756,29 @@ return function(mod)
                 end
             end
         end
+        -- RSE/RS specials and opcodes may start the Game Corner UI
+        -- through this module instead of the generic script.command seam.
+        local okG,GameCorner=pcall(require,
+            "src.core.game3.scripting.natives_game_corner_rse")
+        if okG and type(GameCorner)=="table" then
+            for _,name in ipairs({"playSlotMachine","playRoulette"}) do
+                local marker="__nuzServiceGambling_"..name
+                if type(GameCorner[name])=="function"
+                    and GameCorner[marker]~=GameCorner[name] then
+                    local original=GameCorner[name]
+                    local function guarded(...)
+                        local why=Services.gamblingDenial(loadState(),Core)
+                        if why then
+                            notify("SERVICE_GAMBLING_DENIED",why,false)
+                            return false
+                        end
+                        return original(...)
+                    end
+                    GameCorner[name]=guarded
+                    GameCorner[marker]=guarded
+                end
+            end
+        end
         local okS,Shop=pcall(require,"src.ui.game3.shop_menu")
         if okS and type(Shop)=="table"
             and type(Shop.handleInput)=="function"
