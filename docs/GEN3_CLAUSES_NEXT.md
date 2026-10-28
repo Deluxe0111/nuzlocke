@@ -1,3 +1,5 @@
+> **Historical design notes (27 October 2026).** This document records the early Gen 3 CLAUSES planning contract, not current feature availability. Egg Encounter, Roamer, Shiny Rate and Route Forgiveness token/area redemption are implemented; only ordinary Pokémon revival remains disabled. For current behaviour use [Clauses](GEN3_CLAUSES.md), [Eggs/Forgiveness](GEN3_EGGS_FORGIVENESS.md) and the [feature matrix](GEN3_FEATURE_MATRIX.md). Historical original statements below are preserved as design history, not instructions.
+
 # Gen 3 CLAUSES — agreed implementation contract
 
 Status: **approved 27 October 2026**. Shiny Rate and Roamer Clause now have
