@@ -22,6 +22,7 @@ on:
       - 'tests/gen3_eggs_smoke.lua'
       - 'tests/gen3_forgiveness_smoke.lua'
       - 'tests/gen3_shiny_rate_smoke.lua'
+      - 'tests/gen3_owe_shiny_smoke.lua'
       - 'tests/gen3_archive_smoke.lua'
       - 'tests/gen3_clauses_smoke.lua'
       - 'manifest.json'
@@ -57,6 +58,8 @@ jobs:
         run: lua5.1 tests/gen3_clauses_smoke.lua
       - name: Run stable shiny-rate policy smoke
         run: lua5.1 tests/gen3_shiny_rate_smoke.lua
+      - name: Run Untamed overworld shiny spawn-to-battle compatibility smoke
+        run: lua5.1 tests/gen3_owe_shiny_smoke.lua
       - name: Run full-Pokemon archive smoke
         run: lua5.1 tests/gen3_archive_smoke.lua
       - name: Run Egg Encounter provenance smoke
