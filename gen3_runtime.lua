@@ -18,6 +18,7 @@ return function(mod)
     local Core = readModule("gen3_core_rules.lua")()
     local Clauses = readModule("gen3_clauses.lua")()
     local CatchRules = readModule("gen3_catch_rules.lua")()
+    local BattleItemRules = readModule("gen3_battle_items.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -1107,19 +1108,20 @@ return function(mod)
         local originalCanUse, originalUse = BattleItems.canUseOn, BattleItems.use
         local originalIsBattleUsable = BattleItems.isBattleUsable
 
-        local function hardcoreDisallows(st, itemId)
-            st = st or currentBattleState
-            if not Playstyles.hardcoreActive(loadState(), Core)
-                or (st and (st.link or st.recordedLink
-                    or st.oldManTutorial or st.pokedude
-                    or st.firstBattle)) then return false end
-            local okBall, ball = pcall(BattleItems.isBall, itemId)
-            return not (okBall and ball == true)
+        local function itemDenial(st,itemId)
+            st=st or currentBattleState
+            local current=activeBattle
+            return BattleItemRules.itemDenial(loadState(),Core,Playstyles,
+                itemId,BattleItems,ItemsData,ItemUse,{
+                    battle=st,
+                    wild=current~=nil and current.battle==st,
+                    throws=current and current.ballThrows or 0,
+                })
         end
         -- Suppress non-Ball choices in the battle bag where supported.
         if type(originalIsBattleUsable) == "function" then
             BattleItems.isBattleUsable = function(itemId, ...)
-                if battleInProgress and hardcoreDisallows(nil, itemId)
+                if battleInProgress and itemDenial(nil,itemId)
                     then return false end
                 return originalIsBattleUsable(itemId, ...)
             end
@@ -1134,9 +1136,8 @@ return function(mod)
         end
 
         BattleItems.canUseOn = function(st, itemId, partySlot, mon, moveSlot)
-            if hardcoreDisallows(st, itemId) then
-                return false, "Hardcore: No battle items except Poke Balls."
-            end
+            local denial=itemDenial(st,itemId)
+            if denial then return false,denial end
             if Core.enforced(loadState(), "permadeath")
                 and isRevive(itemId, st and st.session) then
                 return false, "Nuzlocke: No revives."
@@ -1145,12 +1146,12 @@ return function(mod)
         end
 
         BattleItems.use = function(st, adapter, bag, nativeSession, itemId, ...)
-            if hardcoreDisallows(st, itemId) then
-                local message = "Hardcore: No battle items except Poke Balls."
-                if adapter and type(adapter.say) == "function" then
+            local message=itemDenial(st,itemId)
+            if message then
+                if adapter and type(adapter.say)=="function" then
                     adapter:say(message)
                 end
-                return "error", { message }, false, false
+                return "error",{message},false,false
             end
             if Core.enforced(loadState(), "permadeath")
                 and isRevive(itemId, nativeSession) then
@@ -1507,6 +1508,7 @@ return function(mod)
         end
         activeBattle = {
             battle = ev.battle, area = key, eligible = eligible,
+            ballThrows = 0,
             areaEligible = areaEligible, duplicate = dupe,
             shiny = shiny, shinyOnly = shinyOnly,
             exception = false,
@@ -1569,6 +1571,12 @@ return function(mod)
             return next(ball, mon, species, ctx)
         end
         local s = loadState()
+        local itemReason=BattleItemRules.catchDenial(s,Core,
+            battle.ballThrows)
+        if itemReason then
+            battle.pendingCatchReason=itemReason
+            return false,0
+        end
         -- Check at BOTH battle start (encounter-slot policy) and the Ball
         -- transaction (final legality), before Shiny Clause exceptions.
         local sourceAllowed, sourceReason = CatchRules.checkBattle(
@@ -1657,6 +1665,10 @@ return function(mod)
             end
             return false, 0
         end
+        -- Count only approved Ball transactions. Denied attempts (bans,
+        -- duplicate/area rules, and exhausted budgets) never spend a throw.
+        local counted=BattleItemRules.countThrow(s,Core,battle.ballThrows)
+        if counted then battle.ballThrows=counted end
         local caught, shakes = next(ball, mon, species, ctx)
         -- A failed Ball never consumes a Shiny Clause allowance.
         if caught and exception then battle.exception = true end
@@ -1812,6 +1824,7 @@ return function(mod)
         },
 
         variants = Variants,
+        battleItemRules = BattleItemRules,
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -1959,6 +1972,20 @@ return function(mod)
             local ok,reason=BattleClauses.set(s,key,value)
             if ok then writeState(s) end
             return ok,reason
+        end,
+    }
+    mod.exports.gen3_battle_items = {
+        api=BattleItemRules.api,schema=BattleItemRules.schema,
+        definitions=BattleItemRules.descriptors,
+        getRule=function(key) return BattleItemRules.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=BattleItemRules.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+        throws=function()
+            return activeBattle and activeBattle.ballThrows or 0
         end,
     }
     mod.exports.gen3_variants = {
