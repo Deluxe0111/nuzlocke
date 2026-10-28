@@ -42,8 +42,15 @@ optional gifts and NPC trades. **Catch Draft** is also implemented:
 successful wild catches establish unique type lanes, drafts persist,
 and optional gifts/trades must match already drafted types without
 filling new lanes. Wonderlocke remains [Soon].
-The remaining five advanced categories remain [Soon].
-See [Status Bans](GEN3_STATUS_BANS.md) and [Variants](GEN3_VARIANTS.md).
+**BATTLE ITEMS** now has four working controls: No Healing Items,
+No X Items, No Catching, and Ball Per Encounter (OFF/1/2/3/5/10).
+Denials occur before native bag consumption; only eligible Ball
+transactions count towards each wild battle's budget.
+No Catching prevents wild battles from claiming an encounter slot.
+The remaining four advanced categories remain [Soon].
+See [Status Bans](GEN3_STATUS_BANS.md),
+[Variants](GEN3_VARIANTS.md) and
+[Battle Items](GEN3_BATTLE_ITEMS.md).
 The unimplemented WORLD and UI planning categories have been removed
 from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
 
