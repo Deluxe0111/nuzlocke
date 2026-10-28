@@ -20,6 +20,7 @@ return function(mod)
     local CatchRules = readModule("gen3_catch_rules.lua")()
     local BattleItemRules = readModule("gen3_battle_items.lua")()
     local FieldRules = readModule("gen3_field_items.lua")()
+    local Services = readModule("gen3_services_economy.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -401,6 +402,43 @@ return function(mod)
         if not Core.active(loadState()) or type(row)~="table" then
             return next(ctx,op,row)
         end
+        -- Check native specials before the VM mutates the party or shop.
+        -- Unrelated scripted heals and story progression remain native.
+        local specialName=nil
+        if op=="special" or op=="specialvar" then
+            local ok,Natives=pcall(require,"src.core.game3.scripting.natives")
+            if ok and type(Natives)=="table"
+                and type(Natives.specialName)=="function" then
+                local id=op=="specialvar" and row[2]
+                    or (row.id or row[1])
+                local resolved,name=pcall(Natives.specialName,id)
+                if resolved then specialName=name end
+            end
+        end
+        if specialName=="HealPlayerParty"
+            or specialName=="ScrSpecial_HealPlayerParty" then
+            local why=Services.healDenial(loadState(),Core,areaNow())
+            if why then
+                notify("SERVICE_HEAL_DENIED",why,false)
+                return false
+            end
+        end
+        if specialName=="StoreSelectedPokemonInDaycare"
+            or specialName=="PutMonInRoute5Daycare" then
+            local why=Services.daycareDenial(loadState(),Core)
+            if why then
+                notify("SERVICE_DAYCARE_DENIED",why,false)
+                return false
+            end
+        end
+        if op=="playslotmachine" or specialName=="PlayRoulette"
+            or specialName=="PlaySlotMachine" then
+            local why=Services.gamblingDenial(loadState(),Core)
+            if why then
+                notify("SERVICE_GAMBLING_DENIED",why,false)
+                return false
+            end
+        end
         if op=="givemon" then
             local species=scriptGiftSpecies(ctx,row)
             local location=areaNow()
@@ -692,6 +730,83 @@ return function(mod)
             end
             guardMove("FLY","flyFromMenu")
             guardMove("TELEPORT","teleportFromMenu")
+        end
+        return true
+    end
+
+    -- Reinstallable native guards. Rules never rewrite game data.
+    local function installServiceGuards()
+        local okD,Daycare=pcall(require,"src.core.game3.daycare")
+        if okD and type(Daycare)=="table" then
+            for _,name in ipairs({"deposit","depositRoute5"}) do
+                local marker="__nuzService_"..name
+                if type(Daycare[name])=="function"
+                    and Daycare[marker]~=Daycare[name] then
+                    local original=Daycare[name]
+                    local function guarded(...)
+                        local why=Services.daycareDenial(loadState(),Core)
+                        if why then
+                            notify("SERVICE_DAYCARE_DENIED",why,false)
+                            return nil
+                        end
+                        return original(...)
+                    end
+                    Daycare[name]=guarded
+                    Daycare[marker]=guarded
+                end
+            end
+        end
+        local okS,Shop=pcall(require,"src.ui.game3.shop_menu")
+        if okS and type(Shop)=="table"
+            and type(Shop.handleInput)=="function"
+            and Shop.__nuzServiceInput~=Shop.handleInput then
+            local original=Shop.handleInput
+            local function guarded(input)
+                if Shop.open and not Shop._fading and input
+                    and type(input.wasPressed)=="function"
+                    and input:wasPressed("a") then
+                    local action
+                    if Shop._rse then
+                        if Shop.state=="root" then
+                            if Shop.cursor==1 then action="buy"
+                            elseif Shop.cursor==2 and
+                                (Shop._martType==nil
+                                    or Shop._martType=="NORMAL") then
+                                action="sell"
+                            end
+                        elseif Shop.state=="confirm"
+                            and Shop.yesCursor==1 then action="buy" end
+                    elseif Shop.mode=="root" then
+                        local choice=Shop.ROOT and Shop.ROOT[Shop.cursor]
+                        action=choice and choice.id or nil
+                    elseif Shop.mode=="buy_confirm"
+                        and Shop.yesNoCursor==1 then action="buy" end
+                    local why=Services.shopDenial(loadState(),Core,action)
+                    if why then
+                        notify("SERVICE_SHOP_DENIED",why,false)
+                        return
+                    end
+                end
+                return original(input)
+            end
+            Shop.handleInput=guarded
+            Shop.__nuzServiceInput=guarded
+        end
+        local okP,Prize=pcall(require,"src.core.game3.battle.prize")
+        if okP and type(Prize)=="table" then
+            for _,name in ipairs({"calc","rewardRse"}) do
+                local marker="__nuzServicePrize_"..name
+                if type(Prize[name])=="function"
+                    and Prize[marker]~=Prize[name] then
+                    local original=Prize[name]
+                    local function guarded(...)
+                        return Services.trainerPrize(loadState(),Core,
+                            original(...))
+                    end
+                    Prize[name]=guarded
+                    Prize[marker]=guarded
+                end
+            end
         end
         return true
     end
@@ -1406,6 +1521,7 @@ return function(mod)
         nicknameTasks()
         installCandyGuard()
         installFieldItemGuards()
+        installServiceGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1465,6 +1581,7 @@ return function(mod)
         mercyBattle = nil
         installCandyGuard()
         installFieldItemGuards()
+        installServiceGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1482,6 +1599,7 @@ return function(mod)
         mercyBattle = nil
         installCandyGuard()
         installFieldItemGuards()
+        installServiceGuards()
         installNicknameGuard()
         installFishingGuard()
         installBattleClauseGuards()
@@ -1503,6 +1621,7 @@ return function(mod)
         installNicknameGuard()
         installCandyGuard()
         installFieldItemGuards()
+        installServiceGuards()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
@@ -1944,6 +2063,7 @@ return function(mod)
         variants = Variants,
         battleItemRules = BattleItemRules,
         fieldItemRules = FieldRules,
+        serviceRules = Services,
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -2090,6 +2210,17 @@ return function(mod)
             local s=loadState()
             local ok,reason=BattleClauses.set(s,key,value)
             if ok then writeState(s) end
+            return ok,reason
+        end,
+    }
+    mod.exports.gen3_services_economy = {
+        api=Services.api,schema=Services.schema,
+        definitions=Services.descriptors,
+        getRule=function(key) return Services.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=Services.set(saved,key,value)
+            if ok then writeState(saved) end
             return ok,reason
         end,
     }
