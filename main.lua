@@ -17612,8 +17612,9 @@ return function(mod)
       end
 
       local save = game and game.save
+      -- Only carried Balls count. Balls sitting in PC storage cannot be
+      -- thrown yet, so pre-catch areas must remain free until withdrawn.
       if save and (mod.exports.__beta26.tableContainsOwnedBall(game, save.inventory)
-          or mod.exports.__beta26.tableContainsOwnedBall(game, save.pcItems)
           or mod.exports.__beta26.tableContainsOwnedBall(game, save.bag)
           or mod.exports.__beta26.tableContainsOwnedBall(game, save.pockets)) then
           mod.exports.__beta26.clearPreArmEncounterState()
