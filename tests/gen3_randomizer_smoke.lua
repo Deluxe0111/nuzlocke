@@ -21,6 +21,7 @@ local P = {
         if id==1 then return {{method=4,param=16,target=2}} end
         if id==2 then return {{method=4,param=32,target=3}} end
         if id==4 then return {{method=4,param=16,target=5}} end
+        if id==6 then return {{method=4,param=16,target=7}} end
         return {}
     end,
     learnset=function(id)
@@ -340,12 +341,12 @@ local starterStyle={randomizer={random_starter=true,
     random_starter_style=1,randomizer_seed=232323}}
 local styleTrio=R.starters(starterStyle,P,"frlg",{1,4,7})
 assert(styleTrio and #styleTrio==3
-    and (styleTrio[1]==1 or styleTrio[1]==4)
-    and (styleTrio[2]==1 or styleTrio[2]==4)
-    and styleTrio[1]~=styleTrio[2] == false or true)
+    and styleTrio[1]~=styleTrio[2]
+    and styleTrio[1]~=styleTrio[3]
+    and styleTrio[2]~=styleTrio[3])
 -- A single-stage, non-base creature never qualifies for BASE FORMS.
 for _,sp in ipairs(styleTrio or {}) do
-    assert(sp==1 or sp==4,
+    assert(sp==1 or sp==4 or sp==6,
         "base-form starter filter must use native evolution graph")
 end
 local evolState={randomizer={random_evolutions=true,
