@@ -45,6 +45,8 @@ Untamed is an **optional** companion. The Nuzlocke **MOD SUPPORT** screen report
 
 ## Documentation
 
+[Browse the complete documentation index](docs/README.md) for current Gen 3 guides and preserved Gen 1/2 references.
+
 | What you need | Reference |
 | --- | --- |
 | Full Gen 3 feature classification | [Ported, adapted and new features](docs/GEN3_FEATURE_MATRIX.md) |
