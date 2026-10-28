@@ -101,10 +101,12 @@ return function()
             return false,"PNG EXPORT UNAVAILABLE"
         end
         local g=love.graphics
+        local pushed=false
         local ok,filename=pcall(function()
             local list=entries(mode)
             local canvas=g.newCanvas(960,540)
             g.push("all")
+            pushed=true
             g.setCanvas(canvas)
             g.clear(.035,.06,.12,1)
             local gold={.97,.78,.38}
@@ -169,6 +171,7 @@ return function()
             g.print(text(result.date),750,515)
             g.setCanvas()
             g.pop()
+            pushed=false
             local name=tostring(result.trainer):gsub("[^%w%-_]","_")
             local suffix=os.date and os.date("!%Y%m%d_%H%M%S") or "run"
             local rel="nuzlocke_results/"..name.."_"..result.outcome
@@ -179,8 +182,10 @@ return function()
             return love.filesystem.getSaveDirectory().."/"..rel
         end)
         if ok then return true,filename end
-        -- If the love draw operation failed mid-card, ensure the graphics
-        -- target is back on the main canvas for the game.
+        -- Restore the graphics stack even if an external sprite renderer
+        -- throws during a PNG render. Never strand the native game on an
+        -- offscreen Canvas after a failed export.
+        if pushed then pcall(g.pop) end
         pcall(g.setCanvas)
         return false,tostring(filename)
     end

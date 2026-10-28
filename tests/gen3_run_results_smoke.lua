@@ -109,6 +109,7 @@ assert(View.model().title=="NUZ RUN RESULTS")
 -- per-page 960x540 image, not a screenshot of the native 240x160 window.
 local savedPng=nil
 local colorArgs={}
+local drawnSprites=0
 local gfx={
     newCanvas=function(w,h)
         assert(w==960 and h==540)
@@ -128,7 +129,7 @@ local gfx={
     setFont=function()end,
     rectangle=function()end,
     print=function()end,
-    draw=function()end,
+    draw=function()drawnSprites=drawnSprites+1 end,
 }
 local loveBefore=love
 love={graphics=gfx,filesystem={
@@ -136,7 +137,9 @@ love={graphics=gfx,filesystem={
     getSaveDirectory=function()return "/SAVEDATA" end,
 }}
 package.loaded["src.core.game3.pokemon"]={
-    monFrontPic=function()return nil end,
+    monFrontPic=function()
+        return {image={},w=64,h=64}
+    end,
     moveName=function(id)return "MOVE "..id end,
 }
 assert(selectPrefix("SHARE MEMORIAL PNG"))
@@ -144,7 +147,7 @@ assert(View.model().title=="SHARE MEMORIAL")
 assert(selectPrefix("SAVE PAGE AS PNG"))
 assert(View.model().title=="SHARE RESULT")
 assert(savedPng and savedPng:find("nuzlocke_results/",1,true)
-    and savedPng:find(".png",1,true),
+    and savedPng:find(".png",1,true) and drawnSprites>=1,
     "export must produce a shareable PNG in LÖVE save directory")
 press("b");press("b")
 assert(selectPrefix("QUIT TO TITLE"))
