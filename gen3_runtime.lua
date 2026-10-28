@@ -28,6 +28,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local Hardcore = readModule("gen3_hardcore_rules.lua")()
     local Qol = readModule("gen3_qol.lua")()
     local QolSetup = readModule("gen3_qol_setup.lua")()
+    local RunSetup = readModule("gen3_run_setup.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -49,14 +50,15 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local currentBattleState
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
     local mercyBattle
+    local setupDraft, pendingNewGameState
     local expReports = setmetatable({}, { __mode = "k" })
     local function loadState()
-        local s = Core.normalise(mod.save:get(KEY, {}))
+        local s = Core.normalise(setupDraft or mod.save:get(KEY, {}))
         return Clauses.normalise(s)
     end
 
     local function writeState(s)
-        mod.save:set(KEY, s)
+        if setupDraft then setupDraft=s else mod.save:set(KEY,s) end
     end
 
     local function areaKey(value)
@@ -72,6 +74,46 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local function session()
         local g = game()
         return g and g.session
+    end
+
+    -- The first physically carried native Ball unlocks area accounting.
+    -- A PC item alone never arms a route. Successful legacy catches also
+    -- establish a past unlock; the flag remains true after Ball depletion.
+    local function captureAvailable(saved)
+        if saved.captureUnlocked == true then return true end
+        local native = session()
+        local pocket = native and native.bag and native.bag.pockets
+            and native.bag.pockets.POKE_BALLS
+        if type(pocket) == "table" then
+            for _, entry in pairs(pocket) do
+                if type(entry) == "table"
+                    and (tonumber(entry.qty) or 0) > 0 then
+                    saved.captureUnlocked = true
+                    writeState(saved)
+                    return true
+                end
+            end
+        end
+        for _, entry in pairs(saved.areas or {}) do
+            if type(entry) == "table" and entry.caught == true then
+                saved.captureUnlocked = true
+                writeState(saved)
+                return true
+            end
+        end
+        return false
+    end
+
+    local function deliverPendingStartingBalls()
+        local native = session()
+        if not (native and native.modData
+            and (tonumber(native.modData.nuzQolDeferredBalls) or 0) > 0) then
+            return
+        end
+        local saved = loadState()
+        if not captureAvailable(saved) then return end
+        local ok, Storage = pcall(require, "src.core.game3.storage")
+        if ok then QolSetup.deliverBalls(saved, native, Storage) end
     end
 
     local function areaNow()
@@ -2156,7 +2198,11 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
+        deliverPendingStartingBalls()
     end)
+
+    -- Only a new-game pending grant causes any per-step work.
+    mod.events:on("world.stepped", deliverPendingStartingBalls)
 
     mod.events:on("breeding.egg_created", function(ev)
         local s = loadState()
@@ -2200,6 +2246,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end)
 
     mod.events:on("save.loaded", function()
+        setupDraft, pendingNewGameState = nil, nil
         dungeonEntry=nil
         Randomizer.clearCache()
         resetOWEShinies()
@@ -2223,6 +2270,10 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installAcquisitionGuards()
     end)
     mod.events:on("save.created", function()
+        if pendingNewGameState then
+            mod.save:set(KEY, RunSetup.commit(pendingNewGameState))
+        end
+        setupDraft, pendingNewGameState = nil, nil
         dungeonEntry=nil
         Randomizer.clearCache()
         resetOWEShinies()
@@ -2308,6 +2359,12 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end)
         if not isActive() or type(ev) ~= "table" or ev.kind ~= "wild" then return end
         local s = loadState()
+        if not captureAvailable(s) then
+            -- Emerald's forced first wild battle and other pre-Ball fights
+            -- must never count as failed/used encounters.
+            return
+        end
+        deliverPendingStartingBalls()
         local shinyOnly = Playstyles.active(s, Core)
         local rawArea=areaNow()
         local key=encounterAreaNow(s)
@@ -2777,6 +2834,26 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         },
     })
 
+    -- Intercept native FRLG + Ruby/Sapphire/Emerald NEW GAME before intro.
+    -- A cancelled setup does not write to the previously loaded save.
+    readModule("gen3_title_setup.lua")(mod, {
+        menu = Gen3Menu,
+        beginSetup = function(done)
+            setupDraft = RunSetup.newDraft(mod.save:get(KEY, {}))
+            pendingNewGameState = nil
+            local opened = Gen3Menu.openSetup(game(), function(accepted)
+                if accepted then
+                    pendingNewGameState = RunSetup.commit(setupDraft)
+                else
+                    setupDraft = nil
+                end
+                if type(done) == "function" then done(accepted) end
+            end)
+            if not opened then setupDraft = nil end
+            return opened
+        end,
+    })
+
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)
         local rows = next(g, items)
         if type(rows) ~= "table" or not (g and g.session) then return rows end
@@ -2798,6 +2875,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end)
 
     mod.exports.gen3_menu = Gen3Menu
+    mod.exports.gen3_run_setup = { api = RunSetup.api,
+        locked = function() return loadState().runSettingsLocked == true end,
+    }
     mod.exports.gen3_randomizer = {
         api = Randomizer.api, algorithm = Randomizer.algorithm,
         get = function(key) return Randomizer.get(loadState(), key) end,
