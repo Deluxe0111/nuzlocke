@@ -63,6 +63,38 @@ return function(mod)
         return areaKey(currentArea) or areaKey(s and s.map)
     end
 
+    -- Untamed builds OWE personalities before there is a wild battle. Keep
+    -- a small bounded cache of those exact individuals so the ordinary
+    -- battle-start shiny-rate handler never rerolls a visible non-shiny.
+    local oweShinySeen, oweShinyOrder = {}, {}
+    local function oweShinyIdentity(species, level, personality)
+        if type(personality) ~= "number"
+            or type(species) ~= "number" or type(level) ~= "number"
+            or personality < 0 or personality ~= math.floor(personality) then
+            return nil
+        end
+        return tostring(species) .. ":" .. tostring(level)
+            .. ":" .. tostring(personality)
+    end
+    local function noteOWEShiny(species, level, personality)
+        local key = oweShinyIdentity(species, level, personality)
+        if not key or oweShinySeen[key] then return end
+        oweShinySeen[key] = true
+        oweShinyOrder[#oweShinyOrder + 1] = key
+        if #oweShinyOrder > 256 then
+            oweShinySeen[table.remove(oweShinyOrder, 1)] = nil
+        end
+    end
+    local function resetOWEShinies()
+        oweShinySeen, oweShinyOrder = {}, {}
+    end
+    local function shinyRandomUnit()
+        if love and love.math and love.math.random then
+            return love.math.random()
+        end
+        return math.random()
+    end
+
     -- Gen 3 RANDOMIZER deliberately runs even if Nuzlocke rules are OFF.
     local function randomSpecies(source, key, original)
         local saved = loadState()
@@ -134,6 +166,43 @@ return function(mod)
         for k, v in pairs(base) do copy[k] = v end
         copy.species = id -- Untamed expects an internal numeric species ID.
         return copy
+    end)
+
+    -- The same CLAUSES -> SHINY RATE applies to generated Untamed OWEs,
+    -- irrespective of Random Wild and whether Nuzlocke playstyle is ON.
+    -- Untamed owns final native personality conversion and visual checks.
+    mod.hooks:wrap("untamed.owe.shiny", function(next, source, ctx)
+        local base = next(source, ctx)
+        if type(base) ~= "table" or type(ctx) ~= "table"
+            or ctx.source ~= "untamed_advanced" or ctx.mapId == nil
+            or (ctx.terrain ~= "land" and ctx.terrain ~= "water")
+            or type(base.species) ~= "number"
+            or type(base.level) ~= "number"
+            or type(base.personality) ~= "number"
+            or type(base.shiny) ~= "boolean" then return base end
+
+        local final = base
+        local mode = Clauses.get(loadState(), "shiny_rate_mode")
+        local extra = ShinyRate.extraProbability(mode)
+        if not base.shiny and extra > 0
+            and not ShinyRate.externalProvider(mod)
+            and type(ctx.makeShiny) == "function"
+            and (extra >= 1 or shinyRandomUnit() < extra) then
+            local ok, pid = pcall(ctx.makeShiny, base.personality)
+            if ok and type(pid) == "number" and pid ~= base.personality
+                and pid == math.floor(pid) and pid >= 0
+                and pid < 4294967296
+                and pid % 65536 == base.personality % 65536 then
+                final = {}
+                for k, v in pairs(base) do final[k] = v end
+                final.personality, final.shiny = pid, true
+            end
+        end
+        -- Record even native/unchanged results. If rate settings are
+        -- changed while a sprite is already standing on the map, that
+        -- individual still keeps the shiny status it was spawned with.
+        noteOWEShiny(final.species, final.level, final.personality)
+        return final
     end)
 
     -- Fishing has an independent engine hook, NOT encounter.species.
@@ -627,6 +696,7 @@ return function(mod)
 
     mod.events:on("save.loaded", function()
         Randomizer.clearCache()
+        resetOWEShinies()
         currentArea = nil
         activeBattle = nil
         pendingRoamer = nil
@@ -638,6 +708,7 @@ return function(mod)
     end)
     mod.events:on("save.created", function()
         Randomizer.clearCache()
+        resetOWEShinies()
         currentArea = nil
         activeBattle = nil
         pendingRoamer = nil
@@ -675,12 +746,21 @@ return function(mod)
         -- Game Difficulty), so it works even with Nuzlocke enforcement OFF.
         -- Apply once, BEFORE Shiny Clause checks encounter eligibility.
         local shinyMode = Clauses.get(loadState(), "shiny_rate_mode")
-        ShinyRate.apply(mod, ev, shinyMode, function()
-            if love and love.math and love.math.random then
-                return love.math.random()
+        if type(ev) == "table" and ev.kind == "wild" then
+            local mon = ev.battle and ev.battle.enemy
+                and ev.battle.enemy.mon
+            if type(mon) == "table" then
+                local key = oweShinyIdentity(
+                    tonumber(mon.species or mon.speciesId),
+                    tonumber(mon.level), tonumber(mon.personality))
+                if key and oweShinySeen[key] then
+                    -- OWE's spawn PID is authoritative: never improve it
+                    -- again after its visible shiny sprite is chosen.
+                    mon.nuzlockeShinyRateChecked = true
+                end
             end
-            return math.random()
-        end, function(mon)
+        end
+        ShinyRate.apply(mod, ev, shinyMode, shinyRandomUnit, function(mon)
             local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
             if not ok or not Pokemon or not Pokemon.isShiny then
                 error("Gen 3 native shiny resolver unavailable")
