@@ -888,4 +888,93 @@ hooks["script.command"](nativePreview,c,"specialvar",
 assert(vm.ctx.specialVars[0x800D]==25,
     "legal NPC trade preview preserved")
 assert(variants.setRule("type_lock_mode",0))
+-- Catch Draft must derive its types from native SUCCESSFUL wild catches,
+-- not a battle start, failed Ball, gift receipt or NPC trade.
+nativePokemon.keyName=function(id)
+    return ({[25]="PIKACHU",[4]="CHARMANDER",
+        [7]="SQUIRTLE",[3]="VENUSAUR"})[id]
+end
+nativePokemon.types=function(id)
+    return ({[25]={13,13},[4]={10,10},
+        [7]={11,11},[3]={12,3}})[id] or {0,0}
+end
+assert(variants.setRule("type_lock_mode",2))
+assert(variants.setRule("type_lock_draft",true))
+local initial=values.gen3_classic_v1.variantRules
+assert(initial.drafted_types==nil and variants.getRule("type_lock_draft"))
+game.session.map="FR_ROUTE_28"
+fire("map.entered",{mapId="FR_ROUTE_28"})
+local giftCount=giftCalls
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(giftCalls==giftCount
+    and values.gen3_classic_v1.variantRules.drafted_types==nil,
+    "before the first wild catch, a gift may not supply a draft type")
+local failedWild={enemy={mon={species=4,speciesId=4}}}
+fire("battle.started",{battle=failedWild,kind="wild",speciesId=4})
+local result=hooks["catch.rate"](function()
+    return false,0
+end,"POKE_BALL",{speciesId=4},4,{battle=failedWild})
+assert(not result)
+fire("battle.ended")
+assert(values.gen3_classic_v1.variantRules.drafted_types==nil,
+    "failed Ball or failed encounter must not fill draft lanes")
+game.session.map="FR_ROUTE_29"
+fire("map.entered",{mapId="FR_ROUTE_29"})
+local electricWild={enemy={mon={species=25,speciesId=25}}}
+fire("battle.started",{battle=electricWild,kind="wild",speciesId=25})
+local capture=hooks["catch.rate"](function() return true,4 end,
+    "POKE_BALL",{speciesId=25},25,{battle=electricWild})
+assert(capture)
+fire("pokemon.caught",{battle=electricWild,speciesId=25,
+    mon={speciesId=25}})
+assert(values.gen3_classic_v1.variantRules.drafted_types[1]==13,
+    "first real wild catch drafts ELECTRIC")
+fire("pokemon.caught",{battle=electricWild,speciesId=25,
+    mon={speciesId=25}})
+assert(#values.gen3_classic_v1.variantRules.drafted_types==1,
+    "duplicate caught notification must not draft twice")
+fire("battle.ended")
+game.session.map="FR_ROUTE_30"
+fire("map.entered",{mapId="FR_ROUTE_30"})
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(giftCalls==giftCount+1
+    and #values.gen3_classic_v1.variantRules.drafted_types==1,
+    "matching gift is legal but does NOT draft a second type")
+local offGift=giftCalls
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=4,level=5})
+assert(giftCalls==offGift,
+    "off-type gift rejected while partial draft is in progress")
+-- Another successful wild catch, not a gift, completes the draft.
+game.session.map="FR_ROUTE_31"
+fire("map.entered",{mapId="FR_ROUTE_31"})
+local fireWild={enemy={mon={species=4,speciesId=4}}}
+fire("battle.started",{battle=fireWild,kind="wild",speciesId=4})
+assert(hooks["catch.rate"](function()return true,4 end,
+    "POKE_BALL",{speciesId=4},4,{battle=fireWild}))
+fire("pokemon.caught",{battle=fireWild,speciesId=4,
+    mon={speciesId=4}})
+fire("battle.ended")
+local savedDraft=values.gen3_classic_v1.variantRules.drafted_types
+assert(#savedDraft==2 and savedDraft[1]==13 and savedDraft[2]==10,
+    "draft picks are stored by canonical native GBA type ID")
+game.session.map="FR_ROUTE_32"
+fire("map.entered",{mapId="FR_ROUTE_32"})
+local waterWild={enemy={mon={species=7,speciesId=7}}}
+fire("battle.started",{battle=waterWild,kind="wild",speciesId=7})
+assert(values.gen3_classic_v1.areas.FR_ROUTE_32==nil,
+    "after the draft is full, off-type wild cannot spend a route")
+local nativeCalled=false
+result=hooks["catch.rate"](function()
+    nativeCalled=true;return true,4
+end,"POKE_BALL",{speciesId=7},7,{battle=waterWild})
+assert(not result and not nativeCalled,
+    "off-type wild Ball vetoed before native catch transaction")
+fire("battle.ended")
+assert(variants.setRule("type_lock_draft",false))
+assert(values.gen3_classic_v1.variantRules.drafted_types==nil,
+    "disabling draft resets recorded selections cleanly")
+assert(variants.setRule("type_lock_mode",0))
 print("Gen3 experimental Nuzlocke smoke PASS")
