@@ -11,19 +11,22 @@ msg.tick = function() msg.tickCount = (msg.tickCount or 0) + 1 end
 msg.skipReveal = function() msg.skips = msg.skips + 1 end
 package.loaded["src.ui.game3.message"] = msg
 local asked = 0
-local choice = { yesNo = function(cb)
+local choice = {}
+choice.yesNo = function(cb)
     asked = asked + 1
     choice.pending = cb
-end }
+end
 package.loaded["src.ui.game3.choice"] = choice
-local ui = { askYesNo = function(_, cb)
+local ui = {}
+ui.askYesNo = function(_, cb)
     ui.pending = cb
-end }
+end
 package.loaded["src.core.game3.battle.ui"] = ui
-local naming = { open = function(opts)
+local naming = {}
+naming.open = function(opts)
     naming.opened = (naming.opened or 0) + 1
     naming.last = opts
-end }
+end
 package.loaded["src.ui.game3.naming"] = naming
 
 local nativePrinter = { AUTO_SCROLL = 2 }
