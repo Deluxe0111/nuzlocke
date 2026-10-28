@@ -24,6 +24,7 @@ return function(mod)
     local Stats = readModule("gen3_pokemon_stats.lua")()
 local AreaSplits = readModule("gen3_area_splits.lua")()
 local RunParty = readModule("gen3_run_party.lua")()
+local Difficulty = readModule("gen3_difficulty.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -993,44 +994,53 @@ local RunParty = readModule("gen3_run_party.lua")()
             local function guardedStart(opts,...)
                 if type(opts)~="table"
                     or opts.link or opts.recordedLink or opts.oldManTutorial
-                    or opts.pokedude or (opts.foe and opts.foe.link)
-                    or not Core.active(loadState()) then
+                    or opts.pokedude or (opts.foe and opts.foe.link) then
                     return previous(opts,...)
                 end
-                local source=opts.wild and "wild" or "trainer"
                 local saved=loadState()
+                -- Game Difficulty is independent of NUZ ON/OFF. All
+                -- profiles operate on final composed trainer opponents
+                -- at battle start; providers' original tables are intact.
                 local okTr,Trainers=pcall(require,
                     "src.core.game3.scripting.trainers")
+                local effective=Difficulty.prepare(saved,opts,session(),
+                    okTr and Trainers or nil)
+                if not Core.active(saved) then
+                    return previous(effective,...)
+                end
+                local source=opts.wild and "wild" or "trainer"
                 local gymReason=RunParty.gymDenial(saved,Core,
-                    session(),opts.foe,opts,okTr and Trainers or nil)
+                    session(),effective.foe,effective,okTr and Trainers or nil)
                 if gymReason then
                     notify("GYM_TEAM_LIMIT",gymReason,false)
                     return nil,"gym_team_size"
                 end
+                -- Explicit Pokemon Stats rules take precedence over
+                -- difficulty IV/EV floors on the same cloned descriptors.
                 local function transform(v)
                     if type(v)~="table" then return v end
                     return Stats.foe(saved,Core,source,v,Pokemon)
                 end
                 local result={}
-                for k,v in pairs(opts) do result[k]=v end
-                if type(opts.foe)=="table" then
-                    local foe=transform(opts.foe)
-                    if type(opts.foe.party)=="table" then
-                        if foe==opts.foe then
+                for k,v in pairs(effective) do result[k]=v end
+                if type(effective.foe)=="table" then
+                    local foe=transform(effective.foe)
+                    if type(effective.foe.party)=="table" then
+                        if foe==effective.foe then
                             foe={}
-                            for k,v in pairs(opts.foe) do foe[k]=v end
+                            for k,v in pairs(effective.foe) do foe[k]=v end
                         end
                         local party={}
-                        for i,v in ipairs(opts.foe.party) do
+                        for i,v in ipairs(effective.foe.party) do
                             party[i]=transform(v)
                         end
                         foe.party=party
                     end
                     result.foe=foe
                 end
-                if type(opts.foeParty)=="table" then
+                if type(effective.foeParty)=="table" then
                     local party={}
-                    for i,v in ipairs(opts.foeParty) do
+                    for i,v in ipairs(effective.foeParty) do
                         party[i]=transform(v)
                     end
                     result.foeParty=party
@@ -2470,6 +2480,7 @@ local RunParty = readModule("gen3_run_party.lua")()
         serviceRules = Services,
         statRules = Stats,
         runPartyRules = RunParty,
+        gameDifficulty = Difficulty,
         areaSplitRules = AreaSplits,
         currentEncounterArea = encounterAreaNow,
         notices = function() return Notices.history(loadState()) end,
@@ -2620,6 +2631,18 @@ local RunParty = readModule("gen3_run_party.lua")()
             if ok then writeState(s) end
             return ok,reason
         end,
+    }
+    mod.exports.gen3_game_difficulty = {
+        api=Difficulty.api,schema=Difficulty.schema,
+        definitions=Difficulty.descriptors,
+        getRule=function(key) return Difficulty.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=Difficulty.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+        profile=function() return Difficulty.profile(loadState()) end,
     }
     mod.exports.gen3_run_party = {
         api=RunParty.api,schema=RunParty.schema,
