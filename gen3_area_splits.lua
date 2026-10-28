@@ -136,7 +136,10 @@ return function()
     function M.describe(mapId)
         local edition,body=canonical(mapId)
         if not edition then return nil end
-        local safari=body:match("^SAFARI_ZONE_(CENTER|EAST|NORTH|WEST)$")
+        local safari=body:match("^SAFARI_ZONE_([A-Z]+)$")
+        if safari=="ENTRANCE" or safari=="REST_HOUSE" then
+            safari=nil
+        end
         if safari then
             return {edition=edition,group="SAFARI_ZONE",
                 floor=safari,zone=edition=="FR" and "kanto" or "hoenn",
@@ -211,9 +214,9 @@ return function()
         local d=M.describe(mapId)
         if not d then return mapId end
         if d.route then
-            return M.get(s,"route_21_split") or
-                M.get(s,"area_scope")==0 and mapId
-                or "SPLIT:"..edition..":ROUTE_21"
+            if M.get(s,"route_21_split")
+                or M.get(s,"area_scope")==0 then return mapId end
+            return "SPLIT:"..edition..":ROUTE_21"
         end
         if d.safari then
             local mode=M.get(s,"safari_zone_splits")
