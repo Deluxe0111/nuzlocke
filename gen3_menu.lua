@@ -152,7 +152,9 @@ return function(mod, api)
     local function showStatus()
         local s = state()
         info("NUZ STATUS", {
-            s.failed and "RUN: LOST" or "RUN: ACTIVE",
+            s.failed and "RUN: LOST"
+                or (s.finalResult and s.finalResult.outcome=="VICTORY"
+                    and "RUN: CHAMPION" or "RUN: ACTIVE"),
             "MODE: " .. (s.enabled and "ON" or "OFF"),
             "AREAS: " .. count(s.areas),
             "DEATHS: " .. #s.graveyard,
@@ -1958,6 +1960,29 @@ return function(mod, api)
         present("NUZ NOTICES", noticeRows(), noticeRows)
     end
 
+    local function showEndRun()
+        if api.openResults and type(state().finalResult)=="table" then
+            return api.openResults()
+        end
+        if state().enabled~=true then
+            info("END RUN",{"NO NUZLOCKE RUN ENABLED",
+                "ENABLE IN CORE TO START"})
+            return
+        end
+        present("END THIS RUN?",{
+            row("THIS ACTION IS PERMANENT"),
+            row("RUN WILL BE MARKED LOST"),
+            row("GAME WILL AUTO SAVE"),
+            row("CONTINUE WILL BE LOCKED"),
+            row("CONFIRM END RUN",nil,function()
+                local ok,why=api.endRun()
+                if not ok then
+                    info("END RUN FAILED",{tostring(why)})
+                end
+            end),
+            row("KEEP PLAYING",nil,function() popPage() end),
+        })
+    end
     local function home()
         present("NUZ MENU", {
             row("NUZ RULES", nil, showRules),
@@ -1972,9 +1997,7 @@ return function(mod, api)
             end),
             row("NUZ DEV", nil, showDevTools),
             row("NICKNAME TASKS", nil, showNicknameTasks),
-            row("END RUN", "soon", function()
-                disabledFeature("END RUN", "end_run")
-            end),
+            row("END RUN", nil, showEndRun),
             row("NUZ NOTICES", nil, showNotices),
         })
     end

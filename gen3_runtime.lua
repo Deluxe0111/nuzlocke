@@ -38,6 +38,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local Eggs = readModule("gen3_eggs.lua")()
     local Forgiveness = readModule("gen3_forgiveness.lua")()
     local Display = readModule("gen3_display.lua")()
+    local Results = readModule("gen3_run_results.lua")()
+    local ResultsScreen = readModule("gen3_results_screen.lua")()
     local Extra = readModule("gen3_extra_core.lua")()
     local Levels = readModule("gen3_levels.lua")()
     local Notices = readModule("gen3_notices.lua")()
@@ -74,6 +76,92 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local function session()
         local g = game()
         return g and g.session
+    end
+
+    local function countBadgesForResult()
+        local ok,SaveMenu=pcall(require,"src.ui.game3.save_menu")
+        if ok and type(SaveMenu.countBadges)=="function" then
+            local worked,n=pcall(SaveMenu.countBadges,session())
+            if worked and type(n)=="number" then return n end
+        end
+        return session() and session().badgeCount or 0
+    end
+    local function saveTerminalRecord()
+        local running=game()
+        if not running or type(running.saveGame)~="function" then
+            return false,"Game save function unavailable"
+        end
+        local ok,written=pcall(running.saveGame,running)
+        if not ok then return false,tostring(written) end
+        if written~=true then
+            return false,"Game save was not confirmed"
+        end
+        return true
+    end
+    local function openFinalScreen(record)
+        if type(record)~="table" then return false end
+        local running=game()
+        return ResultsScreen.open(running,record,{
+            onQuit=function()
+                if running and type(running.returnToTitle)=="function" then
+                    ResultsScreen.close()
+                    return running:returnToTitle()
+                end
+                return false
+            end,
+            onSave=saveTerminalRecord,
+        })
+    end
+    local function finishRun(outcome,reason,auto)
+        local saved=loadState()
+        if saved.enabled~=true or not session() then
+            return false,"A Nuzlocke run is not active"
+        end
+        local record=Results.finish(saved,session(),Display,
+            outcome,reason,countBadgesForResult())
+        if not record then return false,"Unable to record this run" end
+        writeState(saved)
+        if auto or outcome~="VICTORY" then
+            local ok,why=saveTerminalRecord()
+            if not ok then
+                Notices.add(saved,"RUN_SAVE_WARNING",
+                    "Run ended, but autosave failed: "..tostring(why)
+                        ..". Retry from the results screen.")
+                writeState(saved)
+            end
+        end
+        openFinalScreen(record)
+        return true
+    end
+    local function installChampionResultHook()
+        local ok,Hof=pcall(require,"src.ui.game3.hall_of_fame")
+        if not ok or type(Hof)~="table"
+            or type(Hof.close)~="function" then return false end
+        if Hof.__nuzResultsOwner==mod
+            and Hof.__nuzResultsClose==Hof.close then return true end
+        local previous=Hof.close
+        local function guarded(...)
+            local wasOpen=Hof.open==true
+            local result=previous(...)
+            local native=session()
+            -- Only after native Hall of Fame induction finished: game
+            -- clear flag, HOF team and engine save must already exist.
+            if wasOpen and type(native)=="table"
+                and native.game_cleared==true
+                and type(native.hallOfFameTeams)=="table"
+                and #native.hallOfFameTeams>0 then
+                local saved=loadState()
+                if saved.enabled and not saved.failed
+                    and type(saved.finalResult)~="table" then
+                    finishRun("VICTORY","Champion defeated",true)
+                end
+            end
+            return result
+        end
+        Hof.close=guarded
+        Hof.__nuzResultsClose=guarded
+        Hof.__nuzResultsOwner=mod
+        return true
     end
 
     -- The first physically carried native Ball unlocks area accounting.
@@ -2647,7 +2735,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
         if modified or s.failed then writeState(s) end
         if s.failed then
-            notify("RUN_FAILED", "Nuzlocke run ended. See NUZ STATUS.", false)
+            notify("RUN_FAILED", "Run ended. Opening final results.", false)
         elseif rescued then
             notify("PC_SURVIVOR",
                 "Party empty: a living PC survivor joined your team.", false)
@@ -3044,6 +3132,16 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
+        installChampionResultHook()
+        local saved=loadState()
+        if saved.failed==true and saved.enabled==true then
+            if type(saved.finalResult)~="table" then
+                Results.finish(saved,session(),Display,"FAILED",
+                    "Earlier failed run",countBadgesForResult())
+                writeState(saved)
+            end
+            openFinalScreen(saved.finalResult)
+        end
     end)
     mod.events:on("save.created", function()
         if pendingNewGameState then
@@ -3074,6 +3172,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installBattleClauseGuards()
         installStatusBanGuards()
         installAcquisitionGuards()
+        installChampionResultHook()
+        ResultsScreen.close()
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -3551,6 +3651,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         mercyBattle = nil
         refreshCapNotice()
         nicknameTasks()
+        if loadState().failed then
+            finishRun("FAILED","Party defeated / no usable survivors",true)
+        end
     end)
 
     -- Gen 3 is API 2 in this fork, and API 3's mod.ui.push uses a different
@@ -3563,6 +3666,26 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         areaSpent = Core.areaSpent,
     })
     local Gen3Menu = readModule("gen3_menu.lua")(mod, { 
+        endRun = function()
+            if battleInProgress then return false,"Wait until battle ends" end
+            local saved=loadState()
+            if Results.isTerminal(saved) then
+                openFinalScreen(saved.finalResult)
+                return true
+            end
+            if type(saved.finalResult)=="table" then
+                openFinalScreen(saved.finalResult)
+                return true
+            end
+            return finishRun("FORFEIT","Run ended by player",true)
+        end,
+        openResults = function()
+            local saved=loadState()
+            if type(saved.finalResult)~="table" then
+                return false,"No completed run"
+            end
+            return openFinalScreen(saved.finalResult)
+        end,
         randomizer = {
             get = function(key)
                 return Randomizer.get(loadState(), key)
@@ -3634,6 +3757,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         },
     })
 
+    -- Install terminal hooks before native Hall of Fame is lazily
+    -- entered; game3's close callback is the authoritative completion.
+    installChampionResultHook()
     -- Install text hooks before the native new-game intro loads.
     -- Later save/map events reapply guards for lazy-loaded RSE modules.
     installQolGuards()
