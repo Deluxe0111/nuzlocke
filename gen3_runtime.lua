@@ -580,7 +580,7 @@ return function(mod)
                         type(M)=="table" and M.adapter and M.adapter._st,
                         Core) then
                     battleClauseNotice("sleep:clause",
-                        "Sleep Clause: another foe is already asleep.")
+                        "Sleep Clause: another opposing Pokemon is asleep.")
                     return false
                 end
                 return original(M,effect,...)
@@ -700,7 +700,7 @@ return function(mod)
                         if sleep and StatusBans.denySleepClause(saved,
                             actualSource,target,self._st,Core) then
                             battleClauseNotice("sleep:clause",
-                                "Sleep Clause: another foe is already asleep.")
+                                "Sleep Clause: another opposing Pokemon is asleep.")
                             if delayedYawn then
                                 target._nuzYawnSleepBlocked=true
                                 target._nuzYawnSource=nil
