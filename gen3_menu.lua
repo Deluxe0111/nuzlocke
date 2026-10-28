@@ -628,15 +628,78 @@ return function(mod, api)
         return rows
     end
 
+    local function showPkmnBan()
+        local currentPage=1
+        local PER_PAGE=20
+        local MAX_PAGE=math.ceil(386/PER_PAGE)
+        local function buildRows()
+            local saved=state()
+            local rows={}
+            rows[#rows+1]=row("BANNED: "..CatchRules.banCount(saved)
+                .." / 386",nil)
+            rows[#rows+1]=row("< PREV PAGE",nil,function()
+                currentPage=math.max(1,currentPage-1)
+                local p=current()
+                p.rows=buildRows()
+                p.index=2
+                p.scroll=0
+            end)
+            rows[#rows+1]=row(string.format("NEXT PAGE > %02d/%02d",
+                currentPage,MAX_PAGE),nil,function()
+                currentPage=math.min(MAX_PAGE,currentPage+1)
+                local p=current()
+                p.rows=buildRows()
+                p.index=3
+                p.scroll=0
+            end)
+            local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
+            for nat=(currentPage-1)*PER_PAGE+1,
+                math.min(386,currentPage*PER_PAGE) do
+                local speciesName="UNKNOWN"
+                if ok and type(Pokemon)=="table"
+                    and type(Pokemon.speciesFromNational)=="function"
+                    and type(Pokemon.name)=="function" then
+                    local success,id=pcall(Pokemon.speciesFromNational,nat)
+                    if success and tonumber(id) then
+                        local named,name=pcall(Pokemon.name,id)
+                        if named and type(name)=="string" then
+                            speciesName=name
+                        end
+                    end
+                end
+                local id=nat
+                local banned=CatchRules.isBannedNational(saved,id)
+                rows[#rows+1]=row(string.format("#%03d %s: %s",
+                    id,speciesName,banned and "BAN" or "OK"),nil,function()
+                    local changed=state()
+                    local accepted,reason=CatchRules.toggleNational(changed,id)
+                    if not accepted then
+                        info("PKMN BAN", {tostring(reason)})
+                        return
+                    end
+                    api.setState(changed)
+                    current().rows=buildRows()
+                end)
+            end
+            return rows
+        end
+        present("PKMN BAN",buildRows(),buildRows)
+    end
+
     local function catchRuleRows(category)
         local rows = {}
         local s = state()
         for _, entry in ipairs(category.rules) do
             local key, label = entry[1], entry[2]
             local value = CatchRules.get(s, key)
-            if key=="alphabetlocke_letter"
-                and CatchRules.get(s,"alphabetlocke_mode")~=2 then
-                -- Only show letter selection for CHOOSE, not RANDOM/OFF.
+            if (key=="alphabetlocke_letter"
+                and CatchRules.get(s,"alphabetlocke_mode")~=2)
+                or (key=="colorlocke_color"
+                and CatchRules.get(s,"colorlocke_mode")~=2) then
+                -- Hide selectors unless their mode is CHOOSE.
+            elseif key=="pkmn_ban" then
+                rows[#rows+1]=row("PKMN BAN: "..CatchRules.label(s,key),
+                    nil,showPkmnBan)
             elseif value == nil then
                 rows[#rows+1] = row(label, "soon", function()
                     disabledFeature(label, key)
@@ -672,8 +735,14 @@ return function(mod, api)
                 "NO FISHING: BLOCK ROD USE",
                 "TOWN: CITY/TOWN MAPS",
                 "TOWN OFF: NO CATCHES",
-                "ALPHABET: FIRST LETTER",
+                "PKMN BAN: DEX PICKER",
+                "BAN INDIVIDUAL SPECIES",
+                "NATIONAL 001-386",
+                "COLORLOCKE: SPECIES",
+                "NOT SHINY/SPRITE COLOR",
                 "RANDOM: SAVED PER RUN",
+                "COLOR: CHOOSE 1 OF 10",
+                "ALPHABET: FIRST LETTER",
                 "CHOOSE: PICK A-Z",
                 "GLITCH OFF: BLOCK BAD ID",
                 "GIFT OFF: OPTIONAL DENIED",
