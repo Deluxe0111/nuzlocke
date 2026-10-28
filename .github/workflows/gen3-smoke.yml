@@ -26,6 +26,8 @@ on:
       - 'gen3_pokemon_stats.lua'
       - 'gen3_area_splits.lua'
       - 'gen3_run_party.lua'
+      - 'gen3_difficulty.lua'
+      - 'tests/gen3_difficulty_smoke.lua'
       - 'tests/gen3_run_party_smoke.lua'
       - 'tests/gen3_area_splits_smoke.lua'
       - 'tests/gen3_pokemon_stats_smoke.lua'
@@ -98,6 +100,8 @@ jobs:
         run: lua5.1 tests/gen3_area_splits_smoke.lua
       - name: Run Run and Party policy smoke
         run: lua5.1 tests/gen3_run_party_smoke.lua
+      - name: Run Game Difficulty trainer AI and stat profiles smoke
+        run: lua5.1 tests/gen3_difficulty_smoke.lua
       - name: Run Advanced Battle Clauses policy smoke
         run: lua5.1 tests/gen3_advanced_battle_clauses_smoke.lua
       - name: Run Advanced Status Bans parent and per-side scope smoke
