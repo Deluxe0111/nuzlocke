@@ -34,6 +34,9 @@ return function()
     end
     function M.locked(s) return state(s).used == true end
     function M.set(s, key, value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         local def = definitions[key]
         if not def then return false, "unsupported" end
         local r = state(s)
