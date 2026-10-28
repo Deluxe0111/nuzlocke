@@ -1,5 +1,7 @@
 ## 3.0.0-BETA — Generation 3 and Untamed compatibility
 
+- Implements **ADVANCED RULES → BATTLE ITEMS**: No Healing Items, No X Items, No Catching and Ball Per Encounter (OFF/1/2/3/5/10). Blocks disallowed native item use before bag consumption or turn use, includes status/restorative berries and native/custom Balls, and guards direct catch transactions. Only legal throws count, reset per wild battle. No Catching prevents failed-encounter route claims. Includes standalone/native transaction/menu tests and manual verification guide.
+
 - Implements **Catch Draft** in Gen 3 VARIANTS: successful wild captures progressively draft distinct type lanes (preferring an undrafted secondary type), while unfilled drafts allow wild catches without type restrictions. Gifts/NPC trades must already match drafted types and never add lanes, with mandatory first starters exempt. Completing the draft restores normal Type Locke enforcement. Adds saved progress, read-only active lane labels, progress notices, and catch/gift/trade/dupe/reload regression tests.
 
 - Implements **ADVANCED RULES → VARIANTS → Type Locke**, from MONO through HEXA with six conditional type selectors and deterministic, saved RANDOM types. Denies off-type wild catches before spending an encounter slot or processing a Ball, checks supported gifts/NPC trades before mutation, composes with shiny/catch bans, and preserves mandatory starters. Catch Draft and Wonderlocke remain [Soon]; added policy, runtime and navigation smoke tests.
