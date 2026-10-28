@@ -38,6 +38,7 @@ package.loaded["src.core.game3.pokemon"]={
         [7]="SQUIRTLE"})[id] or "POKEMON" end,
     speciesOf=function(mon)return mon.species end,
 }
+local nativeMonIcon=package.loaded["src.core.game3.pokemon"].monIcon
 local function pokemon(id,hp,name)
     return {species=id,level=10,personality=100+id,hp=hp,
         maxHp=28,nickname=name or "",atk=20,def=18,spe=17,spa=19,spd=18}
@@ -82,13 +83,15 @@ assert(type(Hof.close)=="function" and Hof.__nuzResultsOwner==mod,
     "Hall of Fame is patched at native completion boundary")
 local corePokemon=package.loaded["src.core.game3.pokemon"]
 local chrome=package.loaded["src.ui.game3.pc_chrome"]
-assert(corePokemon.__nuzVisualOwner==mod
-    and corePokemon.__nuzVisualIconWrap==corePokemon.monIcon
-    and chrome.__nuzVisualOwner==mod
+assert(corePokemon.monIcon==nativeMonIcon
+    and corePokemon.__nuzVisualIconWrap==nil,
+    "runtime must leave native PC/party mini-icons completely untouched")
+assert(chrome.__nuzVisualOwner==mod
     and chrome.__nuzVisualPanelWrap==chrome.drawLeftDataPanel,
-    "runtime must wrap native PC icons and portrait at initialization")
-assert(corePokemon.monIcon({species=56,isShiny=true}).native==true,
-    "missing GPU shiny resources should fall back to native icon safely")
+    "runtime must still wrap the PC portrait for shiny artwork")
+assert(corePokemon.monIcon({species=56,isShiny=true}).native==true
+    and corePokemon.monIcon({species=56,isShiny=false}).native==true,
+    "shiny and normal Pokemon must use the standard visible native icon")
 -- User chooses END RUN, receives a separate irreversible confirmation.
 assert(mod.exports.gen3_menu.open(game))
 local function pressTop(button)
