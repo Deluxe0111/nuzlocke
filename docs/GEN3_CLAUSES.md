@@ -2,8 +2,8 @@
 
 The CLAUSES screen uses the original Gen 1/2 **option meanings** where safe,
 but is scoped to Generation 3. The original Johto **Bug Catching Contest**
-setting is intentionally omitted. Dupes and Shiny Catch Exceptions were
-subject to real-ROM verification. Roamer, Egg Encounter and Route Forgiveness route-token/redemption controls are implemented in Gen 3; **ordinary Pokémon revival is not implemented**. Their native edition and external-provider edge cases still need testing.
+setting is intentionally omitted. Dupes and Shiny Catch Exceptions are
+implemented in Gen 3 and await full real-ROM certification. Roamer, Egg Encounter and Route Forgiveness route-token/redemption controls are also implemented; **ordinary Pokémon revival is not implemented**. Their native edition and external-provider edge cases still need testing.
 
 ## Implemented policy and status
 
@@ -47,12 +47,7 @@ Evolution relationships are read from the native ROM-backed
 `Pokemon.evolutions()` graph. Internal species IDs are normalised through the
 engine's `Pokemon.speciesOf()` where available.
 
-**Known gaps:** Encounter qualification currently covers ordinary wild battles
-by native map ID, not canonical multi-floor areas, story gifts, trades or
-static encounters. ROM/provider transformations of the evolution graph need
-additional testing; if the evolution graph is unavailable, FAM/SPLIT fail open
-rather than blocking an unrelated Pokémon. That is why these modes remain
-[WIP], not certified Working.
+**Known gaps:** Capture legality now composes with supported story gifts, trades and static battles; encounter keys use the configured [Area Splits](GEN3_AREA_SPLITS.md) policy. ROM/provider transformations of the evolution graph still need testing; if the evolution graph is unavailable, FAM/SPLIT fail open rather than blocking an unrelated Pokémon. Implemented policy does not imply in-game certification.
 
 ## Shiny Catch Exception
 
