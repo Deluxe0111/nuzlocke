@@ -634,19 +634,18 @@ return function(mod, api)
         for _, entry in ipairs(category.rules) do
             local key, label = entry[1], entry[2]
             local value = CatchRules.get(s, key)
-            if value == nil then
+            if key=="alphabetlocke_letter"
+                and CatchRules.get(s,"alphabetlocke_mode")~=2 then
+                -- Only show letter selection for CHOOSE, not RANDOM/OFF.
+            elseif value == nil then
                 rows[#rows+1] = row(label, "soon", function()
                     disabledFeature(label, key)
                 end)
             else
-                local caption = value == true and "ON"
-                    or value == false and "OFF"
-                    or (value == 0 and "OFF" or tostring(value))
+                local caption=CatchRules.label(s,key)
                 rows[#rows+1] = row(label .. ": " .. caption, nil, function()
                     local saved = state()
-                    local currentValue = CatchRules.get(saved, key)
-                    local nextValue = key == "maximum_bst"
-                        and CatchRules.nextBst(currentValue) or not currentValue
+                    local nextValue=CatchRules.next(saved,key)
                     local ok, reason = CatchRules.set(saved, key, nextValue)
                     if not ok then
                         info("CATCH RULE UNAVAILABLE", {tostring(reason)})
@@ -654,6 +653,9 @@ return function(mod, api)
                     end
                     api.setState(saved)
                     current().rows = catchRuleRows(category)
+                    if current().index>#current().rows then
+                        current().index=#current().rows
+                    end
                 end)
             end
         end
@@ -668,6 +670,12 @@ return function(mod, api)
                 "NO STATIC: SCRIPTED WILD",
                 "ROAMERS ARE NOT STATIC",
                 "NO FISHING: BLOCK ROD USE",
+                "TOWN: CITY/TOWN MAPS",
+                "TOWN OFF: NO CATCHES",
+                "ALPHABET: FIRST LETTER",
+                "RANDOM: SAVED PER RUN",
+                "CHOOSE: PICK A-Z",
+                "GLITCH OFF: BLOCK BAD ID",
                 "GIFT / TRADE: [SOON]",
                 "MAX BST: SIX BASE STATS",
                 "BST > LIMIT IS BANNED",
