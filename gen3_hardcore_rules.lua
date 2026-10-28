@@ -85,6 +85,8 @@ return function()
             and not mapId:match("^EM_") then return nil end
         local town=mapId:match("_([A-Z]+)_CITY_GYM$")
             or mapId:match("_([A-Z]+)_TOWN_GYM$")
+            or mapId:match("_([A-Z]+)_ISLAND_GYM$")
+            or mapId:match("_([A-Z]+)_CITY_GYM_[B]?[0-9]+F$")
         return town
     end
     M.gymOf=gymOf
