@@ -25,6 +25,7 @@ return function(mod)
 local AreaSplits = readModule("gen3_area_splits.lua")()
 local RunParty = readModule("gen3_run_party.lua")()
 local Difficulty = readModule("gen3_difficulty.lua")()
+    local Hardcore = readModule("gen3_hardcore_rules.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -41,6 +42,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local currentArea
     local activeBattle
     local pendingRoamer
+    local dungeonEntry
     local battleInProgress = false
     local currentBattleState
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
@@ -591,6 +593,14 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
 
     local function fieldDenial(itemId,native)
+        if Hardcore.dungeonEscapeLocked(loadState(),Core,
+            dungeonEntry,areaNow(),AreaSplits) then
+            local okI,Use=pcall(require,"src.core.game3.item_use")
+            if okI and type(Use.fieldUseKind)=="function"
+                and Use.fieldUseKind(itemId,native)=="escape" then
+                return "Dungeon Lock-In: Escape Rope is restricted."
+            end
+        end
         local okI,ItemUse=pcall(require,"src.core.game3.item_use")
         local okD,ItemsData=pcall(require,"src.core.game3.items_data")
         return FieldRules.fieldDenial(loadState(),Core,itemId,
@@ -1614,7 +1624,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         -- A whiteout failure outranks PC rescue. Never revive the dead:
         -- move one existing living resident into an empty native party only
         -- after battle writeback and faint retirement are finished.
-        if Core.failedWhiteout(s, outcome) then
+        if Hardcore.whiteout(s,Core,outcome) then
+            local before=#party
+            local viable=Hardcore.allowSurvivors(s,Core,native,Extra)
+            rescued=viable and #party>before
+            if rescued then modified=true end
+            if not viable then s.failed=true end
+        elseif Core.failedWhiteout(s, outcome) then
             s.failed = true
         elseif #party == 0 then
             if Core.enforced(s, "pc_survivors_allowed")
@@ -1897,6 +1913,17 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         return true
     end
 
+    mod.events:on("player.warped",function(ev)
+        if type(ev)~="table" then return end
+        local nextEntry=Hardcore.entry(loadState(),Core,
+            ev.fromMap,ev.toMap,ev.x,ev.y,AreaSplits)
+        if nextEntry then dungeonEntry=nextEntry
+        elseif dungeonEntry
+            and not Hardcore.dungeonOf(ev.toMap,AreaSplits) then
+            dungeonEntry=nil
+        end
+    end)
+
     -- Gen 3's map.entered uses a native map ID, not a Gen 1 map name.
     mod.events:on("map.entered", function(ev)
         currentArea = type(ev) == "table" and areaKey(ev.mapId) or nil
@@ -1958,6 +1985,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end)
 
     mod.events:on("save.loaded", function()
+        dungeonEntry=nil
         Randomizer.clearCache()
         resetOWEShinies()
         currentArea = nil
@@ -1978,6 +2006,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installAcquisitionGuards()
     end)
     mod.events:on("save.created", function()
+        dungeonEntry=nil
         Randomizer.clearCache()
         resetOWEShinies()
         currentArea = nil
@@ -2481,6 +2510,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         statRules = Stats,
         runPartyRules = RunParty,
         gameDifficulty = Difficulty,
+        hardcoreRules = Hardcore,
         areaSplitRules = AreaSplits,
         currentEncounterArea = encounterAreaNow,
         notices = function() return Notices.history(loadState()) end,
@@ -2631,6 +2661,18 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             if ok then writeState(s) end
             return ok,reason
         end,
+    }
+    mod.exports.gen3_hardcore_rules = {
+        api=Hardcore.api,schema=Hardcore.schema,
+        definitions=Hardcore.descriptors,
+        getRule=function(key) return Hardcore.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=Hardcore.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+        dungeonEntry=function() return dungeonEntry end,
     }
     mod.exports.gen3_game_difficulty = {
         api=Difficulty.api,schema=Difficulty.schema,
