@@ -24,6 +24,8 @@ on:
       - 'gen3_field_items.lua'
       - 'gen3_services_economy.lua'
       - 'gen3_pokemon_stats.lua'
+      - 'gen3_area_splits.lua'
+      - 'tests/gen3_area_splits_smoke.lua'
       - 'tests/gen3_pokemon_stats_smoke.lua'
       - 'tests/gen3_services_economy_smoke.lua'
       - 'tests/gen3_field_items_smoke.lua'
@@ -90,6 +92,8 @@ jobs:
         run: lua5.1 tests/gen3_services_economy_smoke.lua
       - name: Run Advanced Pokemon Stats EV and IV policy smoke
         run: lua5.1 tests/gen3_pokemon_stats_smoke.lua
+      - name: Run Advanced Area Splits and Safari policy smoke
+        run: lua5.1 tests/gen3_area_splits_smoke.lua
       - name: Run Advanced Battle Clauses policy smoke
         run: lua5.1 tests/gen3_advanced_battle_clauses_smoke.lua
       - name: Run Advanced Status Bans parent and per-side scope smoke
