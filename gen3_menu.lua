@@ -8,6 +8,7 @@ return function(mod, api)
     local engineGame
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
+    local Playstyles = assert(api.playstyles, "Gen 3 menu needs PLAYSTYLES policy")
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
     local Forgiveness = assert(api.forgiveness, "Gen 3 menu needs token policy")
     local Dev = assert(api.dev, "Gen 3 menu needs developer tools")
@@ -19,6 +20,7 @@ return function(mod, api)
     -- A catalog row is not evidence of Gen 3 runtime support.
     local CATALOG = {
     { title = "CORE", rules = {{ "nuzlocke_enabled", "Nuzlocke" }, { "permadeath", "Permadeath" }, { "first_rival_forgiveness", "First Rival Mercy" }, { "encounter_limit", "One Per Area" }, { "failed_encounter", "Failed Encounters" }, { "nickname_rule", "Nickname" } } },
+    { title = "PLAYSTYLES", rules = {{ "shiny_nuzlocke", "Shiny Nuzlocke" }} },
     { title = "CLAUSES", rules = {{ "dupes_mode", "Dupes Clause" }, { "shiny_clause", "Shiny Clause" }, { "shiny_rate_mode", "Shiny Rate" }, { "gen3_roamer_clause", "Roamer Clause" }, { "gen3_egg_encounter_mode", "Egg Encounter" }, { "route_forgiveness", "Route Forgiveness" } } },
     { title = "HARDCORE", rules = {{ "no_escape", "No Escape" }, { "whiteout_clause", "Whiteout" }, { "gym_lock_in", "Gym Lock-In" }, { "dungeon_lock_in", "Dungeon Lock-In" }, { "no_held_items", "No Held Items" } } },
     { title = "GAME DIFFICULTY", rules = {{ "difficulty_profile", "Game Difficulty" } } },
@@ -110,7 +112,9 @@ return function(mod, api)
             "DEATH: " .. (Core.get(s, "permadeath")
                 and "IMMEDIATE" or "OFF"),
             "DUPES: " .. Clauses.label(s, "dupes_mode"),
-            "SHINY: " .. Clauses.label(s, "shiny_clause"),
+            "PLAYSTYLE: " .. (Playstyles.get(s, "shiny_nuzlocke")
+                and "SHINY NUZ" or "CLASSIC"),
+            "SHINY CLAUSE: " .. Clauses.label(s, "shiny_clause"),
             "SHINY USED: " .. tostring(s.shinyExceptionsUsed or 0),
             "B: RETURN",
         })
@@ -301,6 +305,47 @@ return function(mod, api)
 
     local function openForgiveness()
         present("FORGIVENESS", forgivenessRows(), forgivenessRows)
+    end
+
+    local function playstyleRows()
+        local s = state()
+        local enabled = Playstyles.get(s, "shiny_nuzlocke")
+        return {
+            row("SHINY NUZ: " .. (enabled and "ON" or "OFF"), nil, function()
+                local updated = state()
+                local value = not Playstyles.get(updated, "shiny_nuzlocke")
+                local ok, reason = Playstyles.set(updated, "shiny_nuzlocke", value)
+                if not ok then
+                    info("PLAYSTYLE UNAVAILABLE", { tostring(reason) })
+                    return
+                end
+                api.setState(updated)
+                if api.notify then
+                    api.notify("PLAYSTYLE_CHANGED",
+                        value and "Shiny Nuzlocke ON: only shiny Pokemon can"
+                            .. " be caught. Non-shinies do not use routes."
+                            or "Shiny Nuzlocke OFF: ordinary catch rules restored.",
+                        false)
+                end
+                current().rows = playstyleRows()
+            end),
+            row("ONLY SHINIES CATCHABLE"),
+            row("OTHERS: ROUTE STAYS OPEN"),
+            row("1 SHINY PER AREA*"),
+            row("FAILED SHINIES COUNT*"),
+            row("SHINY RATE IS SEPARATE"),
+            row("A: RULE DETAILS", nil, function()
+                info("SHINY NUZLOCKE", {
+                    "REQUIRES NUZLOCKE ON",
+                    "ONLY SHINIES CAN CATCH",
+                    "NORMALS DO NOT COUNT",
+                    "ONE PER AREA APPLIES",
+                    "FAILED ENC. APPLIES",
+                    "SHINY CLAUSE NO BONUS",
+                    "ODDS IN CLAUSES MENU",
+                })
+            end),
+        }
     end
 
     local function clausesRows()
@@ -499,6 +544,7 @@ return function(mod, api)
     local function categoryRows(category)
         if category.title == "CORE" then return coreRows() end
         if category.title == "CLAUSES" then return clausesRows() end
+        if category.title == "PLAYSTYLES" then return playstyleRows() end
         if category.title == "LEVELS" then return levelRows() end
         if category.title == "RANDOMIZER" then return randomRows() end
         local rows = {}
@@ -519,6 +565,7 @@ return function(mod, api)
             -- CORE and CLAUSES are active categories; their individual
             -- policy rows still distinguish unsupported mechanics.
             local active = c.title == "CORE" or c.title == "CLAUSES"
+                or c.title == "PLAYSTYLES"
                 or c.title == "LEVELS" or c.title == "RANDOMIZER"
             rows[#rows + 1] = row(c.title, active and "working" or "soon", function()
                 present(c.title, categoryRows(c),
