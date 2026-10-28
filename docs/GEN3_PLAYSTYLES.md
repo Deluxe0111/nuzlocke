@@ -25,7 +25,7 @@ enforced only while **CORE → NUZLOCKE** is ON and the run is active.
 1. **Only shiny wild Pokémon can be caught.** Throwing a Ball at a
    non-shiny always fails and shows **“Shiny Nuzlocke: only shiny Pokémon
    can be caught. Your route chance remains open.”** The normal native Ball
-   use still occurs. The denial is also saved under NUZ NOTICES.
+   use still occurs. The denial is also saved under RUN JOURNAL > EVENT HISTORY.
 2. **Non-shiny encounters never use a route opportunity**, even with
    Failed Encounters Count ON. You can keep searching until you encounter
    an eligible shiny.
@@ -128,7 +128,7 @@ refused once the Nuzlocke run is marked failed.
 - [ ] **S09c:** With a lower boosted rate, confirm normal wandering
       Pokémon remain normal when battled, with no surprise reroll.
 - [ ] **S10:** Confirm save/reload preserves the toggle and its
-      encounter history, and NUZ NOTICES shows denied-catch reasons.
+      encounter history, and RUN JOURNAL > EVENT HISTORY shows denied-catch reasons.
 - [ ] **S11:** Test FRLG, Ruby, Sapphire and Emerald separately, including
       an actual naturally shiny wild Pokémon.
 
