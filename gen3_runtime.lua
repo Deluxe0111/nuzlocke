@@ -81,7 +81,7 @@ local AreaSplits = readModule("gen3_area_splits.lua")()
         local native=session()
         local g=game()
         local def=g and g.data and g.data.maps and g.data.maps[mapId]
-        local layout=def and (def.layout or def) or {}
+        local layout=def and (type(def.layout)=="table" and def.layout or def) or {}
         return AreaSplits.resolve(saved or loadState(),Core,mapId,{
             x=native and (native.x or native.playerX),
             y=native and (native.y or native.playerY),
