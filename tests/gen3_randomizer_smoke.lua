@@ -326,6 +326,9 @@ assert(loadfile("gen3_runtime.lua")()(mod) == nil)
 local api=mod.exports.gen3_randomizer
 assert(api.set("randomizer_seed", 12345678))
 assert(api.set("random_starter", true))
+assert(api.set("random_static_pokemon", true))
+assert(api.set("random_gift_pokemon", true))
+assert(api.set("random_egg_gifts", true))
 assert(api.set("random_encounter_tables", true))
 assert(api.set("random_encounter_repetition", 1))
 assert(api.set("random_trainers", true))
@@ -372,11 +375,6 @@ assert(seenScript==originalScript,
 game.session.party=savedParty
 -- The script-command seam must work with Nuzlocke OFF and clone native
 -- opcode rows, preserving levels/items. Each category is independent.
--- Restore a fresh randomiser state so configuration is still editable.
-saves.gen3_classic_v1.randomizer.used=false
-assert(api.set("random_static_pokemon",true))
-assert(api.set("random_gift_pokemon",true))
-assert(api.set("random_egg_gifts",true))
 game.session.map="FR_MT_MOON"
 local originalStatic={op="setwildbattle",[1]=1,[2]=30,[3]=88}
 hooks["script.command"](nativeScript,{}, "setwildbattle",originalStatic)
@@ -538,7 +536,7 @@ assert(model.title=="RANDOMIZER"
     and model.rows[6]=="RANDOM STATIC: ON"
     and model.rows[7]=="RANDOM GIFTS: ON"
     and model.rows[8]=="RANDOM EGGS: ON"
-    and model.rows[11]=="WILD VARIETY: UNIQUE AREA",
+    and model.rows[12]=="WILD VARIETY: UNIQUE AREA",
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do
