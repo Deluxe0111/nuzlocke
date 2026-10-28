@@ -100,6 +100,8 @@ local function openMenu()
     assert(model.rows[5] == "MOD SUPPORT",
         "compatibility is an active read-only diagnostic screen")
     for _,label in ipairs(model.rows) do
+        assert(label~="NUZ DEV",
+            "developer tools must never appear in normal home navigation")
         assert(label~="NUZ NOTICES" and not label:find("ALMANAC",1,true)
             and label~="NUZ STATUS",
             "old duplicate navigation rows must be removed")
@@ -390,12 +392,22 @@ fire("battle.ended", { result = "lose" })
 assert(not values.gen3_classic_v1.failed,
     "whiteout OFF does not by itself end a surviving-party run")
 
--- Nuz Dev: explicit opt-in, per-area editing, confirmations and audit.
+-- Nuz Dev: a hidden, session-only key sequence with separate access
+-- and mutation confirmations. No ordinary visible developer entry.
 openMenu()
-for _ = 1, 5 do press("down") end
-assert(mod.exports.gen3_menu.model().rows[6] == "NUZ DEV",
-    "developer menu should remain a distinct tool after journal consolidation")
-press("a")
+local taintedBefore=mod.exports.gen3_dev_info.status().tainted
+local sequence={"up","up","down","down","left","right","left","right"}
+for _,key in ipairs(sequence) do press(key) end
+assert(mod.exports.gen3_menu.model().title=="DEV ACCESS"
+    and not mod.exports.gen3_dev_info.status().enabled
+    and mod.exports.gen3_dev_info.status().tainted==taintedBefore,
+    "unlock sequence must not activate or taint developer mode")
+press("down");press("a") -- CANCEL dev access
+assert(mod.exports.gen3_menu.model().title=="NUZ MENU")
+for _,key in ipairs(sequence) do press(key) end
+assert(mod.exports.gen3_menu.model().title=="DEV ACCESS",
+    "access code can be entered again within the current session")
+press("a") -- OPEN DEV TOOLS
 assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
 assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
 press("a")
@@ -538,7 +550,14 @@ assert(mod.exports.gen3_dev_info.status().tainted,
     "disabling test tools must not remove the audit marker")
 assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
 press("b") -- back to NUZ MENU
+assert(mod.exports.gen3_menu.model().title=="NUZ MENU")
+for _,label in ipairs(mod.exports.gen3_menu.model().rows) do
+    assert(label~="NUZ DEV", "unlock must not leave a permanent home row")
+end
 press("b") -- close menu
+openMenu()
+assert(mod.exports.gen3_menu.model().title=="NUZ MENU")
+press("b") -- close again
 
 -- Integration: repeated Pokémon are rejected without spending an unused
 -- area's first chance; shiny exceptions bypass Dupes/area only when successful.
