@@ -1,18 +1,47 @@
-# Nuzlocke v3.0.0-BETA — Generation 3 beta
+# Nuzlocke v3.0.0-BETA — Generation 3 compatibility
 
-This beta brings the Nuzlocke rule system to Generation 3 (FireRed, LeafGreen, Ruby, Sapphire and Emerald), while retaining the legacy Gen 1/2 runtime.
+**First Generation 3 beta release.** Adds FireRed, LeafGreen, Ruby, Sapphire and Emerald support without replacing the existing Red/Blue/Yellow/Gold/Silver/Crystal runtime.
 
-**Included:** eight CORE rules, Gen 3 encounter clauses, level caps and EXP Edging, reproducible wild and trainer randomisation, **Shiny and Hardcore Nuzlocke** playstyles, persistent rule notices, Graveyard, Nickname Tasks and Nuz Dev tools.
+**Installed version:** `3.0.0-BETA` · **Intended GitHub tag:** `v3.0.0-BETA` (tag/release publication is separate from this documentation update) · **Mod API:** 2 · **Gen 3 save key:** `gen3_classic_v1`.
 
-**Shiny Nuzlocke:** A new PLAYSTYLES option allows catches only of shiny wild Pokémon. Non-shiny encounters leave the route open; the first eligible shiny follows One Per Area and Failed Encounters. Shiny Rate remains independently configurable.
+## Ported from the existing Nuzlocke feature set
 
-**Hardcore Nuzlocke:** An independent, combinable PLAYSTYLES toggle enforces Permadeath, One Per Area, Failed Encounters and Whiteout; disables all battle bag items except Poké Balls; forces SET-style opponent replacements; and applies level caps through Champion. Your ordinary saved CORE, LEVELS and game Options preferences resume when you turn it off.
+- **CORE:** Nuzlocke Enabled, Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run and PC Survivors.
+- **CLAUSES:** Dupes, Shiny Catch Exception and Shiny Rate, Roamer slots, Egg Encounter provenance and Route Forgiveness tokens/route reopening.
+- **Levels, Hardcore, Game Difficulty and Run/Party:** level caps, EXP Edging, battle restrictions, team limits, evolution limits and trainer difficulty options.
+- **Advanced Catch and Variants:** legendary/mythical/pseudo/BST/individual species bans, fishing and static restrictions, optional gifts/trades with AREA/BONUS accounting, Colorlocke, Alphabetlocke, Type Locke and Catch Draft.
+- **Battle and status rules:** OHKO Clause; Flinch/Trap/Setup/Evasion/Accuracy/Stat-drop restrictions; individual status bans and Sleep Clause.
+- **Other advanced rules:** battle and field items, Ball Per Encounter, heal/PP/TM/Rare Candy restrictions, services/economy, Pokémon IV/EV policies and Kanto/Hoenn area splits.
+- **Quality of life:** Instant Text, Run/Surf, Unlimited Bag Space and trade-evolution options.
 
-**Untamed Advanced integration:** When both compatible mods are installed, Random Wild changes the visibly wandering Pokémon as well as normal wild/fishing encounters. The roaming sprite, battle and capture agree. Encounter-chain popups display the Pokémon actually defeated; the original encounter slot is used internally only for the bonus spawn source.
+## Adapted and substantially reworked for Gen 3
 
-**Versioning:** GitHub release tag `v3.0.0-BETA`; installed manifest version `3.0.0-BETA`. This remains an explicitly beta build, not a fully ROM-certified stable Gen 3 release. The Gen 1/2 save schema and Mod API 2 are not bumped.
+- Independent Game3 `gen3_runtime.lua`, native event/action/battle integration and isolated persisted rule state; no Gen 1/2 save migration or upstream engine patch required for the port.
+- Enforces eligible encounter counting only **after native Ball/catching access is available**, rather than consuming opening routes during early story battles.
+- Checks supported scripted gifts, trades, party, item and battle actions at their Gen 3 native transaction boundaries. Handles Pokémon death snapshots and native battle writeback safely.
+- Rebuilds the seeded randomiser for Gen 3: starters, wild/overworld, static/gift/Egg Pokémon, trainers, items, shops, TM contents/locations/compatibility, learnsets and evolutions. Supports defined pool and balancing options.
+- Uses native Gen 3 shiny identity, ROM front sprites for relevant portraits/results and standard mini-icons in party/PC boxes.
+- Uses a GBA-native **240×160** menu with active-rule status, area names and readable Pokémon details.
 
-See [README](README.md), [Gen 3 overview](docs/GEN3_PORT.md), [Gen 3 Randomiser](docs/GEN3_RANDOMIZER.md) and the [test checklist](docs/GEN3_TEST_CHECKLIST.md).
+## New Gen 3 beta features and integrations
+
+- **Shiny Nuzlocke** and **Hardcore Nuzlocke** playstyles, independently toggleable and combinable.
+- **NEW RUN SETUP**, configurable starting resources and **LOCK FOR RUN**.
+- Optional **Untamed Advanced** visible-overworld Pokémon randomisation, sharing wild seed/settings and matching the shown sprite to the battle/capture; follower, roamer and scripted actor exclusions are preserved.
+- **RUN JOURNAL** merges current run summaries, encounters, Graveyard and up to 100 recent rule-event messages.
+- **End Run / results screen** records loss, forfeit or Champion completion, integrates native saving, and creates a shareable party/graveyard/statistics image with shiny details.
+- **MOD SUPPORT** provides read-only detection of supported external integrations and shiny-rate ownership, without untested override switches.
+- Hidden, audited **NUZ DEV** testing tools: encounter resets, report and verified full-archive Pokémon restoration; developer changes taint the test save.
+
+## Explicit exclusions / work still requiring testing
+
+- Gen 3 **Wonderlocke** was removed from the menu. Old **Almanac/NUZ NOTICES** entries are consolidated in **RUN JOURNAL**; old **MOD COMPAT** is replaced by the safe read-only **MOD SUPPORT** screen.
+- Ordinary **Route Forgiveness Pokémon revival** remains unimplemented (developer-only archive restore is not a regular gameplay clause).
+- Non-catch nickname restrictions, uncommon custom gifts/trades, and certain provider-specific boundaries need further work and game verification.
+- Automated Lua smoke/CI coverage does **not** certify real ROM playthroughs across all five editions or combined third-party mod stacks.
+- Existing Gen 1/2 rules, author credits and older version history are retained. Earlier release sections below remain historical and are not amended to claim later Gen 3 functionality.
+
+**Feature inventory:** [Gen 3 feature matrix](docs/GEN3_FEATURE_MATRIX.md) · **In-game tests:** [Gen 3 checklist](docs/GEN3_TEST_CHECKLIST.md) · **Credits:** [CREDITS.md](CREDITS.md).
 
 ---
 
