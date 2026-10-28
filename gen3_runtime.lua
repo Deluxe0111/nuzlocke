@@ -67,17 +67,16 @@ return function(mod)
     -- a small bounded cache of those exact individuals so the ordinary
     -- battle-start shiny-rate handler never rerolls a visible non-shiny.
     local oweShinySeen, oweShinyOrder = {}, {}
-    local function oweShinyIdentity(species, level, personality)
+    local function oweShinyIdentity(species, personality)
         if type(personality) ~= "number"
-            or type(species) ~= "number" or type(level) ~= "number"
+            or type(species) ~= "number"
             or personality < 0 or personality ~= math.floor(personality) then
             return nil
         end
-        return tostring(species) .. ":" .. tostring(level)
-            .. ":" .. tostring(personality)
+        return tostring(species) .. ":" .. tostring(personality)
     end
-    local function noteOWEShiny(species, level, personality)
-        local key = oweShinyIdentity(species, level, personality)
+    local function noteOWEShiny(species, personality)
+        local key = oweShinyIdentity(species, personality)
         if not key or oweShinySeen[key] then return end
         oweShinySeen[key] = true
         oweShinyOrder[#oweShinyOrder + 1] = key
@@ -201,7 +200,7 @@ return function(mod)
         -- Record even native/unchanged results. If rate settings are
         -- changed while a sprite is already standing on the map, that
         -- individual still keeps the shiny status it was spawned with.
-        noteOWEShiny(final.species, final.level, final.personality)
+        noteOWEShiny(final.species, final.personality)
         return final
     end)
 
@@ -751,8 +750,8 @@ return function(mod)
                 and ev.battle.enemy.mon
             if type(mon) == "table" then
                 local key = oweShinyIdentity(
-                    tonumber(mon.species or mon.speciesId),
-                    tonumber(mon.level), tonumber(mon.personality))
+                    tonumber(mon.speciesId or mon.species or ev.speciesId),
+                    tonumber(mon.personality))
                 if key and oweShinySeen[key] then
                     -- OWE's spawn PID is authoritative: never improve it
                     -- again after its visible shiny sprite is chosen.
