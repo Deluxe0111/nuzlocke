@@ -943,11 +943,32 @@ assert(giftCalls==giftCount+1
     and #values.gen3_classic_v1.variantRules.drafted_types==1,
     "matching gift is legal but does NOT draft a second type")
 local offGift=giftCalls
+game.session.map="FR_ROUTE_33"
+fire("map.entered",{mapId="FR_ROUTE_33"})
 hooks["script.command"](nativeGift,c,"givemon",
     {op="givemon",species=4,level=5})
-assert(giftCalls==offGift,
-    "off-type gift rejected while partial draft is in progress")
--- Another successful wild catch, not a gift, completes the draft.
+assert(giftCalls==offGift
+    and values.gen3_classic_v1.areas.FR_ROUTE_33==nil,
+    "off-type gift rejected on a fresh map while draft is partial")
+-- NPC trades may use the drafted ELECTRIC type but may not supply a lane.
+game.session.map="FR_ROUTE_34"
+fire("map.entered",{mapId="FR_ROUTE_34"})
+local tradeBefore=tradedCalls
+hooks["script.command"](nativePreview,c,"specialvar",
+    {op="specialvar",[1]=0x800D,[2]=77})
+assert(vm.ctx.specialVars[0x800D]==25)
+local swapped=npcTrades.tradeMons(game.session,0,{species=25,hp=10})
+assert(swapped and tradedCalls==tradeBefore+1
+    and #values.gen3_classic_v1.variantRules.drafted_types==1,
+    "legal NPC trade never drafts another type")
+game.session.map="FR_ROUTE_35"
+fire("map.entered",{mapId="FR_ROUTE_35"})
+tradeBefore=tradedCalls
+assert(npcTrades.tradeMons(game.session,0,{species=4,hp=10})==nil
+    and tradedCalls==tradeBefore
+    and values.gen3_classic_v1.areas.FR_ROUTE_35==nil,
+    "off-type NPC trade refused without removing offered Pokemon")
+-- Another successful wild catch, not a gift/trade, completes the draft.
 game.session.map="FR_ROUTE_31"
 fire("map.entered",{mapId="FR_ROUTE_31"})
 local fireWild={enemy={mon={species=4,speciesId=4}}}
