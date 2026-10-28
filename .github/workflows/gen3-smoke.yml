@@ -16,6 +16,7 @@ on:
       - 'gen3_playstyles.lua'
       - 'gen3_menu.lua'
       - 'gen3_dev.lua'
+      - 'tests/gen3_dev_restore_smoke.lua'
       - 'gen3_display.lua'
       - 'gen3_clauses.lua'
       - 'gen3_catch_rules.lua'
@@ -90,7 +91,7 @@ jobs:
       - name: Validate new setup Lua syntax
         run: |
           luac5.1 -p main.lua title_setup_compat.lua
-          luac5.1 -p gen3_runtime.lua gen3_menu.lua gen3_title_setup.lua gen3_run_setup.lua gen3_qol_setup.lua gen3_run_results.lua gen3_results_screen.lua gen3_shiny_visuals.lua
+          luac5.1 -p gen3_runtime.lua gen3_menu.lua gen3_dev.lua gen3_title_setup.lua gen3_run_setup.lua gen3_qol_setup.lua gen3_run_results.lua gen3_results_screen.lua gen3_shiny_visuals.lua
           luac5.1 -p tests/gen3_run_results_smoke.lua tests/gen3_run_results_runtime_smoke.lua
       - name: Test FRLG and RSE NEW GAME interception
         run: lua5.1 tests/gen3_title_setup_smoke.lua
@@ -100,6 +101,8 @@ jobs:
         run: lua5.1 tests/gen3_qol_nickname_boundary_smoke.lua
       - name: Run isolated Gen 3 hook/state smoke
         run: lua5.1 tests/gen3_foundation_smoke.lua
+      - name: Test hidden Nuz Dev archive restoration safety
+        run: lua5.1 tests/gen3_dev_restore_smoke.lua
       - name: Run nickname, rival and PC survivors smoke
         run: lua5.1 tests/gen3_new_core_smoke.lua
       - name: Run Gen 3 LEVELS cap and EXP edging smoke
