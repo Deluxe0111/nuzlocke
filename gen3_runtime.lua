@@ -3067,10 +3067,26 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installStatusBanGuards()
         installAcquisitionGuards()
         deliverPendingStartingBalls()
+        installChampionResultHook()
+        local saved=loadState()
+        if Results.isTerminal(saved) and not ResultsScreen.isOpen() then
+            openFinalScreen(saved.finalResult)
+        end
     end)
 
-    -- Only a new-game pending grant causes any per-step work.
-    mod.events:on("world.stepped", deliverPendingStartingBalls)
+    -- On a failed save the terminal screen is persistent: no game
+    -- interactions, world steps, or stray native UI transitions may
+    -- return the player to ordinary Nuzlocke gameplay.
+    mod.events:on("world.stepped",function()
+        local saved=loadState()
+        if Results.isTerminal(saved) then
+            if not ResultsScreen.isOpen() then
+                openFinalScreen(saved.finalResult)
+            end
+            return
+        end
+        deliverPendingStartingBalls()
+    end)
 
     mod.events:on("breeding.egg_created", function(ev)
         local s = loadState()
