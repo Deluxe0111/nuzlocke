@@ -984,7 +984,7 @@ for i, name in ipairs(expectedAdvanced) do
         assert(draftMenu.rows[2]=="Catch Draft: ON"
             and draftMenu.rows[3]=="Type 1: AWAIT CATCH"
             and draftMenu.rows[4]=="Type 2: AWAIT CATCH"
-            and draftMenu.rows[6]=="DRAFT: 0/2 TYPES",
+            and draftMenu.rows[5]=="DRAFT: 0/2 TYPES",
             "draft mode hides manual lane selection and shows progress")
         press("down");press("a") -- Type 1 cannot change manually
         assert(mod.exports.gen3_menu.model().rows[3]
