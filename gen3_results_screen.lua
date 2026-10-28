@@ -84,14 +84,31 @@ return function()
         local id=tonumber(mon.species)
         if not id then return end
         local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
-        if not ok or type(Pokemon.monFrontPic)~="function" then return end
-        local source={species=id,personality=tonumber(mon.personality) or 0,
+        if not ok or type(Pokemon)~="table" then return end
+        local personality=tonumber(mon.personality) or 0
+        local source={species=id,personality=personality,
             level=mon.level,otId=mon.otId,otSecretId=mon.otSecretId}
-        if mon.shinyKnown==true then
-            -- Pokemon.monFrontPic reads isShiny, not shiny.
-            source.isShiny=mon.shiny==true
+        local known=mon.shinyKnown==true
+        if known then source.isShiny=mon.shiny==true end
+        local good,pic=false,nil
+        if known and type(Pokemon.frontPic)=="function" then
+            -- Gen 3's frontPic has a direct shiny palette/asset selector.
+            -- A result card carries a frozen shiny flag, not a complete
+            -- native Pokemon. Calling monFrontPic(source) can re-resolve
+            -- its temporary personality/OT values and choose the NORMAL
+            -- palette despite the correct label. Pass the saved shiny
+            -- state straight to the native artwork loader instead.
+            local species=id
+            if type(Pokemon.picSpecies)=="function" then
+                local resolved,form=Pokemon.picSpecies(id,personality)
+                if resolved then species=resolved end
+            end
+            good,pic=pcall(Pokemon.frontPic,species,nil,
+                mon.shiny==true,personality)
+        elseif type(Pokemon.monFrontPic)=="function" then
+            -- Legacy/unknown shiny state still follows native behaviour.
+            good,pic=pcall(Pokemon.monFrontPic,source,nil,"hof")
         end
-        local good,pic=pcall(Pokemon.monFrontPic,source,nil,"hof")
         if good and type(pic)=="table" and pic.image then
             local w,h=tonumber(pic.w) or 64,tonumber(pic.h) or 64
             local scale=math.min(90/w,90/h)

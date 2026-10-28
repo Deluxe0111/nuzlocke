@@ -157,6 +157,7 @@ local dimensions={}
 local allText={}
 local drawnSprites=0
 local shinySprites=0
+local normalSprites=0
 local exportCount=0
 local gfx={
     newCanvas=function(w,h)
@@ -194,8 +195,22 @@ setmetatable(love,{__index=function(_,key)
     end
 end})
 package.loaded["src.core.game3.pokemon"]={
+    picSpecies=function(species,personality)
+        return species
+    end,
+    frontPic=function(species,form,shiny,personality)
+        assert(type(species)=="number"
+            and type(personality)=="number")
+        if shiny==true then
+            shinySprites=shinySprites+1
+        else
+            normalSprites=normalSprites+1
+        end
+        return {image={},w=64,h=64}
+    end,
     monFrontPic=function(pokemon)
-        if pokemon.isShiny==true then shinySprites=shinySprites+1 end
+        assert(pokemon.isShiny==nil,
+            "Only unknown records may use OT-dependent sprite resolution")
         return {image={},w=64,h=64}
     end,
     moveName=function(id)return "MOVE "..id end,
@@ -222,8 +237,9 @@ assert(selectPrefix("SHARE COMPLETE RUN PNG"))
 assert(View.model().title=="SHARE RESULT")
 assert(savedPng and savedPng:match("^nuzlocke_")
     and savedPng:match("_FULL%.png$")
-    and exportCount==1 and drawnSprites==9 and shinySprites==7,
-    "poster must draw correct shiny sprites for party and graveyard")
+    and exportCount==1 and drawnSprites==9
+    and shinySprites==7 and normalSprites==1,
+    "poster must request explicit native shiny palette for confirmed shiny Pokemon")
 local rendered=table.concat(allText," ")
 for _,expected in ipairs({
     "FINAL PARTY", "IN MEMORIAM", "Shell", "Pyro",
@@ -254,10 +270,11 @@ local previous=exportCount
 allText={}
 drawnSprites=0
 shinySprites=0
+normalSprites=0
 assert(selectPrefix("SHARE COMPLETE RUN PNG"))
 assert(exportCount==previous+1)
-assert(drawnSprites==2 and shinySprites==2,
-    "Champion poster must show living party, fallen Pokemon and shiny art")
+assert(drawnSprites==2 and shinySprites==2 and normalSprites==0,
+    "Champion poster must use shiny art for living and fallen Pokemon")
 press("b")
 assert(selectPrefix("CONTINUE ADVENTURE"))
 assert(not View.isOpen() and game.quit==true,

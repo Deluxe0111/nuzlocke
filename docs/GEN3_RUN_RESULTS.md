@@ -84,7 +84,10 @@ The image contains all three sections on a single canvas:
 2. **FINAL PARTY:** all Pokémon remaining in the party when the
    run finished, with their native front sprites, names, species,
    level, HP, available combat stats, and an explicit SHINY/NORMAL
-   marker (UNKNOWN when legacy data cannot be verified).
+   marker (UNKNOWN when legacy data cannot be verified). Confirmed
+   shiny Pokémon use the native `Pokemon.frontPic` shiny-palette
+   selector directly, not a reconstructed Pokémon's OT-dependent
+   shiny roll.
 3. **IN MEMORIAM:** the **entire** graveyard, also with sprites,
    nicknames, species, levels, recorded combat stats, areas and
    causes of death, including shiny status. Empty sections are
