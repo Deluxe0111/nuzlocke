@@ -133,7 +133,8 @@ local saved={setupRules=s.setupRules}
 assert(S.get(saved,"starting_money")==-1)
 assert(S.get(saved,"starting_pokeballs")==0)
 s.failed=true
-assert(not S.set(s,"starting_money",12000))
+assert(S.set(s,"starting_money",12000),
+    "next-run setup must remain editable after losing a run")
 local file=assert(io.open("gen3_runtime.lua","rb"))
 local runtime=file:read("*a");file:close()
 for _,token in ipairs({
