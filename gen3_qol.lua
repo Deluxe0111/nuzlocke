@@ -117,6 +117,33 @@ return function()
     end
 
     local allowedPockets={ITEMS=true,POKE_BALLS=true}
+    -- The Gen 3 Bag's RSE ITEM/BALL pockets use split 99-item stacks,
+    -- and capped_add reads ItemsData.CAPACITY directly. A canAdd-only
+    -- override is insufficient. Temporarily relax ONLY the two supported
+    -- pocket capacities for the duration of the native transaction.
+    -- pcall/finally restores the profile, including on runtime errors.
+    function M.withBagCapacity(s,itemsData,id,fn,...)
+        if type(fn)~="function" then return nil end
+        if not M.enabled(s,"unlimited_bag_space")
+            or type(itemsData)~="table"
+            or type(itemsData.CAPACITY)~="table"
+            or type(itemsData.pocketOf)~="function"
+            or type(itemsData.toNumericId)~="function" then
+            return fn(...)
+        end
+        local item=itemsData.toNumericId(id)
+        local pocket=itemsData.pocketOf(id)
+        if not item or item==0 or not allowedPockets[pocket] then
+            return fn(...)
+        end
+        local original=itemsData.CAPACITY[pocket]
+        if type(original)~="number" then return fn(...) end
+        itemsData.CAPACITY[pocket]=math.max(original,4096)
+        local success,a,b,c,d=pcall(fn,...)
+        itemsData.CAPACITY[pocket]=original
+        if not success then error(a,0) end
+        return a,b,c,d
+    end
     function M.bagCanAdd(s,bag,id,qty,itemsData,nativeResult)
         if nativeResult or not M.enabled(s,"unlimited_bag_space")
             or type(bag)~="table" or type(bag.pockets)~="table"
