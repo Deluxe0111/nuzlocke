@@ -353,6 +353,22 @@ return function(mod)
         local ok,P=pcall(require,"src.core.game3.pokemon")
         return ok and P or nil
     end
+    local function acquisitionEligible(kind,species,location,options)
+        local saved=loadState()
+        options=options or {}
+        local native=session()
+        local seed=tostring(native and native.trainerId or "")
+            ..":"..tostring(native and native.trainerSecretId or "")
+            ..":"..tostring(native and native.name or "")
+        local resolver=pokemonResolver()
+        if Core.active(saved) and not options.mandatoryStarter
+            and CatchRules.prepareAlphabet(saved,resolver,seed) then
+            writeState(saved)
+        end
+        options.seed=seed
+        return CatchRules.canAcquire(saved,kind,species,location,
+            resolver,Core,options)
+    end
     local function scriptGiftSpecies(ctx,row)
         local id=type(row)=="table" and (row[1] or row.species)
         local n=tonumber(id)
@@ -378,12 +394,9 @@ return function(mod)
         if op=="givemon" then
             local species=scriptGiftSpecies(ctx,row)
             local location=areaNow()
-            local saved=loadState()
             local mandatoryStarter=giftStarterExempt(location)
-            local permitted,why=CatchRules.canAcquire(saved,"gift",
-                species,location,pokemonResolver(),Core,{
-                    mandatoryStarter=mandatoryStarter
-                })
+            local permitted,why=acquisitionEligible("gift",species,
+                location,{mandatoryStarter=mandatoryStarter})
             if not permitted and setScriptVar(ctx,0x800D,2) then
                 notify("GIFT_DENIED",why)
                 return false
@@ -413,9 +426,8 @@ return function(mod)
                         okEntry,entry=pcall(Trade.entry,index)
                     end
                     if okEntry and type(entry)=="table" then
-                        local permitted,why=CatchRules.canAcquire(
-                            loadState(),"trade",entry.species,areaNow(),
-                            pokemonResolver(),Core)
+                        local permitted,why=acquisitionEligible(
+                            "trade",entry.species,areaNow())
                         -- This native special only supplies the requested
                         -- species for the NPC dialogue. Run it first so its
                         -- display strings are still populated, then force
@@ -451,8 +463,8 @@ return function(mod)
             local species=type(offered)=="table"
                 and (offered.species or offered.speciesId)
             local location=areaNow()
-            local permitted,why=CatchRules.canAcquire(loadState(),
-                "trade",species,location,pokemonResolver(),Core)
+            local permitted,why=acquisitionEligible(
+                "trade",species,location)
             if not permitted then
                 notify("TRADE_DENIED",why)
                 return nil
