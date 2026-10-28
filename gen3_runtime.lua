@@ -649,6 +649,19 @@ return function(mod)
         return next(ctx)
     end)
 
+    -- IMPORTANT: Gen1Recomp runs mod callbacks in a restricted sandbox:
+    -- 'package' is deliberately absent. Direct package.loaded access here
+    -- caused the old capture guard to fail in-game, despite unsandboxed
+    -- mock tests passing. Use the permitted require facade instead.
+    local function nativeCatchNicknamePrompt()
+        local ok, battle = pcall(require, "src.core.game3.battle.init")
+        if not ok or type(battle) ~= "table" then
+            ok, battle = pcall(require, "src.core.game3.battle")
+        end
+        return ok and type(battle) == "table"
+            and battle._phase == "catch_nickname_prompt"
+    end
+
     -- Native catch prompts cannot be skipped when Nickname Rule is ON.
     -- The guarded naming screen repeats until a non-default name is given.
     -- The safe overworld task list handles gifts, trades and hatches.
@@ -671,10 +684,7 @@ return function(mod)
             or Ui.__nuzGen3NicknameWrap ~= Ui.askYesNo then
             local ask = Ui.askYesNo
             local function guardedAsk(prompt, callback, ...)
-                local battle = package.loaded["src.core.game3.battle.init"]
-                    or package.loaded["src.core.game3.battle"]
-                local phase = type(battle) == "table" and battle._phase
-                local nativeCatchPrompt = phase == "catch_nickname_prompt"
+                local nativeCatchPrompt = nativeCatchNicknamePrompt()
                     and type(callback) == "function"
                 if Core.enforced(loadState(), "nickname_rule")
                     and nativeCatchPrompt then
@@ -703,10 +713,7 @@ return function(mod)
                 or Choice.__nuzGen3NicknameWrap ~= Choice.yesNo) then
             local originalChoice = Choice.yesNo
             local function guardedChoice(callback, ...)
-                local battle = package.loaded["src.core.game3.battle.init"]
-                    or package.loaded["src.core.game3.battle"]
-                if type(battle) == "table"
-                    and battle._phase == "catch_nickname_prompt"
+                if nativeCatchNicknamePrompt()
                     and Core.enforced(loadState(), "nickname_rule")
                     and type(callback) == "function" then
                     notify("NICKNAME_FORCED",

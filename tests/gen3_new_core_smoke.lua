@@ -112,7 +112,29 @@ local mod = { game = game, exports = {},
         return source
     end,
 }
-assert(loadfile("gen3_runtime.lua")()(mod) == nil)
+-- Gen1Recomp's real mod sandbox has no 'package' global, unlike tests
+-- run directly with Lua. Exercise the runtime + mod:read modules under an
+-- equivalent environment to catch accidental package.loaded usage.
+local sandbox = {}
+for key, value in pairs(_G) do
+    if key ~= "package" and key ~= "io" and key ~= "debug"
+        and key ~= "loadfile" and key ~= "dofile" then
+        sandbox[key] = value
+    end
+end
+sandbox._G = sandbox
+local sourceLoader = loadstring
+sandbox.loadstring = function(source, name)
+    local chunk, err = sourceLoader(source, name)
+    if chunk then setfenv(chunk, sandbox) end
+    return chunk, err
+end
+sandbox.load = sandbox.loadstring
+local runtimeChunk = assert(loadfile("gen3_runtime.lua"))
+setfenv(runtimeChunk, sandbox)
+assert(runtimeChunk()(mod) == nil)
+assert(sandbox.package == nil,
+    "runtime smoke test must mirror the sandbox's missing package global")
 local fire = function(event, data) assert(events[event], event)(data) end
 assert(mod.exports.gen3_core.setRule("nuzlocke_enabled", true))
 local requiredHook = assert(hooks["battle.catch.nickname_required"])

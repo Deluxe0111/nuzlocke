@@ -19,7 +19,10 @@ return function()
     function M.badges(session)
         if type(session) ~= "table" then return nil end
         local flags = session.flags
-        local loaded = package.loaded["src.core.game3.scripting.space"]
+        -- 'package.loaded' is not accessible from sandboxed mods.
+        local okSpace, loaded = pcall(require,
+            "src.core.game3.scripting.space")
+        if not okSpace then loaded = nil end
         if type(loaded) == "table" and type(loaded.getStore) == "function" then
             local ok, store = pcall(loaded.getStore)
             if ok and type(store) == "table" and type(store.flags) == "table" then

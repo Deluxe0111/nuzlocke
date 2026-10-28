@@ -64,16 +64,22 @@ Native boxes are in `session.storage.boxes[boxId].mons`.
 
 Nickname Tasks scans party and boxes for unnamed acquisitions, including
 gifts, trades and hatched Eggs. Unresolved tasks are visible to the player
-but **do not yet prevent use in battle**. The capture prompt bypasses the native optional Yes/No choice
-entirely while CORE → NUZLOCKE and NICKNAME are ON **when using a
-Gen1Recomp build with the `battle.catch.nickname_required` hook**.
-This engine-level check is necessary because replacing the battle UI
-Yes/No function alone was not reliable in-game. Nuzlocke also installs
-a lower-level `Choice.yesNo` fallback for older builds, so a presented
-No choice cannot finish the catch unnamed, even if another UI override
-bypasses the higher-level wrapper. On older builds the redundant
-Yes/No prompt may still be shown; use the companion Gen1Recomp engine
-update to remove it completely. Captured Pokémon must
+but **do not yet prevent use in battle**.
+
+**Mandatory wild-capture naming is enforced entirely by Nuzlocke**, without
+requiring a Gen1Recomp engine patch. With CORE → NUZLOCKE and NICKNAME ON,
+the mod wraps the native capture YES/NO function, detects the
+`catch_nickname_prompt` phase and follows YES without displaying the
+optional selection. A secondary `Choice.yesNo` guard handles alternate
+UI providers and refuses to complete the capture through NO.
+Both guards resolve the battle module with `pcall(require, ...)`; direct
+`package.loaded` access was broken because Gen1Recomp hides `package`
+in the real mod sandbox. The native naming UI remains responsible for
+showing the keyboard and storing the resulting nickname.
+
+An optional engine hook (`battle.catch.nickname_required`) is supported
+when present but is **not required** for Nuzlocke's capture enforcement.
+Captured Pokémon must
 enter a non-empty, non-species-default nickname before the native
 catch flow can complete. Empty, cancelled or default names return to
 the native naming screen; with the nickname rule OFF, native Yes/No is

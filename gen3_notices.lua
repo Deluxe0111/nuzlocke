@@ -19,11 +19,10 @@ return function()
         return true
     end
     function M.battle(message)
-        local ui = package.loaded["src.core.game3.battle.ui"]
-        if not ui then
-            local ok, loaded = pcall(require, "src.core.game3.battle.ui")
-            if ok then ui = loaded end
-        end
+        -- Mods have no 'package' global in the real Gen1Recomp sandbox.
+        -- Resolve the native UI through the permitted module facade.
+        local ok, ui = pcall(require, "src.core.game3.battle.ui")
+        if not ok then return false end
         if type(ui) ~= "table" or type(ui.push) ~= "function" then
             return false
         end
