@@ -418,6 +418,36 @@ return function(mod)
         return true
     end
 
+    -- Unlike a capture-only ban, No Fishing must refuse a rod BEFORE the
+    -- field starts its fishing minigame. The engine's Field.startFishing
+    -- is the native rod-use boundary. Keep an additional guard on direct
+    -- tryFishingEncounter calls so other paths cannot bypass this rule.
+    local function installFishingGuard()
+        local ok, Field = pcall(require, "src.core.game3.field")
+        if not ok or type(Field) ~= "table" then return false end
+        local function protected(method)
+            local marker = "__nuzGen3FishingWrap_" .. method
+            if type(Field[method]) ~= "function" then return end
+            if Field[marker] == Field[method]
+                and Field.__nuzGen3FishingOwner == mod then return end
+            local original = Field[method]
+            local function guarded(...)
+                if CatchRules.fishingBlocked(loadState(), Core) then
+                    notify("NO_FISHING",
+                        "No Fishing: fishing rods cannot be used.", false)
+                    return false
+                end
+                return original(...)
+            end
+            Field[method] = guarded
+            Field[marker] = guarded
+        end
+        protected("startFishing")
+        protected("tryFishingEncounter")
+        Field.__nuzGen3FishingOwner = mod
+        return true
+    end
+
     -- Shared after-change hook for the menu and versioned public API.
     local function onClauseChanged(saved, key)
         if key == "route_forgiveness" then
@@ -769,6 +799,7 @@ return function(mod)
         nicknameTasks()
         installCandyGuard()
         installNicknameGuard()
+        installFishingGuard()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -823,6 +854,7 @@ return function(mod)
         mercyBattle = nil
         installCandyGuard()
         installNicknameGuard()
+        installFishingGuard()
     end)
     mod.events:on("save.created", function()
         Randomizer.clearCache()
@@ -835,6 +867,7 @@ return function(mod)
         mercyBattle = nil
         installCandyGuard()
         installNicknameGuard()
+        installFishingGuard()
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -921,6 +954,12 @@ return function(mod)
         local okPokemon, Pokemon = pcall(require, "src.core.game3.pokemon")
         local catchPermitted, bannedReason = CatchRules.check(s, species,
             okPokemon and Pokemon or nil, Core)
+        local sourcePermitted, sourceReason = CatchRules.checkBattle(s,
+            ev.battle, Core)
+        if not sourcePermitted then
+            catchPermitted = false
+            bannedReason = sourceReason
+        end
         local shiny = Clauses.isShiny(wildMon)
         -- Ordinary wild Pokémon are NEVER eligible encounters in this
         -- playstyle: Failed Encounters must not spend a route on them.
@@ -1003,6 +1042,14 @@ return function(mod)
             return next(ball, mon, species, ctx)
         end
         local s = loadState()
+        -- Check at BOTH battle start (encounter-slot policy) and the Ball
+        -- transaction (final legality), before Shiny Clause exceptions.
+        local sourceAllowed, sourceReason = CatchRules.checkBattle(
+            s, ctx.battle, Core)
+        if not sourceAllowed then
+            battle.pendingCatchReason = sourceReason
+            return false, 0
+        end
         local okPokemon, Pokemon = pcall(require, "src.core.game3.pokemon")
         local allowed, reason = CatchRules.check(s,
             (type(ctx) == "table" and ctx.speciesId)
@@ -1254,6 +1301,7 @@ return function(mod)
             onSelect = function()
                 refreshForgiveness()
                 installCandyGuard()
+                installFishingGuard()
                 Gen3Menu.open(g)
             end,
         })
@@ -1415,6 +1463,7 @@ return function(mod)
             "gen3_hardcore_nuzlocke", "gen3_eggs_wip",
             "gen3_route_forgiveness_wip",
             "gen3_catch_species_bans", "gen3_catch_maximum_bst",
+            "gen3_no_static_encounters", "gen3_no_fishing",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
             "pc_survivors_wip", "nickname_requirement_wip",

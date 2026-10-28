@@ -14,8 +14,10 @@ RUN / PARTY, LEVELS, PLAYSTYLES, RANDOMIZER, QOL and QOL SETUP ONLY at
 the top level, plus **ADVANCED RULES** directly after PLAYSTYLES.
 ADVANCED RULES contains Catch Rules, Battle Clauses, Status Bans,
 Variants, Battle Items, Field Items, Services & Economy, Pokémon Stats
-and Area Splits. **CATCH RULES now has four working wild-catch restrictions:**
-No Legendaries, No Mythicals, No Pseudos and Maximum BST.
+and Area Splits. **CATCH RULES now has six working restrictions:**
+No Legendaries, No Mythicals, No Pseudos, Maximum BST,
+No Static Encounters (scripted wild Ball captures) and
+No Fishing (native rod use blocked before the minigame).
 Its other entries and the other eight groups remain [Soon].
 See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
 The unimplemented WORLD and UI planning categories have been removed
