@@ -8,8 +8,9 @@ the route you need for the next test.
 
 1. Import the latest `feature/gen3-foundation` branch into Gen1Recomp.
 2. Start a disposable FireRed/LeafGreen/Hoenn save.
-3. Open **Start → NUZ MENU** and press **Up, Up, Down, Down, Left, Right, Left, Right** without leaving that screen.
-4. On **DEV ACCESS**, select **OPEN DEV TOOLS**. The sequence is session-only and does **not** itself alter the save.
+3. Open **Start → NUZ MENU**, **hold SELECT and tap A**. On default keyboard bindings this is **Tab + Enter** (or Tab + Z); on a controller use **Select/Back + A**. This is the recommended shortcut.
+   Alternatively, press **Up, Up, Down, Down, Left, Right, Left, Right**, with each repeated direction **released and pressed again**. Holding a direction for cursor repeat does not count as two presses.
+4. On **DEV ACCESS**, select **OPEN DEV TOOLS**. Unlocking access is session-only and does **not** itself alter the save.
 5. Choose **ENABLE DEV MODE**, confirm **YES: ENABLE**. This permanently marks the test save `dev.tainted=true`. Turning DEV back OFF does **not** remove that marker. Reopening a session requires the sequence again.
 
 This unlock uses directional controls supported by both keyboards and controllers. Pressing it from any submenu or new-run setup does nothing. The normal menu never gains a visible developer row.
