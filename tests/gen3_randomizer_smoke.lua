@@ -79,6 +79,25 @@ local hoenn = R.replace(preset, P, "ENCOUNTERS", "FR_ROUTE_1", 1,
 assert(not hoenn and not R.locked(preset),
     "generation filter with empty safe pool leaves native intact")
 
+-- PKMN BAN is a hard candidate exclusion in Nuzlocke-owned
+-- randomizer pools (both wild and trainer). The deterministic stream
+-- must never select a banned National Dex species.
+local C=assert(loadfile("gen3_catch_rules.lua"))()()
+local banSave={randomizer={randomizer_seed=87654,
+    random_encounter_tables=true,random_trainers=true}}
+assert(C.toggleNational(banSave,2))
+assert(C.toggleNational(banSave,3))
+assert(C.toggleNational(banSave,4))
+assert(C.toggleNational(banSave,5))
+local function bannedNat(nat) return C.isBannedNational(banSave,nat) end
+for _,source in ipairs({"ENCOUNTERS","TRAINERS"}) do
+    local chosen=R.replace(banSave,P,source,"ban-pool-test",1,nil,bannedNat)
+    assert(chosen==6,"only unbanned candidate should be selected")
+end
+assert(R.replace(banSave,P,"ENCOUNTERS","depleted",1,nil,
+    function()return true end)==nil,
+    "fully banned replacement pool leaves native original unchanged")
+
 -- Runtime hook integration: compose downstream rules, retain levels/metadata.
 package.loaded["src.core.game3.pokemon"] = P
 local handlers, hooks, saves = {}, {}, {}
