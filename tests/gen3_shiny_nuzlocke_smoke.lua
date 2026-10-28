@@ -583,7 +583,8 @@ for i, name in ipairs(expectedAdvanced) do
         or name=="STATUS BANS" or name=="VARIANTS"
         or name=="BATTLE ITEMS" or name=="FIELD ITEMS"
         or name=="SERVICES & ECONOMY"
-        or name=="POKEMON STATS")
+        or name=="POKEMON STATS"
+        or name=="AREA SPLITS")
         and name or "[Soon] "..name),
         "advanced category "..i.." should reflect real feature readiness")
     press("a")
@@ -600,9 +601,60 @@ for i, name in ipairs(expectedAdvanced) do
     elseif name~="STATUS BANS" and name~="VARIANTS"
         and name~="BATTLE ITEMS" and name~="FIELD ITEMS"
         and name~="SERVICES & ECONOMY"
-        and name~="POKEMON STATS" then
+        and name~="POKEMON STATS"
+        and name~="AREA SPLITS" then
         assert(child.rows[1]:find("[Soon]",1,true),
             "unsupported rows must stay read-only even in an active category")
+    end
+    if name=="AREA SPLITS" then
+        assert(child.rows[1]=="Area Scope: NATIVE MAP"
+            and child.rows[2]=="Route 2 North/South: OFF"
+            and child.rows[3]=="Route 10 North/South: OFF"
+            and child.rows[4]=="Route 20 West/East: OFF"
+            and child.rows[5]=="Route 21 North/South: OFF"
+            and child.rows[6]=="Mt. Moon: FOLLOW SCOPE"
+            and child.rows[7]=="Safari Zone: FOLLOW SCOPE"
+            and child.rows[8]=="Kanto Dungeons: FOLLOW SCOPE"
+            and child.rows[9]=="Sevii Dungeons: FOLLOW SCOPE"
+            and child.rows[10]=="Hoenn Dungeons: FOLLOW SCOPE",
+            "Area Splits must expose native, location and floor policies")
+        for _,mode in ipairs({"ONE/LOCATION","PER FLOOR","NATIVE MAP"}) do
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[1]
+                =="Area Scope: "..mode)
+        end
+        press("down")
+        for rowIndex=2,5 do
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[rowIndex]
+                :find(": ON",1,true))
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[rowIndex]
+                :find(": OFF",1,true))
+            press("down")
+        end
+        for rowIndex=6,10 do
+            local expected=rowIndex==7 and
+                {"ONE ZONE","PER AREA","UNTIL CATCH","AREA + CATCH"}
+                or {"ONE LOCATION","PER FLOOR"}
+            for _,value in ipairs(expected) do
+                press("a")
+                assert(mod.exports.gen3_menu.model().rows[rowIndex]
+                    :find(": "..value,1,true))
+            end
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[rowIndex]
+                :find(": FOLLOW SCOPE",1,true))
+            press("down")
+        end
+        assert(mod.exports.gen3_menu.model().rows[11]
+            :find("[Soon] Time Split",1,true)
+            and mod.exports.gen3_menu.model().rows[12]
+            :find("[Soon] Headbutt",1,true))
+        press("down")
+        press("a")
+        assert(mod.exports.gen3_menu.model().title=="AREA SPLITS HELP")
+        press("b")
     end
     if name=="POKEMON STATS" then
         assert(child.rows[1]=="Player Starting EVs: 0 EV/STAT"
