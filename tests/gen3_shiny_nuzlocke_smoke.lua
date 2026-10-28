@@ -262,6 +262,8 @@ ev("battle.ended",{battle=validBattle,result="run"})
 assert(catch.setRule("ban_pseudos",false))
 assert(catch.setRule("maximum_bst",0))
 assert(core.setRule("nuzlocke_enabled",false))
+assert(styles.setRule("shiny_nuzlocke",true),
+    "restore initial playstyle state for existing menu regression")
 
 -- Menu exposes an actual PLAYSTYLES category and writes live state.
 local start=hooks["ui.start_menu.items"](function(_,items)return items end,g,{})
