@@ -47,10 +47,14 @@ No X Items, No Catching, and Ball Per Encounter (OFF/1/2/3/5/10).
 Denials occur before native bag consumption; only eligible Ball
 transactions count towards each wild battle's budget.
 No Catching prevents wild battles from claiming an encounter slot.
-The remaining four advanced categories remain [Soon].
-See [Status Bans](GEN3_STATUS_BANS.md),
-[Variants](GEN3_VARIANTS.md) and
-[Battle Items](GEN3_BATTLE_ITEMS.md).
+**FIELD ITEMS** adds seven working restrictions: No Repels,
+No Escape Rope, player-initiated Fly/Teleport Travel Restrictions,
+No Field Heal, No PP Items (including battle), No TMs (HM exempt),
+and No Rare Candy. Field bag, direct TM/PP/Rare Candy and native party
+paths are intercepted before mutation. Three other advanced categories
+remain [Soon]. See [Status Bans](GEN3_STATUS_BANS.md),
+[Variants](GEN3_VARIANTS.md), [Battle Items](GEN3_BATTLE_ITEMS.md)
+and [Field Items](GEN3_FIELD_ITEMS.md).
 The unimplemented WORLD and UI planning categories have been removed
 from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
 
