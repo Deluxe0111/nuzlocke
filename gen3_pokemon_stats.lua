@@ -45,6 +45,9 @@ return function()
             and v>=0 and v<=5 and v or 0
     end
     function M.set(s,key,value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         if type(s)~="table" then return false,"invalid_state" end
         if s.failed then return false,"run_failed" end
         local d=byKey[key]
