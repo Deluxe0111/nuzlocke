@@ -38,6 +38,11 @@ return function()
         random_species_generation = { kind="number", default=0, min=0, max=3 },
         random_trainer_diversity = { kind="number", default=0, min=0, max=1 },
         random_trainer_theme = { kind="number", default=0, min=0, max=1 },
+        random_learnsets = { kind="boolean", default=false },
+        random_learnset_generation = { kind="number", default=0, min=0, max=3 },
+        random_learnset_stab = { kind="number", default=0, min=0, max=2 },
+        random_evolutions = { kind="boolean", default=false },
+        random_evolution_balance = { kind="number", default=0, min=0, max=1 },
         randomizer_preset = { kind="number", default=0, min=0, max=2 },
     }
     local cachedPool, cachedOwner
@@ -306,9 +311,11 @@ return function()
     -- Read the actual ROM evolution graph. Do not infer an evolution by
     -- adding 1 or 2 to the internal species ID: Gen 3 has holes/forms and
     -- branched evolution lines, particularly across FRLG and RSE.
-    local function evolutionTargets(Pokemon, species, poolMode, denyNational)
+    local function evolutionTargets(Pokemon, species, poolMode, denyNational, useNative)
         if type(Pokemon.evolutions) ~= "function" then return {} end
-        local ok, evolutions = pcall(Pokemon.evolutions, species)
+        local resolver=useNative and Pokemon.__nuzNativeEvolutions
+            or Pokemon.evolutions
+        local ok, evolutions = pcall(resolver, species)
         if not ok or type(evolutions) ~= "table" then return {} end
         local out, seen = {}, {}
         for _, row in ipairs(evolutions) do
@@ -334,9 +341,11 @@ return function()
         if original == encountered then return 0 end
         -- Original FRLG/RSE starter lines have at most two evolutions.
         -- Never traverse farther: a rogue ROM cyclic graph must not loop.
-        for _, first in ipairs(evolutionTargets(Pokemon, original)) do
+        for _, first in ipairs(evolutionTargets(Pokemon, original,
+            nil,nil,true)) do
             if first == encountered then return 1 end
-            for _, second in ipairs(evolutionTargets(Pokemon, first)) do
+            for _, second in ipairs(evolutionTargets(Pokemon, first,
+                nil,nil,true)) do
                 if second == encountered then return 2 end
             end
         end
@@ -585,6 +594,146 @@ return function()
         }
         r.used=true
         return result
+    end
+
+    -- Level-up moves from the native Pokemon.learnset resolver. Never
+    -- change the ROM move registry or replace an HM with an unforgettably
+    -- learned field move. Preserve every original learning LEVEL and
+    -- duplicate count; only move IDs change.
+    local function moveGen(id)
+        if id<=165 then return 1 end
+        if id<=251 then return 2 end
+        return 3
+    end
+    function M.learnset(s,Pokemon,species,rows,entropy)
+        local r=state(s)
+        if not r.random_learnsets or type(rows)~="table"
+            or #rows==0 or not eligiblePokemon(Pokemon,tonumber(species)) then
+            return nil end
+        local seed=M.seed(s,entropy)
+        if seed==0 then return nil end
+        local legal,stab={},{}
+        local types
+        if type(Pokemon.types)=="function" then
+            local ok,t=pcall(Pokemon.types,tonumber(species))
+            if ok and type(t)=="table" then types=t end
+        end
+        for id=1,354 do
+            if validTmMove(Pokemon,id)
+                and (r.random_learnset_generation==0
+                    or moveGen(id)==r.random_learnset_generation) then
+                legal[#legal+1]=id
+                if types then
+                    local ok,move=pcall(Pokemon.battleMove,id)
+                    if ok and type(move)=="table" then
+                        local t=tonumber(move.type or move.typeId)
+                        if t and (t==types[1] or t==types[2]) then
+                            stab[#stab+1]=id
+                        end
+                    end
+                end
+            end
+        end
+        if #legal==0 then return nil end
+        local out,used={},{}
+        for i,e in ipairs(rows) do
+            if type(e)~="table" then return nil end
+            local original=tonumber(e[2] or e.move)
+            local level=tonumber(e[1] or e.level)
+            if not original or not level then return nil end
+            local chosenPool=legal
+            if #stab>0 and r.random_learnset_stab>0 then
+                if r.random_learnset_stab==2 or
+                    M.hash(M.algorithm,seed,"LEVEL_STAB",
+                        species,level,i)%3~=0 then
+                    chosenPool=stab
+                end
+            end
+            local available={}
+            for _,id in ipairs(chosenPool) do
+                if id~=original and not used[id] then
+                    available[#available+1]=id
+                end
+            end
+            if #available==0 then
+                for _,id in ipairs(chosenPool) do
+                    if id~=original then available[#available+1]=id end
+                end
+            end
+            if #available==0 then available=chosenPool end
+            local idx=1+M.hash(M.algorithm,seed,"LEARNSET",
+                species,level,i,original)%#available
+            local item={}
+            for k,v in pairs(e) do item[k]=v end
+            if e[2]~=nil then item[2]=available[idx] end
+            if e.move~=nil then item.move=available[idx] end
+            out[i]=item
+            used[available[idx]]=true
+        end
+        r.used=true
+        return out
+    end
+
+    -- Evolution scans read Pokemon.evolutions at the native boundary.
+    -- Changing ONLY the target retains trade, stone, level and other
+    -- method prerequisites. To avoid evolution cycles the replacement
+    -- strictly ascends (BST, internal species ID) from the source species.
+    -- Nincada's special Ninjask/Shedinja pair is left native.
+    function M.evolutions(s,Pokemon,species,rows,entropy)
+        local r=state(s)
+        local source=eligiblePokemon(Pokemon,tonumber(species))
+        if not r.random_evolutions or not source
+            or type(rows)~="table" or #rows==0 then return nil end
+        local seed=M.seed(s,entropy)
+        if seed==0 then return nil end
+        local all=M.pool(Pokemon)
+        local out,changed={},false
+        for i,e in ipairs(rows) do
+            if type(e)~="table" then return nil end
+            local original=tonumber(e.target or e[3])
+            local method=tonumber(e.method or e[1])
+            if not original then return nil end
+            local copy={}
+            for k,v in pairs(e) do copy[k]=v end
+            if method~=13 and method~=14 then
+                local target=eligiblePokemon(Pokemon,original)
+                local possible={}
+                for _,candidate in ipairs(all) do
+                    if candidate.id~=source.id and candidate.id~=original
+                        and (candidate.bst>source.bst
+                            or candidate.bst==source.bst
+                                and candidate.id>source.id)
+                        and (r.random_species_generation==0
+                            or generation(candidate.national)
+                                ==r.random_species_generation) then
+                        possible[#possible+1]=candidate
+                    end
+                end
+                if r.random_evolution_balance==1 and target then
+                    local near={}
+                    for _,entry in ipairs(possible) do
+                        if math.abs(entry.bst-target.bst)
+                            <=math.max(40,target.bst*.25) then
+                            near[#near+1]=entry
+                        end
+                    end
+                    if #near>0 then possible=near end
+                end
+                if #possible>0 then
+                    local at=1+M.hash(M.algorithm,seed,
+                        "EVOLUTION",source.id,i,original,method)
+                        %#possible
+                    local id=possible[at].id
+                    if e[3]~=nil then copy[3]=id end
+                    if e.target~=nil then copy.target=id end
+                    changed=true
+                end
+            end
+            out[i]=copy
+        end
+        if not changed then return nil end
+        r.used=true
+        return out
     end
 
     -- Game 3 has 50 TM item IDs (289..338), then eight HM items

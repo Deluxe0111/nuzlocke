@@ -650,6 +650,18 @@ return function(mod, api)
         toggle("random_field_items", "RANDOM FIELD ITEMS")
         toggle("random_shops", "RANDOM SHOPS")
         toggle("random_tms", "RANDOM TMS")
+        toggle("random_learnsets", "RANDOM LEARNSETS")
+        if config.get("random_learnsets") then
+            cycle("random_learnset_generation", "LEARNSET GEN",
+                { "ALL", "GEN 1", "GEN 2", "GEN 3" })
+            cycle("random_learnset_stab", "LEARNSET STAB",
+                { "ANY", "PREFER", "ONLY" })
+        end
+        toggle("random_evolutions", "RANDOM EVOS")
+        if config.get("random_evolutions") then
+            cycle("random_evolution_balance", "EVO BALANCE",
+                { "CHAOS", "SIM BST" })
+        end
         cycle("randomizer_info_policy", "RNG INFO",
             { "SHOW", "HIDE SEED" })
         cycle("random_tm_compatibility", "TM COMPAT", {
@@ -738,6 +750,11 @@ return function(mod, api)
                     random_encounter_diversity_strength=true,
                     randomizer_info_policy=true,
                     random_trainer_theme=true,
+                    random_learnsets=true,
+                    random_learnset_generation=true,
+                    random_learnset_stab=true,
+                    random_evolutions=true,
+                    random_evolution_balance=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]

@@ -272,6 +272,60 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
     installRandomTmResolvers()
 
+    -- The underlying Pokemon accessors are shared by initial party
+    -- move generation, level-up, evolution and UI. Wrap once, preserving
+    -- the native ROM arrays and all evolution method requirements.
+    local function installRandomProgressionResolvers()
+        local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
+        if not ok or type(Pokemon)~="table" then return false end
+        local methods={
+            {"learnset","learnset","random_learnsets"},
+            {"evolutions","evolutions","random_evolutions"},
+        }
+        for _,entry in ipairs(methods) do
+            local key,policy,toggle=entry[1],entry[2],entry[3]
+            local marker="__nuzRandom_"..key
+            if type(Pokemon[key])=="function"
+                and (Pokemon[marker]~=Pokemon[key]
+                    or Pokemon.__nuzProgressOwner~=mod) then
+                local previous=Pokemon[key]
+                if key=="evolutions" then
+                    Pokemon.__nuzNativeEvolutions=previous
+                end
+                local function resolver(species)
+                    local native=previous(species)
+                    if not Randomizer.get(loadState(),toggle)
+                        then return native end
+                    local id=type(species)=="table"
+                        and (Pokemon.speciesOf
+                            and Pokemon.speciesOf(species)) or species
+                    if type(id)=="string"
+                        and type(Pokemon.speciesFromName)=="function" then
+                        id=Pokemon.speciesFromName(id) or tonumber(id)
+                    end
+                    local saved=loadState()
+                    local locked=Randomizer.locked(saved)
+                    local result=Randomizer[policy](saved,Pokemon,
+                        id,native,function()
+                            return math.random(1,99999999)
+                        end)
+                    if not result then return native end
+                    if not locked then
+                        Notices.add(saved,"RANDOMIZER_LOCK",
+                            "Randomised "..key.." fixed for this run.")
+                    end
+                    writeState(saved)
+                    return result
+                end
+                Pokemon[key]=resolver
+                Pokemon[marker]=resolver
+                Pokemon.__nuzProgressOwner=mod
+            end
+        end
+        return true
+    end
+    installRandomProgressionResolvers()
+
     -- The RSE bag chooser reads StarterChoose.species() for its label,
     -- portrait, cry AND FieldRse.giveStarter(). Override that resolver,
     -- not the ROM starter manifest, to keep its three options consistent.
@@ -2866,6 +2920,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
         installRandomTmResolvers()
+        installRandomProgressionResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2938,6 +2993,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
         installRandomTmResolvers()
+        installRandomProgressionResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2967,6 +3023,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
         installRandomTmResolvers()
+        installRandomProgressionResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2995,6 +3052,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
         installRandomTmResolvers()
+        installRandomProgressionResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
