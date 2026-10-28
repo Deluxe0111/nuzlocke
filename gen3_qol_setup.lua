@@ -100,12 +100,14 @@ return function()
         {67,10}, -- Calcium
         {70,10}, -- Zinc
     }
-    function M.pack(s)
+    function M.pack(s,includeBalls)
         local entries={}
         local function add(id,qty)
             if qty>0 then entries[#entries+1]={id=id,qty=qty} end
         end
-        add(4,M.get(s,"starting_pokeballs") or 0)
+        if includeBalls~=false then
+            add(4,M.get(s,"starting_pokeballs") or 0)
+        end
         add(68,M.get(s,"starting_rare_candies") or 0)
         if M.get(s,"pc_starting_heal_items") then
             for _,r in ipairs(heal) do add(r[1],r[2]) end
@@ -130,7 +132,9 @@ return function()
             or type(storage.ensure)~="function" then
             return false,"unsupported_session"
         end
-        local pack=M.plan(s)
+        -- The native first Ball/quest reward unlocks catching. Supplying
+        -- extra Balls in PC before that boundary could arm encounters early.
+        local pack={money=M.get(s,"starting_money"),items=M.pack(s,false)}
         local pc=storage.ensure(session)
         if type(pc)~="table" or type(pc.items)~="table" then
             return false,"pc_missing"
@@ -166,8 +170,32 @@ return function()
         pc.items=staged
         session.modData=session.modData or {}
         session.modData.nuzQolSetupApplied=true
+        session.modData.nuzQolDeferredBalls=
+            M.get(s,"starting_pokeballs") or 0
         session.modData.nuzQolSetupSummary={
             money=money,pcItemTypes=#pack.items}
+        return true
+    end
+
+    -- Release additional PC Balls ONLY after native capture unlock. Preserve
+    -- pending delivery in the native save so a load or full PC cannot lose it.
+    function M.deliverBalls(s,session,storage)
+        if type(session)~="table" or type(session.modData)~="table"
+            or not session.modData.nuzQolSetupApplied then
+            return false,"not_new_game_grant"
+        end
+        local pending=tonumber(session.modData.nuzQolDeferredBalls) or 0
+        if pending<=0 then return false,"nothing_pending" end
+        if type(s)~="table" or s.captureUnlocked~=true then
+            return false,"capture_not_unlocked"
+        end
+        if type(storage)~="table" or type(storage.addPcItem)~="function" then
+            return false,"native_pc_missing"
+        end
+        local ok,why=storage.addPcItem(session,4,pending)
+        if not ok then return false,why or "pc_full" end
+        session.modData.nuzQolDeferredBalls=0
+        session.modData.nuzQolExtraBallsGranted=true
         return true
     end
     return M
