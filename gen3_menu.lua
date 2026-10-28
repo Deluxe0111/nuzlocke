@@ -740,7 +740,8 @@ return function(mod, api)
                 rows[#rows+1]=row(label,"soon",function()
                     disabledFeature(label,key)
                 end)
-            elseif not (hideChildren and key~="status_move_scope") then
+            elseif not (hideChildren and key~="status_move_scope"
+                and key~="sleep_clause") then
                 rows[#rows+1]=row(label..": "..
                     StatusBans.label(saved,key),nil,function()
                     local nextState=state()
@@ -775,7 +776,10 @@ return function(mod, api)
                 "BURN / FREEZE",
                 "SELF REST: ALLOWED",
                 "YAWN: BLOCKS DROWSY",
-                "SLEEP CLAUSE: [SOON]",
+                "SLEEP CLAUSE: ON/OFF",
+                "ONE INFLICTED SLEEP",
+                "PER OPPOSING PARTY",
+                "SWITCHED MONS COUNT",
             })
         end)
         return rows
