@@ -192,7 +192,10 @@ assert(game.quit==true)
 View.close()
 assert(not View.isOpen())
 
--- Victories should still show the graveyard and party together.
+-- A Champion run can still have previous losses; show those on
+-- the same winning poster rather than only the living party.
+win.graveyard={failed.graveyard[1]}
+win.deaths=1
 assert(View.open(game,win))
 local winning=View.model()
 assert(winning.outcome=="VICTORY")
