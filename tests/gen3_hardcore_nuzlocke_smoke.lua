@@ -55,7 +55,8 @@ assert(Style.active(state,Core), "Hardcore OFF must not clear Shiny mode")
 local events,hooks,saves={}, {}, {}
 local uses,uiChecks = 0,0
 local battleItems = {
-    isBall=function(id) return id==4 end,
+    isBall=function(id) return id==4 or id=="CUSTOM_BALL" end,
+    isStatBooster=function(id) return id==75 end,
     isBattleUsable=function() uiChecks=uiChecks+1; return true end,
     canUseOn=function() return true end,
     use=function()
@@ -69,10 +70,16 @@ local options = {
 package.loaded["src.core.game3.battle.items"]=battleItems
 package.loaded["src.core.game3.options"]=options
 package.loaded["src.core.game3.items_data"]={
-    medicineKind=function(id) return id==28 and "revive" or "heal" end,
+    medicineKind=function(id)
+        return ({[13]="heal",[14]="status",[19]="full_restore",
+            [28]="revive",[75]="battle",[80]="battle"})[id] or "none"
+    end,
 }
 package.loaded["src.core.game3.item_use"]={
-    fieldUseKind=function(id) return id==28 and "revive" or "heal" end,
+    fieldUseKind=function(id)
+        return ({[13]="heal",[14]="status",[28]="revive",
+            [75]="battle",[80]="battle"})[id] or "none"
+    end,
 }
 package.loaded["src.core.game3.pokemon"]={
     isShiny=function(mon)return mon.isShiny==true end,
@@ -177,4 +184,92 @@ assert(not style.getRule("hardcore_nuzlocke"))
 -- Existing playstyle remains intact across toggles.
 assert(style.setRule("shiny_nuzlocke",true))
 assert(style.getRule("shiny_nuzlocke"))
-print("Gen3 Hardcore Nuzlocke strict policies and native runtime: PASS")
+-- Advanced Battle Items must compose with (but not depend on) Hardcore.
+local rules=mod.exports.gen3_battle_items
+assert(#rules.definitions()==4 and rules.getRule("encounter_ball_limit")==0)
+assert(style.setRule("shiny_nuzlocke",false))
+assert(core.setRule("nuzlocke_enabled",true))
+assert(rules.setRule("no_healing_items",true))
+assert(rules.setRule("no_battle_items",true))
+local itemBattle=started("trainer",16)
+assert(battleItems.isBattleUsable(13)==false)
+assert(battleItems.isBattleUsable(14)==false)
+assert(battleItems.isBattleUsable(28)==false)
+assert(battleItems.isBattleUsable(75)==false)
+assert(battleItems.isBattleUsable(80)==true,
+    "Poke Doll is not a healing medicine or X item")
+assert(battleItems.isBattleUsable(4)==true)
+assert(select(1,battleItems.canUseOn(itemBattle,13,1,session.party[1]))==false)
+assert(select(1,battleItems.canUseOn(itemBattle,75,1,session.party[1]))==false)
+local usedBefore=uses
+local result,_,ends=battleItems.use(itemBattle,adapter,{},session,13,1)
+assert(result=="error" and ends==false and uses==usedBefore
+    and adapter.text:find("No Healing",1,true),
+    "medicine must be denied before consumption/turn")
+result,_,ends=battleItems.use(itemBattle,adapter,{},session,75,1)
+assert(result=="error" and ends==false and uses==usedBefore
+    and adapter.text:find("No X Items",1,true),
+    "X item must be denied before consumption/turn")
+assert(select(1,battleItems.use(itemBattle,adapter,{},session,80,1))
+    =="heal","unrelated battle item remains native")
+events["battle.ended"]({battle=itemBattle,result="win"})
+assert(rules.setRule("no_healing_items",false))
+assert(rules.setRule("no_battle_items",false))
+local itemEnabled=started("trainer",16)
+assert(battleItems.isBattleUsable(13)==true)
+assert(battleItems.isBattleUsable(75)==true)
+events["battle.ended"]({battle=itemEnabled,result="win"})
+
+-- No Catching and Ball Per Encounter are separate from healing/boost
+-- restrictions. An illegal throw is blocked before native Bag.remove.
+assert(rules.setRule("no_catching",true))
+local noCatch=started("wild",16)
+assert(battleItems.isBattleUsable(4)==false)
+assert(battleItems.isBattleUsable("CUSTOM_BALL")==false)
+usedBefore=uses
+result,_,ends=battleItems.use(noCatch,adapter,{},session,4,1)
+assert(result=="error" and not ends and uses==usedBefore)
+local called=0
+local captured=hooks["catch.rate"](function()
+    called=called+1
+    return true,4
+end,4,noCatch.enemy.mon,16,{battle=noCatch})
+assert(not captured and called==0 and rules.throws()==0,
+    "No Catching vetoes raw catch.rate and doesn't spend throws")
+events["battle.ended"]({battle=noCatch,result="run"})
+assert(rules.setRule("no_catching",false))
+assert(rules.setRule("encounter_ball_limit",2))
+local capped=started("wild",16)
+assert(battleItems.isBattleUsable(4)==true)
+local function failedBall()
+    return hooks["catch.rate"](function()
+        called=called+1
+        return false,0
+    end,4,capped.enemy.mon,16,{battle=capped})
+end
+called=0
+assert(not failedBall() and called==1 and rules.throws()==1)
+assert(not failedBall() and called==2 and rules.throws()==2)
+assert(battleItems.isBattleUsable(4)==false,
+    "after two legal throws, ball unavailable in the battle bag")
+assert(battleItems.isBattleUsable("CUSTOM_BALL")==false)
+usedBefore=uses
+result,_,ends=battleItems.use(capped,adapter,{},session,4,1)
+assert(result=="error" and not ends and uses==usedBefore,
+    "exhausted Ball limit cannot remove a ball or spend a turn")
+assert(not failedBall() and called==2 and rules.throws()==2,
+    "direct catch.rate cannot bypass an exhausted budget")
+events["battle.ended"]({battle=capped,result="run"})
+local fresh=started("wild",16)
+assert(rules.throws()==0 and battleItems.isBattleUsable(4)==true,
+    "each new wild battle gets its own throw counter")
+events["battle.ended"]({battle=fresh,result="run"})
+-- Disable Nuzlocke: policy values persist, but native battle items return.
+assert(core.setRule("nuzlocke_enabled",false))
+local disabled=started("trainer",16)
+assert(battleItems.isBattleUsable(4)==true)
+assert(battleItems.isBattleUsable(13)==true)
+events["battle.ended"]({battle=disabled,result="win"})
+assert(rules.getRule("encounter_ball_limit")==2)
+assert(style.setRule("shiny_nuzlocke",true))
+print("Gen3 Hardcore/Advanced Battle Items native runtime: PASS")
