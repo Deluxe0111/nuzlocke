@@ -31,3 +31,12 @@ jobs:
           done
       - name: Execute all maintained Gen 3 smoke tests
         run: bash tests/run_gen3_smoke.sh
+      - name: Upload cleaned installable mod ZIP (test build, not a release)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/gen3-foundation'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuzlocke-gen3-clean-player-zip
+          path: ${{ runner.temp }}/nuzlocke-pkg/nuzlocke-*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
