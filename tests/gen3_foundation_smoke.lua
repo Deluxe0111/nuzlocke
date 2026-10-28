@@ -135,6 +135,9 @@ fire("battle.started", { battle = repeatBattle, kind = "wild" })
 caught, shakes, invoked = throw(repeatBattle)
 assert(caught == false and shakes == 0 and not invoked, "repeat catch denied")
 fire("battle.ended")
+-- Restore the test fixture's Ball inventory for later fresh-save scenarios;
+-- the previous zero-Ball check already proved the unlock is durable.
+game.session.bag.pockets.POKE_BALLS[1].qty = 5
 game.session.map = "FR_ROUTE_2"
 fire("map.entered", { mapId = "FR_ROUTE_2" })
 local newAreaBattle = {}
