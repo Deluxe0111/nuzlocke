@@ -15,6 +15,7 @@ return function(mod, api)
     local Services = assert(api.serviceRules, "Gen 3 menu needs SERVICES policy")
     local Stats = assert(api.statRules, "Gen 3 menu needs POKEMON STATS policy")
     local AreaSplits = assert(api.areaSplitRules, "Gen 3 menu needs AREA SPLITS policy")
+    local RunParty = assert(api.runPartyRules, "Gen 3 menu needs RUN / PARTY policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -1234,10 +1235,57 @@ return function(mod, api)
         return rows
     end
 
+    local function runPartyRows(category)
+        local rows={}
+        local currentState=state()
+        for _,definition in ipairs(RunParty.descriptors()) do
+            local key,label=definition.key,definition.label
+            rows[#rows+1]=row(label..": "..
+                RunParty.label(currentState,key),nil,function()
+                local saved=state()
+                local desired=RunParty.next(saved,key)
+                local ok,reason=RunParty.set(saved,key,desired)
+                if not ok then
+                    info("RUN / PARTY",{tostring(reason)})
+                    return
+                end
+                api.setState(saved)
+                current().rows=runPartyRows(category)
+            end)
+        end
+        rows[#rows+1]=row("  DETAILS: RUN / PARTY",nil,function()
+            info("RUN / PARTY HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "GYM TEAM SIZE:",
+                "MATCH LIVE LEADER TEAM",
+                "FEWER MONS ARE ALLOWED",
+                "OTHER TRAINERS EXEMPT",
+                "PARTY SIZE: 1 TO 6",
+                "6 = NATIVE DEFAULT",
+                "NO EXTRA ACTIVE MONS",
+                "CATCH / GIFT REFUSED",
+                "PC WITHDRAWAL BLOCKED",
+                "SWAPS / DEPOSITS OK",
+                "OLD PARTY UNCHANGED",
+                "EVOLUTION LIMITS:",
+                "NORMAL: VANILLA",
+                "NO FINAL: ONLY TARGETS",
+                "WITH FURTHER EVOS",
+                "NO EVOLUTION: NONE",
+                "LEVEL / ITEM / TRADE",
+                "UNKNOWN MOD EVOS: SAFE",
+                "NO STORY PARTIES EDITED",
+                "NUZ OFF: NATIVE RULES",
+            })
+        end)
+        return rows
+    end
+
     local function categoryRows(category)
         if category.title == "SERVICES & ECONOMY" then return serviceRows(category) end
         if category.title == "POKEMON STATS" then return pokemonStatRows(category) end
         if category.title == "AREA SPLITS" then return areaSplitRows(category) end
+        if category.title == "RUN / PARTY" then return runPartyRows(category) end
         if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
@@ -1276,6 +1324,7 @@ return function(mod, api)
             or c.title == "SERVICES & ECONOMY"
             or c.title == "POKEMON STATS"
             or c.title == "AREA SPLITS"
+            or c.title == "RUN / PARTY"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
