@@ -19,7 +19,6 @@ suspends Type Locke without deleting its saved settings.
 | **Type 5** | RANDOM | Available in PENTA/HEXA. |
 | **Type 6** | RANDOM | Available in HEXA. |
 | **Catch Draft** | OFF | ON makes the first eligible successful **wild** catches establish the allowed lanes. Each catch adds at most one new type; after all lanes are filled, normal Type Locke restrictions apply. Gifts, NPC trades and starters do not draft. |
-| **Wonderlocke** | [Soon] | Trade/replacement variant; **not currently implemented**. |
 
 With Catch Draft ON, the active Type 1–6 rows become **read-only** and
 display either the drafted type or AWAIT CATCH. The menu also displays
@@ -113,7 +112,7 @@ which types the player is allowed to acquire.
 ## Manual test checklist
 
 1. On a disposable Gen 3 save, enable Nuzlocke; open VARIANTS. Confirm
-   Type Locke and Catch Draft are initially OFF and Wonderlocke says [Soon].
+   Type Locke and Catch Draft are initially OFF. The menu contains no unused trade variant.
 2. Choose MONO and set Type 1 = FIRE. A Fire Pokémon (e.g. Charmander)
    must be catchable, subject to other rules; a Water Pokémon (e.g.
    Squirtle) must be refused without spending the route.
