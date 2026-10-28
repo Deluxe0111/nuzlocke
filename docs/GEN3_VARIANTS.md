@@ -18,10 +18,14 @@ suspends Type Locke without deleting its saved settings.
 | **Type 4** | RANDOM | Available in QUAD through HEXA. |
 | **Type 5** | RANDOM | Available in PENTA/HEXA. |
 | **Type 6** | RANDOM | Available in HEXA. |
-| **Catch Draft** | [Soon] | Drafts types through successful catches; **not currently implemented**. |
+| **Catch Draft** | OFF | ON makes the first eligible successful **wild** catches establish the allowed lanes. Each catch adds at most one new type; after all lanes are filled, normal Type Locke restrictions apply. Gifts, NPC trades and starters do not draft. |
 | **Wonderlocke** | [Soon] | Trade/replacement variant; **not currently implemented**. |
 
-Each active Type selector cycles RANDOM, NORMAL, FIGHTING, FLYING,
+With Catch Draft ON, the active Type 1–6 rows become **read-only** and
+display either the drafted type or AWAIT CATCH. The menu also displays
+DRAFT: X/Y TYPES, and a successful wild catch generates a notice. With
+Catch Draft OFF, Type selectors are manually editable and cycle
+RANDOM, NORMAL, FIGHTING, FLYING,
 POISON, GROUND, ROCK, BUG, GHOST, STEEL, FIRE, WATER, GRASS,
 ELECTRIC, PSYCHIC, ICE, DRAGON and DARK.
 
@@ -55,9 +59,43 @@ the National Dex species IDs used for other catch bans.
   than guessing. Types supplied by the live Gen1Recomp Pokémon
   registry remain authoritative for registered species.
 
+## Catch Draft
+
+Enable Type Locke in MONO–HEXA and turn Catch Draft **ON**. The first
+successful wild catches determine your allowed Pokémon types rather
+than preselecting or randomly assigning the lanes.
+
+- While **at least one lane is empty**, wild Pokémon of any type are
+  eligible for catching (subject to all the other ordinary Nuzlocke
+  rules). Merely encountering or defeating a Pokémon, or throwing a
+  failed Ball, does not add a draft type.
+- The first successful wild catch adds one type, preferring its primary
+  type. When the primary is already drafted and its secondary is a new
+  type, the secondary is added instead.
+- If **both types are already drafted**, the catch is still legal
+  during the draft, but adds no new lane. A later successful catch with
+  an undrafted type is needed to complete the draft.
+- Once **all configured lanes are filled**, only Pokémon matching any
+  drafted type can be caught. Off-type wilds then stop consuming route
+  encounter slots and are refused before native catch transactions.
+- **Optional gifts and NPC trades cannot draft types.** During a partial
+  draft they must already match a previously drafted type; before the
+  first wild catch establishes a type, optional gifts and NPC trades
+  are blocked. The mandatory story starter remains exempt.
+- The selection is saved as native type IDs in
+  `variantRules.drafted_types`, persists across saves and is not
+  changed by failed captures, previously owned Pokémon, or evolutions.
+  The actual final Pokémon species determines its types, including
+  randomised and Untamed wandering wild encounters.
+- Switching Catch Draft OFF or changing the Type Locke mode **resets
+  draft progress**; an OFF-mode Type Locke setting remains inert.
+  Manually configured type lanes are retained and restored when
+  Catch Draft is turned off. You cannot manually overwrite an active
+  draft lane.
+
 ## RANDOM lanes
 
-RANDOM is not a constant reroll. On the first eligible encounter or
+When Catch Draft is OFF, RANDOM is not a constant reroll. On the first eligible encounter or
 supported optional acquisition, the mod scans available native
 National Dex species for represented types, selects distinct valid
 types for RANDOM lanes, and saves them in
@@ -75,7 +113,7 @@ which types the player is allowed to acquire.
 ## Manual test checklist
 
 1. On a disposable Gen 3 save, enable Nuzlocke; open VARIANTS. Confirm
-   Type Locke is initially OFF and Catch Draft / Wonderlocke say [Soon].
+   Type Locke and Catch Draft are initially OFF and Wonderlocke says [Soon].
 2. Choose MONO and set Type 1 = FIRE. A Fire Pokémon (e.g. Charmander)
    must be catchable, subject to other rules; a Water Pokémon (e.g.
    Squirtle) must be refused without spending the route.
@@ -96,6 +134,28 @@ which types the player is allowed to acquire.
    encounter slot's species.
 9. Confirm Shiny Nuzlocke and Shiny Clause do not override a mismatch,
    and turning Nuzlocke OFF disables Type Locke without clearing it.
+10. Set DUO + Catch Draft ON. Check that Type 1 and Type 2 display
+    AWAIT CATCH, that they cannot be changed by A presses, and that
+    DRAFT: 0/2 TYPES is displayed. Failed Balls and battles must
+    not advance that counter.
+11. Catch a dual-type Grass/Poison Pokémon: it drafts GRASS. Catch
+    another Grass/Poison Pokémon on a fresh legal route: it should
+    draft POISON rather than reselect GRASS. Saving and reloading
+    must preserve the order and count.
+12. With only GRASS drafted, wild catches of any type remain legal,
+    but optional gifts/NPC trades must already match GRASS. Before
+    any wild has been caught, optional gifts and NPC trades must
+    not proceed. A legal gift/trade must never advance the draft.
+13. Once DUO drafting is complete, a Pokémon of neither drafted
+    type must be refused without spending its route. Test
+    a dual-type Pokémon where only the secondary type matches.
+14. Catch a Pokémon whose two types are already drafted while
+    drafting TRI. It must not silently fill the third lane. Catch
+    a different-type Pokémon and confirm the third slot is filled.
+15. Switch mode or turn Catch Draft OFF: saved draft selections
+    are cleared, and original manual Type selectors return.
+    Repeat with randomised/Untamed wild Pokémon and confirm
+    the **final** species' actual types are used.
 
 Automated Lua smoke tests are not a substitute for exact-edition
 FireRed, LeafGreen, Ruby, Sapphire and Emerald in-game verification.
