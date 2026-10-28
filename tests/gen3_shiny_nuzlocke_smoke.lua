@@ -518,7 +518,7 @@ local expectedMain={
     "CORE","CLAUSES","HARDCORE",
     "GAME DIFFICULTY","RUN / PARTY",
     "LEVELS","PLAYSTYLES","ADVANCED RULES",
-    "RANDOMIZER","[Soon] QOL","[Soon] QOL SETUP ONLY",
+    "RANDOMIZER","QOL","[Soon] QOL SETUP ONLY",
 }
 assert(mainRules.title=="NUZ RULES" and #mainRules.rows==#expectedMain)
 for i, label in ipairs(expectedMain) do
@@ -598,6 +598,41 @@ assert(mod.exports.gen3_menu.model().title=="HARDCORE RULES HELP")
 press("b");press("b")
 assert(mod.exports.gen3_menu.model().title=="NUZ RULES")
 press("up");press("up")
+assert(mod.exports.gen3_menu.model().index==1)
+-- QOL: only actual Gen3 hooks can be toggled. Other generations
+-- remain read-only, with a visible explanation for each entry.
+for _=1,9 do press("down") end
+press("a")
+local qolPage=mod.exports.gen3_menu.model()
+assert(qolPage.title=="QOL" and #qolPage.rows==9)
+assert(qolPage.rows[1]=="[Soon] PC-Only Catches")
+assert(qolPage.rows[2]=="Instant Text: OFF")
+assert(qolPage.rows[3]=="[Soon] Skip Cherrygrove Tour")
+assert(qolPage.rows[4]=="Run / Surf: OFF")
+assert(qolPage.rows[5]=="Unlimited Bag Space: OFF")
+assert(qolPage.rows[6]=="Trade Evolutions: OFF")
+assert(qolPage.rows[7]=="[Soon] System Clock Sync")
+assert(qolPage.rows[8]=="[Soon] Gym Guide Rare Candy")
+assert(qolPage.rows[9]=="  DETAILS: QOL")
+press("a")
+assert(mod.exports.gen3_menu.model().title=="QOL NOT AVAILABLE")
+press("b");press("down");press("a")
+assert(mod.exports.gen3_menu.model().rows[2]=="Instant Text: ON")
+press("down");press("down")
+for _,v in ipairs({"HOLD B","ALWAYS","OFF"}) do
+    press("a")
+    assert(mod.exports.gen3_menu.model().rows[4]=="Run / Surf: "..v)
+end
+press("down");press("a")
+assert(mod.exports.gen3_menu.model().rows[5]=="Unlimited Bag Space: ON")
+press("down");press("a")
+assert(mod.exports.gen3_menu.model().rows[6]=="Trade Evolutions: ON")
+for _=1,3 do press("down") end
+press("a")
+assert(mod.exports.gen3_menu.model().title=="QOL HELP")
+press("b");press("b")
+assert(mod.exports.gen3_menu.model().title=="NUZ RULES")
+for _=1,9 do press("up") end
 assert(mod.exports.gen3_menu.model().index==1)
 local catalog=mod.exports.gen3_menu.catalog()
 for _, category in ipairs(catalog) do
