@@ -103,6 +103,8 @@ assert(startBattle(51,false).nuzlockeShinyRateChecked,
 -- the shiny policy if explicitly installed and advertising compatibility.
 -- Configure odds before external ownership: the public API correctly refuses
 -- configuration changes while a different shiny mod owns generation.
+-- Configure odds before external ownership; the public API refuses changes
+-- while another shiny mod owns generation.
 assert(rate.setMode("shiny_rate_mode",6))
 mod.find = function(_,id)
     if id ~= "SHINY_POKEMON" then return nil end
