@@ -643,6 +643,9 @@ return function(mod, api)
         toggle("random_egg_gifts", "RANDOM EGGS")
         toggle("random_field_items", "RANDOM FIELD ITEMS")
         toggle("random_shops", "RANDOM SHOPS")
+        toggle("random_tms", "RANDOM TMS")
+        cycle("random_tm_compatibility", "TM COMPAT", {
+            "NATIVE", "RANDOM", "ALL" })
         if config.get("random_shops") then
             cycle("random_shop_balance", "SHOP BALANCE",
                 { "CHAOS", "SIM VALUE" })
@@ -710,6 +713,7 @@ return function(mod, api)
                     random_field_item_balance=true,
                     random_field_item_repetition=true,
                     random_shops=true, random_shop_balance=true,
+                    random_tms=true, random_tm_compatibility=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]

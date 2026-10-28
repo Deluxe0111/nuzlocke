@@ -194,6 +194,84 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         return result, name
     end
 
+    -- TM/HM compatibility and move display/teaching all call Pokemon's
+    -- native resolver. Replacing the two shared methods preserves the
+    -- original TM item ID, consumption, bag and native party menu flow.
+    -- Reinstalled on session changes without stacking our own wrappers.
+    local function installRandomTmResolvers()
+        local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
+        if not ok or type(Pokemon)~="table" then return false end
+        local tag="__nuzRandomTmMove"
+        if type(Pokemon.moveFromTmItem)=="function"
+            and (Pokemon[tag]~=Pokemon.moveFromTmItem
+                or Pokemon.__nuzRandomTmOwner~=mod) then
+            local native=Pokemon.moveFromTmItem
+            local function resolve(item)
+                local original=native(item)
+                if not Randomizer.get(loadState(),"random_tms") then
+                    return original
+                end
+                local id=tonumber(item)
+                if not id then
+                    local okI,ItemsData=pcall(require,
+                        "src.core.game3.items_data")
+                    if okI and type(ItemsData.toNumericId)=="function" then
+                        local okNum,num=pcall(ItemsData.toNumericId,item)
+                        if okNum then id=tonumber(num) end
+                    end
+                end
+                if not id or id<289 or id>338
+                    or not original then return original end
+                local nativeMoves={}
+                for index=1,50 do
+                    nativeMoves[index]=native(288+index)
+                end
+                local saved=loadState()
+                local locked=Randomizer.locked(saved)
+                local moves=Randomizer.tms(saved,Pokemon,nativeMoves,
+                    function() return math.random(1,99999999) end)
+                if not moves then return original end
+                if not locked then
+                    Notices.add(saved,"RANDOMIZER_LOCK",
+                        "TM moves fixed for this run; randomiser locked.")
+                end
+                writeState(saved)
+                return moves[id-288] or original
+            end
+            Pokemon.moveFromTmItem=resolve
+            Pokemon[tag]=resolve
+            Pokemon.__nuzRandomTmOwner=mod
+        end
+        local compatTag="__nuzRandomTmCompat"
+        if type(Pokemon.canLearnTmIndex)=="function"
+            and (Pokemon[compatTag]~=Pokemon.canLearnTmIndex
+                or Pokemon.__nuzRandomTmOwner~=mod) then
+            local native=Pokemon.canLearnTmIndex
+            local function compatible(species,index)
+                local original=native(species,index)
+                if Randomizer.get(loadState(),
+                    "random_tm_compatibility")==0 then return original end
+                local saved=loadState()
+                local locked=Randomizer.locked(saved)
+                local result=Randomizer.tmCanLearn(saved,Pokemon,
+                    species,index,
+                    function() return math.random(1,99999999) end)
+                if result==nil then return original end
+                if not locked then
+                    Notices.add(saved,"RANDOMIZER_LOCK",
+                        "TM compatibility fixed for this run; randomiser locked.")
+                end
+                writeState(saved)
+                return result
+            end
+            Pokemon.canLearnTmIndex=compatible
+            Pokemon[compatTag]=compatible
+            Pokemon.__nuzRandomTmOwner=mod
+        end
+        return true
+    end
+    installRandomTmResolvers()
+
     -- The RSE bag chooser reads StarterChoose.species() for its label,
     -- portrait, cry AND FieldRse.giveStarter(). Override that resolver,
     -- not the ROM starter manifest, to keep its three options consistent.
@@ -2774,6 +2852,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installCandyGuard()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
+        installRandomTmResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2845,6 +2924,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installCandyGuard()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
+        installRandomTmResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2873,6 +2953,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installCandyGuard()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
+        installRandomTmResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()
@@ -2900,6 +2981,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         installCandyGuard()
         installFieldItemGuards()
         installRandomHiddenItemGuards()
+        installRandomTmResolvers()
         installServiceGuards()
         installStatGuards()
         installRunPartyGuards()

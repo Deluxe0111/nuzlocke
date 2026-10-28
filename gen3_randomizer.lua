@@ -21,6 +21,9 @@ return function()
         random_field_item_repetition = { kind="number", default=0, min=0, max=1 },
         random_shops = { kind="boolean", default=false },
         random_shop_balance = { kind="number", default=0, min=0, max=1 },
+        random_tms = { kind="boolean", default=false },
+        -- NATIVE / RANDOM 50% / ALL. HMs always use ROM compatibility.
+        random_tm_compatibility = { kind="number", default=0, min=0, max=2 },
         randomizer_seed = { kind="number", default=0, min=0, max=MAX_SEED },
         random_encounter_balance = { kind="number", default=0, min=0, max=1 },
         -- Preserve a distinct replacement per native wild source within
@@ -73,6 +76,8 @@ return function()
         r.encounterAssignments = nil
         r.fieldItemAssignments = nil
         r.shopAssignments = nil
+        r.tmMoves = nil
+        r.tmOriginals = nil
         r.starterOptions = nil
         r.starterSource = nil
         if key == "randomizer_preset" then
@@ -516,6 +521,104 @@ return function()
         }
         r.used=true
         return result
+    end
+
+    -- Game 3 has 50 TM item IDs (289..338), then eight HM items
+    -- (339..346). Use actual native ROM TM moves as the input fingerprint.
+    -- Replacement moves are valid installed Gen 3 battle moves, excluding
+    -- Struggle and all HM field moves. Neither Pokemon._tmhm nor TM items
+    -- are mutated: a shared resolver drives the Case, party preflight and
+    -- teaching so presentation always matches the actual learned move.
+    local function validTmMove(Pokemon, id)
+        id=tonumber(id)
+        if not id or id~=math.floor(id) or id<1 or id>354
+            or id==165 then return false end -- Struggle
+        if type(Pokemon)~="table"
+            or type(Pokemon.battleMove)~="function"
+            or type(Pokemon.moveName)~="function"
+            or type(Pokemon.isHmMove)~="function" then return false end
+        local okHm,hm=pcall(Pokemon.isHmMove,id)
+        if not okHm or hm then return false end
+        local okRow,row=pcall(Pokemon.battleMove,id)
+        local okName,name=pcall(Pokemon.moveName,id)
+        return okRow and type(row)=="table"
+            and (tonumber(row.pp) or 0)>0
+            and okName and type(name)=="string"
+            and name~="" and name~="-------"
+    end
+    function M.tms(s,Pokemon,originals,entropy)
+        local r=state(s)
+        if not r.random_tms or type(originals)~="table"
+            or #originals~=50 then return nil end
+        local base={}
+        for i=1,50 do
+            local id=tonumber(originals[i])
+            if not id or id~=math.floor(id) or id<1 or id>354 then
+                return nil
+            end
+            base[i]=id
+        end
+        if r.tmMoves~=nil or r.tmOriginals~=nil then
+            if type(r.tmMoves)~="table"
+                or type(r.tmOriginals)~="table"
+                or #r.tmMoves~=50 or #r.tmOriginals~=50 then return nil end
+            local copy={}
+            for i=1,50 do
+                if r.tmOriginals[i]~=base[i]
+                    or not validTmMove(Pokemon,r.tmMoves[i]) then
+                    return nil -- changed ROM mapping: fail open
+                end
+                copy[i]=r.tmMoves[i]
+            end
+            r.used=true
+            return copy
+        end
+        local pool={}
+        for id=1,354 do
+            if validTmMove(Pokemon,id) then pool[#pool+1]=id end
+        end
+        if #pool<50 then return nil end
+        local seed=M.seed(s,entropy)
+        if seed==0 then return nil end
+        local result,chosen={},{}
+        for i,original in ipairs(base) do
+            local at=1+M.hash(M.algorithm,seed,"TM_MOVES",i,original)
+                %#pool
+            local picked
+            for j=0,#pool-1 do
+                local id=pool[1+(at-1+j)%#pool]
+                if id~=original and not chosen[id] then
+                    picked=id
+                    break
+                end
+            end
+            if not picked then return nil end
+            result[i]=picked
+            chosen[picked]=true
+        end
+        r.tmMoves=result
+        r.tmOriginals=base
+        r.used=true
+        local copy={}
+        for i=1,50 do copy[i]=result[i] end
+        return copy
+    end
+    function M.tmCanLearn(s,Pokemon,species,tmIndex,entropy)
+        local r=state(s)
+        if r.random_tm_compatibility==0 then return nil end
+        tmIndex=tonumber(tmIndex)
+        if not tmIndex or tmIndex~=math.floor(tmIndex)
+            or tmIndex<0 or tmIndex>=50
+            or not eligiblePokemon(Pokemon,tonumber(species)) then
+            return nil -- HM indexes 50..57 always remain native
+        end
+        local seed=M.seed(s,entropy)
+        if seed==0 then return nil end
+        local allowed=r.random_tm_compatibility==2
+            or M.hash(M.algorithm,seed,"TM_COMPAT",
+                tonumber(species),tmIndex)%2==0
+        r.used=true
+        return allowed
     end
 
     function M.replace(s, Pokemon, source, sourceId, original, entropy,

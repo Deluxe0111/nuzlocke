@@ -3,12 +3,13 @@
 The native Gen 3 Nuzlocke menu now exposes a deterministic species
 randomiser for **starter choices, static encounters, scripted gifts,
 NPC gift eggs, visible/hidden field items, ordinary Poké Marts,
-wild step encounters, fishing and trainer parties**.
+TM moves and TM compatibility, wild step encounters, fishing and
+trainer parties**.
 It does **not** require Nuzlocke Enabled to be ON.
 
 All other Randomizer settings in the legacy catalogue are marked **[Soon]**.
 They are not silently enabled: roaming Pokémon, non-scripted gifts,
-scripted NPC item gifts, learnsets, TM moves, shops, evolution targets
+scripted NPC item gifts, learnsets, TM locations, evolution targets
 and other systems
 remain native until their own implementations are verified.
 
@@ -32,6 +33,8 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Item Variety | NORMAL / UNIQUE AREA (when Field Items ON) | NORMAL |
 | Random Shops | OFF / ON | OFF |
 | Shop Balance | CHAOS / SIM VALUE (when Shops ON) | CHAOS |
+| Random TMs | OFF / ON | OFF |
+| TM Compat | NATIVE / RANDOM / ALL | NATIVE |
 | Starter Balance | CHAOS / SIM BST (when Starters ON) | CHAOS |
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
@@ -108,6 +111,37 @@ affects trainers; wild and Untamed mappings are unchanged.
 avoids mixing incompatible rules in a single run. To start a genuinely new
 randomiser configuration, start a new disposable run/save; Nuz Dev must not
 silently relabel already generated content.
+
+## Random TMs and TM compatibility
+
+**Random TMs** changes the move taught by TM01–TM50 without changing
+the item ID, TM acquisition, native bag consumption, descriptions of other
+items, or the underlying extracted ROM machine table. HM01–HM08 retain
+their native moves and native compatibility, including all field movement
+requirements. A deterministic per-run map uses 50 **distinct** valid
+native Gen 3 battle moves (from IDs 1–354), excluding all HM moves,
+Struggle, invalid/unimplemented and non-PP moves. Each chosen move
+differs from that TM's original move. The map is persisted and checked
+against the native machine mapping on load; incompatible ROM changes
+fail open rather than silently rerolling a learned TM.
+
+**TM Compat** is independently configurable:
+- **NATIVE** keeps each Pokémon's original ROM eligibility by TM index.
+- **RANDOM** gives each Pokémon species a deterministic 50% chance per
+  TM to be able to learn it, from the `TM_COMPAT` seed stream.
+- **ALL** allows every valid Pokémon species to learn every TM.
+
+The native `Pokemon.moveFromTmItem` and `Pokemon.canLearnTmIndex`
+boundaries feed the TM Case move labels/stat panel, party `ABLE` display,
+preflight, move-forgetting UI and actual teaching. Both are installed
+without mutating Pokémon records or ROM tables. Existing TM consumption
+and friendship effects remain native. An unrecognised Pokémon, invalid
+TM or HM always falls through to native behaviour.
+
+These two settings default to Random TMs **OFF** and TM Compat
+**NATIVE**. Both use the same persisted run seed as other categories,
+but independent hashes; no Nuzlocke toggle is required. TM locations
+are not randomised in this batch.
 
 ## Ordinary Poké Mart inventory
 
@@ -351,6 +385,19 @@ Check Untamed's ordinary chain shinies still behave normally.
       Pokémon and rival teams remain unchanged. With both Random Starters
       and Random Trainers ON, the rival's starter retains its lineage
       while every other trainer team member still randomises normally.
+- [ ] **T01:** On a fresh FireRed/LeafGreen and Emerald run,
+      enable Random TMs. Inspect a TM in the TM Case/Bag and teach it:
+      displayed move, stat panel, preflight, final move, consumption
+      and friendlier message must all agree. HM moves stay native.
+- [ ] **T02:** With TM Compat NATIVE / RANDOM / ALL, compare party
+      learnability for several different species. RANDOM must be
+      fixed across save/load; ALL never overrides HM learnability.
+- [ ] **T03:** Reload a save after random TM generation. The same
+      TM teaches the same move, independent from field/shop/wild
+      randomisation. Invalid and special Pokémon fail open.
+- [ ] **T04:** Check a Pokémon with four moves: learning/forgetting
+      must teach the randomised TM move, respect protected HM
+      moves and retain native item-consumption rules.
 - [ ] **M01:** On a new run, enable Random Shops. In an early
       Poké Mart check Poké Balls remain available if originally stocked,
       while other regular items may be replaced. Check replacement prices.
