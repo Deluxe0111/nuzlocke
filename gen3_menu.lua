@@ -16,6 +16,7 @@ return function(mod, api)
     local Stats = assert(api.statRules, "Gen 3 menu needs POKEMON STATS policy")
     local AreaSplits = assert(api.areaSplitRules, "Gen 3 menu needs AREA SPLITS policy")
     local RunParty = assert(api.runPartyRules, "Gen 3 menu needs RUN / PARTY policy")
+    local Difficulty = assert(api.gameDifficulty, "Gen 3 menu needs GAME DIFFICULTY policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -1235,6 +1236,55 @@ return function(mod, api)
         return rows
     end
 
+    local function difficultyRows(category)
+        local saved=state()
+        local profile=Difficulty.profile(saved)
+        local rows={
+            row("Game Difficulty: "..Difficulty.label(saved,
+                "difficulty_profile"),nil,function()
+                local updated=state()
+                local desired=Difficulty.next(updated,"difficulty_profile")
+                local ok,reason=Difficulty.set(updated,
+                    "difficulty_profile",desired)
+                if not ok then
+                    info("GAME DIFFICULTY",{tostring(reason)})
+                    return
+                end
+                api.setState(updated)
+                current().rows=difficultyRows(category)
+            end),
+            row("  DETAILS: DIFFICULTY",nil,function()
+                local p=Difficulty.profile(state())
+                info("GAME DIFFICULTY HELP",{
+                    "PROFILE: "..p.name,
+                    "ID: "..tostring(p.id).."/15",
+                    p.id==0 and "NATIVE TRAINERS" or
+                        "TRAINER LEVEL BOOST",
+                    "NORMAL: +"..tostring(p.normal),
+                    "BOSSES: +"..tostring(p.boss),
+                    "MINIMUM IV: "..tostring(p.iv),
+                    "EVS: "..tostring(p.ev).."/STAT",
+                    "AI TIER: "..tostring(p.ai),
+                    p.bossOnly and "GYMS / RIVALS / ELITE" or
+                        "NORMAL + BOSS TEAMS",
+                    "WILD BATTLES UNCHANGED",
+                    "LINK / FACILITY SAFE",
+                    "NO SPECIES REPLACED",
+                    "CURATED MOVES KEPT",
+                    "OTHER TRAINER MODS",
+                    "MAY NEED COMPAT TEST",
+                    "WORKS WITH NUZ OFF",
+                    "EXPLICIT STAT RULES",
+                    "OVERRIDE IV/EV FLOORS",
+                    "GYM TEAM SIZE USES",
+                    "COMPOSED TEAM COUNT",
+                    "ONLY FUTURE BATTLES",
+                })
+            end),
+        }
+        return rows
+    end
+
     local function runPartyRows(category)
         local rows={}
         local currentState=state()
@@ -1286,6 +1336,7 @@ return function(mod, api)
         if category.title == "POKEMON STATS" then return pokemonStatRows(category) end
         if category.title == "AREA SPLITS" then return areaSplitRows(category) end
         if category.title == "RUN / PARTY" then return runPartyRows(category) end
+        if category.title == "GAME DIFFICULTY" then return difficultyRows(category) end
         if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
@@ -1325,6 +1376,7 @@ return function(mod, api)
             or c.title == "POKEMON STATS"
             or c.title == "AREA SPLITS"
             or c.title == "RUN / PARTY"
+            or c.title == "GAME DIFFICULTY"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
