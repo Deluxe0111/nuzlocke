@@ -43,7 +43,9 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 
 ## A2. New CORE clauses (disposable saves; WIP)
 
-- [ ] **N01 — Catch naming.** With Nickname Rule ON, catch a wild Pokémon. **Expected:** The game opens native naming directly; declining is not offered.
+- [ ] **N01 — Catch naming (engine hook build).** With CORE → NUZLOCKE ON and NICKNAME ON, catch a wild Pokémon using the companion Gen1Recomp build implementing `battle.catch.nickname_required`. **Expected:** No nickname Yes/No question is displayed; native naming opens immediately.
+- [ ] **N01a — PC-bound capture.** Fill the party, catch a wild Pokémon, and attempt an empty/species-default nickname. **Expected:** Naming reopens; the catch cannot complete and the PC transfer message cannot finish until a custom nickname is confirmed.
+- [ ] **N01b — Older-engine fallback.** Run Nuzlocke on a Gen1Recomp build without the new engine hook; if the old Yes/No prompt appears, choose No. **Expected:** The fallback forces the YES/naming path rather than completing the catch unnamed. No promise that the old dialog is hidden.
 - [ ] **N02 — Reject default.** Submit an empty name, whitespace-only name, cancelled name or exact species name. **Expected:** Native naming reopens; the Pokémon is not accepted unnamed. A custom name finishes normally.
 - [ ] **N02a — Switch off enforcement.** Turn NICKNAME OFF and catch another wild Pokémon. **Expected:** The native Yes/No choice is offered again, and No is accepted.
 - [ ] **N02b — Repeat after load.** Save/reload and catch another Pokémon with the rule ON. **Expected:** No Yes/No bypass after reopening the game.
