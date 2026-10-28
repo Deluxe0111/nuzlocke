@@ -89,6 +89,14 @@ local starterAnswer
 choice.yesNo(function(answer) starterAnswer = answer end)
 assert(starterAnswer == true and asked == 0,
     "starter's native NO button must not be a way around Nickname Rule")
+-- FireRed/LeafGreen use the same native field choice for the starter.
+game.session.version = "firered"
+msg.pageText = "Would you like to give a nickname to BULBASAUR?"
+local frlgAnswer
+choice.yesNo(function(answer) frlgAnswer = answer end)
+assert(frlgAnswer == true and asked == 0,
+    "FRLG starter nickname cannot be declined")
+game.session.version = "emerald"
 -- Other Yes/No choices remain vanilla, including NO.
 msg.pageText = "Would you like to save your game?"
 local ordinary
