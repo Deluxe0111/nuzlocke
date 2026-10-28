@@ -3674,6 +3674,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         mercyBattle = nil
         refreshCapNotice()
         nicknameTasks()
+        installChampionResultHook()
         if loadState().failed then
             finishRun("FAILED","Party defeated / no usable survivors",true)
         end

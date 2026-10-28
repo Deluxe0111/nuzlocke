@@ -236,6 +236,17 @@ return function()
             row("SHARE "..(rosterMode=="party" and "PARTY" or "MEMORIAL")
                 .." PNG",exportPage),
         }
+        if result.outcome~="VICTORY" and opts
+            and type(opts.onSave)=="function" then
+            rows[#rows+1]=row("RETRY / SAVE RUN",function()
+                local ok,why=opts.onSave()
+                present("RUN SAVE",{
+                    row(ok and "SAVE COMPLETE" or "SAVE FAILED"),
+                    row(ok and "FINAL RECORD WRITTEN"
+                        or tostring(why or "UNKNOWN ERROR")),
+                })
+            end)
+        end
         if result.outcome=="VICTORY" then
             rows[#rows+1]=row("CONTINUE ADVENTURE",function()
                 M.close()
