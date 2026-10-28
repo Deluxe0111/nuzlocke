@@ -5,6 +5,7 @@ return function(mod, api)
     local MENU_ID = "nuzlocke.gen3.menu"
     local VISIBLE = 6
     local pages = {}
+    local setupOnDone
     local engineGame
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
@@ -1846,8 +1847,66 @@ return function(mod, api)
 
     local M = { isMenu = true }
 
+    local function finishSetup(accepted)
+        local callback = setupOnDone
+        if not callback then return end
+        setupOnDone = nil
+        pages = {}
+        engineGame = nil
+        callback(accepted == true)
+    end
+
+    -- All working advanced categories are the very same pages used by the
+    -- in-game menu: there is no duplicate or obsolete setup-rule catalogue.
+    local function newRunRows()
+        local locked = state().runSettingsLocked == true
+        return {
+            row("CORE RULES", nil, function()
+                present("CORE", coreRows(), coreRows)
+            end),
+            row("ALL NUZ RULES", nil, showRules),
+            row("QOL SETUP ONLY", nil, function()
+                for _, category in ipairs(CATALOG) do
+                    if category.title == "QOL SETUP ONLY" then
+                        present("QOL SETUP", setupRows(category),
+                            function() return setupRows(category) end)
+                        return
+                    end
+                end
+            end),
+            row("LOCK FOR RUN: " .. (locked and "ON" or "OFF"), nil,
+                function()
+                    local saved = state()
+                    if saved._setup ~= true then return end
+                    saved.runSettingsLocked = not locked
+                    api.setState(saved)
+                    current().rows = newRunRows()
+                end),
+            row("START NEW GAME", nil, function()
+                finishSetup(true)
+            end),
+            row("CANCEL", nil, function()
+                finishSetup(false)
+            end),
+        }
+    end
+
+    function M.openSetup(game, done)
+        if type(done) ~= "function" then return false end
+        engineGame = game
+        setupOnDone = done
+        pages = {}
+        present("NEW RUN SETUP", newRunRows(), newRunRows)
+        return true
+    end
+
+    function M.isSetupOpen()
+        return setupOnDone ~= nil
+    end
+
     function M.open(game)
         if not (game and game.session) then return false end
+        setupOnDone = nil
         engineGame = game
         pages = {}
         home()
@@ -1867,6 +1926,8 @@ return function(mod, api)
     local function back()
         if #pages > 1 then
             popPage()
+        elseif setupOnDone then
+            finishSetup(false)
         else
             pages = {}
             engineGame = nil
