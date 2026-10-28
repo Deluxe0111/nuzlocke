@@ -34,6 +34,7 @@ on:
       - 'gen3_title_setup.lua'
       - 'tests/gen3_qol_setup_smoke.lua'
       - 'tests/gen3_title_setup_smoke.lua'
+      - 'tests/gen3_qol_nickname_boundary_smoke.lua'
       - 'tests/gen3_run_setup_smoke.lua'
       - 'tests/gen3_qol_smoke.lua'
       - 'tests/gen3_hardcore_rules_smoke.lua'
@@ -88,6 +89,8 @@ jobs:
         run: lua5.1 tests/gen3_title_setup_smoke.lua
       - name: Test new run settings lock and draft isolation
         run: lua5.1 tests/gen3_run_setup_smoke.lua
+      - name: Test instant text, starter nickname and lock popup
+        run: lua5.1 tests/gen3_qol_nickname_boundary_smoke.lua
       - name: Run isolated Gen 3 hook/state smoke
         run: lua5.1 tests/gen3_foundation_smoke.lua
       - name: Run nickname, rival and PC survivors smoke
