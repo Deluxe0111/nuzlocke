@@ -65,7 +65,8 @@ return function()
         local d=byKey[key]
         if not d then return nil end
         local v=M.get(s,key)
-        return d.kind=="toggle" and not v or (v+1)%4
+        if d.kind=="toggle" then return not v end
+        return (v+1)%4
     end
     function M.applies(s,key,userSide,core)
         if not core or not core.active(s) then return false end
