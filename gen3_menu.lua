@@ -585,6 +585,7 @@ return function(mod, api)
             row("CLAUSES", nil, function()
                 present("CLAUSES", clausesRows(), clausesRows)
             end),
+            row("ALL NUZ RULES", nil, showRules),
             row("LOCK FOR RUN: " .. (locked and "ON" or "OFF"), nil, function()
                 local saved = state()
                 saved.runSettingsLocked = not (saved.runSettingsLocked == true)
