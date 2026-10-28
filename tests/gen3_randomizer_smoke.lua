@@ -186,9 +186,18 @@ local function press(key)
 end
 press("a") -- NUZ RULES
 local cat=mod.exports.gen3_menu.catalog()
+local catalogHasRandomizer=false
+for _,c in ipairs(cat) do
+    if c.title=="RANDOMIZER" then catalogHasRandomizer=true end
+end
+assert(catalogHasRandomizer,"randomiser category remains in legacy catalog")
+-- Navigation must use the actual displayed menu, not the catalog index.
+-- Advanced Rules collapses nine catalog entries into one visible row.
 local position
-for i,c in ipairs(cat) do if c.title=="RANDOMIZER" then position=i end end
-assert(position,"randomiser category remains in legacy catalog")
+for i,label in ipairs(mod.exports.gen3_menu.model().rows) do
+    if label=="RANDOMIZER" then position=i end
+end
+assert(position,"RANDOMIZER must remain accessible on the rules menu")
 for i=2,position do press("down") end
 press("a")
 local model=mod.exports.gen3_menu.model()

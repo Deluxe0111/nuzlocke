@@ -238,7 +238,23 @@ local function press(button)
     })
 end
 press("a") -- NUZ RULES
+local mainRules=mod.exports.gen3_menu.model()
+local expectedMain={
+    "CORE","CLAUSES","[Soon] HARDCORE",
+    "[Soon] GAME DIFFICULTY","[Soon] RUN / PARTY",
+    "LEVELS","PLAYSTYLES","ADVANCED RULES",
+    "RANDOMIZER","[Soon] QOL","[Soon] QOL SETUP ONLY",
+}
+assert(mainRules.title=="NUZ RULES" and #mainRules.rows==#expectedMain)
+for i, label in ipairs(expectedMain) do
+    assert(mainRules.rows[i]==label,
+        "main NUZ RULES row "..i.." should be "..label)
+end
 local catalog=mod.exports.gen3_menu.catalog()
+for _, category in ipairs(catalog) do
+    assert(category.title~="WORLD" and category.title~="UI",
+        "obsolete Gen 3 WORLD and UI placeholders must be removed")
+end
 local position
 for i,c in ipairs(catalog) do
     if c.title=="PLAYSTYLES" then position=i end
@@ -273,6 +289,47 @@ assert(table.concat(details.rows,";"):find("FORCED SET BATTLE STYLE",1,true))
 press("b");press("up");press("a") -- Hardcore OFF
 assert(mod.exports.gen3_menu.model().rows[3]=="HARDCORE: OFF")
 assert(styles.getRule("hardcore_nuzlocke")==false)
+press("b") -- back to NUZ RULES, selection remains PLAYSTYLES
+assert(mod.exports.gen3_menu.model().title=="NUZ RULES")
+assert(mod.exports.gen3_menu.model().index==position)
+press("down");press("a") -- ADVANCED RULES immediately after PLAYSTYLES
+local advanced=mod.exports.gen3_menu.model()
+local expectedAdvanced={
+    "CATCH RULES","BATTLE CLAUSES","STATUS BANS","VARIANTS",
+    "BATTLE ITEMS","FIELD ITEMS","SERVICES & ECONOMY",
+    "POKEMON STATS","AREA SPLITS",
+}
+assert(advanced.title=="ADVANCED RULES"
+    and #advanced.rows==#expectedAdvanced,
+    "Advanced Rules must contain exactly the nine requested categories")
+for i, name in ipairs(expectedAdvanced) do
+    assert(advanced.rows[i]=="[Soon] "..name,
+        "advanced category "..i.." should preserve [Soon] and its label")
+    press("a")
+    local child=mod.exports.gen3_menu.model()
+    assert(child.title==name and #child.rows>0,
+        "advanced category must open its original rules")
+    assert(child.rows[1]:find("[Soon]",1,true),
+        "unsupported rules must stay read-only placeholders")
+    -- Check placeholder action still explains why not implemented.
+    press("a")
+    assert(mod.exports.gen3_menu.model().title~=name,
+        "[Soon] entry must open its unavailable explanation")
+    press("b")
+    assert(mod.exports.gen3_menu.model().title==name)
+    press("b")
+    advanced=mod.exports.gen3_menu.model()
+    assert(advanced.title=="ADVANCED RULES" and advanced.index==i,
+        "B should return to the same advanced category and selection")
+    if i<#expectedAdvanced then press("down") end
+end
+press("b") -- return to top-level rules at ADVANCED RULES
+assert(mod.exports.gen3_menu.model().title=="NUZ RULES"
+    and mod.exports.gen3_menu.model().index==position+1)
+press("up");press("a") -- PLAYSTYLES still uses original config
+assert(mod.exports.gen3_menu.model().title=="PLAYSTYLES"
+    and mod.exports.gen3_menu.model().rows[1]=="SHINY NUZ: OFF"
+    and mod.exports.gen3_menu.model().rows[3]=="HARDCORE: OFF")
 press("b");press("b");press("b")
 assert(#stack==0)
-print("Gen3 Shiny Nuzlocke policy, native catches, area precedence, feedback and menu: PASS")
+print("Gen3 Shiny Nuzlocke, clean rules menu, advanced navigation and save state: PASS")
