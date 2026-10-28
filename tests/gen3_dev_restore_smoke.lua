@@ -1,6 +1,5 @@
 -- Isolated Gen 3 NUZ DEV restoration: no ROM or game engine needed.
 local Archive=assert(loadfile("gen3_archive.lua"))()()
-local D=assert(loadfile("gen3_dev.lua"))()()
 local state={areas={},graveyard={},enabled=true,failed=false}
 local session={party={{species=1,personality=100,hp=20}},
     storage={boxes={{mons={}}}}}
