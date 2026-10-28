@@ -38,6 +38,8 @@ This index separates the **current Generation 3 beta** from the **existing Gener
 - [v3 release notes and older releases](../RELEASE_NOTES.md)
 - [Full historical changelog](../CHANGELOG.md)
 - [Documentation changes](DOCUMENTATION_CHANGELOG.md)
+- [Safe fork-release workflow and permission check](RELEASING.md)
+- [Current and historical test suites](../tests/README.md)
 - [Original contributors and Gen 3 port credits](../CREDITS.md)
 - [Early Gen 3 CLAUSES design](GEN3_CLAUSES_NEXT.md) — archived planning snapshot; **not** the current status reference.
 

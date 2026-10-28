@@ -60,6 +60,10 @@ Untamed is an **optional** companion. The Nuzlocke **MOD SUPPORT** screen report
 | **Gen 1/2** behaviour and compatibility | [Legacy user guide](docs/USER_GUIDE.md) · [Compatibility reference](docs/COMPATIBILITY.md) |
 | Versions and authorship | [v3 release notes and preserved older releases](RELEASE_NOTES.md) · [Full changelog](CHANGELOG.md) · [Credits](CREDITS.md) |
 
+## Releasing and maintaining this fork
+
+The [release guide](docs/RELEASING.md) explains the already-published v3 prerelease, safe future manual releases, deterministic player ZIPs, original contributor attribution and the missing upstream licence clarification. The [test suite inventory](tests/README.md) documents why active Gen 3 smoke tests stay in the repository but are excluded from player downloads.
+
 ## Credits
 
 **[bryanthaboi](https://github.com/bryanthaboi)** created the original Nuzlocke mod; **[Stone696](https://github.com/Stone696)** continued its development, including significant Generation 1/2 features and compatibility work; **[masterwebx](https://github.com/masterwebx)** created the original Shiny Pokémon mod forming part of the shiny feature's lineage. **[Deluxe0111](https://github.com/Deluxe0111)** developed the Generation 3 port and its new integrations/features. See **[CREDITS.md](CREDITS.md)** for distinct contributions and project context.

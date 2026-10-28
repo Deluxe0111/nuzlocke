@@ -13,12 +13,16 @@ const card=read("mod.card");
 const matrix=read("docs/GEN3_FEATURE_MATRIX.md");
 const overview=read("docs/GEN3_PORT.md");
 const checklist=read("docs/GEN3_TEST_CHECKLIST.md");
-check(manifest.version==="3.0.0-BETA","v3 manifest version drift");
-check(readme.includes("v3.0.0-BETA")&&notes.includes("v3.0.0-BETA")
-  &&change.includes("## 3.0.0-BETA"),"v3 release identity must match");
-check(notes.indexOf("v3.0.0-BETA")<notes.indexOf("# Nuzlocke 2.9.73")
+const version=String(manifest.version||"");
+check(/^3\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(version),
+  "release must have a Generation 3 semantic version");
+check(readme.split("\n")[0].includes("v"+version)
+  &&notes.split("\n")[0].includes("v"+version),
+  "README and current RELEASE_NOTES headline must match manifest version");
+check(change.includes("## 3.0.0-BETA")
+  &&notes.indexOf("v"+version)<notes.indexOf("# Nuzlocke 2.9.73")
   &&change.indexOf("## 3.0.0-BETA")<change.indexOf("## 2.9.72"),
-  "v3 must be separate from preceding release notes");
+  "preserve v3 origin and earlier 2.9 release records");
 for(const old of ["2.9.73","2.9.72","2.9.71","2.9.70"]){
   check(change.includes("## "+old),
       "historical changelog entry missing: "+old);
@@ -45,6 +49,7 @@ check(!/^.*(?:six other advanced groups remain|three other advanced categories r
   "stale Gen 3 implementation label");
 const files=[
  "README.md","RELEASE_NOTES.md","CREDITS.md","docs/README.md",
+ "docs/RELEASING.md",
  "docs/GEN3_FEATURE_MATRIX.md","docs/GEN3_PORT.md",
  "docs/GEN3_TEST_CHECKLIST.md","docs/GEN3_CORE_SPEC.md",
  "docs/GEN3_ADVANCED_RULES.md","docs/DEVELOPER_GEN3.md"
