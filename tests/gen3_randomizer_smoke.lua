@@ -395,6 +395,53 @@ local originalEgg={op="giveegg",[1]=3}
 hooks["script.command"](nativeScript,{}, "giveegg",originalEgg)
 assert(seenScript~=originalEgg and seenScript[1]~=3,
     "NPC gift eggs must use their own independent species roll")
+-- The event special must build the native encounter descriptor first,
+-- then replace only its species. Preserve its fateful/level/item flags.
+local oldNatives=package.loaded["src.core.game3.scripting.natives"]
+local oldEnc=package.loaded["src.core.game3.encounters"]
+local fakeEnc={}
+package.loaded["src.core.game3.encounters"]=fakeEnc
+package.loaded["src.core.game3.scripting.natives"]={
+    specialName=function(id)
+        return id==777 and "CreateEnemyEventMon" or "Unrelated"
+    end
+}
+local specialRow={op="special",[1]=777}
+local passed=hooks["script.command"](function(_,name,row)
+    assert(name=="special" and row==specialRow)
+    fakeEnc._pendingWild={
+        species=1,level=40,item=66,modernFatefulEncounter=true,
+    }
+    return "native_success"
+end,{},"special",specialRow)
+assert(passed=="native_success"
+    and fakeEnc._pendingWild.species~=1
+    and fakeEnc._pendingWild.level==40
+    and fakeEnc._pendingWild.item==66
+    and fakeEnc._pendingWild.modernFatefulEncounter==true,
+    "event Pokemon special must preserve its native side effects")
+package.loaded["src.core.game3.scripting.natives"]=oldNatives
+package.loaded["src.core.game3.encounters"]=oldEnc
+-- Variable-backed gift sources must keep native script text variables
+-- aligned with the actual awarded species, not mutate authored opcodes.
+local oldFlags=package.loaded["src.core.game3.scripting.flags"]
+local oldSpace=package.loaded["src.core.game3.scripting.space"]
+local varStore={vars={[0x4006]=2}}
+package.loaded["src.core.game3.scripting.flags"]={
+    getVar=function(store,ctx,id) return store.vars[id] end,
+    setVar=function(store,ctx,id,value) store.vars[id]=value end,
+}
+package.loaded["src.core.game3.scripting.space"]={store=varStore}
+local variableGift={op="givemon",[1]=0x4006,[2]=15}
+hooks["script.command"](nativeScript,{runner={ctx={}}},
+    "givemon",variableGift)
+assert(seenScript~=variableGift and seenScript[1]~=2
+    and seenScript[1]==varStore.vars[0x4006]
+    and variableGift[1]==0x4006
+    and seenScript[2]==15,
+    "variable-backed gift text and acquired species must agree")
+package.loaded["src.core.game3.scripting.flags"]=oldFlags
+package.loaded["src.core.game3.scripting.space"]=oldSpace
 game.session.map="FR_POKEMON_TOWER_6F"
 hooks["script.command"](nativeScript,{}, "setwildbattle",originalStatic)
 assert(seenScript==originalStatic,"Tower ghost must remain native")
