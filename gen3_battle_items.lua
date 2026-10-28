@@ -37,6 +37,9 @@ return function()
         return type(v)=="boolean" and v or false
     end
     function M.set(s,key,value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         if type(s)~="table" then return false,"invalid_state" end
         if s.failed then return false,"run_failed" end
         if not byKey[key] then return false,"not_implemented" end
