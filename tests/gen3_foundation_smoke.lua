@@ -94,7 +94,7 @@ local function openMenu()
     rows[#rows].onSelect()
     local model = mod.exports.gen3_menu.model()
     assert(model.title == "NUZ MENU", "menu opens home")
-    assert(model.rows[1] == "[WIP] NUZ RULES", "rules marked WIP")
+    assert(model.rows[1] == "NUZ RULES", "implemented rules have no WIP label")
     assert(model.rows[3] == "NUZ STATUS", "functional status unflagged")
     assert(model.rows[5] == "[Soon] ALMANAC", "absent feature marked Soon")
 end
