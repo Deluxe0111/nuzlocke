@@ -658,7 +658,7 @@ for i, name in ipairs(expectedAdvanced) do
             and catch.getRule("ban_legendaries")==true)
         press("a")
         assert(catch.getRule("ban_legendaries")==false)
-        press("up");press("up")
+        press("up") -- return to first row without wrapping around
         for _=1,11 do press("down") end -- PKMN BAN row
         assert(mod.exports.gen3_menu.model().rows[12]=="PKMN BAN: 0 BANNED")
         press("a") -- National Dex picker
