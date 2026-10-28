@@ -85,7 +85,9 @@ return function()
             or (scope==2 and side=="enemy") or false
     end
     function M.denyOHKO(s,userSide,core)
-        return M.applies(s,"ohko_clause",userSide,core)
+        local side=type(userSide)=="table" and userSide.side or userSide
+        if side~="player" and side~="enemy" then return false end
+        return M.applies(s,"ohko_clause",side,core)
     end
     function M.denyEffect(s,effect,userSide,core)
         if effect=="FLINCH" and M.applies(s,"flinch_clause_scope",userSide,core)
