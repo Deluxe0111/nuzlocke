@@ -14,10 +14,10 @@ const matrix=read("docs/GEN3_FEATURE_MATRIX.md");
 const overview=read("docs/GEN3_PORT.md");
 const checklist=read("docs/GEN3_TEST_CHECKLIST.md");
 const version=String(manifest.version||"");
-check(/^3\\.\\d+\\.\\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(version),
+check(/^3\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(version),
   "release must have a Generation 3 semantic version");
-check(readme.split("\\n")[0].includes("v"+version)
-  &&notes.split("\\n")[0].includes("v"+version),
+check(readme.split("\n")[0].includes("v"+version)
+  &&notes.split("\n")[0].includes("v"+version),
   "README and current RELEASE_NOTES headline must match manifest version");
 check(change.includes("## 3.0.0-BETA")
   &&notes.indexOf("v"+version)<notes.indexOf("# Nuzlocke 2.9.73")
