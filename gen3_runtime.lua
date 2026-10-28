@@ -636,6 +636,19 @@ return function(mod)
         return true
     end
 
+    -- Native Gen 3 builds with the post-catch hook consult Nuzlocke at
+    -- the *actual* capture decision, before ever drawing the YES/NO prompt.
+    -- Engine builds without the hook keep the guarded UI compatibility path.
+    mod.hooks:wrap("battle.catch.nickname_required", function(next, ctx)
+        if type(ctx) == "table" and ctx.source == "gen3"
+            and Core.enforced(loadState(), "nickname_rule") then
+            notify("NICKNAME_FORCED",
+                "Nickname Rule: a custom nickname is required.", false)
+            return true
+        end
+        return next(ctx)
+    end)
+
     -- Native catch prompts cannot be skipped when Nickname Rule is ON.
     -- The guarded naming screen repeats until a non-default name is given.
     -- The safe overworld task list handles gifts, trades and hatches.
@@ -678,6 +691,33 @@ return function(mod)
             Ui.askYesNo = guardedAsk
             Ui.__nuzGen3NicknameWrap = guardedAsk
             Ui.__nuzGen3NicknameOwner = mod
+        end
+        -- Compatibility fail-safe for existing Gen1Recomp builds: when
+        -- another UI wrapper draws the old YES/NO prompt, intercept the
+        -- confirmation callback at the lower native Choice layer too.
+        -- This cannot be declined; no other Yes/No screens are affected.
+        local okC, Choice = pcall(require, "src.ui.game3.choice")
+        if okC and type(Choice) == "table"
+            and type(Choice.yesNo) == "function"
+            and (Choice.__nuzGen3NicknameOwner ~= mod
+                or Choice.__nuzGen3NicknameWrap ~= Choice.yesNo) then
+            local originalChoice = Choice.yesNo
+            local function guardedChoice(callback, ...)
+                local battle = package.loaded["src.core.game3.battle.init"]
+                    or package.loaded["src.core.game3.battle"]
+                if type(battle) == "table"
+                    and battle._phase == "catch_nickname_prompt"
+                    and Core.enforced(loadState(), "nickname_rule")
+                    and type(callback) == "function" then
+                    notify("NICKNAME_FORCED",
+                        "Nickname Rule: choose a custom nickname.", false)
+                    return callback(true)
+                end
+                return originalChoice(callback, ...)
+            end
+            Choice.yesNo = guardedChoice
+            Choice.__nuzGen3NicknameOwner = mod
+            Choice.__nuzGen3NicknameWrap = guardedChoice
         end
         if not okN or type(Naming) ~= "table"
             or type(Naming.open) ~= "function" then return true end
