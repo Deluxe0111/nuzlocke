@@ -18,6 +18,7 @@ return function(mod, api)
     local RunParty = assert(api.runPartyRules, "Gen 3 menu needs RUN / PARTY policy")
     local Difficulty = assert(api.gameDifficulty, "Gen 3 menu needs GAME DIFFICULTY policy")
     local Hardcore = assert(api.hardcoreRules, "Gen 3 menu needs HARDCORE policy")
+    local Qol = assert(api.qolRules, "Gen 3 menu needs QOL policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -1237,6 +1238,60 @@ return function(mod, api)
         return rows
     end
 
+    local function qolRows(category)
+        local rows={}
+        local saved=state()
+        for _,definition in ipairs(Qol.descriptors()) do
+            local key,label=definition.key,definition.label
+            if definition.status~="working" then
+                local note=definition.detail or "Not available in Gen 3."
+                rows[#rows+1]=row(label, "soon",function()
+                    info("QOL NOT AVAILABLE",{label,note,
+                        "NO GEN 3 SETTING SAVED"})
+                end)
+            else
+                rows[#rows+1]=row(label..": "..Qol.label(saved,key),
+                    nil,function()
+                    local updated=state()
+                    local desired=Qol.next(updated,key)
+                    local ok,why=Qol.set(updated,key,desired)
+                    if not ok then
+                        info("QOL",{tostring(why)})
+                        return
+                    end
+                    api.setState(updated)
+                    current().rows=qolRows(category)
+                end)
+            end
+        end
+        rows[#rows+1]=row("  DETAILS: QOL",nil,function()
+            info("QOL HELP",{
+                "GEN 3 QOL",
+                "PC-ONLY CATCHES: WIP",
+                "ATOMIC STORAGE REQUIRED",
+                "INSTANT TEXT: FIELD",
+                "PAGE/CHOICE WAITS KEPT",
+                "RUN / SURF: OFF",
+                "HOLD B: 2X STEP SPEED",
+                "ALWAYS: 2X STEP SPEED",
+                "NO BIKE OR CUTSCENES",
+                "UNLIMITED BAG SPACE:",
+                "ITEM & BALL POCKETS",
+                "NATIVE 99-STACK KEPT",
+                "KEY/TM/BERRY NATIVE",
+                "TRADE EVOLUTIONS:",
+                "LEVEL 40+ INSTEAD",
+                "HELD ITEM STILL NEEDED",
+                "EVERSTONE RESPECTED",
+                "NO EVO RULE OVERRIDES",
+                "OTHER GEN1/2 OPTIONS",
+                "ARE NOT APPLICABLE",
+                "QOL WORKS WITH NUZ OFF",
+            })
+        end)
+        return rows
+    end
+
     local function hardcoreRows(category)
         local rows={}
         local saved=state()
@@ -1387,6 +1442,7 @@ return function(mod, api)
         if category.title == "RUN / PARTY" then return runPartyRows(category) end
         if category.title == "GAME DIFFICULTY" then return difficultyRows(category) end
         if category.title == "HARDCORE" then return hardcoreRows(category) end
+        if category.title == "QOL" then return qolRows(category) end
         if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
@@ -1428,6 +1484,7 @@ return function(mod, api)
             or c.title == "RUN / PARTY"
             or c.title == "GAME DIFFICULTY"
             or c.title == "HARDCORE"
+            or c.title == "QOL"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
