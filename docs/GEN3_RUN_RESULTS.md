@@ -111,13 +111,12 @@ export reports a clear error rather than silently truncating deaths.
 
 ### Shiny artwork
 
-Gen 3 native mini-icons have only a standard-colour icon palette, so
-the small Box and Party icons are normally **not shiny variants**.
-The Nuzlocke mod now draws confirmed shiny Pokémon using the extracted
-ROM's `pokemon/front_shiny/<species>.rgba` artwork, including in the
-complete-results PNG and native PC monitor. Its shiny mini-icons use
-scaled-down native front artwork (two icon frames); normal Pokémon retain
-the standard animated native mini-icons.
+Gen 3 has no dedicated shiny mini-icon sprites. **Both shiny and
+normal Pokémon use the standard native mini-icons in PC boxes and party
+slots.** No resized battle sprites are substituted for mini-icons.
+Confirmed shiny Pokémon still use the ROM's extracted
+`pokemon/front_shiny/<species>.rgba` artwork in the complete-results
+PNG and native PC portrait.
 
 This bypasses the potentially stale/misresolved normal front-sprite
 cache by reading the ROM's shiny-palette RGBA directly through the
