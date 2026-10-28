@@ -335,6 +335,7 @@ local allCompat={randomizer={random_tm_compatibility=2,
 assert(R.tmCanLearn(allCompat,P,1,1)==true)
 assert(R.tmCanLearn(allCompat,P,3,49)==true)
 assert(R.tmCanLearn(allCompat,P,3,50)==nil)
+do
 -- All remaining non-item randomiser settings: starter stages, type
 -- diversity, trainer theme, learnsets and cycle-safe evolutions.
 local starterStyle={randomizer={random_starter=true,
@@ -413,6 +414,7 @@ assert(R.item({randomizer={random_gift_items=true,
     13,nil,"MAP:ROUTE","GIFT")
     ==R.item(giftItems,ItemsData,"GIFT:ROUTE:1:13",
     13,nil,"MAP:ROUTE","GIFT"))
+end -- new randomiser settings policy checks
 -- Candidate exclusion is deterministic and does not disturb existing
 -- mappings when Trainer Variety is OFF.
 local distinct = {randomizer={
