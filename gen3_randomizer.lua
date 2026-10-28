@@ -218,9 +218,10 @@ return function()
     end
     local function nativeEvolutionGraph(Pokemon)
         local targets={}
-        if type(Pokemon.evolutions)~="function" then return targets end
+        local resolver=Pokemon.__nuzNativeEvolutions or Pokemon.evolutions
+        if type(resolver)~="function" then return targets end
         for _,entry in ipairs(M.pool(Pokemon)) do
-            local ok,rows=pcall(Pokemon.evolutions,entry.id)
+            local ok,rows=pcall(resolver,entry.id)
             if ok and type(rows)=="table" then
                 for _,row in ipairs(rows) do
                     local id=tonumber(row.target or row[3])
@@ -232,8 +233,9 @@ return function()
     end
     local function starterAllowed(Pokemon,id,style,targets)
         if style==0 then return true end
-        if type(Pokemon.evolutions)~="function" then return false end
-        local ok,rows=pcall(Pokemon.evolutions,id)
+        local resolver=Pokemon.__nuzNativeEvolutions or Pokemon.evolutions
+        if type(resolver)~="function" then return false end
+        local ok,rows=pcall(resolver,id)
         if not ok or type(rows)~="table" then return false end
         if style==1 then return not targets[id] and #rows>0 end
         return targets[id] and #rows==0

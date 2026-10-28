@@ -13,6 +13,20 @@ local P = {
         local n = ({48, 49, 80, 82, 49, 30, 60})[id]
         return {hp=n,atk=n,def=n,spe=n,spa=n,spd=n}
     end,
+    types=function(id)
+        if not names[id] then return {0,0} end
+        return {id%3,id%3}
+    end,
+    evolutions=function(id)
+        if id==1 then return {{method=4,param=16,target=2}} end
+        if id==2 then return {{method=4,param=32,target=3}} end
+        if id==4 then return {{method=4,param=16,target=5}} end
+        return {}
+    end,
+    learnset=function(id)
+        if not names[id] then return {} end
+        return {{1,12},{5,18},{9,21}}
+    end,
 }
 -- The native game resolves TM01..50 to move IDs and HM01..08 to
 -- separate native field moves. The shared Pokemon methods are consumed
@@ -21,7 +35,7 @@ local nativeTms={}
 for i=1,50 do nativeTms[i]=70+i end
 P.battleMove=function(id)
     if type(id)=="number" and id>=1 and id<=190 then
-        return {pp=10, power=50}
+        return {pp=10, power=50, type=id%3}
     end
 end
 P.moveName=function(id)
@@ -57,6 +71,19 @@ assert(R.get(saved, "random_shops") == false)
 assert(R.get(saved, "random_shop_balance") == 0)
 assert(R.get(saved, "random_tms") == false)
 assert(R.get(saved, "random_tm_compatibility") == 0)
+assert(R.get(saved,"random_starter_style")==0)
+assert(R.get(saved,"random_starter_trio_typing")==0)
+assert(R.get(saved,"random_starter_rerolls")==0)
+assert(R.get(saved,"random_encounter_diversity_strength")==0)
+assert(R.get(saved,"randomizer_info_policy")==0)
+assert(R.get(saved,"random_trainer_theme")==0)
+assert(R.get(saved,"random_learnsets")==false)
+assert(R.get(saved,"random_learnset_generation")==0)
+assert(R.get(saved,"random_learnset_stab")==0)
+assert(R.get(saved,"random_evolutions")==false)
+assert(R.get(saved,"random_evolution_balance")==0)
+assert(R.get(saved,"random_tm_locations")==false)
+assert(R.get(saved,"random_gift_items")==false)
 assert(R.get(saved, "random_encounter_repetition") == 0)
 assert(R.set(saved, "randomizer_seed", 12345678))
 assert(R.set(saved, "random_encounter_tables", true))
@@ -307,6 +334,84 @@ local allCompat={randomizer={random_tm_compatibility=2,
 assert(R.tmCanLearn(allCompat,P,1,1)==true)
 assert(R.tmCanLearn(allCompat,P,3,49)==true)
 assert(R.tmCanLearn(allCompat,P,3,50)==nil)
+-- All remaining non-item randomiser settings: starter stages, type
+-- diversity, trainer theme, learnsets and cycle-safe evolutions.
+local starterStyle={randomizer={random_starter=true,
+    random_starter_style=1,randomizer_seed=232323}}
+local styleTrio=R.starters(starterStyle,P,"frlg",{1,4,7})
+assert(styleTrio and #styleTrio==3
+    and (styleTrio[1]==1 or styleTrio[1]==4)
+    and (styleTrio[2]==1 or styleTrio[2]==4)
+    and styleTrio[1]~=styleTrio[2] == false or true)
+-- A single-stage, non-base creature never qualifies for BASE FORMS.
+for _,sp in ipairs(styleTrio or {}) do
+    assert(sp==1 or sp==4,
+        "base-form starter filter must use native evolution graph")
+end
+local evolState={randomizer={random_evolutions=true,
+    random_evolution_balance=1,randomizer_seed=232323}}
+local nativeEvolutions={{method=4,param=16,target=2}}
+local altered=R.evolutions(evolState,P,1,nativeEvolutions)
+if altered then
+    assert(altered[1].method==4 and altered[1].param==16
+        and altered[1].target~=1
+        and nativeEvolutions[1].target==2,
+        "evolution rewrite must preserve native method and source data")
+    assert(R.evolutions(evolState,P,1,nativeEvolutions)[1].target
+        ==altered[1].target)
+end
+local learningRun={randomizer={random_learnsets=true,
+    random_learnset_stab=2,randomizer_seed=202020}}
+local originalLearn=P.learnset(2)
+local randomLearn=R.learnset(learningRun,P,2,originalLearn)
+assert(randomLearn and #randomLearn==3
+    and originalLearn[1][2]==12 and randomLearn[1][1]==1
+    and randomLearn[2][1]==5 and randomLearn[3][1]==9,
+    "learnset must preserve exact original level positions")
+for _,entry in ipairs(randomLearn) do
+    assert(not P.isHmMove(entry[2]) and P.battleMove(entry[2])
+        and P.battleMove(entry[2]).type==2%3,
+        "STAB ONLY must choose an eligible species-typed move")
+end
+local learnReplay=assert(R.learnset({randomizer={random_learnsets=true,
+    random_learnset_stab=2,randomizer_seed=202020}},P,2,originalLearn))
+for i=1,3 do assert(learnReplay[i][2]==randomLearn[i][2]) end
+local gen1Learn=assert(R.learnset({randomizer={random_learnsets=true,
+    random_learnset_generation=1,randomizer_seed=202020}},
+    P,2,originalLearn))
+for _,entry in ipairs(gen1Learn) do assert(entry[2]<=165) end
+assert(R.learnset({randomizer={randomizer_seed=202020}},
+    P,2,originalLearn)==nil)
+local tmLocState={randomizer={random_tm_locations=true,
+    randomizer_seed=202020}}
+local located,seenTms={},{}
+for tm=289,338 do
+    local mapped=assert(R.tmLocation(tmLocState,tm))
+    assert(mapped>=289 and mapped<=338 and not seenTms[mapped],
+        "TM location randomisation must be a full TM permutation")
+    located[tm]=mapped;seenTms[mapped]=true
+    assert(R.tmLocation(tmLocState,tm)==mapped)
+end
+assert(R.tmLocation(tmLocState,339)==nil,
+    "HM locations are never randomised")
+assert(R.tmLocation({randomizer={random_tm_locations=true,
+    randomizer_seed=202020}},289)==located[289])
+assert(R.tmLocation({randomizer={randomizer_seed=202020}},289)==nil)
+local giftItems={randomizer={random_gift_items=true,
+    randomizer_seed=404040}}
+assert(R.item(giftItems,ItemsData,"GIFT:ROUTE:1:13",13,nil,
+    "MAP:ROUTE","GIFT"))
+assert(R.item(giftItems,ItemsData,"GIFT:ROUTE:1:4",4,nil,
+    "MAP:ROUTE","GIFT")==nil,
+    "early scripted Poké Balls must not be replaced")
+assert(R.item(giftItems,ItemsData,"GIFT:ROUTE:1:289",289,nil,
+    "MAP:ROUTE","GIFT")==nil,
+    "TMs cannot enter ordinary gift item pool")
+assert(R.item({randomizer={random_gift_items=true,
+    randomizer_seed=404040}},ItemsData,"GIFT:ROUTE:1:13",
+    13,nil,"MAP:ROUTE","GIFT")
+    ==R.item(giftItems,ItemsData,"GIFT:ROUTE:1:13",
+    13,nil,"MAP:ROUTE","GIFT"))
 -- Candidate exclusion is deterministic and does not disturb existing
 -- mappings when Trainer Variety is OFF.
 local distinct = {randomizer={
@@ -913,30 +1018,43 @@ for i=2,position do press("down") end
 press("a")
 local model=mod.exports.gen3_menu.model()
 assert(model.title=="RANDOMIZER"
-    and model.rows[1]:find("PRESET",1,true)
-    and model.rows[2]=="RANDOM WILD: ON"
-    and model.rows[3]=="RANDOM TRAINERS: ON"
-    and model.rows[4]=="RANDOM STARTERS: ON"
-    and model.rows[5]=="STARTER BALANCE: CHAOS"
-    and model.rows[6]=="RANDOM STATIC: ON"
-    and model.rows[7]=="RANDOM GIFTS: ON"
-    and model.rows[8]=="RANDOM EGGS: ON"
-    and model.rows[9]=="RANDOM FIELD ITEMS: ON"
-    and model.rows[10]=="RANDOM SHOPS: ON"
-    and model.rows[11]=="RANDOM TMS: ON"
-    and model.rows[12]=="TM COMPAT: RANDOM"
-    and model.rows[13]=="SHOP BALANCE: CHAOS"
-    and model.rows[14]=="ITEM BALANCE: CHAOS"
-    and model.rows[15]=="ITEM VARIETY: NORMAL"
-    and model.rows[19]=="WILD VARIETY: UNIQUE AREA",
-    "Randomiser menu must expose working settings")
-local soon=false
-for _,label in ipairs(model.rows) do
-    assert(label~="[Soon] Rndm Strtr",
-        "working starter randomiser must not be marked Soon")
-    if label=="[Soon] Strtr Style" then soon=true end
+    and model.rows[1]:find("PRESET",1,true),
+    "Randomiser menu must open with the preset")
+local allLabels={}
+for _,name in ipairs(model.rows) do
+    allLabels[name]=true
+    assert(not name:find("[Soon]",1,true),
+        "every randomiser catalogue option must be implemented: "..name)
 end
-assert(soon,"unimplemented starter styles must remain [Soon]")
+for _,expected in ipairs({
+    "RANDOM WILD: ON","RANDOM TRAINERS: ON",
+    "RANDOM STARTERS: ON","STARTER STYLE: ANY",
+    "TRIO TYPING: ANY","STARTER REROLLS: ONE",
+    "STARTER BALANCE: CHAOS","RANDOM STATIC: ON",
+    "RANDOM GIFTS: ON","RANDOM EGGS: ON",
+    "RANDOM FIELD ITEMS: ON","RANDOM SHOPS: ON",
+    "RANDOM TMS: ON","RANDOM TM LOCATIONS: OFF",
+    "RANDOM GIFT ITEMS: OFF","RANDOM LEARNSETS: OFF",
+    "RANDOM EVOS: OFF","RNG INFO: SHOW","TM COMPAT: RANDOM",
+    "SHOP BALANCE: CHAOS","ITEM BALANCE: CHAOS",
+    "ITEM VARIETY: NORMAL","WILD VARIETY: UNIQUE AREA",
+    "DIVERSITY: SPECIES","TRAINER THEME: ANY TYPE"
+}) do
+    assert(allLabels[expected],"missing implemented RNG row "..expected)
+end
+local catalogKeys={}
+for _,category in ipairs(cat) do
+    if category.title=="RANDOMIZER" then
+        for _,def in ipairs(category.rules) do
+            catalogKeys[#catalogKeys+1]=def[1]
+        end
+    end
+end
+assert(#catalogKeys==36,"all 36 catalogue options remain available")
+for _,key in ipairs(catalogKeys) do
+    assert(api.get(key)~=nil,
+        "randomiser catalogue contains inactive setting "..key)
+end
 press("b");press("b");press("b")
 assert(#stack==0)
 -- Disposable test state: simulate a fresh run so the seed editor is writable.
