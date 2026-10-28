@@ -54,6 +54,9 @@ return function()
     -- Prevent third-party calls, or a future menu bug, from claiming support
     -- for features that cannot yet enforce their selected values.
     function M.set(s, key, value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         local definition = byKey[key]
         if not definition then return false, "unknown_rule" end
         if definition.status == "soon" then return false, "not_implemented" end
