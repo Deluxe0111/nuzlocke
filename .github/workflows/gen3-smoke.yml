@@ -6,6 +6,7 @@ on:
       - 'entry.lua'
       - 'gen3_runtime.lua'
       - 'gen3_title_setup.lua'
+      - 'gen3_setup_qol.lua'
       - 'gen3_core_rules.lua'
       - 'gen3_menu.lua'
       - 'gen3_dev.lua'
@@ -23,6 +24,7 @@ on:
       - 'manifest.json'
       - 'tests/gen3_foundation_smoke.lua'
       - 'tests/gen3_title_setup_smoke.lua'
+      - 'tests/gen3_setup_qol_smoke.lua'
       - '.github/workflows/gen3-smoke.yml'
   workflow_dispatch:
 
@@ -43,10 +45,13 @@ jobs:
           luac5.1 -p gen3_runtime.lua
           luac5.1 -p gen3_title_setup.lua
           luac5.1 -p gen3_menu.lua
+          luac5.1 -p gen3_setup_qol.lua
       - name: Run isolated Gen 3 hook/state smoke
         run: lua5.1 tests/gen3_foundation_smoke.lua
       - name: Test Gen 3 native title setup confirmation and cancellation
         run: lua5.1 tests/gen3_title_setup_smoke.lua
+      - name: Test Gen 3 new-game resource and PC grants
+        run: lua5.1 tests/gen3_setup_qol_smoke.lua
       - name: Run isolated Gen 3 clauses policy smoke
         run: lua5.1 tests/gen3_clauses_smoke.lua
       - name: Run stable shiny-rate policy smoke
