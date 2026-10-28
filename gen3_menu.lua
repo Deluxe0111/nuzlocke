@@ -17,6 +17,7 @@ return function(mod, api)
     local AreaSplits = assert(api.areaSplitRules, "Gen 3 menu needs AREA SPLITS policy")
     local RunParty = assert(api.runPartyRules, "Gen 3 menu needs RUN / PARTY policy")
     local Difficulty = assert(api.gameDifficulty, "Gen 3 menu needs GAME DIFFICULTY policy")
+    local Hardcore = assert(api.hardcoreRules, "Gen 3 menu needs HARDCORE policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -1236,6 +1237,54 @@ return function(mod, api)
         return rows
     end
 
+    local function hardcoreRows(category)
+        local rows={}
+        local saved=state()
+        for _,d in ipairs(Hardcore.descriptors()) do
+            local key=d.key
+            rows[#rows+1]=row(d.label..": "..Hardcore.label(saved,key),
+                nil,function()
+                local updated=state()
+                local ok,reason=Hardcore.set(updated,key,
+                    Hardcore.next(updated,key))
+                if not ok then
+                    info("HARDCORE RULES",{tostring(reason)})
+                    return
+                end
+                api.setState(updated)
+                current().rows=hardcoreRows(category)
+            end)
+        end
+        rows[#rows+1]=row("  DETAILS: HARDCORE",nil,function()
+            local entry=api.dungeonEntry and api.dungeonEntry()
+            info("HARDCORE RULES HELP",{
+                "CORE NUZLOCKE REQUIRED",
+                "NO ESCAPE: RUN FAILS",
+                "RUN STILL SPENDS TURN",
+                "TUTORIAL / SAFARI SAFE",
+                "WHITEOUT: PC RESCUE",
+                "IF A LIVING MON EXISTS",
+                "NO SURVIVOR = RUN END",
+                "GYM LOCK-IN: NO EXIT",
+                "BEFORE BADGE EARNED",
+                "CLEARED GYMS EXEMPT",
+                "DUNGEON LOCK-IN:",
+                "SEALS ENTRANCE USED",
+                "KNOWN MULTI-EXIT ONLY",
+                "OTHER EXITS ALLOWED",
+                "ESCAPE ROPE / DIG",
+                "TELEPORT / FLY BLOCK",
+                "MISSING DATA FAILS OPEN",
+                "HELD ITEMS: NO GIVE",
+                "EXISTING ITEMS KEPT",
+                "PLAYER EFFECTS OFF",
+                "TRAINER ITEMS NORMAL",
+                "ENTRY: "..(entry and entry.group or "NONE"),
+            })
+        end)
+        return rows
+    end
+
     local function difficultyRows(category)
         local saved=state()
         local profile=Difficulty.profile(saved)
@@ -1337,6 +1386,7 @@ return function(mod, api)
         if category.title == "AREA SPLITS" then return areaSplitRows(category) end
         if category.title == "RUN / PARTY" then return runPartyRows(category) end
         if category.title == "GAME DIFFICULTY" then return difficultyRows(category) end
+        if category.title == "HARDCORE" then return hardcoreRows(category) end
         if category.title == "FIELD ITEMS" then return fieldItemRows(category) end
         if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
@@ -1377,6 +1427,7 @@ return function(mod, api)
             or c.title == "AREA SPLITS"
             or c.title == "RUN / PARTY"
             or c.title == "GAME DIFFICULTY"
+            or c.title == "HARDCORE"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
