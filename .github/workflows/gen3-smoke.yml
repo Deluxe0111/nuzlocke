@@ -1,6 +1,9 @@
 name: Gen 3 foundation smoke
 
 on:
+  push:
+    branches:
+      - 'feature/gen3-*'
   pull_request:
     paths:
       - 'entry.lua'
