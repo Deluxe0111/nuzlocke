@@ -109,7 +109,7 @@ mod.find = function(_,id)
     return { id = id, exports = {shiny_compat = {
         isShiny = function() return true end }} }
 end
-local external = spawn(source(61,false)
+local external = spawn(source(61,false))
 assert(not external.shiny and external.personality == 61,
     "external shiny owner must not be overridden")
 mod.find = nil
