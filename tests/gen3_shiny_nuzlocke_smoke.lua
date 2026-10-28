@@ -109,8 +109,9 @@ for i=1,3 do
     local a=values.gen3_classic_v1.areas.FR_ROUTE_1
     assert(a==nil or a.spent==false,
         "nonshinies must never claim route on attempt")
-    assert(battleText[#battleText]:find("only shiny Pokemon",1,true),
-        "blocked ball must explain the playstyle")
+    assert(battleText[#battleText]:find("only shiny Pokemon",1,true)
+        and battleText[#battleText]:find("do not use your route",1,true),
+        "blocked ball must explain the shiny restriction and unused route")
     ev("battle.ended",{battle=b,result="run"})
 end
 local b,mon=battle(16,true)
@@ -120,6 +121,12 @@ assert(select(1,ball(b,mon))==true)
 ev("pokemon.caught",{battle=b,speciesId=16,mon=mon})
 assert(values.gen3_classic_v1.areas.FR_ROUTE_1.caught)
 ev("battle.ended",{battle=b,result="catch"})
+b,mon=battle(25,false)
+assert(select(1,ball(b,mon))==false,
+    "normal Pokemon also denied when the route was already claimed")
+assert(battleText[#battleText]:find("route is already used",1,true),
+    "a spent route must not be falsely reported as open")
+ev("battle.ended",{battle=b,result="run"})
 b,mon=battle(25,true)
 assert(select(1,ball(b,mon))==false,
     "second shiny cannot use claimed map")
@@ -153,6 +160,23 @@ assert(select(1,ball(b,mon))==true,"retry shiny after failed catch")
 ev("pokemon.caught",{battle=b,speciesId=160,mon=mon})
 assert(values.gen3_classic_v1.areas.FR_ROUTE_2.spent)
 ev("battle.ended",{battle=b,result="catch"})
+
+-- Dupes Clause excludes an already-owned shiny before it can claim
+-- the first area slot. Another eligible shiny can still be caught there.
+assert(mod.exports.gen3_clauses.setMode("dupes_mode",1))
+map("FR_ROUTE_DUPES")
+b,mon=battle(25,true) -- player's starter is Pikachu
+assert(values.gen3_classic_v1.areas.FR_ROUTE_DUPES==nil,
+    "duplicate shiny cannot use up the route's one encounter")
+assert(select(1,ball(b,mon))==false,
+    "Shiny Nuzlocke does not disable Dupes Clause")
+ev("battle.ended",{battle=b,result="run"})
+b,mon=battle(16,true)
+assert(select(1,ball(b,mon))==true,
+    "a different eligible shiny remains available")
+ev("pokemon.caught",{battle=b,speciesId=16,mon=mon})
+ev("battle.ended",{battle=b,result="catch"})
+assert(mod.exports.gen3_clauses.setMode("dupes_mode",0))
 
 -- Shiny rate (including ALWAYS) is separate from the capture rule.
 assert(mod.exports.gen3_clauses.getMode("shiny_rate_mode")==0)
