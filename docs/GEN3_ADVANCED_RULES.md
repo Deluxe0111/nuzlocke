@@ -1,4 +1,4 @@
-# Gen 3 ADVANCED RULES — first playable implementation
+# Gen 3 ADVANCED RULES — expanded Catch Rules
 
 **Version:** v3.0.0-BETA · **Menu:** START → NUZ MENU → NUZ RULES
 → ADVANCED RULES → CATCH RULES.
@@ -12,11 +12,15 @@ Settings are saved and retained when the master switch is temporarily OFF.
 
 | Rule | Default | Meaning |
 | --- | --- | --- |
+| **Town Catches** | OFF | When OFF, refuses ordinary wild catches on native outdoor town/city maps (including the seven Sevii island settlements). ON allows them to use their own physical map's encounter slot. This does not classify unrelated interior or route maps as towns. |
 | **No Legendaries** | OFF | Bans Articuno, Zapdos, Moltres, Mewtwo, Raikou, Entei, Suicune, Lugia, Ho-Oh, Regirock, Regice, Registeel, Latias, Latios, Kyogre, Groudon and Rayquaza. Mythicals are separate. |
 | **No Mythicals** | OFF | Bans Mew, Celebi, Jirachi and Deoxys. |
 | **No Pseudos** | OFF | Bans the full Dragonite, Tyranitar, Salamence and Metagross evolutionary lines, including their first and second stages. |
 | **No Static Encounters** | OFF | Blocks Ball captures of native scripted wild encounters, including fixed legendary battles and Marowak; the battle itself continues normally. Roaming legendary Pokémon are excluded. |
 | **No Fishing** | OFF | Blocks rod use at the native field-entry point before the fishing minigame and prevents direct fishing encounter attempts. Rod items remain in the bag; surf and other encounter methods work normally. |
+| **Alphabetlocke** | OFF | OFF / RANDOM / CHOOSE. Restricts new wild catches by the first letter of the species' canonical ROM identity (not nickname or translated text). RANDOM chooses an available initial deterministically for the save and stores it; CHOOSE uses the Letter selector. |
+| **Letter** | A | A–Z selector, only shown when Alphabetlocke is CHOOSE; irrelevant in OFF and RANDOM modes. |
+| **Allow Glitches** | OFF | OFF refuses wild catches with invalid/unregistered or explicitly glitch-marked species IDs when the native registry can verify them. ON allows them through this check; all other catch bans still apply. Valid provider-registered custom species are not classified as glitches merely for lacking a National Dex number. |
 | **Maximum BST** | OFF | The total of the six native base stats (HP / Attack / Defense / Speed / Special Attack / Special Defense) must be at most the chosen cap: 300, 350, 400, 450, 500, 550, 600, 650 or 700. Exact equality is allowed. OFF is unlimited. |
 
 The classification checks **National Pokédex IDs via native
@@ -44,7 +48,7 @@ the catch is denied rather than silently bypassing a hard maximum.
 - Randomised wild Pokémon and Untamed-Advanced's visible overworld
   wilds use the **final battled species**. Roamers are evaluated as
   species too; their existing roamer-slot treatment is preserved.
-- If CORE → NUZLOCKE is OFF (or the run has failed), these six
+- If CORE → NUZLOCKE is OFF (or the run has failed), these catch
   restrictions do not change native catch or rod behaviour.
 - No Static reads the native battle's `wildScripted` / `legendary`
   flags and exempts `roamer`. It does not ban ordinary wilds based
@@ -52,16 +56,22 @@ the catch is denied rather than silently bypassing a hard maximum.
 - No Fishing guards native `Field.startFishing` and the fallback
   `Field.tryFishingEncounter` call. It does not remove fishing rods,
   block unrelated water encounters or modify the engine's fishing data.
+- Town Catches is checked before an encounter can claim a route's first
+  attempt, and rechecked at the Poké Ball transaction. Town catches are
+  therefore ineligible while OFF, including with Failed Encounters ON.
+- RANDOM Alphabetlocke chooses from initials represented in the active
+  native National Dex registry (1–386) and persists the chosen letter in
+  `statusBans`-independent `catchRules.alphabetlocke_random_letter`.
+  Changing Alphabetlocke mode resets that stored choice. The selector
+  is visible in the menu after resolution as `RND:X`.
 - No changes are made to caught or boxed Pokémon retroactively.
-  This first batch is **wild/Poké Ball capture enforcement**; non-wild
+  This batch is **wild/Poké Ball capture enforcement**; non-wild
   gifts, scripted static giveaways and NPC trades are not yet gated.
 
 ### Still [Soon]
 
-Overworld encounters, Town Catches,
-Gift Pokémon / Gift Slot Policy, In-Game Trades / Trade Slot Policy,
-PKMN BAN, Colorlocke and its colour, Alphabetlocke and its letter,
-Allow Glitches. All remaining ADVANCED RULES categories also remain
+Overworld encounters, Gift Pokémon / Gift Slot Policy,
+In-Game Trades / Trade Slot Policy, PKMN BAN, Colorlocke and its colour. All remaining ADVANCED RULES categories also remain
 [Soon]. Their controls must not imply implementation until their
 underlying native transactions have been validated.
 
@@ -91,8 +101,20 @@ underlying native transactions have been validated.
    encounter on an unused route) and throw a Ball. The battle still
    proceeds normally, but capture is blocked and the route slot stays
    available. A roamer and an ordinary wild must remain unaffected.
-10. Verify all other advanced menu categories and unfinished rows
-   remain [Soon] and cannot be toggled.
+10. Test Town Catches OFF and ON with a wild encounter on a town/city
+    map and a route. OFF must prevent the town catch without using the
+    area slot; ON must permit it subject to normal One Per Area rules.
+    Check a Sevii settlement and an interior separately.
+11. Test Alphabetlocke CHOOSE with e.g. L: Latias should be eligible
+    (unless another catch ban forbids it), Salamence should be rejected.
+    Switch to RANDOM; confirm a stored letter is shown after first wild
+    encounter and remains fixed across reload. Changing mode resets it.
+12. With Allow Glitches OFF, test a deliberately invalid/unregistered
+    species from a developer/provider fixture; it must be rejected.
+    ON permits it unless another rule blocks it. Ordinary Hoenn IDs
+    must remain legal.
+13. Verify the other unfinished Catch Rules and advanced categories
+    remain [Soon] and cannot be toggled.
 
 The automated smoke suite is not a substitute for exact-edition ROM
 testing in FireRed, LeafGreen, Ruby, Sapphire and Emerald.
