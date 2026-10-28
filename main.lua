@@ -14109,13 +14109,19 @@ return function(mod)
               item.onSelect = function()
                   pcall(installAutomaticDefaultNameAdapters)
                   mod.exports.__beta26.selectSetupProfileScope(game)
-                  if not pendingNewGameRules then
+                  if not pendingNewGameRules or not pendingRulesDirty then
                       pendingNewGameRules = loadSetupProfileFromDisk()
                           or makeDefaultPreGameRules()
+                      pendingRulesDirty = false
                   end
-                  saveSetupProfileToDisk(pendingNewGameRules)
-                  stageNewGameProfile()
-                  originalNewGame()
+                  -- Unlike the standalone SETUP row, NEW GAME enters
+                  -- configuration with an explicit START/CANCEL result.
+                  mod.exports.__beta26.pushNuzlockeConfigScreen(game, {
+                      preGame = true, goldMode = false, autoNewGame = true,
+                      onDone = function(accepted)
+                          if accepted then originalNewGame() end
+                      end,
+                  })
               end
           end
 
@@ -14215,13 +14221,18 @@ return function(mod)
       Strings = Strings,
       runtimeIsGen2 = mod.exports.__beta26.runtimeIsGen2,
       isSaveEditorSession = mod.exports.__beta26.isSaveEditorSession,
-      openSetup = function(game)
+      openSetup = function(game, onDone)
           mod.exports.__beta26.selectSetupProfileScope(game)
-          pendingNewGameRules = loadSetupProfileFromDisk()
-              or makeDefaultPreGameRules()
-          pendingRulesDirty = false
-          mod.exports.__beta26.pushNuzlockeConfigScreen(game,
-              { preGame = true, goldMode = true })
+          if not pendingNewGameRules or not pendingRulesDirty then
+              pendingNewGameRules = loadSetupProfileFromDisk()
+                  or makeDefaultPreGameRules()
+              pendingRulesDirty = false
+          end
+          mod.exports.__beta26.pushNuzlockeConfigScreen(game, {
+              preGame = true, goldMode = true,
+              autoNewGame = type(onDone) == "function",
+              onDone = onDone,
+          })
       end,
       stageNewGame = function(game)
           pcall(installAutomaticDefaultNameAdapters)
