@@ -275,32 +275,30 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     -- cry, and eventual gift all agree. VAR_TEMP_3 is the rival's chosen
     -- species for the same scripted conversation. Leave both script rows
     -- and the ROM data immutable for other mods.
-    mod.hooks:wrap("script.command", function(next, ctx, op, row)
+    local function starterScriptCommand(op, row)
         if op ~= "setvar" or type(row) ~= "table" or not isOakLab() then
-            return next(ctx, op, row)
+            return row
         end
         local native = session()
         if type(native) ~= "table" or #(native.party or {}) > 0 then
-            return next(ctx, op, row)
+            return row
         end
         local target = tonumber(row.var or row[1])
-        if target ~= 0x4002 and target ~= 0x4003 then
-            return next(ctx, op, row)
-        end
+        if target ~= 0x4002 and target ~= 0x4003 then return row end
         local source = tonumber(row.value or row[2])
         local index
         for i, original in ipairs(FRLG_STARTERS) do
             if source == original then index = i; break end
         end
-        if not index then return next(ctx, op, row) end
+        if not index then return row end
         local choices = starterChoices("frlg", FRLG_STARTERS)
-        if not choices then return next(ctx, op, row) end
+        if not choices then return row end
         local copy = {}
         for k, v in pairs(row) do copy[k] = v end
         if row.value ~= nil then copy.value = choices[index]
         else copy[2] = choices[index] end
-        return next(ctx, op, copy)
-    end)
+        return copy
+    end
 
     local FIRST_RIVALS_FRLG = { [326]=true, [327]=true, [328]=true }
     local FIRST_RIVALS_RSE = {
@@ -675,6 +673,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 and "AREA" or "BONUS").." slot).")
     end
     mod.hooks:wrap("script.command",function(next,ctx,op,row)
+        -- Starter randomisation is independent of the Nuzlocke toggle.
+        -- Apply before the shared scripted gift/service enforcement.
+        row = starterScriptCommand(op, row)
         if not Core.active(loadState()) or type(row)~="table" then
             return next(ctx,op,row)
         end
