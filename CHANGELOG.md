@@ -188,6 +188,7 @@
 - No gameplay feature, save-schema, public API, or Runtime PASS change.
 
 # Changelog
+- Expands Gen 3 **ADVANCED RULES → CATCH RULES** with Town Catches (native FR/RU/SA/EM settlement-map classification), Alphabetlocke OFF/RANDOM/CHOOSE with a persisted represented A–Z letter, and Allow Glitches (blocks malformed/unregistered wild species unless explicitly enabled). Adds menu selectors, encounter-source checks, ROM test cases and policy regression coverage.
 
 ## 2.9.57
 
