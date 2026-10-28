@@ -33,6 +33,8 @@ return function()
         if type(s.areas) ~= "table" then s.areas = {} end
         if type(s.graveyard) ~= "table" then s.graveyard = {} end
         s.enabled = s.enabled == true
+        s.runSettingsLocked = s.runSettingsLocked == true
+        s.captureUnlocked = s.captureUnlocked == true
         s.failed = s.failed == true
         for _, rule in ipairs(RULES) do
             if rule.key ~= "nuzlocke_enabled" and
@@ -60,6 +62,7 @@ return function()
         if type(value) ~= "boolean" then return false, "boolean_required" end
         s = M.normalise(s)
         if s.failed then return false, "run_failed" end
+        if s.runSettingsLocked and not s._setup then return false, "settings_locked" end
         if key == "nuzlocke_enabled" then
             s.enabled = value
         else
