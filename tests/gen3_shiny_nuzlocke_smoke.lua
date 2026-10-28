@@ -970,8 +970,8 @@ for i, name in ipairs(expectedAdvanced) do
     if name=="VARIANTS" then
         assert(child.rows[1]=="Type Locke: OFF"
             and child.rows[2]=="Catch Draft: OFF"
-            and child.rows[3]=="[Soon] Wonderlocke WIP",
-            "Type Locke and Catch Draft work; Wonderlocke remains Soon")
+            and child.rows[3]=="  DETAILS: TYPE LOCKE",
+            "Variants must contain only Type Locke, Catch Draft and details")
         press("a") -- MONO
         assert(mod.exports.gen3_menu.model().rows[1]=="Type Locke: MONO"
             and mod.exports.gen3_menu.model().rows[3]=="Type 1: RANDOM")
@@ -995,7 +995,7 @@ for i, name in ipairs(expectedAdvanced) do
         press("up")
         for _=1,5 do press("a") end -- TRI, QUAD, PENTA, HEXA, OFF
         assert(mod.exports.gen3_menu.model().rows[1]=="Type Locke: OFF"
-            and mod.exports.gen3_menu.model().rows[3]=="[Soon] Wonderlocke WIP")
+            and mod.exports.gen3_menu.model().rows[3]=="  DETAILS: TYPE LOCKE")
         -- Restore the lane default without enabling the mode.
         assert(mod.exports.gen3_variants.setRule("type_lock_primary",0))
         assert(mod.exports.gen3_variants.getRule("type_lock_mode")==0)
@@ -1046,27 +1046,11 @@ for i, name in ipairs(expectedAdvanced) do
             and mod.exports.gen3_menu.model().rows[14]=="Alphabetlocke: OFF")
         for _=1,12 do press("up") end -- return to Town Catches
     end
-    -- Check a genuine remaining placeholder rather than expecting
-    -- every advanced category's first row to be unimplemented.
     if name=="VARIANTS" then
-        local menu=mod.exports.gen3_menu.model()
-        local pending
-        for k,label in ipairs(menu.rows) do
-            if label:find("[Soon] Wonderlocke",1,true) then
-                pending=k
-                break
-            end
+        for _,label in ipairs(mod.exports.gen3_menu.model().rows) do
+            assert(not label:find("Wonderlocke",1,true),
+                "removed Wonderlocke must not appear in the variant menu")
         end
-        assert(pending,"Wonderlocke must remain visible as a placeholder")
-        for _=1,#menu.rows+1 do
-            if mod.exports.gen3_menu.model().index==pending then break end
-            press("down")
-        end
-        assert(mod.exports.gen3_menu.model().index==pending)
-        press("a")
-        assert(mod.exports.gen3_menu.model().title=="COMING SOON")
-        press("b")
-        assert(mod.exports.gen3_menu.model().title==name)
     end
     press("b")
     advanced=mod.exports.gen3_menu.model()
