@@ -88,10 +88,13 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
     local function saveTerminalRecord()
         local running=game()
-        if not running or type(running.saveGame)~="function" then
-            return false,"Game save function unavailable"
+        -- Game and Game2 both expose writeSave(), which performs native
+        -- world capture, save.write veto, save.writing mod persistence,
+        -- and SaveData's atomic write. saveGame() is not a public method.
+        if not running or type(running.writeSave)~="function" then
+            return false,"Native writeSave unavailable"
         end
-        local ok,written=pcall(running.saveGame,running)
+        local ok,written=pcall(running.writeSave,running)
         if not ok then return false,tostring(written) end
         if written~=true then
             return false,"Game save was not confirmed"
