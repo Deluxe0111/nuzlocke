@@ -928,29 +928,6 @@ return function()
             and type(r.encounterAssignments) == "table"
             and r.encounterAssignments[wildScope] or nil
         if type(scopeAssignments) ~= "table" then scopeAssignments = nil end
-        if unique and r.random_encounter_diversity_strength>0
-            and type(Pokemon.types)=="function" then
-            local blocked={}
-            for _,prior in pairs(scopeAssignments or {}) do
-                local ok,types=pcall(Pokemon.types,prior)
-                if ok and type(types)=="table" then
-                    blocked[types[1]]=true
-                    if r.random_encounter_diversity_strength==2 then
-                        blocked[types[2]]=true
-                    end
-                end
-            end
-            local diverse={}
-            for _,entry in ipairs(legal) do
-                local ok,t=pcall(Pokemon.types,entry.id)
-                if ok and type(t)=="table" and not blocked[t[1]]
-                    and (r.random_encounter_diversity_strength~=2
-                        or not blocked[t[2]]) then
-                    diverse[#diverse+1]=entry
-                end
-            end
-            if #diverse>0 then legal=diverse end
-        end
         if scopeAssignments and scopeAssignments[wildSlot] ~= nil then
             local prior = scopeAssignments[wildSlot]
             -- If ROM data or candidate bans have changed, fail open
@@ -979,6 +956,29 @@ return function()
             local fresh = candidates(Pokemon, original,
                 r.random_species_generation, balance, denyNational, taken)
             if fresh and #fresh > 0 then legal = fresh end
+        end
+        if unique and r.random_encounter_diversity_strength>0
+            and type(Pokemon.types)=="function" then
+            local blocked={}
+            for _,prior in pairs(scopeAssignments or {}) do
+                local ok,types=pcall(Pokemon.types,prior)
+                if ok and type(types)=="table" then
+                    blocked[types[1]]=true
+                    if r.random_encounter_diversity_strength==2 then
+                        blocked[types[2]]=true
+                    end
+                end
+            end
+            local diverse={}
+            for _,entry in ipairs(legal) do
+                local ok,t=pcall(Pokemon.types,entry.id)
+                if ok and type(t)=="table" and not blocked[t[1]]
+                    and (r.random_encounter_diversity_strength~=2
+                        or not blocked[t[2]]) then
+                    diverse[#diverse+1]=entry
+                end
+            end
+            if #diverse>0 then legal=diverse end
         end
         local identity = unique and
             ("WILD VARIETY:" .. wildScope .. ":" .. wildSlot) or sourceId
