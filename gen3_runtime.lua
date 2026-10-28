@@ -469,7 +469,8 @@ return function(mod)
             or not okC or type(EffectCtx)~="table" then return false end
 
         if type(Secondary.set)=="function"
-            and Secondary.__nuzGen3SetOwner~=mod then
+            and (Secondary.__nuzGen3SetOwner~=mod
+                or Secondary.__nuzGen3SetWrap~=Secondary.set) then
             local original = Secondary.set
             local function guarded(M, effect, ...)
                 local source = type(M)=="table" and M.user or nil
@@ -490,11 +491,13 @@ return function(mod)
                 return result, extra, more
             end
             Secondary.set=guarded
+            Secondary.__nuzGen3SetWrap=guarded
             Secondary.__nuzGen3SetOwner=mod
         end
 
         if type(Secondary.changeStat)=="function"
-            and Secondary.__nuzGen3StatOwner~=mod then
+            and (Secondary.__nuzGen3StatOwner~=mod
+                or Secondary.__nuzGen3StatWrap~=Secondary.changeStat) then
             local original=Secondary.changeStat
             local function guarded(adapter,target,stat,delta,flags)
                 local ctx=EffectCtx.current and EffectCtx.current()
@@ -510,6 +513,7 @@ return function(mod)
                 return original(adapter,target,stat,delta,flags)
             end
             Secondary.changeStat=guarded
+            Secondary.__nuzGen3StatWrap=guarded
             Secondary.__nuzGen3StatOwner=mod
         end
 
@@ -520,7 +524,8 @@ return function(mod)
             "src.core.game3.battle.effects.init")
         if okE and type(Effects)=="table"
             and type(Effects.run)=="function"
-            and Effects.__nuzGen3RunOwner~=mod then
+            and (Effects.__nuzGen3RunOwner~=mod
+                or Effects.__nuzGen3RunWrap~=Effects.run) then
             local original=Effects.run
             Effects.run=function(id,adapter,user,target,...)
                 if id=="EXP_MINIMIZE_EFFECT" and user
@@ -535,6 +540,7 @@ return function(mod)
                 end
                 return original(id,adapter,user,target,...)
             end
+            Effects.__nuzGen3RunWrap=Effects.run
             Effects.__nuzGen3RunOwner=mod
         end
         return true
