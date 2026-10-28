@@ -29,7 +29,7 @@ package.loaded["src.core.game3.pokemon"]={
         and mon.isShiny==true end,
     speciesOf=function(mon) return tonumber(mon.species or mon.speciesId) end,
     name=function(id)
-        return ({[16]="PIDGEY",[25]="PIKACHU",
+        return ({[4]="CHARMANDER",[16]="PIDGEY",[25]="PIKACHU",
             [160]="FERALIGATR"})[tonumber(id)]
     end,
 }
@@ -171,10 +171,10 @@ assert(values.gen3_classic_v1.areas.FR_ROUTE_DUPES==nil,
 assert(select(1,ball(b,mon))==false,
     "Shiny Nuzlocke does not disable Dupes Clause")
 ev("battle.ended",{battle=b,result="run"})
-b,mon=battle(16,true)
+b,mon=battle(4,true)
 assert(select(1,ball(b,mon))==true,
     "a different eligible shiny remains available")
-ev("pokemon.caught",{battle=b,speciesId=16,mon=mon})
+ev("pokemon.caught",{battle=b,speciesId=4,mon=mon})
 ev("battle.ended",{battle=b,result="catch"})
 assert(mod.exports.gen3_clauses.setMode("dupes_mode",0))
 
