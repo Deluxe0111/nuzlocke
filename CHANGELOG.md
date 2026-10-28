@@ -37,6 +37,15 @@
 - Earlier Gen 1/2 contributors and the original Shiny Pokémon lineage retain credits: **bryanthaboi**, **Stone696**, **masterwebx**. **Deluxe0111** is credited for the Gen 3 port and new features. See [CREDITS.md](CREDITS.md).
 - For a feature-by-feature categorisation, see [Gen 3 feature matrix](docs/GEN3_FEATURE_MATRIX.md), [release notes](RELEASE_NOTES.md) and [manual test checklist](docs/GEN3_TEST_CHECKLIST.md).
 
+## 2.9.73 — Historical pre-v3 new-game setup update
+
+Published on **28 October 2026**, before the `v3.0.0-BETA` release. Recorded from the published v2.9.73 GitHub release; this is **not** a retroactive claim that the final Gen 3 beta or its later rules shipped in 2.9.73.
+
+- Extended the early Gen 3 new-game-only QoL setup and selection of native PC resources/loadouts, with updated preset labels.
+- Fixed deferred starting Poké Ball delivery after the native catch-unlock boundary, including when the player's current Ball inventory is empty.
+- Applied the setup resources to the native `save.created` event before the live `game.session` is attached.
+- Added isolated native PC storage and catching-unlock tests and documentation for edition-specific startup cases.
+
 ## 2.9.72
 
 - Normalizes Gen-II numeric item operands through the active item registry before Random Field Item classification, TM detection, persistence identity, and selection, then converts the chosen canonical item back to the native numeric index required by Gen-II pickup builders.
