@@ -650,6 +650,8 @@ return function(mod, api)
         toggle("random_field_items", "RANDOM FIELD ITEMS")
         toggle("random_shops", "RANDOM SHOPS")
         toggle("random_tms", "RANDOM TMS")
+        toggle("random_tm_locations", "RANDOM TM LOCATIONS")
+        toggle("random_gift_items", "RANDOM GIFT ITEMS")
         toggle("random_learnsets", "RANDOM LEARNSETS")
         if config.get("random_learnsets") then
             cycle("random_learnset_generation", "LEARNSET GEN",
@@ -755,6 +757,8 @@ return function(mod, api)
                     random_learnset_stab=true,
                     random_evolutions=true,
                     random_evolution_balance=true,
+                    random_tm_locations=true,
+                    random_gift_items=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]

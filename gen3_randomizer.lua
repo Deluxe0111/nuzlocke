@@ -43,6 +43,8 @@ return function()
         random_learnset_stab = { kind="number", default=0, min=0, max=2 },
         random_evolutions = { kind="boolean", default=false },
         random_evolution_balance = { kind="number", default=0, min=0, max=1 },
+        random_tm_locations = { kind="boolean", default=false },
+        random_gift_items = { kind="boolean", default=false },
         randomizer_preset = { kind="number", default=0, min=0, max=2 },
     }
     local cachedPool, cachedOwner
@@ -89,6 +91,8 @@ return function()
         r.shopAssignments = nil
         r.tmMoves = nil
         r.tmOriginals = nil
+        r.tmLocationMap = nil
+        r.giftItemAssignments = nil
         r.starterOptions = nil
         r.starterSource = nil
         if key == "randomizer_preset" then
@@ -471,20 +475,25 @@ return function()
     end
     -- Pickup identity is map + native event script/hidden flag, never a
     -- transient BAG operation or a changing world RNG stream.
-    function M.item(s, ItemsData, sourceId, original, entropy, scope)
+    function M.item(s, ItemsData, sourceId, original, entropy, scope, kind)
         local r=state(s)
-        if not r.random_field_items
+        kind=kind=="GIFT" and "GIFT" or "FIELD"
+        if not (kind=="GIFT" and r.random_gift_items
+            or kind=="FIELD" and r.random_field_items)
             or type(sourceId)~="string" or sourceId==""
             or type(scope)~="string" or scope=="" then return nil end
         local originalId=tonumber(original)
         local orig=itemEntry(ItemsData,originalId)
-        if not orig then return nil end
+        -- Preserve the Poké Balls awarded by scripted early-game NPCs.
+        if not orig or (kind=="GIFT" and originalId==4) then return nil end
         local pool=M.itemPool(ItemsData)
         if #pool<2 then return nil end
         local candidate=itemCandidates(pool,orig,r.random_field_item_balance)
         if #candidate==0 then return nil end
-        local assignments=type(r.fieldItemAssignments)=="table"
-            and r.fieldItemAssignments[scope] or nil
+        local assignmentKey=kind=="GIFT"
+            and "giftItemAssignments" or "fieldItemAssignments"
+        local assignments=type(r[assignmentKey])=="table"
+            and r[assignmentKey][scope] or nil
         if type(assignments)~="table" then assignments=nil end
         local prior=assignments and assignments[sourceId]
         if prior~=nil then
@@ -508,16 +517,57 @@ return function()
             if #fresh>0 then candidate=fresh end
         end
         local chosen=candidate[1+M.hash(M.algorithm,seed,
-            "FIELD_ITEMS",sourceId,originalId)%#candidate]
-        if type(r.fieldItemAssignments)~="table" then
-            r.fieldItemAssignments={}
+            kind=="GIFT" and "GIFT_ITEMS" or "FIELD_ITEMS",
+            sourceId,originalId)%#candidate]
+        if type(r[assignmentKey])~="table" then
+            r[assignmentKey]={}
         end
-        if type(r.fieldItemAssignments[scope])~="table" then
-            r.fieldItemAssignments[scope]={}
+        if type(r[assignmentKey][scope])~="table" then
+            r[assignmentKey][scope]={}
         end
-        r.fieldItemAssignments[scope][sourceId]=chosen.id
+        r[assignmentKey][scope][sourceId]=chosen.id
         r.used=true
         return chosen.id
+    end
+
+    -- A single bijection of TM01..50 keeps all TM placements in the
+    -- active ROM and never touches HM01..08. Copying a TM reward twice
+    -- gives the same replacement, not a new random draw.
+    function M.tmLocation(s,original,entropy)
+        local r=state(s)
+        local id=tonumber(original)
+        if not r.random_tm_locations or not id or id<289 or id>338
+            or id~=math.floor(id) then return nil end
+        local seed=M.seed(s,entropy)
+        if seed==0 then return nil end
+        if type(r.tmLocationMap)~="table" then
+            local pool={}
+            for i=289,338 do pool[#pool+1]=i end
+            -- Deterministic Fisher-Yates, no math.random / RNG stream
+            -- mutations after runSeed was resolved.
+            for i=50,2,-1 do
+                local j=1+M.hash(M.algorithm,seed,"TM_LOCATIONS",i)%i
+                pool[i],pool[j]=pool[j],pool[i]
+            end
+            -- Repair accidental fixed points without changing the set.
+            for i=1,50 do
+                if pool[i]==288+i then
+                    local nextI=i%50+1
+                    pool[i],pool[nextI]=pool[nextI],pool[i]
+                end
+            end
+            r.tmLocationMap=pool
+        end
+        local map=r.tmLocationMap
+        if #map~=50 then return nil end
+        local used={}
+        for i=1,50 do
+            local v=tonumber(map[i])
+            if not v or v<289 or v>338 or used[v] then return nil end
+            used[v]=true
+        end
+        r.used=true
+        return map[id-288]
     end
 
     -- Each native Pokemart pointer/map gets one saved transaction.
@@ -596,6 +646,7 @@ return function()
         return result
     end
 
+    local validTmMove
     -- Level-up moves from the native Pokemon.learnset resolver. Never
     -- change the ROM move registry or replace an HM with an unforgettably
     -- learned field move. Preserve every original learning LEVEL and
@@ -742,7 +793,7 @@ return function()
     -- Struggle and all HM field moves. Neither Pokemon._tmhm nor TM items
     -- are mutated: a shared resolver drives the Case, party preflight and
     -- teaching so presentation always matches the actual learned move.
-    local function validTmMove(Pokemon, id)
+    validTmMove = function(Pokemon, id)
         id=tonumber(id)
         if not id or id~=math.floor(id) or id<1 or id>354
             or id==165 then return false end -- Struggle

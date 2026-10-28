@@ -846,9 +846,25 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         if map==nil or tostring(map)=="" then return nil end
         return "MAP:"..tostring(map)
     end
+    local function randomTmLocation(original)
+        local saved=loadState()
+        if not Randomizer.get(saved,"random_tm_locations") then return nil end
+        local locked=Randomizer.locked(saved)
+        local result=Randomizer.tmLocation(saved,original,
+            function() return math.random(1,99999999) end)
+        if result then
+            if not locked then
+                Notices.add(saved,"RANDOMIZER_LOCK",
+                    "TM locations fixed for this run.")
+            end
+            writeState(saved)
+        end
+        return result
+    end
     local function randomItemBall(ctx,op,row)
-        if op~="callstd" or type(row)~="table"
-            or tonumber(row.std or row[1])~=1 then return end
+        if op~="callstd" or type(row)~="table" then return end
+        local std=tonumber(row.std or row[1])
+        if std~=0 and std~=1 then return end
         local runner=type(ctx)=="table" and (ctx.runner or ctx.vm)
         local script=type(runner)=="table" and
             (runner._scriptKey or (runner.ctx and runner.ctx.pc
@@ -860,8 +876,31 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         if not scope then return end
         local original=scriptVar(ctx,0x8000)
         if type(original)~="number" then return end
-        local sourceId="VISIBLE:"..scope..":"..script..":"..tostring(original)
-        local picked=randomFieldItem(sourceId,original,scope)
+        local sourceId=(std==0 and "GIFT:" or "VISIBLE:")
+            ..scope..":"..script..":"..tostring(original)
+        local picked=randomTmLocation(original)
+        if not picked and std==1 then
+            picked=randomFieldItem(sourceId,original,scope)
+        elseif not picked and std==0 then
+            local saved=loadState()
+            if Randomizer.get(saved,"random_gift_items") then
+                local okI,ItemsData=pcall(require,
+                    "src.core.game3.items_data")
+                if okI then
+                    local locked=Randomizer.locked(saved)
+                    picked=Randomizer.item(saved,ItemsData,sourceId,
+                        original,function() return math.random(1,99999999) end,
+                        scope,"GIFT")
+                    if picked then
+                        if not locked then
+                            Notices.add(saved,"RANDOMIZER_LOCK",
+                                "Gift items fixed for this run.")
+                        end
+                        writeState(saved)
+                    end
+                end
+            end
+        end
         if picked then setScriptVar(ctx,0x8000,picked) end
     end
     local function installRandomHiddenItemGuards()
@@ -890,7 +929,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                     end
                     local key="HIDDEN:"..scope..":"..tostring(identity)
                         ..":"..tostring(hidden.item)
-                    local id=randomFieldItem(key,hidden.item,scope)
+                    local id=randomTmLocation(hidden.item)
+                        or randomFieldItem(key,hidden.item,scope)
                     if not id then return previous(g,hidden,...) end
                     local copy={}
                     for k,v in pairs(hidden) do copy[k]=v end
