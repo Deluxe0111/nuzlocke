@@ -80,7 +80,7 @@ underlying native transactions have been validated.
 1. On a disposable save, enable CORE → NUZLOCKE. Enter CATCH RULES.
    Toggle each of the three species bans, No Static Encounters and
    No Fishing, then cycle MAXIMUM BST. Save, restart, and confirm all
-   six settings persist.
+   settings persist.
 2. With FAILED ENCOUNTERS ON, find a prohibited Pokémon on an unused
    route, throw a ball, and inspect NUZ NOTICES and ENC TRACKER:
    the capture is refused, and the route remains open.
