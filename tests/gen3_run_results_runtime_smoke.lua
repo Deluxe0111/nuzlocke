@@ -161,6 +161,6 @@ assert(values.gen3_classic_v1.finalResult
 advanceTo("CONTINUE ADVENTURE")
 assert(not Stack.has("nuzlocke.gen3.results")
     and values.gen3_classic_v1.failed~=true
-    and quits==3-1, -- only two failed runs returned to title
+    and quits==3, -- only the three failed runs returned to title
     "Champion result must allow continuing without quitting")
 print("Gen 3 End Run native save/reload, battle failure and champion: PASS")
