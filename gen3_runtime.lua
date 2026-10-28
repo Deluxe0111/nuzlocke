@@ -104,7 +104,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local function openFinalScreen(record)
         if type(record)~="table" then return false end
         local running=game()
-        return ResultsScreen.open(running,record,{
+        local ok,opened=pcall(ResultsScreen.open,running,record,{
             onQuit=function()
                 if running and type(running.returnToTitle)=="function" then
                     ResultsScreen.close()
@@ -114,6 +114,10 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end,
             onSave=saveTerminalRecord,
         })
+        -- Headless test harnesses and early save-load callbacks may not
+        -- have the Game 3 UI stack available yet. The terminal record
+        -- remains saved and is re-opened on map entry or the next load.
+        return ok and opened==true
     end
     local function finishRun(outcome,reason,auto)
         local saved=loadState()
