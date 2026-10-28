@@ -582,7 +582,8 @@ for i, name in ipairs(expectedAdvanced) do
         or name=="BATTLE CLAUSES"
         or name=="STATUS BANS" or name=="VARIANTS"
         or name=="BATTLE ITEMS" or name=="FIELD ITEMS"
-        or name=="SERVICES & ECONOMY")
+        or name=="SERVICES & ECONOMY"
+        or name=="POKEMON STATS")
         and name or "[Soon] "..name),
         "advanced category "..i.." should reflect real feature readiness")
     press("a")
@@ -598,9 +599,41 @@ for i, name in ipairs(expectedAdvanced) do
         end
     elseif name~="STATUS BANS" and name~="VARIANTS"
         and name~="BATTLE ITEMS" and name~="FIELD ITEMS"
-        and name~="SERVICES & ECONOMY" then
+        and name~="SERVICES & ECONOMY"
+        and name~="POKEMON STATS" then
         assert(child.rows[1]:find("[Soon]",1,true),
             "unsupported rows must stay read-only even in an active category")
+    end
+    if name=="POKEMON STATS" then
+        assert(child.rows[1]=="Player Starting EVs: 0 EV/STAT"
+            and child.rows[2]=="Wild Starting EVs: 0 EV/STAT"
+            and child.rows[3]=="Trainer Starting EVs: 0 EV/STAT"
+            and child.rows[4]=="No EV Gain: OFF"
+            and child.rows[5]=="Perfect Player IVs: OFF"
+            and child.rows[6]=="Perfect Wild IVs: OFF"
+            and child.rows[7]=="Perfect Trainer IVs: OFF",
+            "Pokemon Stats must have seven active Gen3 EV/IV controls")
+        for rowIndex=1,3 do
+            for _,ev in ipairs({16,32,48,64,85,0}) do
+                press("a")
+                assert(mod.exports.gen3_menu.model().rows[rowIndex]
+                    :find(tostring(ev).." EV/STAT",1,true),
+                    "EV preset must cycle legal Gen3 EV distributions")
+            end
+            press("down")
+        end
+        for rowIndex=4,7 do
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[rowIndex]
+                :find(": ON",1,true))
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[rowIndex]
+                :find(": OFF",1,true))
+            press("down")
+        end
+        press("a")
+        assert(mod.exports.gen3_menu.model().title=="POKEMON STATS HELP")
+        press("b")
     end
     if name=="SERVICES & ECONOMY" then
         assert(child.rows[1]=="No Center Heal: OFF"
