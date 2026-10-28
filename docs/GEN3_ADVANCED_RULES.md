@@ -49,7 +49,7 @@ the catch is denied rather than silently bypassing a hard maximum.
 - The existing `catch.rate` hook denies a prohibited capture **before**
   native ball capture, clone/storage delivery and any shiny-exception
   allowance. Native ball consumption/breakout presentation remains
-  engine-owned, and NUZ NOTICES records the precise reason.
+  engine-owned, and RUN JOURNAL > EVENT HISTORY records the precise reason.
 - The **Shiny Clause cannot override** these explicit bans.
   Shiny Nuzlocke and Hardcore apply alongside the restrictions.
 - Randomised wild Pokémon and Untamed-Advanced's visible overworld
@@ -126,8 +126,7 @@ wandering Pokémon, those wild battles use the same encounter-slot and
 catch-legality rules as ordinary native wild encounters. Untamed controls
 the visible spawns; Nuzlocke does not need a separate enable switch.
 
-The remaining advanced categories outside Catch Rules, Battle Clauses
-and Status Bans are still [Soon].
+All nine Advanced Rules categories now have functioning Gen 3 controls. Their implementations and edition-specific limitations are documented separately in [Battle Clauses](GEN3_BATTLE_CLAUSES.md), [Status Bans](GEN3_STATUS_BANS.md), [Variants](GEN3_VARIANTS.md), [Battle Items](GEN3_BATTLE_ITEMS.md), [Field Items](GEN3_FIELD_ITEMS.md), [Services & Economy](GEN3_SERVICES_ECONOMY.md), [Pokémon Stats](GEN3_POKEMON_STATS.md) and [Area Splits](GEN3_AREA_SPLITS.md).
 
 ## Manual verification
 
@@ -136,7 +135,7 @@ and Status Bans are still [Soon].
    No Fishing, then cycle MAXIMUM BST. Save, restart, and confirm all
    settings persist.
 2. With FAILED ENCOUNTERS ON, find a prohibited Pokémon on an unused
-   route, throw a ball, and inspect NUZ NOTICES and ENC TRACKER:
+   route, throw a ball, and inspect RUN JOURNAL > EVENT HISTORY and ENC TRACKER:
    the capture is refused, and the route remains open.
 3. Encounter an allowed Pokémon on the same route; verify the native
    catch succeeds and the slot is spent normally.
@@ -149,7 +148,7 @@ and Status Bans are still [Soon].
 7. Test Shiny Clause exceptions: they must not bypass an explicit
    legendary/mythical/pseudo/BST prohibition.
 8. With No Fishing ON, use each rod in a valid fishing location.
-   Confirm the rod attempt never begins and NUZ NOTICES explains why.
+   Confirm the rod attempt never begins and RUN JOURNAL > EVENT HISTORY explains why.
    Turn the rule OFF and confirm the native fishing minigame returns.
 9. With No Static ON, attempt a scripted encounter (e.g. a legendary
    encounter on an unused route) and throw a Ball. The battle still
@@ -200,8 +199,8 @@ and Status Bans are still [Soon].
 20. Verify that Overworld Encounters no longer appears in Gen 3
     Catch Rules. With Untamed-Advanced enabled, catch a visible wandering
     wild and confirm it uses the normal map encounter slot, without any
-    separate overworld toggle. Other unported advanced categories
-    remain unavailable.
+    separate overworld toggle. Other advanced categories are implemented
+    and remain subject to ROM and combination testing.
 
 The automated smoke suite is not a substitute for exact-edition ROM
 testing in FireRed, LeafGreen, Ruby, Sapphire and Emerald.
