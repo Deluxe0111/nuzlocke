@@ -250,6 +250,8 @@ saves.gen3_classic_v1.randomizer.starterSource=nil
 saves.gen3_classic_v1.randomizer.used=false
 game.session.version="firered"
 game.session.map="FR_PALLET_TOWN_PROFESSOR_OAKS_LAB"
+local savedParty=game.session.party
+game.session.party={} -- Oak's scripted gift occurs before the first party mon.
 local _,frlgStarter=starterQuery.BY_NAME.GetStarterSpecies({})
 assert(frlgStarter and frlgStarter~=1)
 local originalScript={op="setvar",[1]=0x4002,[2]=1}
@@ -270,6 +272,7 @@ game.session.map="FR_ROUTE_1"
 hooks["script.command"](nativeScript,{}, "setvar",originalScript)
 assert(seenScript==originalScript,
     "other maps must not intercept scripted species variables")
+game.session.party=savedParty
 local count=0
 local wild={species="ALPHA",speciesId=1,level=7,item="BERRY"}
 local ctx={mapId="FR_ROUTE_1",terrain="grass"}
