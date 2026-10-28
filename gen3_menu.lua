@@ -1335,7 +1335,8 @@ return function(mod, api)
         rows[#rows+1]=row("  DETAILS: QOL",nil,function()
             info("QOL HELP",{
                 "GEN 3 QOL",
-                "INSTANT TEXT: FIELD",
+                "INSTANT: FIELD/BATTLE",
+                "INTRO + RSE PRINTERS",
                 "PAGE/CHOICE WAITS KEPT",
                 "RUN / SURF: OFF",
                 "HOLD B: 2X STEP SPEED",
