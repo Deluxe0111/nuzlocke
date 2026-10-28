@@ -54,6 +54,9 @@ return function()
         return nil
     end
     function M.set(s, key, value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         if type(s) ~= "table" or s.failed then return false, "run_failed" end
         local levels = data(s)
         if key == "level_cap_scope" then
