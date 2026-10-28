@@ -45,9 +45,10 @@ the ROM species registry and equivalent randomiser settings.
 run seed and installed Gen 3 species pool, with optional SIM BST balance.
 In Ruby/Sapphire/Emerald the starter bag reads the replacement directly:
 label, portrait, cry and the Pokémon added to the party all use the same
-selection. In FireRed/LeafGreen the scripted Oak-lab starter resolver and
-the subsequent native `pokemon.before_give` event use the same persisted
-three choices. Native starter selection indices and VAR_STARTER_MON remain
+selection. In FireRed/LeafGreen the Oak-lab script's initial starter/rival
+species variables are replaced *before* the scripted portrait, dialogue
+and `givemon` actions. The `GetStarterSpecies` resolver uses the
+same persisted three choices for subsequent queries. Native starter selection indices and VAR_STARTER_MON remain
 unchanged for progression.
 
 The opening one-Pokémon rival battle also uses the corresponding replacement

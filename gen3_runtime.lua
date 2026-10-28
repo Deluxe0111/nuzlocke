@@ -270,21 +270,36 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
     end
     installStarterResolvers()
-    -- FRLG's givemon script is the acquisition boundary; only the three
-    -- Oak-lab starter species are eligible. Every other gift stays native.
-    mod.events:on("pokemon.before_give", function(gift)
-        if type(gift) ~= "table" or not isOakLab() then return end
-        local native = session()
-        if type(native) ~= "table" or #(native.party or {}) ~= 0 then return end
-        local source = tonumber(gift.speciesId)
-        local choices = starterChoices("frlg", FRLG_STARTERS)
-        if not choices then return end
-        for i, original in ipairs(FRLG_STARTERS) do
-            if source == original then
-                gift.species = choices[i] -- native before_give accepts IDs
-                return
-            end
+    -- Oak's three ball scripts set VAR_TEMP_2 (0x4002) BEFORE showmonpic
+    -- and givemon. Replace that initial value so the portrait, dialogue,
+    -- cry, and eventual gift all agree. VAR_TEMP_3 is the rival's chosen
+    -- species for the same scripted conversation. Leave both script rows
+    -- and the ROM data immutable for other mods.
+    mod.hooks:wrap("script.command", function(next, ctx, op, row)
+        if op ~= "setvar" or type(row) ~= "table" or not isOakLab() then
+            return next(ctx, op, row)
         end
+        local native = session()
+        if type(native) ~= "table" or #(native.party or {}) > 0 then
+            return next(ctx, op, row)
+        end
+        local target = tonumber(row.var or row[1])
+        if target ~= 0x4002 and target ~= 0x4003 then
+            return next(ctx, op, row)
+        end
+        local source = tonumber(row.value or row[2])
+        local index
+        for i, original in ipairs(FRLG_STARTERS) do
+            if source == original then index = i; break end
+        end
+        if not index then return next(ctx, op, row) end
+        local choices = starterChoices("frlg", FRLG_STARTERS)
+        if not choices then return next(ctx, op, row) end
+        local copy = {}
+        for k, v in pairs(row) do copy[k] = v end
+        if row.value ~= nil then copy.value = choices[index]
+        else copy[2] = choices[index] end
+        return next(ctx, op, copy)
     end)
 
     local FIRST_RIVALS_FRLG = { [326]=true, [327]=true, [328]=true }

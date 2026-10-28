@@ -242,8 +242,8 @@ assert(starterChooser.species(nil,1)~=rseStarter)
 local rseOpts=saves.gen3_classic_v1.randomizer.starterOptions
 assert(rseOpts[1]==rseStarter
     and starterChooser.species(nil,2)==rseOpts[3])
--- Native FireRed selection passes through the GetStarterSpecies special,
--- and the normal before_give event selects the same persistent result.
+-- Native FireRed selection sets Oak's temporary starter variables
+-- before showmonpic and givemon; test that earliest safe boundary.
 -- New disposable state for a separate game's starter trio.
 saves.gen3_classic_v1.randomizer.starterOptions=nil
 saves.gen3_classic_v1.randomizer.starterSource=nil
@@ -252,15 +252,24 @@ game.session.version="firered"
 game.session.map="FR_PALLET_TOWN_PROFESSOR_OAKS_LAB"
 local _,frlgStarter=starterQuery.BY_NAME.GetStarterSpecies({})
 assert(frlgStarter and frlgStarter~=1)
-local gift={speciesId=1,species="ALPHA",level=5}
-handlers["pokemon.before_give"](gift)
-assert(gift.species==frlgStarter,
-    "Kanto starter chooser and acquired Pokemon must agree")
+local originalScript={op="setvar",[1]=0x4002,[2]=1}
+local seenScript
+local function nativeScript(_, op, row)
+    seenScript=row
+    return false
+end
+hooks["script.command"](nativeScript,{}, "setvar",originalScript)
+assert(seenScript~=originalScript and seenScript[2]==frlgStarter
+    and originalScript[2]==1,
+    "Oak script's portrait and givemon source must be randomised")
+local rivalScript={op="setvar",[1]=0x4003,[2]=4}
+hooks["script.command"](nativeScript,{}, "setvar",rivalScript)
+assert(seenScript[2]~=4 and rivalScript[2]==4,
+    "Oak's rival-choice dialogue should use the matching random option")
 game.session.map="FR_ROUTE_1"
-local ordinaryGift={speciesId=1,species="ALPHA",level=5}
-handlers["pokemon.before_give"](ordinaryGift)
-assert(ordinaryGift.species=="ALPHA",
-    "other maps must not randomise gifted Pokemon")
+hooks["script.command"](nativeScript,{}, "setvar",originalScript)
+assert(seenScript==originalScript,
+    "other maps must not intercept scripted species variables")
 local count=0
 local wild={species="ALPHA",speciesId=1,level=7,item="BERRY"}
 local ctx={mapId="FR_ROUTE_1",terrain="grass"}
