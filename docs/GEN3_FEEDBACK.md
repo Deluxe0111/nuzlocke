@@ -2,7 +2,7 @@
 
 The player's immediate actions should explain *why* a Nuzlocke rule affected
 them. Battle notices use the native Gen 3 battle dialogue queue. Events are
-also saved to the latest **30 NUZ NOTICES** (Start > NUZ MENU > NUZ NOTICES).
+also saved to the latest **100 RUN JOURNAL events** (Start > NUZ MENU > RUN JOURNAL > EVENT HISTORY).
 Long descriptions are split into readable GBA-sized rows.
 
 The notice history is stored under `gen3_classic_v1.notices` and does not
@@ -64,7 +64,7 @@ name-entry module is available, including at the capture prompt itself.
 - [ ] **F03:** Repeat F01–F02 with an RSE edition and with any level-up Enigma
       Berry effect supported by that ROM.
 - [ ] **F04:** Throw a ball after an area was spent; see the One Per Area
-      reason in *battle dialogue* and in NUZ NOTICES (ordinary failed catch
+      reason in *battle dialogue* and in RUN JOURNAL > EVENT HISTORY (ordinary failed catch
       randomness should remain normal).
 - [ ] **F05:** Repeat F04 with Dupes and claimed Roamer clauses, checking
       the correct reason (and Shiny Clause override, if enabled).
@@ -74,12 +74,12 @@ name-entry module is available, including at the capture prompt itself.
 - [ ] **F07:** Let a party Pokémon faint: permadeath notice and Graveyard
       entry; opening rival exemption should show mercy instead.
 - [ ] **F08:** Complete a badge and a League battle: watch cap stage change;
-      NUZ NOTICES should preserve both updates.
+      RUN JOURNAL > EVENT HISTORY should preserve both updates.
 - [ ] **F09:** Claim a Route Forgiveness token, hatch an Egg, and leave an
       unnamed Pokémon in PC. Each event should be traceable through notices.
 - [ ] **F10:** Whiteout / PC rescue on a disposable save. Confirm the correct
       outcome notification and that native party/PC data is consistent.
-- [ ] **F11:** Open NUZ NOTICES, inspect several long messages, and verify
+- [ ] **F11:** Open RUN JOURNAL > EVENT HISTORY, inspect several long messages, and verify
       text is *fully readable* instead of cut off.
 
 CI smoke tests cover the field item-hook cancellation and battle notice
@@ -105,6 +105,6 @@ bag messages, battle animation timing and RSE item differences.
       the capture had already failed.
 
 **Shiny Nuzlocke:** A non-shiny Ball attempt is rejected with an explicit
-reason in the native battle dialogue and saved in NUZ NOTICES. The area
+reason in the native battle dialogue and saved in RUN JOURNAL > EVENT HISTORY. The area
 remains available. Eligible shiny encounters follow One Per Area and
 Failed Encounters as described in [PLAYSTYLES](GEN3_PLAYSTYLES.md).
