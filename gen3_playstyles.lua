@@ -33,6 +33,9 @@ return function()
         return M.normalise(s).playstyles[key]
     end
     function M.set(s, key, value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         if not byKey[key] then return false, "unknown_playstyle" end
         if type(value) ~= "boolean" then return false, "boolean_required" end
         M.normalise(s)
