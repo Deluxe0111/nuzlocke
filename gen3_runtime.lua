@@ -108,6 +108,14 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
     local function openFinalScreen(record)
         if type(record)~="table" then return false end
+        local stored=loadState()
+        if type(stored.finalResult)=="table" then
+            local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
+            if Results.enrich(stored,session(),okP and Pokemon or nil) then
+                writeState(stored)
+            end
+            record=stored.finalResult
+        end
         local running=game()
         local ok,opened=pcall(ResultsScreen.open,running,record,{
             onQuit=function()

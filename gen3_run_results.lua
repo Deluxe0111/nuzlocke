@@ -37,10 +37,76 @@ return function()
         end
         return out
     end
-    local function capture(mon,Display,dead)
+    -- A shiny is an explicit property of a Gen 3 Pokemon, not merely
+    -- a colour guessed from its nickname/sprite. Gen3 uses isShiny (or
+    -- its personality + ORIGINAL TRAINER IDs), not the "shiny" field.
+    -- Do not mistake a missing OT for OT=0 and report false negatives.
+    function M.shinyStatus(mon,Pokemon)
         if type(mon)~="table" then return nil end
         local raw=type(mon.archive)=="table" and mon.archive or mon
-        local display=type(mon.species)=="number" and mon or raw
+        for _,candidate in ipairs({raw,mon}) do
+            if type(candidate.isShiny)=="boolean" then
+                return candidate.isShiny
+            end
+            if type(candidate.shiny)=="boolean" then
+                return candidate.shiny
+            end
+        end
+        local pid=raw.personality or mon.personality
+        local tid=raw.otId or raw.trainerId or mon.otId or mon.trainerId
+        if pid==nil or tid==nil or type(Pokemon)~="table"
+            or type(Pokemon.isShiny)~="function" then return nil end
+        local ok,shiny=pcall(Pokemon.isShiny,raw)
+        if ok and type(shiny)=="boolean" then return shiny end
+        return nil
+    end
+    local function samePokemon(record,source)
+        if type(record)~="table" or type(source)~="table"
+            then return false end
+        local raw=type(source.archive)=="table" and source.archive or source
+        local a=tonumber(record.species)
+        local b=tonumber(raw.species or raw.speciesId
+            or source.species or source.speciesId)
+        local pa=tonumber(record.personality)
+        local pb=tonumber(raw.personality or source.personality)
+        return a~=nil and b~=nil and a==b
+            and pa~=nil and pb~=nil and pa==pb
+    end
+    -- A save finalised before shinyStatus existed may contain a false
+    -- snapshot even for a shiny. Repair it only when the original mon
+    -- is still present with matching species and personality. This
+    -- restores existing ended saves without changing the run result.
+    function M.enrich(s,session,Pokemon)
+        if type(s)~="table" or type(s.finalResult)~="table"
+            then return false end
+        local record=s.finalResult
+        local changed=false
+        local sets={
+            {record.party,session and session.party},
+            {record.graveyard,s.graveyard},
+        }
+        for _,set in ipairs(sets) do
+            local results,sources=set[1],set[2]
+            if type(results)=="table" and type(sources)=="table" then
+                for i,entry in ipairs(results) do
+                    if type(entry)=="table" and entry.shinyKnown~=true
+                        and samePokemon(entry,sources[i]) then
+                        local flag=M.shinyStatus(sources[i],Pokemon)
+                        if flag~=nil then
+                            entry.shiny=flag
+                            entry.shinyKnown=true
+                            changed=true
+                        end
+                    end
+                end
+            end
+        end
+        return changed
+    end
+    local function capture(mon,Display,dead,Pokemon)
+        if type(mon)~="table" then return nil end
+        local raw=type(mon.archive)=="table" and mon.archive or mon
+        local flag=M.shinyStatus(mon,Pokemon)
         local info={
             species=num(raw.species or raw.speciesId or mon.species or mon.speciesId),
             speciesNumbering=raw.speciesNumbering,
@@ -49,7 +115,10 @@ return function()
             nickname=mon.nickname or raw.nickname,
             level=num(mon.level or raw.level) or 1,
             personality=num(raw.personality),
-            shiny=raw.shiny==true,
+            shiny=flag,
+            shinyKnown=flag~=nil,
+            otId=num(raw.otId or raw.trainerId or mon.otId),
+            otSecretId=num(raw.otSecretId or mon.otSecretId),
             hp=num(raw.hp),maxHp=num(raw.maxHp),
             attack=num(raw.atk or raw.attack),
             defense=num(raw.def or raw.defense),
@@ -90,13 +159,15 @@ return function()
             if type(entry)=="table" and (entry.spent or entry.spent==nil)
                 then spent=spent+1 end
         end
+        local okP,Pokemon=pcall(require,"src.core.game3.pokemon")
+        if not okP then Pokemon=nil end
         local party,graveyard={},{}
         for _,mon in ipairs(session.party or {}) do
-            local record=capture(mon,Display,false)
+            local record=capture(mon,Display,false,Pokemon)
             if record then party[#party+1]=record end
         end
         for _,mon in ipairs(s.graveyard or {}) do
-            local record=capture(mon,Display,true)
+            local record=capture(mon,Display,true,Pokemon)
             if record then graveyard[#graveyard+1]=record end
         end
         local record={

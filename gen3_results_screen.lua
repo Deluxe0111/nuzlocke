@@ -27,6 +27,8 @@ return function()
             row("NAME: "..text(mon.name)),
             row("SPECIES: "..text(mon.speciesName)),
             row("LEVEL: "..text(mon.level)),
+            row("SHINY: "..(mon.shinyKnown==true
+                and (mon.shiny==true and "YES" or "NO") or "UNKNOWN")),
             row("HP: "..text(mon.hp).."/"..text(mon.maxHp)),
             row("ATK/DEF: "..text(mon.attack).."/"..text(mon.defense)),
             row("SPA/SPD: "..text(mon.spAttack).."/"..text(mon.spDefense)),
@@ -84,7 +86,11 @@ return function()
         local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
         if not ok or type(Pokemon.monFrontPic)~="function" then return end
         local source={species=id,personality=tonumber(mon.personality) or 0,
-            shiny=mon.shiny==true,level=mon.level}
+            level=mon.level,otId=mon.otId,otSecretId=mon.otSecretId}
+        if mon.shinyKnown==true then
+            -- Pokemon.monFrontPic reads isShiny, not shiny.
+            source.isShiny=mon.shiny==true
+        end
         local good,pic=pcall(Pokemon.monFrontPic,source,nil,"hof")
         if good and type(pic)=="table" and pic.image then
             local w,h=tonumber(pic.w) or 64,tonumber(pic.h) or 64
@@ -193,6 +199,18 @@ return function()
                 write(small,mon.speciesName or "Unknown",
                     x+110,y+43,muted,238)
                 write(small,"LEVEL "..text(mon.level),x+110,y+65,muted)
+                -- Label every card explicitly. Gold indicates shiny;
+                -- muted status is normal/unknown, never silently assume.
+                local status=mon.shinyKnown==true
+                    and (mon.shiny==true and "SHINY" or "NORMAL")
+                    or "UNKNOWN"
+                local shine=mon.shinyKnown==true and mon.shiny==true
+                if shine then
+                    color(gold)
+                    g.rectangle("fill",x+244,y+66,98,24,5,5)
+                end
+                write(small,status,x+252,y+68,
+                    shine and {.09,.12,.21} or muted,83)
                 if mon.hp~=nil and mon.maxHp~=nil then
                     write(small,"HP "..text(mon.hp).."/"..text(mon.maxHp),
                         x+110,y+86,muted)

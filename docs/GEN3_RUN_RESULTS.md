@@ -83,10 +83,12 @@ The image contains all three sections on a single canvas:
    run-ending reason, shiny exceptions.
 2. **FINAL PARTY:** all Pokémon remaining in the party when the
    run finished, with their native front sprites, names, species,
-   level, HP and available combat stats.
+   level, HP, available combat stats, and an explicit SHINY/NORMAL
+   marker (UNKNOWN when legacy data cannot be verified).
 3. **IN MEMORIAM:** the **entire** graveyard, also with sprites,
    nicknames, species, levels, recorded combat stats, areas and
-   causes of death. Empty sections are explicitly labelled.
+   causes of death, including shiny status. Empty sections are
+   explicitly labelled.
 
 The poster is 1200 pixels wide, with **height automatically calculated**
 from the total Pokémon count. Three Pokémon cards are drawn per row.
@@ -117,7 +119,10 @@ export reports a clear error rather than silently truncating deaths.
   a terminal results summary is created on load. Historic Pokémon stats
   not present in that older save remain unknown rather than invented.
 - A result created once is never overwritten by later game progression
-  or repeat Hall of Fame ceremonies.
+  or repeat Hall of Fame ceremonies. On an existing ended save, the
+  display can repair older missing shiny flags using the original
+  matching Pokémon archive (same species and personality). Unverifiable
+  historic flags remain UNKNOWN instead of being reported as normal.
 - The PNG card reads the native `Pokemon.monFrontPic` art available
   in the running ROM. The output may differ between FRLG and RSE.
 
