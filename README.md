@@ -1,12 +1,14 @@
-# Nuzlocke v3.0.0-BETA
+# Nuzlocke v3.0.1-beta
 
 Configurable Pokémon challenge rules for [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp), with a new **Generation 3 beta port** and the established Generation 1/2 mod preserved.
 
 **Supported games:** Red, Blue, Yellow · Gold, Silver, Crystal · **FireRed, LeafGreen, Ruby, Sapphire, Emerald (Gen 3 beta)**.
 
-**Installed version:** `3.0.0-BETA` · **Mod API:** 2 · **Gen 3 save namespace:** `gen3_classic_v1`.
+**Installed version:** `3.0.1-beta` · **Mod API:** 2 · **Gen 3 save namespace:** `gen3_classic_v1`.
 
 > **Beta:** automated smoke tests cover many rules and native hook contracts. All five Gen 3 ROM editions and third-party mod combinations still need manual validation. Back up saves, particularly before Permadeath, End Run and randomiser testing.
+
+> **v3.0.1-beta:** New release with a slimmer player ZIP, polished Gen 3 menus and curated release information. See the [release notes](RELEASE_NOTES.md) for the full description and differences from v3.0.0-BETA.
 
 ## Getting started
 
@@ -15,7 +17,7 @@ Configurable Pokémon challenge rules for [Gen1Recomp](https://github.com/bryant
 3. Enable **Nuzlocke Enabled**; the rule is opt-in. Randomiser and selected QoL features can operate independently of the Nuzlocke challenge switch.
 4. Set the **randomiser seed and options before the first randomised result**; settings lock when mappings have begun. For gameplay testing, use a disposable save.
 
-## What's in v3.0.0-BETA?
+## What's in v3.0.1-beta?
 
 | Category | Features |
 | --- | --- |
