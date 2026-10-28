@@ -6,6 +6,7 @@ return function(mod, api)
     local VISIBLE = 6
     local pages = {}
     local engineGame
+    local setupOnDone
     local Core = assert(api.core, "Gen 3 menu needs CORE rule contract")
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
     local ShinyRate = assert(api.shinyRate, "Gen 3 menu needs shiny rate service")
@@ -102,6 +103,8 @@ return function(mod, api)
         info("NUZ STATUS", {
             s.failed and "RUN: LOST" or "RUN: ACTIVE",
             "MODE: " .. (s.enabled and "ON" or "OFF"),
+            "RULES: " .. (s.runSettingsLocked and "LOCKED" or "EDITABLE"),
+            "CAPTURE: " .. (s.captureUnlocked and "UNLOCKED" or "NOT READY"),
             "AREAS: " .. count(s.areas),
             "DEATHS: " .. #s.graveyard,
             "CATCH: " .. (Core.get(s, "encounter_limit")
@@ -565,9 +568,53 @@ return function(mod, api)
 
     local M = { isMenu = true }
 
+    local function finishSetup(start)
+        local done = setupOnDone
+        setupOnDone = nil
+        pages = {}
+        engineGame = nil
+        if type(done) == "function" then done(start == true) end
+    end
+
+    local function setupRows()
+        local locked = state().runSettingsLocked == true
+        return {
+            row("CORE RULES", nil, function()
+                present("CORE", coreRows(), coreRows)
+            end),
+            row("CLAUSES", nil, function()
+                present("CLAUSES", clausesRows(), clausesRows)
+            end),
+            row("LOCK FOR RUN: " .. (locked and "ON" or "OFF"), nil, function()
+                local saved = state()
+                saved.runSettingsLocked = not (saved.runSettingsLocked == true)
+                api.setState(saved)
+                current().rows = setupRows()
+            end),
+            row("START NEW GAME", nil, function() finishSetup(true) end),
+            row("CANCEL", nil, function() finishSetup(false) end),
+        }
+    end
+
+    -- Native boot-menu surface: renders without a field session/START stack.
+    -- The caller owns creating the save only after START NEW GAME is selected.
+    function M.openSetup(game, done)
+        if type(done) ~= "function" then return false end
+        engineGame = game
+        pages = {}
+        setupOnDone = done
+        present("NEW RUN SETUP", setupRows(), setupRows)
+        return true
+    end
+
+    function M.isSetupOpen()
+        return setupOnDone ~= nil
+    end
+
     function M.open(game)
         if not (game and game.session) then return false end
         engineGame = game
+        setupOnDone = nil
         pages = {}
         home()
         local Stack = require("src.ui.game3.stack")
@@ -586,6 +633,8 @@ return function(mod, api)
     local function back()
         if #pages > 1 then
             popPage()
+        elseif setupOnDone then
+            finishSetup(false)
         else
             pages = {}
             engineGame = nil
