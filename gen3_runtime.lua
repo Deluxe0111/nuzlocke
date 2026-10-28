@@ -1255,9 +1255,8 @@ return function(mod)
         local key = areaNow()
         -- Unknown maps cannot claim a route; still enforce shiny-only
         -- catches rather than silently disabling the playstyle.
-        if not key and not shinyOnly and not CatchRules.anyEnabled(s) then
-            return
-        end
+        -- Every wild catch must run the default glitch eligibility gate,
+        -- including provider maps which have no vanilla area identity.
         local native = session()
         local enemy = ev.battle and ev.battle.enemy
         local wildMon = enemy and enemy.mon
@@ -1281,10 +1280,15 @@ return function(mod)
         -- encounter never consumes this map, even if it flees or faints.
         local dupe = Clauses.isDuplicate(s, species, native, edition)
         local okPokemon, Pokemon = pcall(require, "src.core.game3.pokemon")
+        local catchSeed=tostring(native and native.trainerId or "")
+            ..":"..tostring(native and native.trainerSecretId or "")
+            ..":"..tostring(native and native.name or "")
+        if CatchRules.prepareAlphabet(s,okPokemon and Pokemon or nil,
+            catchSeed) then writeState(s) end
         local catchPermitted, bannedReason = CatchRules.check(s, species,
-            okPokemon and Pokemon or nil, Core)
+            okPokemon and Pokemon or nil, Core,catchSeed)
         local sourcePermitted, sourceReason = CatchRules.checkBattle(s,
-            ev.battle, Core)
+            ev.battle, Core,key)
         if not sourcePermitted then
             catchPermitted = false
             bannedReason = sourceReason
@@ -1374,17 +1378,23 @@ return function(mod)
         -- Check at BOTH battle start (encounter-slot policy) and the Ball
         -- transaction (final legality), before Shiny Clause exceptions.
         local sourceAllowed, sourceReason = CatchRules.checkBattle(
-            s, ctx.battle, Core)
+            s, ctx.battle, Core,battle.area)
         if not sourceAllowed then
             battle.pendingCatchReason = sourceReason
             return false, 0
         end
         local okPokemon, Pokemon = pcall(require, "src.core.game3.pokemon")
+        local native=session()
+        local catchSeed=tostring(native and native.trainerId or "")
+            ..":"..tostring(native and native.trainerSecretId or "")
+            ..":"..tostring(native and native.name or "")
+        if CatchRules.prepareAlphabet(s,okPokemon and Pokemon or nil,
+            catchSeed) then writeState(s) end
         local allowed, reason = CatchRules.check(s,
             (type(ctx) == "table" and ctx.speciesId)
                 or Clauses.speciesId(species)
                 or (type(mon) == "table" and (mon.speciesId or mon.species)),
-            okPokemon and Pokemon or nil, Core)
+            okPokemon and Pokemon or nil, Core,catchSeed)
         if not allowed then
             -- No shake/clone/PC writeback or Shiny Clause exception.
             -- The matching battle-start check does not spend a route.
