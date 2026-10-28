@@ -97,8 +97,8 @@ local function openMenu()
     assert(model.rows[1] == "NUZ RULES", "implemented rules have no WIP label")
     assert(model.rows[3] == "RUN JOURNAL",
         "run recap and messages share one clear destination")
-    assert(model.rows[5] == "[Soon] MOD COMPAT",
-        "unimplemented Mod Compat remains a separate placeholder")
+    assert(model.rows[5] == "MOD SUPPORT",
+        "compatibility is an active read-only diagnostic screen")
     for _,label in ipairs(model.rows) do
         assert(label~="NUZ NOTICES" and not label:find("ALMANAC",1,true)
             and label~="NUZ STATUS",
@@ -123,6 +123,39 @@ local function toggle(expectBefore, expectAfter)
 end
 toggle("NUZLOCKE: OFF", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().enabled)
+-- Mod Support does not change rules or save state, and never treats
+-- an unknown provider as confirmed compatible.
+local beforeSupport=values.gen3_classic_v1
+openMenu()
+for _=1,4 do press("down") end
+press("a")
+assert(mod.exports.gen3_menu.model().title=="MOD SUPPORT")
+assert(mod.exports.gen3_menu.model().rows[1]=="UNTAMED: UNKNOWN"
+    and mod.exports.gen3_menu.model().rows[2]=="SHINY ODDS: NUZLOCKE"
+    and mod.exports.gen3_menu.model().rows[3]=="OTHER RNG: UNKNOWN")
+press("a")
+assert(mod.exports.gen3_menu.model().title=="UNTAMED SUPPORT")
+press("b");press("b");press("b")
+assert(values.gen3_classic_v1==beforeSupport,
+    "opening mod support must not change the saved run")
+local shinyProvider={
+    id="SHINY_POKEMON",
+    exports={shiny_compat={isShiny=function() return false end}},
+}
+mod.find=function(_,id)
+    if id=="untamed_advanced" then return {id=id} end
+    if id=="pokemon_randomizer" then return {id=id} end
+    if id=="SHINY_POKEMON" then return shinyProvider end
+end
+openMenu()
+for _=1,4 do press("down") end
+press("a")
+assert(mod.exports.gen3_menu.model().rows[1]=="UNTAMED: DETECTED"
+    and mod.exports.gen3_menu.model().rows[2]=="SHINY ODDS: EXTERNAL"
+    and mod.exports.gen3_menu.model().rows[3]=="OTHER RNG: DETECTED",
+    "the support screen must re-evaluate live mod providers")
+press("b");press("b")
+mod.find=nil
 -- A pre-Poké Ball scripted battle cannot claim Route 1, including with
 -- Failed Encounters ON. Native PC Balls do not count as carried Balls.
 game.session.storage = { items = { { id = 4, qty = 99 } } }
