@@ -95,7 +95,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lua5.1
       - name: Validate new setup Lua syntax
         run: |
-          luac5.1 -p main.lua title_setup_compat.lua
+          luac5.1 -p main.lua title_setup_compat.lua mod.card
           luac5.1 -p gen3_runtime.lua gen3_menu.lua gen3_dev.lua gen3_title_setup.lua gen3_run_setup.lua gen3_qol_setup.lua gen3_run_results.lua gen3_results_screen.lua gen3_shiny_visuals.lua
           luac5.1 -p tests/gen3_run_results_smoke.lua tests/gen3_run_results_runtime_smoke.lua
       - name: Test FRLG and RSE NEW GAME interception
