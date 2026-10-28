@@ -113,6 +113,9 @@ return function()
         return adjust(mon,M.get(s,"player_start_stat_exp"),
             M.get(s,"perfect_player_ivs"),pokemon)
     end
+    -- Only alter the constructor descriptor for foes. The native battle
+    -- generator selects personality/nature *after* this boundary; forcing
+    -- applyStats here would calculate stats with the wrong nature.
     function M.foe(s,core,source,mon,pokemon)
         if not available(s,core) or
             (source~="wild" and source~="trainer")
@@ -123,7 +126,13 @@ return function()
             "perfect_wild_ivs" or "perfect_trainer_ivs")
         if preset==0 and not perfect then return mon end
         local result=copy(mon)
-        adjust(result,preset,perfect,pokemon)
+        adjust(result,preset,perfect,nil)
+        -- Native Damage.ensureStats must recalculate using the final
+        -- personality even if a provider handed in cached battle stats.
+        for _,key in ipairs({"maxHp","maxhp","attack","defense",
+            "speed","spAtk","spDef","atk","def","spe","spa","spd"}) do
+            result[key]=nil
+        end
         return result
     end
     function M.noGain(s,core)
