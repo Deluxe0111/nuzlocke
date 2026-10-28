@@ -18,8 +18,10 @@ return function()
         definitions[#definitions+1]={key=entry[1],label=entry[2],
             default=0,kind="scope",child=true}
     end
-    -- Sleep Clause deliberately stays [Soon]. Tracking prior sleep origins
-    -- across switched/boxed/traded Pokemon is not certified yet.
+    -- Sleep Clause is separate from both Sleep Ban and No Status Moves.
+    -- Only sleep inflicted by the opposing side counts against the clause.
+    definitions[#definitions+1]={key="sleep_clause",label="Sleep Clause",
+        default=false,kind="toggle"}
     local byKey={}
     for _,d in ipairs(definitions) do byKey[d.key]=d end
     local LABELS={"OFF","SELF","ENEMY","ALL"}
@@ -44,6 +46,7 @@ return function()
         if not byKey[key] then return nil end
         local rows=type(s)=="table" and s.statusBans or nil
         local v=type(rows)=="table" and rows[key] or nil
+        if byKey[key].kind=="toggle" then return v==true end
         if type(v)=="number" and v>=0 and v<=3
             and v==math.floor(v) then return v end
         return 0
@@ -53,9 +56,11 @@ return function()
         if not def then return false,"not_implemented" end
         if type(s)~="table" then return false,"invalid_state" end
         if s.failed then return false,"run_failed" end
-        if type(value)~="number" or value~=math.floor(value)
+        if def.kind=="toggle" then
+            if type(value)~="boolean" then return false,"boolean_required" end
+        elseif type(value)~="number" or value~=math.floor(value)
             or value<0 or value>3 then return false,"invalid_scope" end
-        if not def.parent and M.get(s,"status_move_scope")~=0 then
+        if def.child and M.get(s,"status_move_scope")~=0 then
             return false,"parent_controls_children"
         end
         if type(s.statusBans)~="table" then s.statusBans={} end
@@ -73,11 +78,13 @@ return function()
     function M.next(s,key)
         local v=M.get(s,key)
         if v==nil then return nil end
+        if type(v)=="boolean" then return not v end
         return (v+1)%4
     end
     function M.label(s,key)
         local v=M.get(s,key)
         if v==nil then return "UNKNOWN" end
+        if type(v)=="boolean" then return v and "ON" or "OFF" end
         return LABELS[v+1]
     end
     function M.childKeys()
@@ -96,6 +103,53 @@ return function()
         if side~="player" and side~="enemy" then return false end
         return v==3 or (v==1 and side=="player")
             or (v==2 and side=="enemy")
+    end
+    -- Battle-local provenance: slot-indexed so a sleeping Pokemon still
+    -- counts after being switched out. No engine save schema changes.
+    local function sideOf(v)
+        local side=type(v)=="table" and v.side or v
+        if side=="player" or side=="enemy" then return side end
+        return nil
+    end
+    function M.recordSleep(battle,target,source)
+        if type(battle)~="table" or type(target)~="table" then return end
+        local side=sideOf(target)
+        local slot=tonumber(target.partyIndex)
+        if not side or not slot or slot<1 or slot~=math.floor(slot) then
+            return
+        end
+        battle._nuzSleepOrigins=battle._nuzSleepOrigins
+            or {player={},enemy={}}
+        local origins=battle._nuzSleepOrigins[side]
+        if type(origins)~="table" then
+            origins={}
+            battle._nuzSleepOrigins[side]=origins
+        end
+        local sourceSide=sideOf(source)
+        origins[slot]=sourceSide and sourceSide~=side and sourceSide or nil
+    end
+    function M.denySleepClause(s,source,target,battle,core)
+        if not core or not core.active(s) or not M.get(s,"sleep_clause")
+            or type(target)~="table" or type(battle)~="table" then
+            return false
+        end
+        local from,to=sideOf(source),sideOf(target)
+        local slot=tonumber(target.partyIndex)
+        if not from or not to or from==to or not slot
+            or slot<1 or slot~=math.floor(slot) then return false end
+        local origins=battle._nuzSleepOrigins
+        origins=type(origins)=="table" and origins[to] or nil
+        if type(origins)~="table" then return false end
+        local party=to=="player" and battle.playerParty or battle.foeParty
+        if type(party)~="table" then return false end
+        for i,mon in ipairs(party) do
+            if i~=slot and origins[i]==from and type(mon)=="table"
+                and (mon.status=="SLP" or mon.status=="SLEEP")
+                and (tonumber(mon.hp) or 0)>0 then
+                return true
+            end
+        end
+        return false
     end
     function M.deny(s,effect,source,target,core)
         local key=EFFECT_KEY[effect]
