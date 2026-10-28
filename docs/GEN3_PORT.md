@@ -7,6 +7,20 @@ Nuzlocke runs a separate Generation 3 implementation through
 serve Red, Blue, Yellow, Gold, Silver and Crystal. The beta targets
 FireRed, LeafGreen, Ruby, Sapphire and Emerald.
 
+**NEW GAME integration (restored from PR #20):** FRLG and RS/Emerald
+open NEW RUN SETUP before entering the native intro. The player can
+configure the same CORE/CLAUSES/ADVANCED RULES pages as in-game,
+adjust the five QoL starting resources, and choose **LOCK FOR RUN**
+before selecting START NEW GAME. Cancelling leaves the prior save
+unchanged. The run lock is enforced by every working rule-category
+setter for the duration of the new save; Dev tools remain separate.
+The Gen 3 encounter ledger ignores pre-Ball wild fights entirely.
+Once the player has physically carried a native Ball (or a previous
+successful catch proves unlock), the encounter ledger stays unlocked
+even if all Balls are later spent. Extra QoL starting Balls are not
+available until that native capture boundary, and are delivered to
+Player PC exactly once. No engine changes are required.
+
 The Generation 3 menu is designed for a GBA-native 240×160 screen.
 Unported options are shown as **[Soon]** and do not silently change
 gameplay. NUZ RULES keeps CORE, CLAUSES, HARDCORE, GAME DIFFICULTY,
