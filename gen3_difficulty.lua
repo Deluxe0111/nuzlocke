@@ -39,6 +39,9 @@ return function()
         return v
     end
     function M.set(s,key,v)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         if key~="difficulty_profile" then return false,"not_implemented" end
         if type(s)~="table" then return false,"invalid_state" end
         if s.failed then return false,"run_failed" end
