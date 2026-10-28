@@ -243,12 +243,12 @@ assert(styles.setRule("shiny_nuzlocke",false))
 assert(core.setRule("nuzlocke_enabled",true))
 assert(catch.setRule("ban_pseudos",true))
 assert(catch.setRule("maximum_bst",500))
-map("FR_ROUTE_1")
+map("FR_TEST_CATCH_BANS")
 local bannedBattle,bannedMon=battle(401,false)
 local caught,shakes,nativeCalls=ball(bannedBattle,bannedMon)
 assert(not caught and shakes==0 and nativeCalls==0,
     "banned pseudo must not reach native capture")
-local area=values.gen3_classic_v1.areas.FR_ROUTE_1
+local area=values.gen3_classic_v1.areas.FR_TEST_CATCH_BANS
 assert(not area or not area.spent,
     "banned pseudo must not consume the area despite Failed Encounters ON")
 assert(battleText[#battleText]:find("No Pseudos",1,true),
