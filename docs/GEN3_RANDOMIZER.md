@@ -7,11 +7,13 @@ TM moves and TM compatibility, wild step encounters, fishing and
 trainer parties**.
 It does **not** require Nuzlocke Enabled to be ON.
 
-All other Randomizer settings in the legacy catalogue are marked **[Soon]**.
-They are not silently enabled: roaming Pokémon, non-scripted gifts,
-scripted NPC item gifts, learnsets, TM locations, evolution targets
-and other systems
-remain native until their own implementations are verified.
+All 36 entries in the legacy Randomiser catalogue now have implemented
+controls. Options default to native behaviour until enabled. These are
+native runtime substitutions, not edits to the extracted ROM, and are
+designed for FireRed/LeafGreen and Ruby/Sapphire/Emerald. In-game
+validation on both families is still required. Unsupported data,
+unsafe progression items and unrecognised native contexts fail open
+to the original game behaviour.
 
 ## Menu and configuration
 
@@ -36,6 +38,19 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Random TMs | OFF / ON | OFF |
 | TM Compat | NATIVE / RANDOM / ALL | NATIVE |
 | Starter Balance | CHAOS / SIM BST (when Starters ON) | CHAOS |
+| Starter Style | ANY / BASE FORMS / FINAL FORMS | ANY |
+| Trio Typing | ANY / DISTINCT (primary types) | ANY |
+| Starter Rerolls | ONE / THREE / FIVE | ONE |
+| Wild Diversity | SPECIES / PRIMARY TYPE / BOTH TYPES (UNIQUE AREA only) | SPECIES |
+| Trainer Theme | ANY TYPE / LEAD TYPE | ANY TYPE |
+| Random Learnsets | OFF / ON | OFF |
+| Learnset Gen | ALL / GEN 1 / GEN 2 / GEN 3 | ALL |
+| Learnset STAB | ANY / PREFER / ONLY | ANY |
+| Random Evolutions | OFF / ON | OFF |
+| Evolution Balance | CHAOS / SIM BST | CHAOS |
+| Random TM Locations | OFF / ON | OFF |
+| Random Gift Items | OFF / ON | OFF |
+| RNG Info | SHOW / HIDE SEED | SHOW |
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
 | Trainer Balance | CHAOS / SIM BST (when Trainers ON) | CHAOS |
@@ -111,6 +126,88 @@ affects trainers; wild and Untamed mappings are unchanged.
 avoids mixing incompatible rules in a single run. To start a genuinely new
 randomiser configuration, start a new disposable run/save; Nuz Dev must not
 silently relabel already generated content.
+
+## Expanded randomiser rules (remaining catalogue options)
+
+### Starters and encounter variety
+
+**Starter Style** filters the valid trio choices to ANY eligible species,
+native base forms (species that have a native evolution but are not
+themselves an evolution target), or native final forms (evolution targets
+with no further native evolutions). Filtered pools must contain three
+distinct legal starters; otherwise the chooser leaves the original trio
+unchanged instead of giving invalid species. **Trio Typing: DISTINCT**
+requires three different primary Pokémon types; if there is insufficient
+room the whole selection fails open. **Starter Rerolls: THREE/FIVE**
+generates that many deterministic candidate trios and selects the one
+with the narrowest base-stat-total spread. Rerolls never spin the world
+RNG beyond resolving an AUTO seed, or generate different trios on reload.
+
+**Wild Diversity** is meaningful only with Wild Variety: UNIQUE AREA.
+The existing SPECIES policy avoids duplicate replacements per map and
+encounter method. PRIMARY TYPE or BOTH TYPES additionally favours
+previously unused types (when the valid pool supports it) before
+accepting repeats. Already assigned native encounter slots replay their
+saved choice even after additional encounters are discovered.
+
+**Trainer Theme: LEAD TYPE** chooses replacements that share the first
+native trainer Pokémon's primary type when available. Every team slot
+uses that type, and protected story rival starter lineage still takes
+priority. If the eligible type-specific pool is empty, the usual
+random trainer candidate rules are used.
+
+### Learnsets and evolution outcomes
+
+**Random Learnsets** alters level-up moves through the shared native
+`Pokemon.learnset` accessor. Each Pokémon retains its exact native
+learn levels/slot count; move IDs are replaced by deterministic valid
+Gen 3 battle moves. The independent **Learnset Gen** filter restricts
+moves to GEN 1, 2 or 3 move-number ranges; **Learnset STAB** optionally
+prefers or exclusively selects moves matching one of the species'
+types. If that move pool is empty, the fallback is to legal general
+moves rather than an empty/malformed learnset. Generated moves
+exclude HM field moves and Struggle. This affects initial learned
+moves and subsequent native level-up teaching; original ROM arrays
+are never changed.
+
+**Random Evolutions** alters evolution **target species only**, through
+the shared `Pokemon.evolutions` accessor. It preserves native
+evolution method/level/item/trade requirements. A replacement must
+increase the (base stat total, internal species ID) ordering compared
+with the source Pokémon, preventing direct and indirect evolution
+cycles. **Evolution Balance: SIM BST** prefers candidates close in BST
+to the native evolution target; CHAOS uses the unrestricted safe
+ascending pool. Nincada's special Ninjask/Shedinja pair is kept native
+because the game has special side effects tied to those target IDs.
+Unknown, unavailable, or non-ascending targets remain native. The
+rival's original starter stages are detected against the native
+evolution graph so changing evolution targets cannot invalidate the
+identity of the scripted story rival.
+
+### TM locations and NPC item gifts
+
+**Random TM Locations** creates one seed-derived permutation of all
+50 TM item IDs. TM01–TM50 rewards are remapped consistently when a
+scripted standard item-pickup or item-gift routine awards them, and
+when a direct native hidden-item pickup uses a TM. Multiple copies
+of the same original TM always become the same TM. This does not
+rewrite map flags, prize logic, HM placements, or the separate
+Random TMs move-to-machine mapping.
+
+**Random Gift Items** changes the eligible positive-price ordinary
+item awarded through `STD_OBTAIN_ITEM` (the standard scripted NPC
+gift transaction). It uses independent saved map/script assignments
+and never replaces HM/TM, Key Items, protected story items, or the
+Poké Ball ID 4 (needed for early capture progression). Unknown
+scripts and direct atypical reward routines remain unchanged.
+Ordinary visible item balls continue to be controlled only by
+Random Field Items, with TM-location changes applying separately.
+
+**RNG Info: HIDE SEED** hides the fixed and resolved seed rows once
+the run's randomiser config has locked. It does not hide the editing
+controls before the lock or change the stored seed or generated
+choices. This is a user-facing spoiler-display option, not a
+cryptographic security or concealment feature.
 
 ## Random TMs and TM compatibility
 
@@ -385,6 +482,29 @@ Check Untamed's ordinary chain shinies still behave normally.
       Pokémon and rival teams remain unchanged. With both Random Starters
       and Random Trainers ON, the rival's starter retains its lineage
       while every other trainer team member still randomises normally.
+- [ ] **X01:** Check Starter Style BASE/FINAL, DISTINCT primary
+      types, and 3/5 rerolls in both FRLG Oak's lab and RSE bag.
+      Native selection indices and rival lineage must remain correct.
+- [ ] **X02:** Confirm Wild Diversity retains assigned slots on
+      save/load, and Trainer Theme creates coherent type-themed teams
+      without changing story rivals' native starter tracking.
+- [ ] **X03:** Check generated learnsets against level-up prompts,
+      fresh wild/trainer/starter party initial moves, and STAB/Gen modes.
+      Confirm HMs cannot be replaced with random unforgettably learned
+      moves.
+- [ ] **X04:** Evolve using levels, evolution stones and trading:
+      prerequisites and special Nincada/Shedinja evolution must remain
+      safe. Existing saved Pokémon stay valid.
+- [ ] **X05:** With TM Locations enabled collect a scripted TM gift,
+      visible TM ball and hidden TM; HMs remain unchanged, multiple
+      instances of one TM remain consistent, messages show the actual
+      awarded TM, and scripts mark the original event collected.
+- [ ] **X06:** With Gift Items enabled collect a standard NPC gift.
+      Inventory, name text and replay must match. Starter Poké Ball
+      gifts, TM, Key Item rewards remain native. Test full-bag rejection.
+- [ ] **X07:** After locking a run with HIDE SEED selected, verify
+      both randomiser seed rows are concealed but saved randomiser
+      state remains stable.
 - [ ] **T01:** On a fresh FireRed/LeafGreen and Emerald run,
       enable Random TMs. Inspect a TM in the TM Case/Bag and teach it:
       displayed move, stat panel, preflight, final move, consumption
