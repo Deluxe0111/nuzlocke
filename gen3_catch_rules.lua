@@ -63,7 +63,8 @@ return function()
     function M.set(s, key, value)
         local d = byKey[key]
         if not d then return false, "not_implemented" end
-        if s and s.failed then return false, "run_failed" end
+        if type(s)~="table" then return false,"invalid_state" end
+        if s.failed then return false, "run_failed" end
         if d.kind == "toggle" then
             if type(value) ~= "boolean" then return false, "boolean_required" end
         elseif d.kind == "alphabet_mode" then
@@ -104,6 +105,12 @@ return function()
         if d.kind=="toggle" then return v and "ON" or "OFF" end
         if d.kind=="cycle" then return v==0 and "OFF" or tostring(v) end
         if d.kind=="alphabet_mode" then
+            if v==1 then
+                local chosen=asState(s).alphabetlocke_random_letter
+                if type(chosen)=="number" and chosen>=1 and chosen<=26 then
+                    return "RND:"..string.char(64+chosen)
+                end
+            end
             return ({"OFF","RANDOM","CHOOSE"})[v+1]
         end
         if d.kind=="letter" then return string.char(64+v) end
@@ -247,16 +254,16 @@ return function()
         if not pokemon or type(pokemon.national)~="function" then
             return nil -- cannot judge without the live species registry
         end
+        local meta
+        if type(pokemon.speciesMeta)=="function" then
+            local ok,v=pcall(pokemon.speciesMeta,id)
+            if ok and type(v)=="table" then meta=v end
+        end
+        if meta and (meta.isGlitch or meta.glitch) then return true end
         local nat=nationalId(id,pokemon)
         if nat and nat>=1 and nat<=386 then return false end
-        if type(pokemon.speciesMeta)=="function" then
-            local ok,meta=pcall(pokemon.speciesMeta,id)
-            if ok and type(meta)=="table" then
-                if meta.isGlitch or meta.glitch then return true end
-                -- Allow valid extended species from other providers.
-                if canonicalName(id,pokemon) then return false end
-            end
-        end
+        -- Allow valid extended species from other providers.
+        if meta and canonicalName(id,pokemon) then return false end
         return true
     end
     function M.check(s, species, pokemon, core, seed)
