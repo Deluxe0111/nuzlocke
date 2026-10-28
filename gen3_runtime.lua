@@ -945,8 +945,16 @@ local RunParty = readModule("gen3_run_party.lua")()
             and type(Party.giveMon)=="function"
             and Party.__nuzStatsGive~=Party.giveMon then
             local previous=Party.giveMon
-            local function guardedGive(...)
-                local ok,code,mon,box,slot=previous(...)
+            local function guardedGive(native,...)
+                -- Compose Player Stats and Run/Party at the *same* seam.
+                -- Separate wrappers would repeatedly wrap each other on
+                -- every map/save lifecycle reinstallation.
+                local reason=RunParty.addDenied(loadState(),Core,native)
+                if reason then
+                    notify("PARTY_LIMIT_GIFT",reason,false)
+                    return false,Party.MON_CANT_GIVE,nil
+                end
+                local ok,code,mon,box,slot=previous(native,...)
                 if ok and type(mon)=="table" then
                     Stats.player(loadState(),Core,mon,Pokemon)
                 end
@@ -991,6 +999,14 @@ local RunParty = readModule("gen3_run_party.lua")()
                 end
                 local source=opts.wild and "wild" or "trainer"
                 local saved=loadState()
+                local okTr,Trainers=pcall(require,
+                    "src.core.game3.scripting.trainers")
+                local gymReason=RunParty.gymDenial(saved,Core,
+                    session(),opts.foe,opts,okTr and Trainers or nil)
+                if gymReason then
+                    notify("GYM_TEAM_LIMIT",gymReason,false)
+                    return nil,"gym_team_size"
+                end
                 local function transform(v)
                     if type(v)~="table" then return v end
                     return Stats.foe(saved,Core,source,v,Pokemon)
@@ -1032,23 +1048,6 @@ local RunParty = readModule("gen3_run_party.lua")()
     -- catching guard covers direct callers and other catch providers.
     -- In particular, never trim a live party or delete excess Mons.
     local function installRunPartyGuards()
-        local okParty,Party=pcall(require,"src.core.game3.party")
-        if okParty and type(Party)=="table"
-            and type(Party.giveMon)=="function"
-            and Party.__nuzRunGive~=Party.giveMon then
-            local previous=Party.giveMon
-            local function guardedGive(native,...)
-                local reason=RunParty.addDenied(loadState(),Core,native)
-                if reason then
-                    notify("PARTY_LIMIT_GIFT",reason,false)
-                    return false,Party.MON_CANT_GIVE,nil
-                end
-                return previous(native,...)
-            end
-            Party.giveMon=guardedGive
-            Party.__nuzRunGive=guardedGive
-        end
-
         local okCatch,Catching=pcall(require,
             "src.core.game3.battle.catching")
         if okCatch and type(Catching)=="table"
@@ -1097,30 +1096,8 @@ local RunParty = readModule("gen3_run_party.lua")()
             end)
         end
 
-        -- Gym limit must read the actually composed opponent party, after
-        -- trainers and Difficulty have supplied their final roster.
-        local okBattle,Battle=pcall(require,"src.core.game3.battle.init")
-        if okBattle and type(Battle)=="table"
-            and type(Battle.start)=="function"
-            and Battle.__nuzRunStart~=Battle.start then
-            local previous=Battle.start
-            local function guardedStart(opts,...)
-                if type(opts)=="table" then
-                    local native=session()
-                    local okTr,Trainers=pcall(require,
-                        "src.core.game3.scripting.trainers")
-                    local reason=RunParty.gymDenial(loadState(),Core,
-                        native,opts.foe,opts,okTr and Trainers or nil)
-                    if reason then
-                        notify("GYM_TEAM_LIMIT",reason,false)
-                        return nil,"gym_team_size"
-                    end
-                end
-                return previous(opts,...)
-            end
-            Battle.start=guardedStart
-            Battle.__nuzRunStart=guardedStart
-        end
+        -- Gym Team Size is composed in the existing Stats Battle.start
+        -- wrapper, avoiding repeated wrapping across map transitions.
 
         -- All native evolution checks (level, stone, trade) converge on
         -- targetSpecies. Deny BEFORE scenes or evolution item consumption.
