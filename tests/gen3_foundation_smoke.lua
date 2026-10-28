@@ -998,4 +998,24 @@ assert(variants.setRule("type_lock_draft",false))
 assert(values.gen3_classic_v1.variantRules.drafted_types==nil,
     "disabling draft resets recorded selections cleanly")
 assert(variants.setRule("type_lock_mode",0))
+-- No Catching is a global Ball ban: do not consume a first encounter
+-- merely because Failed Encounters Count is active.
+local battleItems=mod.exports.gen3_battle_items
+assert(core.setRule("failed_encounter",true))
+assert(core.setRule("encounter_limit",true))
+assert(battleItems.setRule("no_catching",true))
+game.session.map="FR_ROUTE_36"
+fire("map.entered",{mapId="FR_ROUTE_36"})
+local prohibited={enemy={mon={species=25,speciesId=25}}}
+fire("battle.started",{battle=prohibited,kind="wild",speciesId=25})
+assert(values.gen3_classic_v1.areas.FR_ROUTE_36==nil,
+    "No Catching must not waste the first route attempt")
+local calledNative=false
+local allowedCatch,shakes=hooks["catch.rate"](function()
+    calledNative=true
+    return true,4
+end,"POKE_BALL",{speciesId=25},25,{battle=prohibited})
+assert(not allowedCatch and shakes==0 and not calledNative)
+fire("battle.ended")
+assert(battleItems.setRule("no_catching",false))
 print("Gen3 experimental Nuzlocke smoke PASS")
