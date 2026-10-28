@@ -2,16 +2,27 @@
 local B=assert(loadfile("gen3_battle_clauses.lua"))()()
 local Core=assert(loadfile("gen3_core_rules.lua"))()()
 local state=Core.normalise({})
-assert(#B.descriptors()==6)
+assert(#B.descriptors()==7)
 local definitions=B.descriptors()
 local keys={}
 for _,d in ipairs(definitions) do
     keys[#keys+1]=d.key
     assert(d.status=="working" and B.get(state,d.key)==d.default)
 end
-assert(not B.set(state,"ohko_clause",true),
-    "OHKO remains unavailable until its own safe native guard")
+assert(B.get(state,"ohko_clause")==false)
+assert(B.next(state,"ohko_clause")==true)
+assert(B.set(state,"ohko_clause",true))
+assert(B.label(state,"ohko_clause")=="ON")
+assert(not B.denyOHKO(state,"player",Core),
+    "OHKO clause must be inert until Nuzlocke is enabled")
 assert(Core.set(state,"nuzlocke_enabled",true))
+assert(B.denyOHKO(state,"player",Core)
+    and B.denyOHKO(state,"enemy",Core),
+    "OHKO clause applies to both sides, not just the player")
+assert(not B.denyOHKO(state,"neutral",Core))
+assert(B.set(state,"ohko_clause",false))
+assert(not B.denyOHKO(state,"enemy",Core))
+assert(B.set(state,"ohko_clause",true))
 assert(B.get(state,"evasion_clause")==false)
 assert(B.next(state,"evasion_clause")==true)
 assert(B.set(state,"evasion_clause",true))
@@ -67,17 +78,25 @@ assert(not B.denyStat(state,"accuracy",-1,{side="enemy"},Core)==false,
 assert(not B.set(state,"trap_clause_scope",4))
 assert(not B.set(state,"trap_clause_scope",1.5))
 assert(not B.set(state,"evasion_clause",1))
+assert(not B.set(state,"ohko_clause",1))
 assert(not B.set(state,"nonexistent_rule",true))
 local reloaded={enabled=true,battleClauses=state.battleClauses}
+assert(B.get(reloaded,"ohko_clause")==true)
 assert(B.get(reloaded,"setup_move_scope")==1)
 assert(B.get(reloaded,"flinch_clause_scope")==1)
 assert(B.get(reloaded,"status_accuracy_scope")==3)
 assert(Core.set(state,"nuzlocke_enabled",false))
+assert(not B.denyOHKO(state,"player",Core))
 assert(not B.denyEffect(state,"FLINCH","player",Core))
 assert(not B.denyStat(state,"attack",1,"player",Core))
 assert(Core.set(state,"nuzlocke_enabled",true))
 state.failed=true
 assert(not B.set(state,"evasion_clause",false))
-assert(not B.denyEffect(state,"FLINCH","player",Core),
+assert(not B.denyEffect(state,"FLINCH","player",Core)
+    and not B.denyOHKO(state,"enemy",Core),
     "failed runs have no battle-effect enforcement")
+local locked={enabled=true,runSettingsLocked=true,battleClauses={ohko_clause=false}}
+assert(not B.set(locked,"ohko_clause",true)
+    and B.get(locked,"ohko_clause")==false,
+    "run settings lock must protect OHKO clause too")
 print("Gen3 Advanced Battle Clauses policy and save-state test: PASS")
