@@ -581,7 +581,8 @@ for i, name in ipairs(expectedAdvanced) do
     assert(advanced.rows[i]==((name=="CATCH RULES"
         or name=="BATTLE CLAUSES"
         or name=="STATUS BANS" or name=="VARIANTS"
-        or name=="BATTLE ITEMS" or name=="FIELD ITEMS")
+        or name=="BATTLE ITEMS" or name=="FIELD ITEMS"
+        or name=="SERVICES & ECONOMY")
         and name or "[Soon] "..name),
         "advanced category "..i.." should reflect real feature readiness")
     press("a")
@@ -596,9 +597,42 @@ for i, name in ipairs(expectedAdvanced) do
                 "visible overworld Pokémon use native catch rules")
         end
     elseif name~="STATUS BANS" and name~="VARIANTS"
-        and name~="BATTLE ITEMS" and name~="FIELD ITEMS" then
+        and name~="BATTLE ITEMS" and name~="FIELD ITEMS"
+        and name~="SERVICES & ECONOMY" then
         assert(child.rows[1]:find("[Soon]",1,true),
             "unsupported rows must stay read-only even in an active category")
+    end
+    if name=="SERVICES & ECONOMY" then
+        assert(child.rows[1]=="No Center Heal: OFF"
+            and child.rows[2]=="No Mom Heal: OFF"
+            and child.rows[3]=="No Day Care: OFF"
+            and child.rows[4]=="Shop Restrictions: NORMAL"
+            and child.rows[5]=="No Gambling: OFF"
+            and child.rows[6]=="Trainer Money: 100%",
+            "Services & Economy must expose all six working controls")
+        press("a")
+        assert(mod.exports.gen3_menu.model().rows[1]=="No Center Heal: ON")
+        press("a");press("down");press("a")
+        assert(mod.exports.gen3_menu.model().rows[2]=="No Mom Heal: ON")
+        press("a");press("down");press("a")
+        assert(mod.exports.gen3_menu.model().rows[3]=="No Day Care: ON")
+        press("a");press("down")
+        for _,label in ipairs({"NO BUY","NO SELL","CLOSED","NORMAL"}) do
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[4]
+                =="Shop Restrictions: "..label)
+        end
+        press("down");press("a")
+        assert(mod.exports.gen3_menu.model().rows[5]=="No Gambling: ON")
+        press("a");press("down")
+        for _,pct in ipairs({"200%","300%","0%","50%","100%"}) do
+            press("a")
+            assert(mod.exports.gen3_menu.model().rows[6]
+                =="Trainer Money: "..pct)
+        end
+        press("down");press("a")
+        assert(mod.exports.gen3_menu.model().title=="SERVICES HELP")
+        press("b")
     end
     if name=="FIELD ITEMS" then
         assert(child.rows[1]=="No Repels: OFF"
