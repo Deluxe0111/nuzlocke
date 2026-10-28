@@ -22,6 +22,7 @@ return function(mod)
     local FieldRules = readModule("gen3_field_items.lua")()
     local Services = readModule("gen3_services_economy.lua")()
     local Stats = readModule("gen3_pokemon_stats.lua")()
+local AreaSplits = readModule("gen3_area_splits.lua")()
     local Variants = readModule("gen3_variants.lua")()
     local BattleClauses = readModule("gen3_battle_clauses.lua")()
     local StatusBans = readModule("gen3_status_bans.lua")()
@@ -70,6 +71,23 @@ return function(mod)
     local function areaNow()
         local s = session()
         return areaKey(currentArea) or areaKey(s and s.map)
+    end
+
+    -- Use a separate identity for encounter accounting; map IDs stay
+    -- native for story scripts, services and randomizer seed sources.
+    local function encounterAreaNow(saved)
+        local mapId=areaNow()
+        if not mapId then return nil end
+        local native=session()
+        local g=game()
+        local def=g and g.data and g.data.maps and g.data.maps[mapId]
+        local layout=def and (def.layout or def) or {}
+        return AreaSplits.resolve(saved or loadState(),Core,mapId,{
+            x=native and (native.x or native.playerX),
+            y=native and (native.y or native.playerY),
+            width=layout and layout.width,
+            height=layout and layout.height,
+        })
     end
 
     -- Untamed builds OWE personalities before there is a wild battle. Keep
@@ -376,8 +394,19 @@ return function(mod)
             if a or b or c then writeState(saved) end
         end
         options.seed=seed
+        -- AREA-slot gifts/trades inherit historical claims even after
+        -- the map scope is changed during a run.
+        local key=encounterAreaNow(saved)
+        local policy=CatchRules.get(saved,kind=="gift"
+            and "gift_slot_policy" or "trade_slot_policy")
+        if key and policy==0
+            and Core.enforced(saved,"encounter_limit")
+            and not options.mandatoryStarter
+            and not AreaSplits.catchAllowed(saved,Core,key,location) then
+            return false,"Area Splits: encounter slot already spent."
+        end
         local allowed,why=CatchRules.canAcquire(saved,kind,species,
-            location,resolver,Core,options)
+            key or location,resolver,Core,options)
         if not allowed or options.mandatoryStarter then return allowed,why end
         return Variants.check(saved,species,resolver,Core,seed,kind)
     end
@@ -389,7 +418,8 @@ return function(mod)
     end
     local function acquisitionReceipt(kind,species,location)
         local saved=loadState()
-        if not CatchRules.noteAcquired(saved,kind,species,location,Core)
+        local key=encounterAreaNow(saved) or location
+        if not CatchRules.noteAcquired(saved,kind,species,key,Core)
             then return end
         Clauses.noteCaught(saved,species,false)
         writeState(saved)
@@ -1855,7 +1885,8 @@ return function(mod)
         if not isActive() or type(ev) ~= "table" or ev.kind ~= "wild" then return end
         local s = loadState()
         local shinyOnly = Playstyles.active(s, Core)
-        local key = areaNow()
+        local rawArea=areaNow()
+        local key=encounterAreaNow(s)
         -- Unknown maps cannot claim a route; still enforce shiny-only
         -- catches rather than silently disabling the playstyle.
         -- Every wild catch must run the default glitch eligibility gate,
@@ -1874,11 +1905,12 @@ return function(mod)
             and announcedRoamer.speciesId ~= nil
             and announcedRoamer.speciesId == spId
             and (not announcedRoamer.mapId
-                or announcedRoamer.mapId == key)
+                or announcedRoamer.mapId == rawArea)
         local roamer = Clauses.roamerActive(s)
             and (markedRoamer or eventRoamer) and spId ~= nil
         local roamerOpen = not roamer or Clauses.roamerAvailable(s, spId)
-        local areaEligible = roamer or not key or Core.catchAllowed(s, key)
+        local areaEligible = roamer or not key
+            or AreaSplits.catchAllowed(s,Core,key,rawArea)
         -- The roamer's species slot replaces the map slot; a free roamer
         -- encounter never consumes this map, even if it flees or faints.
         local dupe = Clauses.isDuplicate(s, species, native, edition)
@@ -1909,7 +1941,7 @@ return function(mod)
             bannedReason=typeReason
         end
         local sourcePermitted, sourceReason = CatchRules.checkBattle(s,
-            ev.battle, Core,key)
+            ev.battle, Core,rawArea)
         if not sourcePermitted then
             catchPermitted = false
             bannedReason = sourceReason
@@ -1928,7 +1960,10 @@ return function(mod)
                     caught = false, spent = false, attempts = 0 }
             end
             entry.attempts = (tonumber(entry.attempts) or 0) + 1
-            if Core.shouldSpendOnStart(s) then entry.spent = true end
+            if Core.shouldSpendOnStart(s)
+                and not AreaSplits.safariUntilCatch(s,Core,rawArea) then
+                entry.spent = true
+            end
             s.areas[key] = entry
             writeState(s)
         end
@@ -2065,7 +2100,10 @@ return function(mod)
                         spent = false, attempts = 0 }
                 end
                 entry.attempts = (tonumber(entry.attempts) or 0) + 1
-                if Core.shouldSpendOnStart(s) then entry.spent = true end
+                if Core.shouldSpendOnStart(s)
+                    and not AreaSplits.safariUntilCatch(s,Core,areaNow()) then
+                    entry.spent = true
+                end
                 s.areas[battle.area] = entry
                 writeState(s)
             end
@@ -2262,6 +2300,8 @@ return function(mod)
         fieldItemRules = FieldRules,
         serviceRules = Services,
         statRules = Stats,
+        areaSplitRules = AreaSplits,
+        currentEncounterArea = encounterAreaNow,
         notices = function() return Notices.history(loadState()) end,
         notify = notify,
         getState = loadState, setState = writeState,
@@ -2409,6 +2449,21 @@ return function(mod)
             local ok,reason=BattleClauses.set(s,key,value)
             if ok then writeState(s) end
             return ok,reason
+        end,
+    }
+    mod.exports.gen3_area_splits = {
+        api=AreaSplits.api,schema=AreaSplits.schema,
+        definitions=AreaSplits.descriptors,
+        getRule=function(key) return AreaSplits.get(loadState(),key) end,
+        setRule=function(key,value)
+            local saved=loadState()
+            local ok,reason=AreaSplits.set(saved,key,value)
+            if ok then writeState(saved) end
+            return ok,reason
+        end,
+        current=function() return encounterAreaNow(loadState()) end,
+        label=function(key)
+            return AreaSplits.name(key,Display.areaName)
         end,
     }
     mod.exports.gen3_pokemon_stats = {
