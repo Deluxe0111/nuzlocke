@@ -109,6 +109,9 @@ return function(mod)
                 -- AUTO consumes engine entropy once per game save and stores
                 -- the resolved seed; all subsequent selections are pure.
                 return math.random(1, 99999999)
+            end,function(national)
+                return Core.active(saved)
+                    and CatchRules.isBannedNational(saved,national)
             end)
         if result then
             if not usedBefore then
@@ -361,9 +364,10 @@ return function(mod)
             ..":"..tostring(native and native.trainerSecretId or "")
             ..":"..tostring(native and native.name or "")
         local resolver=pokemonResolver()
-        if Core.active(saved) and not options.mandatoryStarter
-            and CatchRules.prepareAlphabet(saved,resolver,seed) then
-            writeState(saved)
+        if Core.active(saved) and not options.mandatoryStarter then
+            local a=CatchRules.prepareAlphabet(saved,resolver,seed)
+            local b=CatchRules.prepareColor(saved,resolver,seed)
+            if a or b then writeState(saved) end
         end
         options.seed=seed
         return CatchRules.canAcquire(saved,kind,species,location,
@@ -1458,8 +1462,11 @@ return function(mod)
         local catchSeed=tostring(native and native.trainerId or "")
             ..":"..tostring(native and native.trainerSecretId or "")
             ..":"..tostring(native and native.name or "")
-        if CatchRules.prepareAlphabet(s,okPokemon and Pokemon or nil,
-            catchSeed) then writeState(s) end
+        local alphabetSet=CatchRules.prepareAlphabet(s,
+            okPokemon and Pokemon or nil,catchSeed)
+        local colorSet=CatchRules.prepareColor(s,
+            okPokemon and Pokemon or nil,catchSeed)
+        if alphabetSet or colorSet then writeState(s) end
         local catchPermitted, bannedReason = CatchRules.check(s, species,
             okPokemon and Pokemon or nil, Core,catchSeed)
         local sourcePermitted, sourceReason = CatchRules.checkBattle(s,
@@ -1563,8 +1570,11 @@ return function(mod)
         local catchSeed=tostring(native and native.trainerId or "")
             ..":"..tostring(native and native.trainerSecretId or "")
             ..":"..tostring(native and native.name or "")
-        if CatchRules.prepareAlphabet(s,okPokemon and Pokemon or nil,
-            catchSeed) then writeState(s) end
+        local alphabetSet=CatchRules.prepareAlphabet(s,
+            okPokemon and Pokemon or nil,catchSeed)
+        local colorSet=CatchRules.prepareColor(s,
+            okPokemon and Pokemon or nil,catchSeed)
+        if alphabetSet or colorSet then writeState(s) end
         local allowed, reason = CatchRules.check(s,
             (type(ctx) == "table" and ctx.speciesId)
                 or Clauses.speciesId(species)
