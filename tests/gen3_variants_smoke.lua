@@ -29,14 +29,16 @@ local P={
     end,
 }
 local function check(id,seed) return V.check(s,id,P,Core,seed or "trainer:1") end
-assert(#V.descriptors()==7)
+assert(#V.descriptors()==8)
+assert(V.get(s,"type_lock_draft")==false)
+assert(V.label(s,"type_lock_draft")=="OFF")
 assert(V.get(s,"type_lock_mode")==0)
 assert(V.get(s,"type_lock_primary")==0)
 assert(V.label(s,"type_lock_mode")=="OFF")
 assert(V.label(s,"type_lock_primary")=="RANDOM")
 assert(not V.set(s,"type_lock_mode",7))
 assert(not V.set(s,"type_lock_primary",18))
-assert(not V.set(s,"type_lock_draft",true))
+assert(not V.set(s,"type_lock_draft",3))
 assert(not V.set(s,"wonderlocke",true))
 assert(V.next(s,"type_lock_mode")==1)
 assert(V.next(s,"type_lock_primary")==1)
@@ -122,4 +124,87 @@ s.failed=true
 assert(not V.set(s,"type_lock_mode",0))
 assert(not V.set(s,"type_lock_primary",0))
 assert(check(4),"failed run disables catch enforcement")
-print("Gen 3 Type Locke native-type, six-lane, RNG and save policy: PASS")
+-- Catch Draft: only actual successful WILD catches draft new type lanes.
+-- Wilds remain free until all required lanes are drafted, while gifts
+-- and trades may only use existing drafted types and never add new lanes.
+local draft=Core.normalise({})
+assert(Core.set(draft,"nuzlocke_enabled",true))
+assert(V.set(draft,"type_lock_mode",2))
+assert(V.set(draft,"type_lock_primary",10))
+assert(V.set(draft,"type_lock_secondary",11))
+assert(V.set(draft,"type_lock_draft",true))
+assert(V.label(draft,"type_lock_draft")=="ON")
+assert(V.label(draft,"type_lock_primary")=="AWAIT CATCH")
+assert(V.draftProgress(draft)==0)
+assert(not V.set(draft,"type_lock_primary",12),
+    "draft lane cannot be overwritten manually")
+assert(not V.prepare(draft,P,"trainer:seed"),
+    "draft mode must not preselect RANDOM types")
+assert(V.check(draft,1,P,Core,nil,"wild"),
+    "first wild catch unrestricted regardless of configured types")
+assert(V.check(draft,4,P,Core,nil,"wild"))
+assert(not V.check(draft,1,P,Core,nil,"gift"),
+    "no established type: gifts must not circumvent wild draft")
+assert(not V.check(draft,1,P,Core,nil,"trade"))
+assert(not V.noteCatch(draft,9999,P,Core),
+    "unregistered Pokémon cannot establish a false NORMAL lane")
+local success,name,n,total=V.noteCatch(draft,3,P,Core) -- GRASS/POISON
+assert(success and name=="GRASS" and n==1 and total==2)
+assert(V.label(draft,"type_lock_primary")=="GRASS")
+assert(V.label(draft,"type_lock_secondary")=="AWAIT CATCH")
+assert(V.check(draft,2,P,Core,nil,"wild"),
+    "wilds still free during partial draft")
+assert(V.check(draft,3,P,Core,nil,"gift"),
+    "gifts matching a drafted type are legal while draft incomplete")
+assert(not V.check(draft,2,P,Core,nil,"trade"),
+    "off-type NPC trades blocked during draft")
+success,name,n,total=V.noteCatch(draft,3,P,Core)
+assert(success and name=="POISON" and n==2,
+    "second catch prefers undrafted secondary type")
+assert(V.label(draft,"type_lock_secondary")=="POISON")
+assert(not V.check(draft,1,P,Core,nil,"wild"),
+    "after full draft, wild type restriction is enforced")
+assert(V.check(draft,5,P,Core,nil,"wild"),
+    "dual-type Ghost/Poison matches drafted POISON")
+assert(not V.noteCatch(draft,5,P,Core),
+    "completed draft cannot add another lane")
+local reloaded={enabled=true,rules=draft.rules,
+    variantRules=draft.variantRules}
+assert(V.draftProgress(reloaded)==2)
+assert(V.label(reloaded,"type_lock_primary")=="GRASS"
+    and V.label(reloaded,"type_lock_secondary")=="POISON",
+    "save/reload must preserve drafted type order")
+assert(not V.check(reloaded,1,P,Core,nil,"wild"))
+assert(V.set(draft,"type_lock_mode",3))
+assert(V.draftProgress(draft)==0,
+    "mode change starts a fresh draft")
+assert(V.noteCatch(draft,3,P,Core))
+assert(V.noteCatch(draft,3,P,Core))
+assert(not V.noteCatch(draft,3,P,Core),
+    "both types already selected: duplicate cannot fill an extra slot")
+assert(V.draftProgress(draft)==2)
+success,name,n,total=V.noteCatch(draft,5,P,Core)
+assert(success and name=="GHOST" and n==3 and total==3)
+assert(not V.check(draft,2,P,Core,nil,"wild"))
+assert(V.set(draft,"type_lock_draft",false))
+assert(V.draftProgress(draft)==0)
+assert(draft.variantRules.drafted_types==nil,
+    "disabling Catch Draft clears its earned lanes")
+assert(V.label(draft,"type_lock_primary")=="FIRE",
+    "normal configured lane stays available after switching draft off")
+assert(V.set(draft,"type_lock_mode",0))
+assert(V.set(draft,"type_lock_draft",true))
+assert(V.check(draft,1,P,Core,nil,"gift"),
+    "disabled Type Locke does not prohibit gifts despite draft option")
+assert(Core.set(draft,"nuzlocke_enabled",false))
+assert(V.set(draft,"type_lock_mode",2))
+assert(not V.noteCatch(draft,3,P,Core),
+    "Nuzlocke OFF must not record draft catches")
+assert(V.check(draft,2,P,Core,nil,"trade"))
+assert(Core.set(draft,"nuzlocke_enabled",true))
+draft.failed=true
+assert(not V.set(draft,"type_lock_draft",false))
+assert(not V.noteCatch(draft,3,P,Core),
+    "failed run cannot continue drafting")
+
+print("Gen 3 Type Locke and Catch Draft wild-only save policy: PASS")
