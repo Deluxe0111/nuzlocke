@@ -28,6 +28,15 @@ package.loaded["src.core.game3.pokemon"]={
     isShiny=function(mon) return type(mon)=="table"
         and mon.isShiny==true end,
     speciesOf=function(mon) return tonumber(mon.species or mon.speciesId) end,
+    national=function(id) return ({[277]=252,[401]=373,[402]=385})[id] or id end,
+    stats=function(id)
+        if id==25 then return {35,55,40,90,50,50} end
+        if id==16 then return {40,45,40,56,35,35} end
+        if id==277 then return {40,45,35,70,65,55} end
+        if id==401 then return {95,135,80,100,110,80} end
+        if id==402 then return {100,100,100,100,100,100} end
+        return {45,45,45,45,45,45}
+    end,
     name=function(id)
         return ({[4]="CHARMANDER",[16]="PIDGEY",[25]="PIKACHU",
             [160]="FERALIGATR"})[tonumber(id)]
@@ -227,6 +236,35 @@ b,mon=battle(16,false)
 assert(select(1,ball(b,mon))==true)
 ev("battle.ended",{battle=b,result="run"})
 
+-- Advanced CATCH RULES are evaluated against the actual native catch
+-- transaction, not merely the menu. A prohibited encounter is never spent.
+local catch=assert(mod.exports.gen3_catch_rules)
+assert(styles.setRule("shiny_nuzlocke",false))
+assert(core.setRule("nuzlocke_enabled",true))
+assert(catch.setRule("ban_pseudos",true))
+assert(catch.setRule("maximum_bst",500))
+map("FR_TEST_CATCH_BANS")
+local bannedBattle,bannedMon=battle(401,false)
+local caught,shakes,nativeCalls=ball(bannedBattle,bannedMon)
+assert(not caught and shakes==0 and nativeCalls==0,
+    "banned pseudo must not reach native capture")
+local area=values.gen3_classic_v1.areas.FR_TEST_CATCH_BANS
+assert(not area or not area.spent,
+    "banned pseudo must not consume the area despite Failed Encounters ON")
+assert(battleText[#battleText]:find("No Pseudos",1,true),
+    "player must receive the precise catch denial")
+ev("battle.ended",{battle=bannedBattle,result="run"})
+local validBattle,validMon=battle(277,false) -- internal 277 = Treecko
+caught,shakes,nativeCalls=ball(validBattle,validMon)
+assert(caught and nativeCalls==1,
+    "low-BST unbanned species still uses vanilla catch")
+ev("battle.ended",{battle=validBattle,result="run"})
+assert(catch.setRule("ban_pseudos",false))
+assert(catch.setRule("maximum_bst",0))
+assert(core.setRule("nuzlocke_enabled",false))
+assert(styles.setRule("shiny_nuzlocke",true),
+    "restore initial playstyle state for existing menu regression")
+
 -- Menu exposes an actual PLAYSTYLES category and writes live state.
 local start=hooks["ui.start_menu.items"](function(_,items)return items end,g,{})
 assert(start[#start].label=="NUZ MENU")
@@ -303,14 +341,29 @@ assert(advanced.title=="ADVANCED RULES"
     and #advanced.rows==#expectedAdvanced,
     "Advanced Rules must contain exactly the nine requested categories")
 for i, name in ipairs(expectedAdvanced) do
-    assert(advanced.rows[i]=="[Soon] "..name,
-        "advanced category "..i.." should preserve [Soon] and its label")
+    assert(advanced.rows[i]==(name=="CATCH RULES" and name
+        or "[Soon] "..name),
+        "advanced category "..i.." should reflect real feature readiness")
     press("a")
     local child=mod.exports.gen3_menu.model()
     assert(child.title==name and #child.rows>0,
         "advanced category must open its original rules")
     assert(child.rows[1]:find("[Soon]",1,true),
-        "unsupported rules must stay read-only placeholders")
+        "unsupported rows must stay read-only even in an active category")
+    if name=="CATCH RULES" then
+        assert(child.rows[3]=="No Legendaries: OFF"
+            and child.rows[4]=="No Mythicals: OFF"
+            and child.rows[5]=="No Pseudos: OFF"
+            and child.rows[12]=="Maximum BST: OFF",
+            "four native catch rules must have working switches")
+        -- Check live toggle without altering the unsupported first row.
+        press("down");press("down");press("a")
+        assert(mod.exports.gen3_menu.model().rows[3]=="No Legendaries: ON"
+            and catch.getRule("ban_legendaries")==true)
+        press("a")
+        assert(catch.getRule("ban_legendaries")==false)
+        press("up");press("up")
+    end
     -- Check placeholder action still explains why not implemented.
     press("a")
     assert(mod.exports.gen3_menu.model().title~=name,
