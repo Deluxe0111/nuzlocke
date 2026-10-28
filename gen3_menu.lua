@@ -636,6 +636,8 @@ return function(mod, api)
         if config.get("random_encounter_tables") then
             cycle("random_encounter_balance", "WILD BALANCE",
                 { "CHAOS", "SIM BST" })
+            cycle("random_encounter_repetition", "WILD VARIETY",
+                { "NORMAL", "UNIQUE AREA" })
         end
         if config.get("random_trainers") then
             cycle("random_trainer_balance", "TRAINER BALANCE",
@@ -666,6 +668,7 @@ return function(mod, api)
                     random_encounter_balance=true, random_trainer_balance=true,
                     random_species_generation=true,
                     random_trainer_diversity=true,
+                    random_encounter_repetition=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]

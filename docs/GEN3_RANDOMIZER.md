@@ -19,6 +19,7 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Random Wild | OFF / ON | OFF |
 | Random Trainers | OFF / ON | OFF |
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
+| Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
 | Trainer Balance | CHAOS / SIM BST (when Trainers ON) | CHAOS |
 | Species Pool | ALL / KANTO / JOHTO / HOENN | ALL |
 | Trainer Variety | NORMAL / UNIQUE TEAM | NORMAL |
@@ -36,6 +37,20 @@ AUTO seed is resolved at its first successful randomisation and persisted
 inside the Gen 3 save, so restarting/reloading continues the same mapping.
 A fixed seed 1–99999999 reproduces mappings across equivalent versions of
 the ROM species registry and equivalent randomiser settings.
+
+**Wild Variety: UNIQUE AREA** allocates different replacements for different
+native species within the same **map and encounter method** where possible.
+Grass/step terrain, each fishing rod and Untamed's land/water wandering
+sources use separate scopes: these do not silently reassign an existing
+source. All levels of the same original Pokémon in one scope map to the same
+replacement. Assignments are saved, so exiting/re-entering the route or
+loading a save keeps that species. Once all legal candidates for a scope
+have been allocated, repeats are permitted rather than introducing an
+invalid species or cancelling an encounter. The saved source-to-species
+assignments mean that **the first-discovery order can affect new mappings**
+in UNIQUE AREA mode: a fixed seed alone does not reproduce every assignment
+across fresh saves if sources were first encountered in a different order.
+NORMAL retains the old stateless source-key mapping, fully unchanged.
 
 **Trainer Variety: UNIQUE TEAM** chooses trainer replacements without repeating
 species already assigned to earlier members of that same trainer party. It
@@ -89,7 +104,9 @@ on source key, original Pokémon, settings, seed, algorithm, and ROM data.
 - This first stage randomises **rolled species**, not a visual edit of
   the entire ROM encounter table. Species sharing identical map/terrain/
   original-species/level source identity will share the replacement.
-- Wild encounter DIVERSE/UNIQUE source-slot mapping is still [Soon].
+- UNIQUE AREA avoids repeats within a map/method when there are enough
+  valid candidates, but it does not pre-randomise the entire ROM encounter
+  table. Discovery order can affect freshly allocated replacements.
   Trainer Variety's UNIQUE TEAM policy applies only within one trainer party.
 - Native fishing and trainer hooks are used; third-party randomiser
   ownership has not been arbitrated yet. Do not enable two mods that both
@@ -187,6 +204,12 @@ Check Untamed's ordinary chain shinies still behave normally.
 - [ ] **R03:** Wild OFF restores ordinary species (on a fresh run/save).
 - [ ] **R04:** Fish with Old/Good/Super Rod. Verify a random species at
       native levels, without changes to successful bite/rod probabilities.
+- [ ] **R04a:** Wild Variety UNIQUE AREA: distinct original Pokémon on
+      the same route/terrain should be different when the pool permits.
+      Different levels of one original retain the same replacement.
+      Reload the save and revisit: every allocated replacement persists.
+      Verify fishing rods and Untamed land/water each have independent
+      variety scopes. NORMAL should reproduce the old fixed-seed mapping.
 - [ ] **R05:** Trainer ON: battle ordinary trainer, rival and Gym Leader.
       Check party size, trainer identity, levels, items, moves and defeat
       flags are preserved; no crash in single/double battles.

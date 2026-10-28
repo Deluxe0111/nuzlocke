@@ -170,7 +170,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
 
     -- Gen 3 RANDOMIZER deliberately runs even if Nuzlocke rules are OFF.
-    local function randomSpecies(source, key, original, excluded)
+    local function randomSpecies(source, key, original, excluded, wildScope, wildSlot)
         local saved = loadState()
         local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
         if not ok then return nil end
@@ -183,7 +183,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end,function(national)
                 return Core.active(saved)
                     and CatchRules.isBannedNational(saved,national)
-            end, excluded)
+            end, excluded, wildScope, wildSlot)
         if result then
             if not usedBefore then
                 Notices.add(saved, "RANDOMIZER_LOCK",
@@ -206,7 +206,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         local key = table.concat({ tostring(ctx.mapId),
             tostring(terrain), tostring(original),
             tostring(base.level or "") }, ":")
-        local id, name = randomSpecies("ENCOUNTERS", key, original)
+        local scope = "STEP:" .. tostring(ctx.mapId) .. ":" .. tostring(terrain)
+        local id, name = randomSpecies("ENCOUNTERS", key, original,
+            nil, scope, tostring(original))
         if not id then return base end
         local copy = {}
         for k, v in pairs(base) do copy[k] = v end
@@ -237,7 +239,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         -- species on a route retains its identity across spawn locations.
         local key = table.concat({ "OWE", tostring(ctx.mapId),
             ctx.terrain, tostring(original) }, ":")
-        local id = randomSpecies("ENCOUNTERS", key, original)
+        local scope = "OWE:" .. tostring(ctx.mapId) .. ":" .. ctx.terrain
+        local id = randomSpecies("ENCOUNTERS", key, original,
+            nil, scope, tostring(original))
         if not id then return base end
         local copy = {}
         for k, v in pairs(base) do copy[k] = v end
@@ -309,7 +313,9 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         local original = base.speciesId or base.species
         local key = table.concat({ tostring(mapId), tostring(rod),
             tostring(original), tostring(base.level or "") }, ":")
-        local id, name = randomSpecies("ENCOUNTERS", "FISH:" .. key, original)
+        local scope = "FISH:" .. tostring(mapId) .. ":" .. tostring(rod)
+        local id, name = randomSpecies("ENCOUNTERS", "FISH:" .. key, original,
+            nil, scope, tostring(original))
         if not id then return base end
         local copy = {}
         for k, v in pairs(base) do copy[k] = v end

@@ -19,6 +19,7 @@ assert(R.get(saved, "random_encounter_tables") == false)
 assert(R.get(saved, "random_trainers") == false)
 assert(R.get(saved, "randomizer_seed") == 0)
 assert(R.get(saved, "random_trainer_diversity") == 0)
+assert(R.get(saved, "random_encounter_repetition") == 0)
 assert(R.set(saved, "randomizer_seed", 12345678))
 assert(R.set(saved, "random_encounter_tables", true))
 assert(R.set(saved, "random_trainers", true))
@@ -38,6 +39,7 @@ assert(not R.set(saved, "randomizer_seed", 999),
     "fixed randomiser settings cannot change after species results exist")
 assert(not R.set(saved, "random_trainers", false))
 assert(not R.set(saved, "random_trainer_diversity", 1))
+assert(not R.set(saved, "random_encounter_repetition", 1))
 local recovered = {randomizer = {
     randomizer_seed = 12345678, random_encounter_tables=true,
     random_trainers=true, random_encounter_balance=1,
@@ -67,6 +69,58 @@ assert(one and two and one ~= two,
 assert(R.replace(distinct,P,"TRAINERS","LEADER:2",1,nil,nil,
     { [one] = true }) == two,
     "unique-team exclusion must be reproducible without mutable RNG")
+-- Optional wild variety tracks original species by habitat, rather than
+-- allocating a new replacement at each level / each spawn position.
+local variety = {randomizer={randomizer_seed=7654321,
+    random_encounter_tables=true,random_encounter_repetition=1}}
+local scope = "STEP:FR_ROUTE_1:grass"
+local firstWild = R.replace(variety,P,"ENCOUNTERS","FR_ROUTE_1:grass:1:5",
+    1,nil,nil,nil,scope,"1")
+local sameSource = R.replace(variety,P,"ENCOUNTERS","FR_ROUTE_1:grass:1:20",
+    1,nil,nil,nil,scope,"1")
+assert(firstWild and sameSource==firstWild,
+    "a native species must retain its identity across wild levels")
+local differentWild = R.replace(variety,P,"ENCOUNTERS","FR_ROUTE_1:grass:2:7",
+    2,nil,nil,nil,scope,"2")
+assert(differentWild and differentWild~=firstWild,
+    "unique-area variety must avoid allocated replacements when possible")
+local otherScope = "OWE:FR_ROUTE_1:land"
+local oweWild = R.replace(variety,P,"ENCOUNTERS","OWE:FR_ROUTE_1:land:1",
+    1,nil,nil,nil,otherScope,"1")
+assert(oweWild and variety.randomizer.encounterAssignments[otherScope]["1"]
+    == oweWild, "OWE sources need an independently saved scope")
+local replay = {randomizer={randomizer_seed=7654321,
+    random_encounter_tables=true,random_encounter_repetition=1,
+    encounterAssignments=variety.randomizer.encounterAssignments}}
+assert(R.replace(replay,P,"ENCOUNTERS","different level",1,
+    nil,nil,nil,scope,"1")==firstWild
+    and R.replace(replay,P,"ENCOUNTERS","different source key",2,
+        nil,nil,nil,scope,"2")==differentWild,
+    "allocated varieties must survive a save/load")
+-- A pool restricted to two possible replacements must fall back to
+-- repeats after both are used, not alter native species or stop encounters.
+local small={randomizer={randomizer_seed=1234,
+    random_encounter_tables=true,random_encounter_repetition=1}}
+local function onlyTwo(n) return n~=3 and n~=4 end
+local slot1=R.replace(small,P,"ENCOUNTERS","slot1",1,nil,onlyTwo,nil,
+    "STEP:SMALL:grass","1")
+local slot2=R.replace(small,P,"ENCOUNTERS","slot2",2,nil,onlyTwo,nil,
+    "STEP:SMALL:grass","2")
+local slot3=R.replace(small,P,"ENCOUNTERS","slot3",5,nil,onlyTwo,nil,
+    "STEP:SMALL:grass","5")
+assert(slot1 and slot2 and slot1~=slot2
+    and (slot3==slot1 or slot3==slot2),
+    "exhausted wild variety must repeat a safe candidate")
+assert(R.replace(small,P,"ENCOUNTERS","slot1 new level",1,nil,onlyTwo,nil,
+    "STEP:SMALL:grass","1")==slot1,
+    "exhaustion must not mutate existing replacements")
+local normal={randomizer={randomizer_seed=1234,
+    random_encounter_tables=true}}
+local normal1=R.replace(normal,P,"ENCOUNTERS","same legacy key",1)
+local normal2=R.replace(normal,P,"ENCOUNTERS","same legacy key",1,
+    nil,nil,nil,"STEP:SMALL:grass","1")
+assert(normal1==normal2 and normal.randomizer.encounterAssignments==nil,
+    "NORMAL mode must be byte-for-byte equivalent and save no mappings")
 local empty = {randomizer={ randomizer_seed=99,
     random_encounter_tables=true }}
 assert(not R.replace(empty, P, "ENCOUNTERS", "route", 511),
@@ -134,6 +188,7 @@ assert(loadfile("gen3_runtime.lua")()(mod) == nil)
 local api=mod.exports.gen3_randomizer
 assert(api.set("randomizer_seed", 12345678))
 assert(api.set("random_encounter_tables", true))
+assert(api.set("random_encounter_repetition", 1))
 assert(api.set("random_trainers", true))
 assert(api.set("random_trainer_diversity", 1))
 local count=0
@@ -145,6 +200,17 @@ assert(first.speciesId ~= 1 and first.level == 7 and first.item=="BERRY")
 assert(wild.speciesId == 1, "native encounter object must not mutate")
 assert(hooks["encounter.species"](downstream,wild,ctx).speciesId == first.speciesId)
 assert(count==2,"compose downstream provider exactly once")
+local wildAltLevel=hooks["encounter.species"](downstream,
+    {species="ALPHA",speciesId=1,level=18,item="BERRY"},ctx)
+assert(wildAltLevel.speciesId==first.speciesId,
+    "wild variety must keep the same native species across levels")
+local secondWild=hooks["encounter.species"](downstream,
+    {species="BETA",speciesId=2,level=7},ctx)
+assert(secondWild.speciesId and secondWild.speciesId~=first.speciesId,
+    "second source in same grass scope should use a different replacement")
+assert(saves.gen3_classic_v1.randomizer.encounterAssignments
+    ["STEP:FR_ROUTE_1:grass"]["1"]==first.speciesId,
+    "assigned wild species must be persisted with the run state")
 -- Untamed-Advanced does not call encounter.species. It calls a separate
 -- opt-in hook before its visible sprite and battle enemy are constructed.
 local owctx={source="untamed_advanced",mapId="FR_ROUTE_1",
@@ -165,6 +231,10 @@ local second=hooks["untamed.owe.species"](nextOwe,ow,
     terrain="land",x=12,y=1})
 assert(second.species==rendered.species,
     "same original species/route must be deterministic across spawn tiles")
+local otherOwe=hooks["untamed.owe.species"](nextOwe,
+    {species=2,level=9},owctx)
+assert(otherOwe.species and otherOwe.species~=rendered.species,
+    "Untamed should avoid repeats for distinct native overworld sources")
 assert(api.effectiveSeed()==12345678)
 local wrongProvider={species=1,level=8}
 assert(hooks["untamed.owe.species"](nextOwe,wrongProvider,
@@ -182,6 +252,11 @@ local fish={species="ALPHA",speciesId=1,level=9}
 local f=hooks["encounter.fishing"](function() return fish end,
     "OLD_ROD","FR_ROUTE_1",{})
 assert(f.speciesId ~= 1 and f.level == 9 and fish.speciesId == 1)
+local f2=hooks["encounter.fishing"](function() return
+    {species="BETA",speciesId=2,level=11} end,
+    "OLD_ROD","FR_ROUTE_1",{})
+assert(f2.speciesId and f2.speciesId~=f.speciesId,
+    "fishing variety should exclude replacements used by the same rod")
 local trainerParty={
     {species="ALPHA",speciesId=1,level=13,moves={"TACKLE"}},
     {species="BETA",speciesId=2,level=15,heldItem="POTION"},
@@ -241,7 +316,8 @@ local model=mod.exports.gen3_menu.model()
 assert(model.title=="RANDOMIZER"
     and model.rows[1]:find("PRESET",1,true)
     and model.rows[2]=="RANDOM WILD: ON"
-    and model.rows[3]=="RANDOM TRAINERS: ON",
+    and model.rows[3]=="RANDOM TRAINERS: ON"
+    and model.rows[5]=="WILD VARIETY: UNIQUE AREA",
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do

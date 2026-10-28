@@ -9,6 +9,9 @@ return function()
         random_trainers = { kind="boolean", default=false },
         randomizer_seed = { kind="number", default=0, min=0, max=MAX_SEED },
         random_encounter_balance = { kind="number", default=0, min=0, max=1 },
+        -- Preserve a distinct replacement per native wild source within
+        -- each map/method. Defaults OFF so all existing mappings survive.
+        random_encounter_repetition = { kind="number", default=0, min=0, max=1 },
         random_trainer_balance = { kind="number", default=0, min=0, max=1 },
         random_species_generation = { kind="number", default=0, min=0, max=3 },
         random_trainer_diversity = { kind="number", default=0, min=0, max=1 },
@@ -47,12 +50,16 @@ return function()
                 or value < def.min or value > def.max)) then
             return false, "invalid_value"
         end
+        -- Before the first generated result there are no authoritative
+        -- assignments. Changing setup options must not retain stale slots.
+        r.encounterAssignments = nil
         if key == "randomizer_preset" then
             r.randomizer_preset = value
             if value ~= 0 then
                 r.random_encounter_tables = true
                 r.random_trainers = true
                 r.random_encounter_balance = value == 2 and 1 or 0
+                r.random_encounter_repetition = 0
                 r.random_trainer_balance = value == 2 and 1 or 0
                 r.random_species_generation = 0
                 r.random_trainer_diversity = 0
@@ -162,7 +169,7 @@ return function()
         return pool
     end
     function M.replace(s, Pokemon, source, sourceId, original, entropy,
-        denyNational, excluded)
+        denyNational, excluded, wildScope, wildSlot)
         local r = state(s)
         local enabled = source == "ENCOUNTERS" and r.random_encounter_tables
             or source == "TRAINERS" and r.random_trainers
@@ -175,8 +182,59 @@ return function()
         if not legal or #legal == 0 then return nil end
         local seed = M.seed(s, entropy)
         if seed == 0 then return nil end
-        local index = 1 + M.hash(M.algorithm, seed, source, sourceId) % #legal
+        -- Encounter Variety is opt-in. Map/method is the scope, while the
+        -- ORIGINAL species is the stable slot: different native levels
+        -- must not allocate a different identity for the same species.
+        local unique = source == "ENCOUNTERS"
+            and r.random_encounter_repetition == 1
+            and type(wildScope) == "string" and wildScope ~= ""
+            and type(wildSlot) == "string" and wildSlot ~= ""
+        local scopeAssignments = unique
+            and type(r.encounterAssignments) == "table"
+            and r.encounterAssignments[wildScope] or nil
+        if type(scopeAssignments) ~= "table" then scopeAssignments = nil end
+        if scopeAssignments and scopeAssignments[wildSlot] ~= nil then
+            local prior = scopeAssignments[wildSlot]
+            -- If ROM data or candidate bans have changed, fail open
+            -- rather than silently assigning a new species to an old slot.
+            for _, candidate in ipairs(legal) do
+                if candidate.id == prior then
+                    r.used = true
+                    return candidate.id, candidate.key
+                end
+            end
+            return nil
+        end
+        if unique then
+            local taken = {}
+            for _, id in pairs(scopeAssignments or {}) do
+                if type(id) == "number" then taken[id] = true end
+            end
+            if type(excluded) == "table" then
+                for id, blocked in pairs(excluded) do
+                    if blocked then taken[id] = true end
+                end
+            end
+            -- Prioritise unused replacements, then apply SIM BST to the
+            -- remaining legal choices. If exhausted, reuse the native
+            -- candidate pool, never an invalid/glitch species.
+            local fresh = candidates(Pokemon, original,
+                r.random_species_generation, balance, denyNational, taken)
+            if fresh and #fresh > 0 then legal = fresh end
+        end
+        local identity = unique and
+            ("WILD VARIETY:" .. wildScope .. ":" .. wildSlot) or sourceId
+        local index = 1 + M.hash(M.algorithm, seed, source, identity) % #legal
         local new = legal[index]
+        if unique then
+            if type(r.encounterAssignments) ~= "table" then
+                r.encounterAssignments = {}
+            end
+            if type(r.encounterAssignments[wildScope]) ~= "table" then
+                r.encounterAssignments[wildScope] = {}
+            end
+            r.encounterAssignments[wildScope][wildSlot] = new.id
+        end
         r.used = true
         return new.id, new.key
     end
