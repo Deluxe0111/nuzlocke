@@ -21,6 +21,9 @@ assert(R.get(saved, "randomizer_seed") == 0)
 assert(R.get(saved, "random_trainer_diversity") == 0)
 assert(R.get(saved, "random_starter") == false)
 assert(R.get(saved, "random_starter_balance") == 0)
+assert(R.get(saved, "random_static_pokemon") == false)
+assert(R.get(saved, "random_gift_pokemon") == false)
+assert(R.get(saved, "random_egg_gifts") == false)
 assert(R.get(saved, "random_encounter_repetition") == 0)
 assert(R.set(saved, "randomizer_seed", 12345678))
 assert(R.set(saved, "random_encounter_tables", true))
@@ -42,6 +45,7 @@ assert(not R.set(saved, "randomizer_seed", 999),
 assert(not R.set(saved, "random_trainers", false))
 assert(not R.set(saved, "random_trainer_diversity", 1))
 assert(not R.set(saved, "random_starter", true))
+assert(not R.set(saved, "random_static_pokemon", true))
 assert(not R.set(saved, "random_encounter_repetition", 1))
 local recovered = {randomizer = {
     randomizer_seed = 12345678, random_encounter_tables=true,
@@ -59,6 +63,35 @@ local other = {randomizer = {
 assert(R.replace(other, P, "ENCOUNTERS", "FR_ROUTE_1:GRASS:1:5", 1)
     == R.replace(recovered, P, "ENCOUNTERS", "FR_ROUTE_1:GRASS:1:5", 1),
     "trainer ON/OFF must not perturb encounters")
+-- Independent scripted encounter/gift streams, deterministic on reload
+-- and not accidentally tied to ordinary wild/trainer randomisation.
+local sources = {
+    {"STATIC","random_static_pokemon"},
+    {"GIFTS","random_gift_pokemon"},
+    {"EGG_GIFTS","random_egg_gifts"},
+}
+for _,spec in ipairs(sources) do
+    local source,toggle=spec[1],spec[2]
+    local cfg={randomizer={randomizer_seed=832141,
+        [toggle]=true}}
+    local key="FR_MT_MOON:SCRIPT:S1:5"
+    local replacement=R.replace(cfg,P,source,key,1)
+    assert(replacement and replacement~=1
+        and cfg.randomizer.used==true,
+        "scripted stream should roll a safe replacement")
+    assert(R.replace(cfg,P,source,key,1)==replacement,
+        "scripted slot must not reroll")
+    local replayCfg={randomizer={randomizer_seed=832141,
+        [toggle]=true}}
+    assert(R.replace(replayCfg,P,source,key,1)==replacement,
+        "scripted stream must be stable after load")
+    local disabled={randomizer={randomizer_seed=832141}}
+    assert(R.replace(disabled,P,source,key,1)==nil,
+        "scripted streams default OFF")
+    assert(R.replace(cfg,P,source,key,1,nil,
+        function()return true end)==nil,
+        "a fully banned scripted pool must fail open")
+end
 -- Candidate exclusion is deterministic and does not disturb existing
 -- mappings when Trainer Variety is OFF.
 local distinct = {randomizer={
@@ -337,6 +370,37 @@ hooks["script.command"](nativeScript,{}, "setvar",originalScript)
 assert(seenScript==originalScript,
     "other maps must not intercept scripted species variables")
 game.session.party=savedParty
+-- The script-command seam must work with Nuzlocke OFF and clone native
+-- opcode rows, preserving levels/items. Each category is independent.
+-- Restore a fresh randomiser state so configuration is still editable.
+saves.gen3_classic_v1.randomizer.used=false
+assert(api.set("random_static_pokemon",true))
+assert(api.set("random_gift_pokemon",true))
+assert(api.set("random_egg_gifts",true))
+game.session.map="FR_MT_MOON"
+local originalStatic={op="setwildbattle",[1]=1,[2]=30,[3]=88}
+hooks["script.command"](nativeScript,{}, "setwildbattle",originalStatic)
+assert(seenScript~=originalStatic and seenScript[1]~=1
+    and seenScript[2]==30 and seenScript[3]==88
+    and originalStatic[1]==1,
+    "scripted wild must mutate only its cloned species operand")
+local staticResult=seenScript[1]
+hooks["script.command"](nativeScript,{}, "setwildbattle",originalStatic)
+assert(seenScript[1]==staticResult,
+    "scripted wild must keep its species across repeat runs")
+local originalGift={op="givemon",[1]=2,[2]=20,[3]=100}
+hooks["script.command"](nativeScript,{}, "givemon",originalGift)
+assert(seenScript~=originalGift and seenScript[1]~=2
+    and seenScript[2]==20 and seenScript[3]==100,
+    "scripted gifts must preserve level and held item")
+local originalEgg={op="giveegg",[1]=3}
+hooks["script.command"](nativeScript,{}, "giveegg",originalEgg)
+assert(seenScript~=originalEgg and seenScript[1]~=3,
+    "NPC gift eggs must use their own independent species roll")
+game.session.map="FR_POKEMON_TOWER_6F"
+hooks["script.command"](nativeScript,{}, "setwildbattle",originalStatic)
+assert(seenScript==originalStatic,"Tower ghost must remain native")
+game.session.map="FR_ROUTE_1"
 local count=0
 local wild={species="ALPHA",speciesId=1,level=7,item="BERRY"}
 local ctx={mapId="FR_ROUTE_1",terrain="grass"}
@@ -471,7 +535,10 @@ assert(model.title=="RANDOMIZER"
     and model.rows[3]=="RANDOM TRAINERS: ON"
     and model.rows[4]=="RANDOM STARTERS: ON"
     and model.rows[5]=="STARTER BALANCE: CHAOS"
-    and model.rows[7]=="WILD VARIETY: UNIQUE AREA",
+    and model.rows[6]=="RANDOM STATIC: ON"
+    and model.rows[7]=="RANDOM GIFTS: ON"
+    and model.rows[8]=="RANDOM EGGS: ON"
+    and model.rows[11]=="WILD VARIETY: UNIQUE AREA",
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do

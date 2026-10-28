@@ -55,7 +55,7 @@ return function(mod, api)
     { title = "SERVICES & ECONOMY", rules = {{ "no_poke_center", "No Center Heal" }, { "no_mom_heal", "No Mom Heal" }, { "no_day_care", "No Day Care" }, { "shop_restrictions", "Shop Restrictions" }, { "no_gambling", "No Gambling" }, { "trainer_money_multiplier", "Trainer Money" } } },
     { title = "POKEMON STATS", rules = {{ "player_start_stat_exp", "Player Stat EXP" }, { "wild_start_stat_exp", "Wild Stat EXP" }, { "trainer_start_stat_exp", "Trainer Stat EXP" }, { "no_player_stat_exp_gain", "No Stat EXP Gain" }, { "perfect_player_ivs", "Perfect Player IVs" }, { "perfect_wild_ivs", "Perfect Wild IVs" }, { "perfect_trainer_ivs", "Perfect Trainer IVs" } } },
     { title = "AREA SPLITS", rules = {{ "route_2_split", "Route 2" }, { "route_10_split", "Route 10" }, { "route_20_split", "Route 20" }, { "mt_moon_splits", "Mt. Moon" }, { "safari_zone_splits", "Safari Clause" }, { "gold_time_split", "Time Split" }, { "gold_headbutt_split", "Headbutt Split" } } },
-    { title = "RANDOMIZER", rules = {{ "randomizer_preset", "Rndm Preset" }, { "randomizer_seed", "Rndm Seed" }, { "random_starter", "Rndm Strtr" }, { "random_starter_style", "Strtr Style" }, { "random_starter_balance", "Strtr Balance" }, { "random_starter_trio_typing", "Trio Typing" }, { "random_starter_rerolls", "Starter Rerolls" }, { "random_encounter_tables", "Random Encounters" }, { "random_field_items", "Random Field Items" }, { "random_field_item_balance", "Field Item Balance" }, { "random_field_item_repetition", "Field Item Repeats" }, { "random_encounter_balance", "Encounter Balance" }, { "random_encounter_repetition", "Encounter Repeats" }, { "random_encounter_diversity_strength", "Diversity Strength" }, { "randomizer_info_policy", "Randomizer Info" }, { "random_species_generation", "Species Pool" }, { "random_learnsets", "Random Learnsets" }, { "random_trainers", "Random Trainers" }, { "random_evolutions", "Random Evolutions" }, { "random_evolution_balance", "Evolution Balance" }, { "random_shops", "Random Shops" }, { "random_shop_balance", "Shop Balance" }, { "random_tms", "Random TMs" }, { "random_tm_compatibility", "TM Compatibility" }, { "random_tm_locations", "Random TM Locations" }, { "random_gift_items", "Random Gift Items" }, { "random_trainer_balance", "Trainer Balance" }, { "random_trainer_diversity", "Trainer Diversity" }, { "random_trainer_theme", "Trainer Theme" }, { "random_learnset_generation", "Learnset Gen" }, { "random_learnset_stab", "Learnset STAB" } } },
+    { title = "RANDOMIZER", rules = {{ "randomizer_preset", "Rndm Preset" }, { "randomizer_seed", "Rndm Seed" }, { "random_starter", "Rndm Strtr" }, { "random_starter_style", "Strtr Style" }, { "random_starter_balance", "Strtr Balance" }, { "random_starter_trio_typing", "Trio Typing" }, { "random_starter_rerolls", "Starter Rerolls" }, { "random_encounter_tables", "Random Encounters" }, { "random_static_pokemon", "Random Static Pokemon" }, { "random_static_balance", "Static Balance" }, { "random_gift_pokemon", "Random Gift Pokemon" }, { "random_egg_gifts", "Random Egg Gifts" }, { "random_gift_balance", "Gift Balance" }, { "random_field_items", "Random Field Items" }, { "random_field_item_balance", "Field Item Balance" }, { "random_field_item_repetition", "Field Item Repeats" }, { "random_encounter_balance", "Encounter Balance" }, { "random_encounter_repetition", "Encounter Repeats" }, { "random_encounter_diversity_strength", "Diversity Strength" }, { "randomizer_info_policy", "Randomizer Info" }, { "random_species_generation", "Species Pool" }, { "random_learnsets", "Random Learnsets" }, { "random_trainers", "Random Trainers" }, { "random_evolutions", "Random Evolutions" }, { "random_evolution_balance", "Evolution Balance" }, { "random_shops", "Random Shops" }, { "random_shop_balance", "Shop Balance" }, { "random_tms", "Random TMs" }, { "random_tm_compatibility", "TM Compatibility" }, { "random_tm_locations", "Random TM Locations" }, { "random_gift_items", "Random Gift Items" }, { "random_trainer_balance", "Trainer Balance" }, { "random_trainer_diversity", "Trainer Diversity" }, { "random_trainer_theme", "Trainer Theme" }, { "random_learnset_generation", "Learnset Gen" }, { "random_learnset_stab", "Learnset STAB" } } },
     { title = "QOL", rules = {{ "instant_text", "Instant Text" }, { "run_surf", "Run / Surf" }, { "unlimited_bag_space", "Unlimited Bag Space" }, { "trade_evolutions", "Trade Evolutions" } } },
     { title = "QOL SETUP ONLY", rules = {{ "starting_pokeballs", "Starting Poke Balls" }, { "starting_rare_candies", "Starting Rare Candy" }, { "starting_money", "Starting Money" }, { "pc_starting_heal_items", "Heal Loadout" }, { "pc_starting_vitamins", "PC Vitamins" } } },
     }
@@ -638,6 +638,17 @@ return function(mod, api)
             cycle("random_starter_balance", "STARTER BALANCE",
                 { "CHAOS", "SIM BST" })
         end
+        toggle("random_static_pokemon", "RANDOM STATIC")
+        toggle("random_gift_pokemon", "RANDOM GIFTS")
+        toggle("random_egg_gifts", "RANDOM EGGS")
+        if config.get("random_static_pokemon") then
+            cycle("random_static_balance", "STATIC BALANCE",
+                { "CHAOS", "SIM BST" })
+        end
+        if config.get("random_gift_pokemon") or config.get("random_egg_gifts") then
+            cycle("random_gift_balance", "GIFT BALANCE",
+                { "CHAOS", "SIM BST" })
+        end
         if config.get("random_encounter_tables") then
             cycle("random_encounter_balance", "WILD BALANCE",
                 { "CHAOS", "SIM BST" })
@@ -652,7 +663,10 @@ return function(mod, api)
         end
         if config.get("random_encounter_tables")
             or config.get("random_trainers")
-            or config.get("random_starter") then
+            or config.get("random_starter")
+            or config.get("random_static_pokemon")
+            or config.get("random_gift_pokemon")
+            or config.get("random_egg_gifts") then
             cycle("random_species_generation", "SPECIES POOL",
                 { "ALL", "KANTO", "JOHTO", "HOENN" })
         end
@@ -676,6 +690,9 @@ return function(mod, api)
                     random_trainer_diversity=true,
                     random_encounter_repetition=true,
                     random_starter=true, random_starter_balance=true,
+                    random_static_pokemon=true, random_static_balance=true,
+                    random_gift_pokemon=true, random_egg_gifts=true,
+                    random_gift_balance=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]

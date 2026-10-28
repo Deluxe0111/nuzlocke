@@ -9,6 +9,13 @@ return function()
         random_trainers = { kind="boolean", default=false },
         random_starter = { kind="boolean", default=false },
         random_starter_balance = { kind="number", default=0, min=0, max=1 },
+        -- Script-created wild and player gifts are distinct from wild
+        -- encounters, general trainers and starter selection.
+        random_static_pokemon = { kind="boolean", default=false },
+        random_static_balance = { kind="number", default=0, min=0, max=1 },
+        random_gift_pokemon = { kind="boolean", default=false },
+        random_egg_gifts = { kind="boolean", default=false },
+        random_gift_balance = { kind="number", default=0, min=0, max=1 },
         randomizer_seed = { kind="number", default=0, min=0, max=MAX_SEED },
         random_encounter_balance = { kind="number", default=0, min=0, max=1 },
         -- Preserve a distinct replacement per native wild source within
@@ -310,10 +317,17 @@ return function()
         local r = state(s)
         local enabled = source == "ENCOUNTERS" and r.random_encounter_tables
             or source == "TRAINERS" and r.random_trainers
+            or source == "STATIC" and r.random_static_pokemon
+            or source == "GIFTS" and r.random_gift_pokemon
+            or source == "EGG_GIFTS" and r.random_egg_gifts
         if not enabled or type(sourceId) ~= "string" or sourceId == ""
             or type(Pokemon) ~= "table" then return nil end
         local balance = source == "ENCOUNTERS"
-            and r.random_encounter_balance or r.random_trainer_balance
+            and r.random_encounter_balance
+            or source == "STATIC" and r.random_static_balance
+            or (source == "GIFTS" or source == "EGG_GIFTS")
+                and r.random_gift_balance
+            or r.random_trainer_balance
         local legal = candidates(Pokemon, original,
             r.random_species_generation, balance,denyNational,excluded)
         if not legal or #legal == 0 then return nil end

@@ -1,12 +1,12 @@
 # Gen 3 Randomiser — v3.0.0-BETA
 
 The native Gen 3 Nuzlocke menu now exposes a deterministic species
-randomiser for **starter choices, wild step encounters, fishing,
-and trainer parties**.
+randomiser for **starter choices, static encounters, scripted gifts,
+NPC gift eggs, wild step encounters, fishing and trainer parties**.
 It does **not** require Nuzlocke Enabled to be ON.
 
 All other Randomizer settings in the legacy catalogue are marked **[Soon]**.
-They are not silently enabled: other static/gift/roaming Pokémon,
+They are not silently enabled: roaming Pokémon, non-scripted gifts,
 items, learnsets, TM moves, shops, evolution targets and other systems
 remain native until their own implementations are verified.
 
@@ -20,6 +20,11 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Random Wild | OFF / ON | OFF |
 | Random Trainers | OFF / ON | OFF |
 | Random Starters | OFF / ON | OFF |
+| Random Static | OFF / ON | OFF |
+| Static Balance | CHAOS / SIM BST (when Static ON) | CHAOS |
+| Random Gifts | OFF / ON | OFF |
+| Random Eggs | OFF / ON | OFF |
+| Gift Balance | CHAOS / SIM BST (when Gifts or Eggs ON) | CHAOS |
 | Starter Balance | CHAOS / SIM BST (when Starters ON) | CHAOS |
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
@@ -97,6 +102,37 @@ avoids mixing incompatible rules in a single run. To start a genuinely new
 randomiser configuration, start a new disposable run/save; Nuz Dev must not
 silently relabel already generated content.
 
+## Scripted static encounters and gifts
+
+**Random Static** replaces the species supplied by native `setwildbattle`
+and `CreateEnemyEventMon`. The script continues to control its original
+encounter level, battle transition, items, story flags and post-battle
+progression. The Pokémon Tower Marowak ghost and first-battle/tutorial
+sequences stay native. Static encounters use a deterministic, separate
+`STATIC` seed stream keyed by map, script, original species and level.
+Natural roamers remain untouched.
+
+**Random Gifts** changes only the native scripted `givemon` opcode.
+It includes scripted gift Pokémon (including NPC fossil rewards when they
+use this opcode), not in-game trades, day-care breeding or mystery gift
+delivery. Oak's and Birch's starters remain solely owned by **Random
+Starters**. The native `pokemon.before_give` event and Nuzlocke gift
+restrictions still run against the replacement species. The code retains
+the original gift level, held item and party/PC delivery.
+
+**Random Eggs** affects only NPC egg gifts using the scripted `giveegg`
+opcode. Day Care and breeding egg generation are unchanged. Both gifts
+and scripted eggs use the **Gift Balance** setting but separate `GIFTS`
+and `EGG_GIFTS` seed namespaces. Scripted event dialogs rendered before
+the award may still mention the original Pokémon; the actual received
+species is consistent with later variable-backed text when the VM exposes
+the relevant variable. No source save/ROM tables are rewritten.
+
+All three options default **OFF** and operate independently from Random
+Wild, Random Trainers, Random Starters and Nuzlocke Enabled. If the native
+ROM species registry is missing or the legal pool is empty, the script
+uses the original species.
+
 ## Native hooks and guarantees
 
 - `encounter.species`: uses the native encountered species, map, terrain
@@ -112,8 +148,9 @@ Existing trainer moves are preserved in this first slice. They may not
 match the replacement species' natural learnset; move randomisation and
 moveset regeneration are separate future features.
 
-Roamers retain persistent identities. Scripted/static wild encounters do
-not pass through the ordinary step encounter hook, so remain native.
+Roamers retain persistent identities. Scripted/static wild encounters
+use separate native script-command hooks; ordinary step encounters never
+change them when Random Static is OFF.
 
 Candidate species are pulled from the **actual installed Gen 3 Pokémon
 registry**, not an assumed contiguous National Pokédex. Candidates require
@@ -126,7 +163,8 @@ SIM BST first looks for replacements within 15% of the original Pokémon's
 base-stat total, widens to 25%, then 40%, before accepting the safe pool.
 The native named stat fields `hp,atk,def,spe,spa,spd` are used.
 
-The source namespaces `ENCOUNTERS` and `TRAINERS` use independent
+The source namespaces `ENCOUNTERS`, `TRAINERS`, `STATIC`, `GIFTS`
+and `EGG_GIFTS` use independent
 portable integer hashing (algorithm version 1), not `math.random`
 per roll. Enabling Trainer Randomiser must not move wild mappings or vice
 versa, and revisiting a source yields the same result. A mapping depends
@@ -146,9 +184,9 @@ on source key, original Pokémon, settings, seed, algorithm, and ROM data.
   rewrite the same sources until their precedence is tested.
 - Randomised trainer teams keep their authored moves and items; abilities
   and stat creation stay under the engine's native construction.
-- Randomisation of scripted wilds, static legendaries, ordinary gifts
-  require further native integration. Rival starter evolution now uses the
-  actual ROM evolution graph, not inferred internal species ID offsets.
+- Scripted encounters created by other specials/engine-only pathways
+  and mystery gift delivery may still be native. Rival starter evolution
+  uses the actual ROM evolution graph, not species ID offsets.
 - There is currently no safe mid-run configuration reset/migration.
 - This is an experimental native-Gen 3 feature. Gen 1/2 paths are unchanged.
 
@@ -246,6 +284,20 @@ Check Untamed's ordinary chain shinies still behave normally.
       Pokémon and rival teams remain unchanged. With both Random Starters
       and Random Trainers ON, the rival's starter retains its lineage
       while every other trainer team member still randomises normally.
+- [ ] **G01:** With Nuzlocke OFF and Random Static ON, fight a scripted
+      legendary; the battle should use the same species on every reload.
+      Level, item, transition, and the associated story flag must remain.
+- [ ] **G02:** With Random Static OFF, confirm ordinary wild randomisation
+      does not change static encounters. The Tower ghost is always native.
+- [ ] **G03:** With Random Gifts ON, collect an optional NPC Pokémon or
+      resurrected fossil. Confirm level, held item, party/PC transfer,
+      and Nuzlocke gift restrictions. Reload for seed consistency.
+- [ ] **G04:** With Random Eggs ON, receive an NPC gift egg. Confirm it
+      contains the randomised species and that Day Care breeding is
+      unchanged. Check the ordinary gift toggle does not affect eggs.
+- [ ] **G05:** With both Random Starters and Random Gifts ON, verify
+      Oak/Birch selection remains tied to the starter trio, not a
+      second randomised gift. Other story scripts must remain functional.
 - [ ] **R01:** With Nuzlocke OFF but Random Wild ON and seed 12345678,
       encounter a wild Pokémon. Verify a safe replacement with original
       encounter level, ball/catch handling and item metadata.

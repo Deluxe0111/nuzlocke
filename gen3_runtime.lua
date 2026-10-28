@@ -671,10 +671,111 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 and "gift_slot_policy" or "trade_slot_policy")==0
                 and "AREA" or "BONUS").." slot).")
     end
+    -- This is the native script command boundary. We replace opcode
+    -- input before the engine constructs a gift/egg or a scripted foe,
+    -- never mutate an existing player's Pokémon or the ROM template.
+    -- Versioned key includes the script address/label when available so
+    -- two independent static encounters on one map are not conflated.
+    local function scriptedSource(ctx, kind, original, level)
+        local runner = type(ctx)=="table" and (ctx.runner or ctx.vm)
+        local script = type(runner)=="table"
+            and (runner._scriptKey or (runner.ctx and runner.ctx.pc
+                and runner.ctx.pc.listKey)) or nil
+        local map = areaNow() or (session() and session().map) or ""
+        return table.concat({kind, tostring(map), tostring(script or ""),
+            tostring(original), tostring(level or "")}, ":")
+    end
+    local function skipScriptedStarter()
+        local native=session()
+        local map=tostring(native and native.map or ""):upper()
+        local noParty = type(native)=="table"
+            and type(native.party)=="table" and #native.party==0
+        return noParty and (isOakLab() or map=="FR_OAKS_LAB"
+            or map=="RU_ROUTE_101" or map=="SA_ROUTE_101"
+            or map=="EM_ROUTE_101")
+    end
+    local function cloneScript(row, id)
+        local copy={}
+        for k,v in pairs(row) do copy[k]=v end
+        if row[1]~=nil then copy[1]=id else copy.species=id end
+        return copy
+    end
+    local function scriptReplacement(ctx,op,row)
+        if type(row)~="table" then return row end
+        local source
+        if op=="setwildbattle" then
+            source="STATIC"
+            -- The Pokémon Tower Marowak is a special ghost battle.
+            -- Its battle mechanics and visibility depend on its species.
+            local map=tostring(session() and session().map or ""):upper()
+            if map:find("POKEMON_TOWER",1,true) then return row end
+            if skipScriptedStarter() then return row end
+        elseif op=="givemon" then
+            source="GIFTS"
+            if skipScriptedStarter() then return row end
+        elseif op=="giveegg" then
+            source="EGG_GIFTS"
+        else
+            return row
+        end
+        local operand=row[1] or row.species
+        local original=tonumber(operand)
+        if not original then return row end
+        -- Direct constants are safe. For variable-backed gifts, preserve
+        -- the source variable for subsequent scripted species-name text.
+        if original>=0x4000 then original=tonumber(scriptVar(ctx,original)) end
+        if not original or original<1 or original>512 then return row end
+        local id=randomSpecies(source,
+            scriptedSource(ctx,source,original,
+                row[2] or row.level),original)
+        if not id then return row end
+        if (op=="givemon" or op=="giveegg")
+            and tonumber(operand)>=0x4000 then
+            -- Do not produce one species while the script's display
+            -- variable still refers to another. Unsafe VM contexts fall
+            -- through unchanged.
+            if not setScriptVar(ctx,tonumber(operand),id) then return row end
+        end
+        return cloneScript(row,id)
+    end
+    local function specialStatic(ctx,op,row,next)
+        if op~="special" and op~="specialvar" then
+            return false,nil
+        end
+        if type(row)~="table" then return false,nil end
+        local ok,Natives=pcall(require,"src.core.game3.scripting.natives")
+        if not ok or type(Natives)~="table"
+            or type(Natives.specialName)~="function" then return false,nil end
+        local id=op=="specialvar" and row[2] or (row.id or row[1])
+        local good,name=pcall(Natives.specialName,id)
+        if not good or name~="CreateEnemyEventMon" then return false,nil end
+        -- Run the native special FIRST: it must construct the enemy event
+        -- Pokemon and set all side effects. Rewrite only its pending foe.
+        local output=next(ctx,op,row)
+        local okE,Enc=pcall(require,"src.core.game3.encounters")
+        local pending=okE and type(Enc)=="table" and Enc._pendingWild
+        if type(pending)=="table"
+            and not pending.roamer and not pending.ghost then
+            local original=tonumber(pending.species)
+            if original and original>0 and original<0x4000 then
+                local map=tostring(session() and session().map or ""):upper()
+                if not map:find("POKEMON_TOWER",1,true)
+                    and not skipScriptedStarter() then
+                    local replacement=randomSpecies("STATIC",
+                        scriptedSource(ctx,"STATIC",original,pending.level),
+                        original)
+                    if replacement then pending.species=replacement end
+                end
+            end
+        end
+        return true,output
+    end
     mod.hooks:wrap("script.command",function(next,ctx,op,row)
-        -- Starter randomisation is independent of the Nuzlocke toggle.
-        -- Apply before the shared scripted gift/service enforcement.
-        row = starterScriptCommand(op, row)
+        -- These streams must work even when Nuzlocke itself is OFF.
+        row = starterScriptCommand(op,row)
+        row = scriptReplacement(ctx,op,row)
+        local handled,result=specialStatic(ctx,op,row,next)
+        if handled then return result end
         if not Core.active(loadState()) or type(row)~="table" then
             return next(ctx,op,row)
         end
