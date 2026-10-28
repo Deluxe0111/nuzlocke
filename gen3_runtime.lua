@@ -1086,8 +1086,33 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 if type(opts)=="table" then
                     for k,v in pairs(opts) do cfg[k]=v end
                 end
-                cfg.speed=0
-                return oldPrinter(source,cfg,...)
+                -- A native speed=0 constructor pre-runs even explicit
+                -- PAUSE controls. Build at speed 1 instead, then reveal
+                -- only contiguous glyphs before any script/choice boundary.
+                cfg.speed=1
+                local printer=oldPrinter(source,cfg,...)
+                if type(printer)=="table"
+                    and type(printer.render)=="function" then
+                    printer.speed=0
+                    printer.delay=0
+                    local emptyInput={new={},held={}}
+                    local function flushChars(p)
+                        for _=1,4096 do
+                            if p.active==false or p.state~="char" then break end
+                            p:render(emptyInput)
+                        end
+                    end
+                    flushChars(printer)
+                    if type(printer.run)=="function" then
+                        local oldRun=printer.run
+                        printer.run=function(self,input,...)
+                            local answer=oldRun(self,input,...)
+                            if self.state=="char" then flushChars(self) end
+                            return answer
+                        end
+                    end
+                end
+                return printer
             end
             Kit.printer=fastPrinter
             Kit.__nuzQolPrinter=fastPrinter
