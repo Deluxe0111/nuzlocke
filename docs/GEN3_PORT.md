@@ -35,8 +35,12 @@ OHKO Clause remains [Soon].
 six individual status scopes and a separate ON/OFF Sleep Clause). The
 Sleep Clause tracks inflicted sleep across switches within the battle;
 Rest/self-induced sleep is exempt.
-The remaining six advanced categories remain [Soon].
-See [Status Bans](GEN3_STATUS_BANS.md).
+**VARIANTS** now implements Type Locke OFF/MONO/DUO/TRI/QUAD/PENTA/HEXA
+with six conditionally visible type selectors, saved deterministic RANDOM
+types, and species eligibility checks for wilds (including Untamed),
+optional gifts and NPC trades. Catch Draft and Wonderlocke remain [Soon].
+The remaining five advanced categories remain [Soon].
+See [Status Bans](GEN3_STATUS_BANS.md) and [Variants](GEN3_VARIANTS.md).
 The unimplemented WORLD and UI planning categories have been removed
 from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
 
