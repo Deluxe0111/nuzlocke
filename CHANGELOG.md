@@ -1,5 +1,8 @@
 ## 3.0.0-BETA — Generation 3 and Untamed compatibility
 
+- Implements **ADVANCED RULES → VARIANTS → Type Locke**, from MONO through HEXA with six conditional type selectors and deterministic, saved RANDOM types. Denies off-type wild catches before spending an encounter slot or processing a Ball, checks supported gifts/NPC trades before mutation, composes with shiny/catch bans, and preserves mandatory starters. Catch Draft and Wonderlocke remain [Soon]; added policy, runtime and navigation smoke tests.
+- Removes the redundant Gen 3 Overworld Encounters row: Untamed-Advanced's wandering Pokémon use native wild encounter and area rules without an additional catch toggle.
+
 - Adds **PKMN BAN** (National Dex #001–#386 selectable picker with saved per-species bans) and **Colorlocke** (OFF/RANDOM/CHOOSE, ten canonical species colours, persisted random choice) to Gen 3 Catch Rules. Both apply to native wild, optional gifts and NPC trades; PKMN BAN also excludes banned National Dex species from Nuzlocke's wild/trainer randomiser candidate pools. Menu, policy, deterministic save, and randomiser regression tests added.
 
 - Implements **Gift Pokémon**, **Gift Slot Policy** (AREA/BONUS), **In-Game Trades** and **Trade Slot Policy** (AREA/BONUS) in Gen 3 Advanced Catch Rules. Scripted gift refusal uses the native failure return without giving a mon; NPC trade refusal changes the requested-species preflight before the exchange, and completed native swaps alone claim the map slot. Mandatory first starters remain exempt. Adds independent regression cases for script commands, NPC swaps, default-ON toggles, receipt history and sandbox isolation.
