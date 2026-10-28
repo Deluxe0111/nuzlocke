@@ -326,8 +326,10 @@ return function(mod)
         if not ok or type(F)~="table" or type(F.getVar)~="function" then
             return nil
         end
-        local space=package.loaded["src.core.game3.scripting.space"]
-        local store=space and space.store
+        -- package.loaded is unavailable to sandboxed Gen1Recomp mods.
+        local okSpace,space=pcall(require,
+            "src.core.game3.scripting.space")
+        local store=okSpace and space and space.store
             or (session() and session().store)
         local success,v=pcall(F.getVar,store,raw,id)
         return success and v or nil
@@ -340,8 +342,10 @@ return function(mod)
         if not ok or type(F)~="table" or type(F.setVar)~="function" then
             return false
         end
-        local space=package.loaded["src.core.game3.scripting.space"]
-        local store=space and space.store
+        -- package.loaded is unavailable to sandboxed Gen1Recomp mods.
+        local okSpace,space=pcall(require,
+            "src.core.game3.scripting.space")
+        local store=okSpace and space and space.store
             or (session() and session().store)
         return pcall(F.setVar,store,raw,id,value)
     end
