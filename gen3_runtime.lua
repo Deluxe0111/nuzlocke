@@ -22,6 +22,7 @@ return function(mod)
     local Eggs = readModule("gen3_eggs.lua")()
     local Forgiveness = readModule("gen3_forgiveness.lua")()
     local Display = readModule("gen3_display.lua")()
+    local SetupQol = readModule("gen3_setup_qol.lua")()
     local currentArea
     local activeBattle
     local pendingRoamer
@@ -31,7 +32,7 @@ return function(mod)
 
     local function loadState()
         local s = setupDraft or mod.save:get(KEY, {})
-        return Clauses.normalise(Core.normalise(s))
+        return SetupQol.normalise(Clauses.normalise(Core.normalise(s)))
     end
 
     local function writeState(s)
@@ -266,11 +267,21 @@ return function(mod)
         return true
     end
 
+    local function deliverPendingStartingBalls()
+        local saved = loadState()
+        if (tonumber(saved.qolBallsPending) or 0) <= 0 then return end
+        local ok, Storage = pcall(require, "src.core.game3.storage")
+        if not ok then return end
+        local delivered = SetupQol.deliverBalls(saved, session(), Storage)
+        if delivered then writeState(saved) end
+    end
+
     -- Gen 3's map.entered uses a native map ID, not a Gen 1 map name.
     mod.events:on("map.entered", function(ev)
         currentArea = type(ev) == "table" and areaKey(ev.mapId) or nil
         pendingRoamer = nil -- never match a roamer across unrelated maps
         refreshForgiveness()
+        deliverPendingStartingBalls()
     end)
 
     mod.events:on("breeding.egg_created", function(ev)
@@ -312,6 +323,7 @@ return function(mod)
         pendingRoamer = nil
         battleInProgress = false
         battleDeaths = nil
+        deliverPendingStartingBalls()
     end)
     mod.events:on("save.created", function()
         -- Apply setup to the newly adopted save, not the old title save.
@@ -326,6 +338,15 @@ return function(mod)
         pendingRoamer = nil
         battleInProgress = false
         battleDeaths = nil
+        -- Schema.newGame has constructed the save; use only the native PC API.
+        local saved = loadState()
+        if not saved.qolCreatedApplied then
+            local ok, Storage = pcall(require, "src.core.game3.storage")
+            if ok then
+                local granted = SetupQol.applyNewGame(saved, session(), Storage)
+                if granted then writeState(saved) end
+            end
+        end
     end)
 
     -- Record the FIRST encounter even if it runs or faints; later Balls fail.
@@ -487,7 +508,7 @@ return function(mod)
     })
     local Gen3Menu = readModule("gen3_menu.lua")(mod, {
         getState = loadState, setState = writeState,
-        core = Core, clauses = Clauses, shinyRate = ShinyRate,
+        core = Core, clauses = Clauses, qol = SetupQol, shinyRate = ShinyRate,
         eggs = Eggs, forgiveness = Forgiveness,
         onClauseChanged = onClauseChanged,
         dev = Dev, display = Display,
@@ -497,11 +518,11 @@ return function(mod)
     readModule("gen3_title_setup.lua")(mod, {
         menu = Gen3Menu,
         beginSetup = function(done)
-            setupDraft = Clauses.normalise(Core.normalise({
+            setupDraft = SetupQol.normalise(Clauses.normalise(Core.normalise({
                 enabled = false, failed = false, areas = {}, graveyard = {},
                 runSettingsLocked = false, captureUnlocked = false,
                 _setup = true,
-            }))
+            })))
             pendingNewGameState = nil
             return Gen3Menu.openSetup(game(), function(accepted)
                 if accepted then
@@ -530,6 +551,10 @@ return function(mod)
     end)
 
     mod.exports.gen3_menu = Gen3Menu
+    mod.exports.gen3_setup_qol = {
+        api = 1, definitions = SetupQol.descriptors,
+        get = function(key) return SetupQol.get(loadState(), key) end,
+    }
     -- Read-only diagnostic API. Mutators stay internal to the developer menu.
     mod.exports.gen3_clauses = {
         api = 1, schema = Clauses.schema,
