@@ -610,6 +610,39 @@ return function(mod)
             Status.__nuzYawnOwner=mod
         end
 
+        -- Effects.init captures Status.yawn when registering its handler,
+        -- so wrapping the Status module alone is insufficient. Guard the
+        -- live effect dispatcher as well (including ROM move aliases).
+        local okE, Effects=pcall(require,
+            "src.core.game3.battle.effects.init")
+        if okE and type(Effects)=="table"
+            and type(Effects.run)=="function"
+            and (Effects.__nuzStatusRunOwner~=mod
+                or Effects.__nuzStatusRunWrap~=Effects.run) then
+            local original=Effects.run
+            local function guarded(id,adapter,user,target,...)
+                if id=="EXP_YAWN_EFFECT" and user
+                    and StatusBans.deny(loadState(),"SLEEP",
+                        user,target,Core) then
+                    battleClauseNotice("status:yawn",
+                        "Sleep Ban: Yawn was prevented.")
+                    if adapter and type(adapter.sayFail)=="function" then
+                        adapter:sayFail()
+                    end
+                    return true
+                end
+                local result=original(id,adapter,user,target,...)
+                if id=="EXP_YAWN_EFFECT" and type(target)=="table"
+                    and target.expYawnTurns and user then
+                    target._nuzYawnSource=user.side
+                end
+                return result
+            end
+            Effects.run=guarded
+            Effects.__nuzStatusRunWrap=guarded
+            Effects.__nuzStatusRunOwner=mod
+        end
+
         local okA, Adapter=pcall(require,
             "src.core.game3.battle.adapter")
         if okA and type(Adapter)=="table"
