@@ -29,6 +29,8 @@ on:
       - 'gen3_difficulty.lua'
       - 'gen3_hardcore_rules.lua'
       - 'gen3_qol.lua'
+      - 'gen3_qol_setup.lua'
+      - 'tests/gen3_qol_setup_smoke.lua'
       - 'tests/gen3_qol_smoke.lua'
       - 'tests/gen3_hardcore_rules_smoke.lua'
       - 'tests/gen3_difficulty_smoke.lua'
@@ -110,6 +112,8 @@ jobs:
         run: lua5.1 tests/gen3_hardcore_rules_smoke.lua
       - name: Run Gen 3 QOL text, movement, pocket and evolution smoke
         run: lua5.1 tests/gen3_qol_smoke.lua
+      - name: Run Gen 3 new-game-only QOL Setup resource smoke
+        run: lua5.1 tests/gen3_qol_setup_smoke.lua
       - name: Run Advanced Battle Clauses policy smoke
         run: lua5.1 tests/gen3_advanced_battle_clauses_smoke.lua
       - name: Run Advanced Status Bans parent and per-side scope smoke
