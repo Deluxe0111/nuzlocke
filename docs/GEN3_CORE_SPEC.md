@@ -2,8 +2,8 @@
 
 This document records the approved design for the eight CORE rules. **Do not
 equate a stored setting with an implemented mechanic.** The menu exposes
-completed mechanics, labels partial work `[WIP]`, and keeps unsupported settings
-`[Soon]` and read-only.
+completed mechanics without WIP badges and keeps unsupported settings
+`[Soon]` and read-only. In-game edge cases still need certification.
 
 ## CORE rule matrix
 
@@ -13,10 +13,10 @@ completed mechanics, labels partial work `[WIP]`, and keeps unsupported settings
 | `permadeath` | Permadeath | ON | Working (battle) | Record death on `battle.fainted`, deny battle revivals, retire after writeback; field revival seam still needs certification |
 | `encounter_limit` | One Encounter Per Area | ON | Working (map ID) | Only one consumed eligible encounter per map; multi-floor area grouping is pending |
 | `failed_encounter` | Failed Encounters Count | ON | Working (ordinary wild) | With area limit ON, first eligible wild attempt consumes the area even if missed; OFF means the first successful eligible catch closes it |
-| `nickname_rule` | Nickname Requirement | ON | WIP | Native catch naming is mandatory; unnamed party/PC Pokémon appear in Nickname Tasks |
-| `first_rival_forgiveness` | First Rival Mercy | ON | WIP | Opening rival battle consumes one-time mercy at start and protects Pokémon from Nuzlocke deaths |
-| `whiteout_ends_run` | Whiteout Ends Run | ON | WIP | Losing a qualifying battle marks run failed even if PC reserves exist; story/tutorial/link exceptions need certification |
-| `pc_survivors_allowed` | PC Survivors Allowed | OFF | WIP | Empty party can receive one eligible living boxed Pokémon after battle writeback; whiteout failure takes precedence |
+| `nickname_rule` | Nickname Requirement | ON | Working | Native catch naming is mandatory; unnamed party/PC Pokémon appear in Nickname Tasks |
+| `first_rival_forgiveness` | First Rival Mercy | ON | Working | Opening rival battle consumes one-time mercy at start and protects Pokémon from Nuzlocke deaths |
+| `whiteout_ends_run` | Whiteout Ends Run | ON | Working | Losing a qualifying battle marks run failed even if PC reserves exist; story/tutorial/link exceptions need certification |
+| `pc_survivors_allowed` | PC Survivors Allowed | OFF | Working | Empty party can receive one eligible living boxed Pokémon after battle writeback; whiteout failure takes precedence |
 
 Defaults of the last two rules were not specified by the original discussion.
 For now, use conservative defaults (whiteout fails run / PC rescue OFF).
@@ -50,7 +50,7 @@ ordinary wild encounters by native map ID, not full canonical Nuzlocke areas.
 | OFF | ON | Can continue after party wipe only if eligible boxed Pokémon survive |
 | OFF | OFF | Empty party ends run regardless of PC |
 
-PC Survivors is **[WIP] opt-in**. After native battle writeback and permadeath
+PC Survivors is **opt-in**. After native battle writeback and permadeath
 retirement, the first eligible living boxed Pokémon is **moved**, not copied
 or revived, into an empty party. This avoids the native empty-party softlock
 while letting the engine handle normal post-loss relocation. Whiteout Ends
@@ -87,6 +87,16 @@ restored. This applies to ordinary Gen 3 catches, including Untamed
 wandering wild encounters, which use the same native battle flow.
 The capture naming guard is also reinstalled if another integration
 replaces the UI method after a battle starts.
+
+Starter/gift nickname questions on **Emerald and FRLG** also use a
+native field-script Yes/No rather than the battle catch callback.
+The additional guard detects the *actual nickname question* from the
+native field message (and only when the player has a Pokémon),
+answers YES when Nickname Requirement is enforced, and validates the
+native `NICKNAME` template exactly like `CAUGHT_MON`.
+Unrelated choices still accept NO. The implementation is covered by
+a mocked native choice/naming regression test; real-ROM checks remain
+important for starter dialogue in every edition.
 
 Opening rival mercy is consumed at battle start, restricted to the three
 Oak Lab matchups in FRLG or Route 103 first matchups in R/S/E. Native battle
