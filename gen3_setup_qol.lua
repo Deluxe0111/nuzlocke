@@ -145,7 +145,9 @@ return function()
                 break
             end
         end
-        if not owned then return false, "capture_not_unlocked" end
+        if not owned and s.captureUnlocked ~= true then
+            return false, "capture_not_unlocked"
+        end
         if not storage or type(storage.addPcItem) ~= "function" then
             return false, "native_pc_api_missing"
         end
