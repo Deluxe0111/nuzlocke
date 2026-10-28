@@ -10,6 +10,7 @@ return function(mod, api)
     local Clauses = assert(api.clauses, "Gen 3 menu needs CLAUSES policy")
     local CatchRules = assert(api.catchRules, "Gen 3 menu needs CATCH RULES policy")
     local Variants = assert(api.variants, "Gen 3 menu needs VARIANTS policy")
+    local BattleItemRules = assert(api.battleItemRules, "Gen 3 menu needs BATTLE ITEMS policy")
     local BattleClauses = assert(api.battleClauses,
         "Gen 3 menu needs BATTLE CLAUSES policy")
     local StatusBans = assert(api.statusBans,
@@ -962,7 +963,56 @@ return function(mod, api)
         return rows
     end
 
+    local function battleItemRows(category)
+        local out={}
+        local saved=state()
+        for _,def in ipairs(category.rules) do
+            local key,label=def[1],def[2]
+            local value=BattleItemRules.get(saved,key)
+            if value==nil then
+                out[#out+1]=row(label,"soon",function()
+                    disabledFeature(label,key)
+                end)
+            else
+                out[#out+1]=row(label..": "
+                    ..BattleItemRules.label(saved,key),nil,function()
+                    local updated=state()
+                    local wanted=BattleItemRules.next(updated,key)
+                    local ok,why=BattleItemRules.set(updated,key,wanted)
+                    if not ok then
+                        info("BATTLE ITEM RULE",{tostring(why)})
+                        return
+                    end
+                    api.setState(updated)
+                    current().rows=battleItemRows(category)
+                end)
+            end
+        end
+        out[#out+1]=row("  DETAILS: BATTLE ITEMS",nil,function()
+            info("BATTLE ITEMS HELP",{
+                "CORE NUZLOCKE: REQUIRED",
+                "NO HEAL: HP / STATUS",
+                "REVIVES AND HEAL BERRIES",
+                "NO X: STAT BOOST ITEMS",
+                "DIRE HIT / GUARD SPEC",
+                "NO CATCH: ALL BALLS",
+                "BALL PER ENC: OFF OR",
+                "1 / 2 / 3 / 5 / 10",
+                "COUNTS LEGAL BALL THROWS",
+                "RESETS EACH WILD BATTLE",
+                "ILLEGAL BALLS: NO COUNT",
+                "DENIED USE: NO ITEM LOST",
+                "DENIED USE: NO TURN",
+                "GIFTS / TRADES UNAFFECTED",
+                "HARDCORE: ONLY BALLS",
+                "NUZ OFF: NATIVE ITEMS",
+            })
+        end)
+        return out
+    end
+
     local function categoryRows(category)
+        if category.title == "BATTLE ITEMS" then return battleItemRows(category) end
         if category.title == "VARIANTS" then return variantRows(category) end
         if category.title == "STATUS BANS" then return statusBanRows(category) end
         if category.title == "BATTLE CLAUSES" then
@@ -994,6 +1044,7 @@ return function(mod, api)
             or c.title == "BATTLE CLAUSES"
             or c.title == "STATUS BANS"
             or c.title == "VARIANTS"
+            or c.title == "BATTLE ITEMS"
             or c.title == "PLAYSTYLES"
             or c.title == "LEVELS" or c.title == "RANDOMIZER"
     end
