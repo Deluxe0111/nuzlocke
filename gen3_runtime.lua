@@ -292,8 +292,12 @@ return function(mod)
     end
 
     local function levelCap(saved)
-        return Levels.cap(saved or loadState(), session(),
-            Forgiveness.badges(session()))
+        saved = saved or loadState()
+        -- Hardcore requires every main-story gym/league boss cap through
+        -- Champion, without modifying the user's own LEVELS scope.
+        local scope = Playstyles.hardcoreActive(saved, Core) and 3 or nil
+        return Levels.cap(saved, session(),
+            Forgiveness.badges(session()), scope)
     end
     local function notify(code, message, inBattle)
         local saved = loadState()
@@ -303,7 +307,8 @@ return function(mod)
     local function refreshCapNotice()
         local saved = loadState()
         if not Core.active(saved)
-            or (Levels.get(saved, "level_cap_scope") or 0) == 0 then return end
+            or ((Levels.get(saved, "level_cap_scope") or 0) == 0
+                and not Playstyles.hardcoreActive(saved, Core)) then return end
         local cap, stage = levelCap(saved)
         local levels = saved.levels
         local marker = tostring(cap or "-") .. ":" .. tostring(stage or "")
@@ -534,9 +539,29 @@ return function(mod)
             .. " fainted. Permadeath: added to the Graveyard.", true)
     end
 
+    -- The battle engine asks Options.battleStyle() when an enemy trainer
+    -- prepares a replacement after fainting. Override the *answer*, never
+    -- the session's actual SHIFT/SET preference, so switching Hardcore OFF
+    -- restores it immediately. Forced switches after fainting remain legal.
+    local function installHardcoreSetGuard()
+        local ok, Options = pcall(require, "src.core.game3.options")
+        if not ok or type(Options) ~= "table"
+            or type(Options.battleStyle) ~= "function" then return false end
+        if Options.__nuzGen3HardcoreOwner == mod then return true end
+        local original = Options.battleStyle
+        Options.battleStyle = function(native, ...)
+            if battleInProgress
+                and Playstyles.hardcoreActive(loadState(), Core)
+                and native == session() then return "set" end
+            return original(native, ...)
+        end
+        Options.__nuzGen3HardcoreOwner = mod
+        return true
+    end
+
     -- The native battle-item UI and the actual item transaction are distinct.
-    -- Block revival at BOTH points; preventing the party menu option alone
-    -- would allow another caller to bypass the rule.
+    -- Block revival and Hardcore item usage at BOTH points. Balls remain
+    -- legal; catch restrictions are handled by the existing catch.rate hook.
     local function installReviveGuard()
         local okB, BattleItems = pcall(require, "src.core.game3.battle.items")
         local okD, ItemsData = pcall(require, "src.core.game3.items_data")
@@ -549,6 +574,24 @@ return function(mod)
         if type(BattleItems.canUseOn) ~= "function"
             or type(BattleItems.use) ~= "function" then return false end
         local originalCanUse, originalUse = BattleItems.canUseOn, BattleItems.use
+        local originalIsBattleUsable = BattleItems.isBattleUsable
+
+        local function hardcoreDisallows(st, itemId)
+            if not Playstyles.hardcoreActive(loadState(), Core)
+                or (st and (st.link or st.recordedLink
+                    or st.oldManTutorial or st.pokedude
+                    or st.firstBattle)) then return false end
+            local okBall, ball = pcall(BattleItems.isBall, itemId)
+            return not (okBall and ball == true)
+        end
+        -- Suppress non-Ball choices in the battle bag where supported.
+        if type(originalIsBattleUsable) == "function" then
+            BattleItems.isBattleUsable = function(itemId, ...)
+                if battleInProgress and hardcoreDisallows(nil, itemId)
+                    then return false end
+                return originalIsBattleUsable(itemId, ...)
+            end
+        end
 
         local function isRevive(itemId, nativeSession)
             local okKind, kind = pcall(ItemsData.medicineKind, itemId)
@@ -559,6 +602,9 @@ return function(mod)
         end
 
         BattleItems.canUseOn = function(st, itemId, partySlot, mon, moveSlot)
+            if hardcoreDisallows(st, itemId) then
+                return false, "Hardcore: No battle items except Poke Balls."
+            end
             if Core.enforced(loadState(), "permadeath")
                 and isRevive(itemId, st and st.session) then
                 return false, "Nuzlocke: No revives."
@@ -567,6 +613,13 @@ return function(mod)
         end
 
         BattleItems.use = function(st, adapter, bag, nativeSession, itemId, ...)
+            if hardcoreDisallows(st, itemId) then
+                local message = "Hardcore: No battle items except Poke Balls."
+                if adapter and type(adapter.say) == "function" then
+                    adapter:say(message)
+                end
+                return "error", { message }, false, false
+            end
             if Core.enforced(loadState(), "permadeath")
                 and isRevive(itemId, nativeSession) then
                 local message = "Nuzlocke: No revives."
@@ -727,6 +780,7 @@ return function(mod)
         mercyBattle = nil
         -- Install after the engine's battle modules exist, before any item turn.
         installReviveGuard()
+        installHardcoreSetGuard()
         installNicknameGuard()
         installCandyGuard()
         local starting = loadState()
@@ -1141,10 +1195,20 @@ return function(mod)
             local ok, reason = Playstyles.set(saved, key, value)
             if ok then
                 writeState(saved)
-                notify("PLAYSTYLE_CHANGED",
-                    "Shiny Nuzlocke " .. (value and "enabled: only shinies"
-                        or "disabled: ordinary catch rules")
-                    .. (value and " may be caught." or " restored."), false)
+                if key == "hardcore_nuzlocke" then
+                    notify("PLAYSTYLE_CHANGED", value
+                        and "Hardcore ON: forced SET, no battle items except "
+                            .. "Poke Balls, Champion level caps and strict "
+                            .. "Nuzlocke rules."
+                        or "Hardcore OFF: previous CORE, LEVELS and battle "
+                            .. "style preferences restored.", false)
+                    refreshCapNotice()
+                else
+                    notify("PLAYSTYLE_CHANGED",
+                        "Shiny Nuzlocke " .. (value and "enabled: only shinies"
+                            or "disabled: ordinary catch rules")
+                        .. (value and " may be caught." or " restored."), false)
+                end
             end
             return ok, reason
         end,
@@ -1242,7 +1306,8 @@ return function(mod)
         stage = "EXPERIMENTAL",
         features = { "first_wild_per_area", "optional_failed_encounters",
             "gen3_dupes_clause", "gen3_shiny_clause", "gen3_roamer_clause",
-            "gen3_shiny_rate", "gen3_shiny_nuzlocke", "gen3_eggs_wip",
+            "gen3_shiny_rate", "gen3_shiny_nuzlocke",
+            "gen3_hardcore_nuzlocke", "gen3_eggs_wip",
             "gen3_route_forgiveness_wip",
             "immediate_faint_death", "revive_denial", "post_battle_retirement",
             "whiteout_ends_run", "first_rival_mercy_wip",
