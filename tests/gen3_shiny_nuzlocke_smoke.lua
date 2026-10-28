@@ -586,7 +586,14 @@ for i, name in ipairs(expectedAdvanced) do
     local child=mod.exports.gen3_menu.model()
     assert(child.title==name and #child.rows>0,
         "advanced category must open its original rules")
-    if name~="STATUS BANS" then
+    if name=="CATCH RULES" then
+        assert(child.rows[1]=="Town Catches: OFF",
+            "redundant Overworld Encounters rule must be absent")
+        for _,label in ipairs(child.rows) do
+            assert(not label:find("Overworld",1,true),
+                "visible overworld Pokémon use native catch rules")
+        end
+    elseif name~="STATUS BANS" then
         assert(child.rows[1]:find("[Soon]",1,true),
             "unsupported rows must stay read-only even in an active category")
     end
@@ -638,22 +645,22 @@ for i, name in ipairs(expectedAdvanced) do
         press("up")
     end
     if name=="CATCH RULES" then
-        assert(child.rows[3]=="No Legendaries: OFF"
-            and child.rows[4]=="No Mythicals: OFF"
-            and child.rows[5]=="No Pseudos: OFF"
-            and child.rows[6]=="No Static Enc: OFF"
-            and child.rows[7]=="No Fishing: OFF"
-            and child.rows[12]=="Maximum BST: OFF",
+        assert(child.rows[2]=="No Legendaries: OFF"
+            and child.rows[3]=="No Mythicals: OFF"
+            and child.rows[4]=="No Pseudos: OFF"
+            and child.rows[5]=="No Static Enc: OFF"
+            and child.rows[6]=="No Fishing: OFF"
+            and child.rows[11]=="Maximum BST: OFF",
             "six native catch rules must have working switches")
-        -- Check live toggle without altering the unsupported first row.
-        press("down");press("down");press("a")
-        assert(mod.exports.gen3_menu.model().rows[3]=="No Legendaries: ON"
+        -- Check live toggle and leave the new first row untouched.
+        press("down");press("a")
+        assert(mod.exports.gen3_menu.model().rows[2]=="No Legendaries: ON"
             and catch.getRule("ban_legendaries")==true)
         press("a")
         assert(catch.getRule("ban_legendaries")==false)
         press("up");press("up")
-        for _=1,12 do press("down") end -- PKMN BAN row
-        assert(mod.exports.gen3_menu.model().rows[13]=="PKMN BAN: 0 BANNED")
+        for _=1,11 do press("down") end -- PKMN BAN row
+        assert(mod.exports.gen3_menu.model().rows[12]=="PKMN BAN: 0 BANNED")
         press("a") -- National Dex picker
         assert(mod.exports.gen3_menu.model().title=="PKMN BAN")
         press("down");press("down");press("down") -- #001
@@ -661,31 +668,31 @@ for i, name in ipairs(expectedAdvanced) do
         assert(mod.exports.gen3_menu.model().rows[4]:find(": BAN",1,true))
         assert(catch.getRule("pkmn_ban")==1)
         press("b")
-        assert(mod.exports.gen3_menu.model().rows[13]
+        assert(mod.exports.gen3_menu.model().rows[12]
             =="PKMN BAN: 1 BANNED","ban count persists in parent")
         press("a") -- revisit picker and clear ban
         press("down");press("down");press("down");press("a")
         assert(catch.getRule("pkmn_ban")==0)
         press("b")
         press("down") -- Colorlocke
-        assert(mod.exports.gen3_menu.model().rows[14]=="Colorlocke: OFF")
+        assert(mod.exports.gen3_menu.model().rows[13]=="Colorlocke: OFF")
         press("a")
-        assert(mod.exports.gen3_menu.model().rows[14]=="Colorlocke: RANDOM")
+        assert(mod.exports.gen3_menu.model().rows[13]=="Colorlocke: RANDOM")
         press("a")
         local cr=mod.exports.gen3_menu.model().rows
-        assert(cr[14]=="Colorlocke: CHOOSE"
-            and cr[15]=="Color: BLACK",
+        assert(cr[13]=="Colorlocke: CHOOSE"
+            and cr[14]=="Color: BLACK",
             "Color picker only appears for CHOOSE mode")
         press("down");press("a")
-        assert(mod.exports.gen3_menu.model().rows[15]=="Color: BLUE")
+        assert(mod.exports.gen3_menu.model().rows[14]=="Color: BLUE")
         press("up");press("a") -- hide Color row by switching mode OFF
-        assert(mod.exports.gen3_menu.model().rows[14]=="Colorlocke: OFF"
-            and mod.exports.gen3_menu.model().rows[15]=="Alphabetlocke: OFF")
-        for _=1,13 do press("up") end -- return to [Soon] Overworld
+        assert(mod.exports.gen3_menu.model().rows[13]=="Colorlocke: OFF"
+            and mod.exports.gen3_menu.model().rows[14]=="Alphabetlocke: OFF")
+        for _=1,12 do press("up") end -- return to Town Catches
     end
     -- All STATUS BANS entries now work; other advanced sections still
     -- contain genuine placeholders that explain unimplemented rules.
-    if name~="STATUS BANS" then
+    if name~="STATUS BANS" and name~="CATCH RULES" then
         press("a")
         assert(mod.exports.gen3_menu.model().title~=name,
             "[Soon] entry must open its unavailable explanation")
