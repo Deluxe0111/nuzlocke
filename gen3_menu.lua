@@ -873,6 +873,8 @@ return function(mod, api)
         local rows={}
         local saved=state()
         local mode=Variants.mode(saved)
+        local drafting=Variants.get(saved,"type_lock_draft")
+        local progress,target=Variants.draftProgress(saved)
         for _,entry in ipairs(category.rules) do
             local key,label=entry[1],entry[2]
             local lane=tonumber(key:match("^type_lock_") and
@@ -881,10 +883,15 @@ return function(mod, api)
                   type_lock_quinary=5,type_lock_senary=6})[key])
             if lane and lane>mode then
                 -- Only show type selectors for active lanes.
-            elseif key=="type_lock_draft" or key=="wonderlocke" then
+            elseif key=="wonderlocke" then
                 rows[#rows+1]=row(label,"soon",function()
                     disabledFeature(label,key)
                 end)
+            elseif lane and drafting then
+                -- Catch Draft owns these slots: never let a manual click
+                -- overwrite types learned from successful wild catches.
+                rows[#rows+1]=row(label..": "
+                    ..Variants.label(saved,key))
             else
                 local value=Variants.get(saved,key)
                 if value==nil then
@@ -909,6 +916,20 @@ return function(mod, api)
                 end
             end
         end
+        if drafting and mode>0 then
+            rows[#rows+1]=row("DRAFT: "..progress.."/"..target
+                .." TYPES",nil,function()
+                info("CATCH DRAFT",{
+                    "SUCCESSFUL WILD CATCHES",
+                    "EACH ADDS ONE NEW TYPE",
+                    "DUPLICATE TYPE: NO SLOT",
+                    "GIFTS/TRADES CANNOT DRAFT",
+                    "WILD CATCHES FREE UNTIL",
+                    "ALL TYPES ARE COLLECTED",
+                    "PROGRESS: "..progress.."/"..target,
+                })
+            end)
+        end
         rows[#rows+1]=row("  DETAILS: TYPE LOCKE",nil,function()
             info("TYPE LOCKE HELP",{
                 "CORE NUZLOCKE: REQUIRED",
@@ -916,6 +937,16 @@ return function(mod, api)
                 "MONO..HEXA: 1..6 TYPES",
                 "SELECT A TYPE PER LANE",
                 "RANDOM: FIXED PER SAVE",
+                "CATCH DRAFT: OPTIONAL",
+                "DRAFT USES SUCCESSFUL WILDS",
+                "ONE NEW TYPE PER CATCH",
+                "DUAL: PREFER UNUSED TYPE",
+                "SAME TYPES: NO NEW LANE",
+                "WILDS FREE UNTIL FULL",
+                "GIFTS/TRADES USE DRAFT",
+                "NO WILD TYPE: NO GIFT",
+                "DRAFT TYPES SAVED",
+                "TYPE SLOTS READ ONLY",
                 "RANDOM LANES UNIQUE",
                 "MATCH EITHER POKEMON TYPE",
                 "OFF-TYPE CANNOT CATCH",
@@ -924,7 +955,7 @@ return function(mod, api)
                 "GIFT AND TRADE CHECKED",
                 "FIRST STARTER EXEMPT",
                 "UNLISTED TYPES: ALLOWED",
-                "CATCH DRAFT: [SOON]",
+                "CHANGING MODE RESETS DRAFT",
                 "WONDERLOCKE: [SOON]",
             })
         end)
