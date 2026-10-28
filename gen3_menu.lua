@@ -116,6 +116,30 @@ return function(mod, api)
         end
     end
 
+    -- Detail pages should not silently clip long help text at 181 px.
+    -- At most 25 single-byte characters per row fits the native GBA
+    -- small font. Lists with long Pokémon names keep their own detail pages.
+    local function wrapDetails(message)
+        local lines,line={},""
+        for word in tostring(message or ""):gmatch("%S+") do
+            while #word>25 do
+                if line~="" then lines[#lines+1]=line;line="" end
+                lines[#lines+1]=word:sub(1,25)
+                word=word:sub(26)
+            end
+            if #word>0 then
+                if #line>0 and #line+#word+1>25 then
+                    lines[#lines+1]=line
+                    line=word
+                else
+                    line=line=="" and word or (line.." "..word)
+                end
+            end
+        end
+        if line~="" then lines[#lines+1]=line end
+        return lines
+    end
+
     local function info(title, lines)
         -- Lock denials are a deliberate, supported policy, never [Soon].
         -- Most category setters pass their reason through this shared popup.
@@ -134,7 +158,11 @@ return function(mod, api)
         end
         local rows = {}
         for _, label in ipairs(lines or {}) do
-            rows[#rows + 1] = row(label, nil)
+            local wrapped=wrapDetails(label)
+            if #wrapped==0 then wrapped={tostring(label)} end
+            for _,part in ipairs(wrapped) do
+                rows[#rows+1]=row(part,nil)
+            end
         end
         present(title, rows)
     end
@@ -151,7 +179,7 @@ return function(mod, api)
 
     local function showStatus()
         local s = state()
-        info("NUZ STATUS", {
+        info("RUN DETAILS", {
             s.failed and "RUN: LOST"
                 or (s.finalResult and s.finalResult.outcome=="VICTORY"
                     and "RUN: CHAMPION" or "RUN: ACTIVE"),
@@ -159,7 +187,7 @@ return function(mod, api)
             "AREAS: " .. count(s.areas),
             "DEATHS: " .. #s.graveyard,
             "CATCH: " .. (Core.get(s, "encounter_limit")
-                and "PER MAP" or "UNLIMITED"),
+                and "PER AREA" or "UNLIMITED"),
             "DEATH: " .. (Core.get(s, "permadeath")
                 and "IMMEDIATE" or "OFF"),
             "DUPES: " .. Clauses.label(s, "dupes_mode"),
@@ -1960,22 +1988,10 @@ return function(mod, api)
     -- Readable on a 240x160 screen: details must wrap instead of being
     -- truncated to a single 181px row.
     local function noticeLines(message)
-        local lines, line = {}, ""
-        for word in tostring(message or ""):gmatch("%S+") do
-            if #line > 0 and #line + #word + 1 > 25 then
-                lines[#lines + 1] = line
-                line = word
-            else
-                line = line == "" and word or (line .. " " .. word)
-            end
-        end
-        if line ~= "" then lines[#lines + 1] = line end
-        return lines
+        return wrapDetails(message)
     end
-    -- The historical Almanac was a proposed recap of run state; NUZ
-    -- NOTICES already owns the persistent rule-event log. RUN JOURNAL
-    -- combines those two ideas in one destination without duplicating
-    -- or migrating save records. Existing notices are still readable.
+    -- RUN JOURNAL combines live status and persistent rule events without
+    -- duplicating or migrating older saved notice records.
     local function journalHistoryRows()
         local history = api.notices and api.notices() or {}
         local rows = {}
@@ -2319,7 +2335,7 @@ return function(mod, api)
         if p.scroll + VISIBLE < #p.rows then
             Window.printPx("MORE", 187, 125, { small = true })
         end
-        Window.printPx("A: OPEN   B: BACK", 28, 138,
+        Window.printPx("A: SELECT  B: BACK", 28, 138,
             { maxWidth = 185, small = true })
     end
 
