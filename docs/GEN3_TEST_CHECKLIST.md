@@ -17,10 +17,10 @@ This is the human-in-the-loop test plan for [PR #1](https://github.com/Deluxe011
 ## NUZ DEV test reset controls (optional, recommended)
 
 Before repeating encounter tests on the same route, open **Start → NUZ MENU →
-NUZ MENU → **Up, Up, Down, Down, Left, Right, Left, Right** → OPEN DEV TOOLS → ENABLE DEV MODE**, confirm, then use **RE-ARM CURRENT**.
+NUZ MENU → **hold Select + tap A** (default keyboard: Tab+Enter or Tab+Z) → OPEN DEV TOOLS → ENABLE DEV MODE**, confirm, then use **RE-ARM CURRENT**.
 See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 
-- [ ] **V01 — Hidden dev entry.** NUZ DEV is absent from the regular NUZ MENU. Enter the documented 8-direction code from the home screen. **Expected:** DEV ACCESS opens without changing the save; cancelling returns home; opening the tools and confirming ENABLE DEV MODE permanently flags the test save. The code is not accepted in a submenu or new-game setup.
+- [ ] **V01 — Hidden dev entry.** NUZ DEV is absent from the regular NUZ MENU. Hold SELECT and tap A from the NUZ MENU home screen (or enter the older eight-direction code with distinct key presses). **Expected:** DEV ACCESS opens without changing the save; cancelling returns home; opening the tools and confirming ENABLE DEV MODE permanently flags the test save. The code is not accepted in a submenu or new-game setup.
 - [ ] **V02 — Re-arm current.** After consuming an area's first encounter, select RE-ARM CURRENT and confirm. **Expected:** The area's catch slot is open again, without touching actual caught Pokémon.
 - [ ] **V03 — Edit an area.** Use EDIT CURRENT AREA or EDIT ALL AREAS to mark one map OPEN, SPENT and CAUGHT. **Expected:** Area state and later catch decisions follow your edit.
 - [ ] **V04 — Cancel/global reset.** Try CLEAR ALL AREAS, cancel, confirm entries remain; repeat and confirm. **Expected:** All encounter records clear **only** after explicit confirmation.
