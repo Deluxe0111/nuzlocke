@@ -149,7 +149,9 @@ assert(Rules.selectedLetter(persisted,pokemon)==picked,
     "random initial must persist in the existing save namespace")
 assert(Rules.set(s,"alphabetlocke_mode",0))
 assert(Rules.selectedLetter(s,pokemon)==nil)
-assert(not allowed(0),"unknown/glitch species blocked by default")
+assert(Rules.check(s,{},pokemon,Core),
+    "an absent catch-rate species id is not proof of a glitch")
+assert(not allowed(0),"invalid zero species blocked by default")
 assert(not allowed(9999),"unregistered species blocked by default")
 assert(Rules.set(s,"allow_glitch_pokemon",true))
 assert(allowed(9999),"Allow Glitches permits unregistered species")
