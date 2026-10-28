@@ -24,6 +24,8 @@ assert(R.get(saved, "random_starter_balance") == 0)
 assert(R.get(saved, "random_static_pokemon") == false)
 assert(R.get(saved, "random_gift_pokemon") == false)
 assert(R.get(saved, "random_egg_gifts") == false)
+assert(R.get(saved, "random_shops") == false)
+assert(R.get(saved, "random_shop_balance") == 0)
 assert(R.get(saved, "random_encounter_repetition") == 0)
 assert(R.set(saved, "randomizer_seed", 12345678))
 assert(R.set(saved, "random_encounter_tables", true))
@@ -46,6 +48,7 @@ assert(not R.set(saved, "random_trainers", false))
 assert(not R.set(saved, "random_trainer_diversity", 1))
 assert(not R.set(saved, "random_starter", true))
 assert(not R.set(saved, "random_static_pokemon", true))
+assert(not R.set(saved, "random_shops", true))
 assert(not R.set(saved, "random_encounter_repetition", 1))
 local recovered = {randomizer = {
     randomizer_seed = 12345678, random_encounter_tables=true,
@@ -161,6 +164,54 @@ assert(R.item(uniqueItems,ItemsData,"BALL_A",13,nil,"MAP:ROUTE")==uniqueA)
 local otherMap=R.item(uniqueItems,ItemsData,"BALL_A",13,nil,"MAP:NEXT")
 assert(otherMap and uniqueItems.randomizer.fieldItemAssignments["MAP:NEXT"],
     "area variety must remain scoped per map")
+-- Shop stock randomisation: real mart item lists only, with original
+-- Poké Balls and progression-critical stock protected.
+local originalMart={4,13,14,21,261,289}
+local shopState={randomizer={random_shops=true,randomizer_seed=12345678}}
+local sourceMart="MAP:FR_ROUTE_1:MART:0xCAFEBABE"
+local mart=R.shop(shopState,ItemsData,sourceMart,originalMart)
+assert(mart and #mart==#originalMart
+    and mart[1]==4 and mart[5]==261 and mart[6]==289
+    and originalMart[2]==13 and R.locked(shopState),
+    "mart source stock must be untouched and key stock preserved")
+local uniqueStock={}
+local modified=0
+for i,id in ipairs(mart) do
+    assert(not uniqueStock[id],"shop replacement list has duplicates")
+    uniqueStock[id]=true
+    if id~=originalMart[i] then modified=modified+1 end
+end
+assert(modified>0)
+local replayStock=R.shop(shopState,ItemsData,sourceMart,originalMart)
+for i=1,#mart do assert(replayStock[i]==mart[i]) end
+assert(replayStock~=mart, "shop result must be cloned per open")
+local reloadState={randomizer={
+    random_shops=true,randomizer_seed=12345678,
+    shopAssignments=shopState.randomizer.shopAssignments}}
+local reloadStock=R.shop(reloadState,ItemsData,sourceMart,originalMart)
+for i=1,#mart do assert(reloadStock[i]==mart[i]) end
+local replayFresh={randomizer={random_shops=true,randomizer_seed=12345678}}
+local freshStock=R.shop(replayFresh,ItemsData,sourceMart,originalMart)
+for i=1,#mart do assert(freshStock[i]==mart[i]) end
+assert(not R.set(shopState,"random_shop_balance",1),
+    "shop result must lock run settings")
+assert(R.shop({randomizer={randomizer_seed=99}},ItemsData,
+    sourceMart,originalMart)==nil, "shops default OFF")
+assert(R.shop({randomizer={random_shops=true,randomizer_seed=99}},
+    ItemsData,"",originalMart)==nil, "missing native pointer fails open")
+assert(R.shop({randomizer={random_shops=true,randomizer_seed=99}},
+    ItemsData,sourceMart,{4,289,261})==nil,
+    "protected-only stock must remain native")
+local simShop=R.shop({randomizer={random_shops=true,
+    random_shop_balance=1,randomizer_seed=1991}},
+    ItemsData,"MAP:SIM:MART:1",{4,13,261})
+assert(simShop and simShop[1]==4 and simShop[3]==261
+    and math.abs(itemMeta[simShop[2]].price-300)<=100,
+    "SIM VALUE should use a close-priced, valid item")
+local badStock={randomizer={random_shops=true,randomizer_seed=12345678,
+    shopAssignments=shopState.randomizer.shopAssignments}}
+assert(R.shop(badStock,ItemsData,sourceMart,{4,13,14,50,261,289})
+    ==nil, "saved stock must never be reused against a changed native list")
 -- Candidate exclusion is deterministic and does not disturb existing
 -- mappings when Trainer Variety is OFF.
 local distinct = {randomizer={
@@ -377,6 +428,19 @@ local FakeField={
     end,
 }
 package.loaded["src.core.game3.field"]=FakeField
+local shopOpenings={}
+local FakeShop={open=false,
+    show=function(opts)
+        shopOpenings[#shopOpenings+1]=opts
+        return "shop_opened"
+    end,
+    handleInput=function() return "native_action" end,
+}
+local romMart={4,13,14,21,261,289}
+local romMartEntry={ptr=3735928559,items=romMart,martType="NORMAL"}
+package.loaded["src.ui.game3.shop_menu"]=FakeShop
+package.loaded["src.core.game3.marts"]={
+    _byKey={[romMartEntry.ptr]=romMartEntry}}
 local starterView={species={1,2,3}}
 local starterChooser={
     manifest=function() return starterView end,
@@ -412,10 +476,33 @@ assert(api.set("random_static_pokemon", true))
 assert(api.set("random_gift_pokemon", true))
 assert(api.set("random_egg_gifts", true))
 assert(api.set("random_field_items", true))
+assert(api.set("random_shops", true))
 assert(api.set("random_encounter_tables", true))
 assert(api.set("random_encounter_repetition", 1))
 assert(api.set("random_trainers", true))
 assert(api.set("random_trainer_diversity", 1))
+-- Shop.show is the native inventory display/transaction boundary.
+-- Install via the normal map-entered lifecycle, not manual hook calls.
+assert(type(handlers["map.entered"])=="function")
+handlers["map.entered"]({mapId="FR_ROUTE_1"})
+assert(FakeShop.show({items=romMart,session=game.session})=="shop_opened")
+local firstShop=shopOpenings[#shopOpenings]
+assert(firstShop.items~=romMart and firstShop.mart~=romMartEntry
+    and firstShop.mart.items==firstShop.items
+    and firstShop.items[1]==4 and firstShop.items[5]==261
+    and firstShop.items[6]==289 and romMart[2]==13,
+    "native mart must receive independent shop stock for display/purchases")
+FakeShop.show({items=romMart,session=game.session})
+local secondShop=shopOpenings[#shopOpenings]
+for i=1,#romMart do assert(secondShop.items[i]==firstShop.items[i]) end
+assert(FakeShop.show({items=romMart,session=game.session,
+    martType="DECOR"})=="shop_opened")
+assert(shopOpenings[#shopOpenings].items==romMart,
+    "decoration shops must preserve their separate namespace")
+local unknownMart={3,2,1}
+FakeShop.show({items=unknownMart,session=game.session})
+assert(shopOpenings[#shopOpenings].items==unknownMart,
+    "unidentifiable mart pointer must fail open")
 -- RSE UI and native gift must call the same resolver.
 game.session.version="emerald"
 local rseStarter=starterChooser.species(nil,0)
@@ -721,8 +808,11 @@ assert(model.title=="RANDOMIZER"
     and model.rows[8]=="RANDOM EGGS: ON"
     and model.rows[9]=="RANDOM FIELD ITEMS: ON"
     and model.rows[10]=="ITEM BALANCE: CHAOS"
-    and model.rows[11]=="ITEM VARIETY: NORMAL"
-    and model.rows[15]=="WILD VARIETY: UNIQUE AREA",
+    and model.rows[10]=="RANDOM SHOPS: ON"
+    and model.rows[11]=="SHOP BALANCE: CHAOS"
+    and model.rows[12]=="ITEM BALANCE: CHAOS"
+    and model.rows[13]=="ITEM VARIETY: NORMAL"
+    and model.rows[17]=="WILD VARIETY: UNIQUE AREA",
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do
