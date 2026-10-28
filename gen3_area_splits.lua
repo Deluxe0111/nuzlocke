@@ -34,7 +34,7 @@ return function()
         {id="DIGLETTS_CAVE",name="Diglett's Cave",zone="kanto"},
         {id="SILPH_CO",name="Silph Co.",zone="kanto"},
         {id="ROCKET_HIDEOUT",name="Rocket Hideout",zone="kanto"},
-        {id="SS_ANNE",name="S.S. Anne",zone="kanto"},
+        {id="SSANNE",name="S.S. Anne",zone="kanto"},
         {id="MT_EMBER",name="Mt. Ember",zone="sevii"},
         {id="ICEFALL_CAVE",name="Icefall Cave",zone="sevii"},
         {id="DOTTED_HOLE",name="Dotted Hole",zone="sevii"},
@@ -145,9 +145,9 @@ return function()
                 floor=safari,zone=edition=="FR" and "kanto" or "hoenn",
                 safari=true,raw=mapId}
         end
-        if edition=="FR" and body:match("^ROUTE_21_(NORTH|SOUTH)$") then
+        if edition=="FR" and (body=="ROUTE_21_NORTH" or body=="ROUTE_21_SOUTH") then
             return {edition=edition,group="ROUTE_21",
-                floor=body:match("(NORTH|SOUTH)$"),zone="kanto",
+                floor=body:match("_([A-Z]+)$"),zone="kanto",
                 raw=mapId,route=true}
         end
         for _,place in ipairs(places) do
