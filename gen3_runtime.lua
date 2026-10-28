@@ -375,9 +375,10 @@ return function(mod)
             local species=scriptGiftSpecies(ctx,row)
             local location=areaNow()
             local saved=loadState()
+            local mandatoryStarter=giftStarterExempt(location)
             local permitted,why=CatchRules.canAcquire(saved,"gift",
                 species,location,pokemonResolver(),Core,{
-                    mandatoryStarter=giftStarterExempt(location)
+                    mandatoryStarter=mandatoryStarter
                 })
             if not permitted and setScriptVar(ctx,0x800D,2) then
                 notify("GIFT_DENIED",why)
@@ -386,7 +387,7 @@ return function(mod)
             local result=next(ctx,op,row)
             local code=scriptVar(ctx,0x800D)
             if permitted and (code==0 or code==1)
-                and not giftStarterExempt(location) then
+                and not mandatoryStarter then
                 acquisitionReceipt("gift",species,location)
             end
             return result
