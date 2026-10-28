@@ -27,14 +27,19 @@ return function(mod)
     local pendingRoamer
     local battleInProgress = false
     local battleDeaths -- in-battle irrevocable faint records (not party-array removals)
+    local setupDraft, pendingNewGameState
 
     local function loadState()
-        local s = Core.normalise(mod.save:get(KEY, {}))
-        return Clauses.normalise(s)
+        local s = setupDraft or mod.save:get(KEY, {})
+        return Clauses.normalise(Core.normalise(s))
     end
 
     local function writeState(s)
-        mod.save:set(KEY, s)
+        if setupDraft then
+            setupDraft = s
+        else
+            mod.save:set(KEY, s)
+        end
     end
 
     local function areaKey(value)
@@ -59,6 +64,35 @@ return function(mod)
 
     local function isActive()
         return Core.active(loadState())
+    end
+
+    -- Unlock the encounter ledger only once the player owns a usable Ball.
+    -- This flag stays true after all Balls are spent or discarded.
+    local function captureAvailable(s)
+        if s.captureUnlocked == true then return true end
+        local native = session()
+        local bag = native and native.bag
+        local pockets = bag and bag.pockets
+        local balls = pockets and pockets.POKE_BALLS
+        if type(balls) == "table" then
+            for _, slot in pairs(balls) do
+                if type(slot) == "table" and (tonumber(slot.qty) or 0) > 0 then
+                    s.captureUnlocked = true
+                    writeState(s)
+                    return true
+                end
+            end
+        end
+        -- Legacy successful catches prove the unlock occurred; old spent
+        -- records alone do not, since those may be pre-Ball false positives.
+        for _, entry in pairs(s.areas or {}) do
+            if type(entry) == "table" and entry.caught == true then
+                s.captureUnlocked = true
+                writeState(s)
+                return true
+            end
+        end
+        return false
     end
 
     -- Badge flags are saved in native script state; refresh when the player
@@ -271,6 +305,8 @@ return function(mod)
     end)
 
     mod.events:on("save.loaded", function()
+        setupDraft = nil
+        pendingNewGameState = nil
         currentArea = nil
         activeBattle = nil
         pendingRoamer = nil
@@ -278,6 +314,13 @@ return function(mod)
         battleDeaths = nil
     end)
     mod.events:on("save.created", function()
+        -- Apply setup to the newly adopted save, not the old title save.
+        if pendingNewGameState then
+            pendingNewGameState._setup = nil
+            mod.save:set(KEY, pendingNewGameState)
+            pendingNewGameState = nil
+        end
+        setupDraft = nil
         currentArea = nil
         activeBattle = nil
         pendingRoamer = nil
@@ -315,6 +358,7 @@ return function(mod)
         local key = areaNow()
         if not key then return end -- fail open rather than block unknown maps
         local s = loadState()
+        if not captureAvailable(s) then return end
         local native = session()
         local enemy = ev.battle and ev.battle.enemy
         local wildMon = enemy and enemy.mon
@@ -447,6 +491,27 @@ return function(mod)
         eggs = Eggs, forgiveness = Forgiveness,
         onClauseChanged = onClauseChanged,
         dev = Dev, display = Display,
+    })
+
+    -- Native Gen 3 boot flow: setup precedes new-game scene across editions.
+    readModule("gen3_title_setup.lua")(mod, {
+        menu = Gen3Menu,
+        beginSetup = function(done)
+            setupDraft = Clauses.normalise(Core.normalise({
+                enabled = false, failed = false, areas = {}, graveyard = {},
+                runSettingsLocked = false, captureUnlocked = false,
+                _setup = true,
+            }))
+            pendingNewGameState = nil
+            return Gen3Menu.openSetup(game(), function(accepted)
+                if accepted then
+                    setupDraft._setup = nil
+                    pendingNewGameState = setupDraft
+                end
+                setupDraft = nil
+                if type(done) == "function" then done(accepted) end
+            end)
+        end,
     })
 
     mod.hooks:wrap("ui.start_menu.items", function(next, g, items)

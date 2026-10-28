@@ -64,6 +64,7 @@ return function()
         if not d then return false, "unknown_rule" end
         if d.status == "soon" then return false, "not_implemented" end
         if s.failed then return false, "run_failed" end
+        if s.runSettingsLocked and not s._setup then return false, "settings_locked" end
         if type(value) ~= type(d.default) then return false, "invalid_type" end
         if type(value) == "number" and (value < 0 or value >= #d.options
             or value ~= math.floor(value)) then

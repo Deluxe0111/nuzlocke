@@ -108,18 +108,36 @@ local function toggle(expectBefore, expectAfter)
 end
 toggle("NUZLOCKE: OFF", "NUZLOCKE: ON")
 assert(mod.exports.gen3_classic.state().enabled)
+-- Emerald's scripted opener and all pre-Ball routes are free encounters.
+-- The first real catch attempt only starts after an owned usable Ball exists.
+local early = {}
+fire("battle.started", { battle = early, kind = "wild",
+    species = "PIDGEY", speciesId = 16 })
+assert(values.gen3_classic_v1.areas.FR_ROUTE_1 == nil,
+    "pre-Ball wild battle must not claim Route 1")
+fire("battle.ended")
+game.session.bag = { pockets = { POKE_BALLS = {
+    { id = "POKE_BALL", qty = 5 },
+} } }
 local first = {}
 fire("battle.started", { battle = first, kind = "wild", species = "PIDGEY", speciesId = 16 })
 local caught, shakes, invoked = throw(first)
 assert(caught and shakes == 4 and invoked, "first battle may catch")
 fire("pokemon.caught", { battle = first })
 assert(values.gen3_classic_v1.areas.FR_ROUTE_1.caught == true)
+assert(values.gen3_classic_v1.captureUnlocked == true,
+    "first owned Ball permanently arms the encounter tracker")
+game.session.bag.pockets.POKE_BALLS[1].qty = 0
+
 fire("battle.ended")
 local repeatBattle = {}
 fire("battle.started", { battle = repeatBattle, kind = "wild" })
 caught, shakes, invoked = throw(repeatBattle)
 assert(caught == false and shakes == 0 and not invoked, "repeat catch denied")
 fire("battle.ended")
+-- Restore the test fixture's Ball inventory for later fresh-save scenarios;
+-- the previous zero-Ball check already proved the unlock is durable.
+game.session.bag.pockets.POKE_BALLS[1].qty = 5
 game.session.map = "FR_ROUTE_2"
 fire("map.entered", { mapId = "FR_ROUTE_2" })
 local newAreaBattle = {}
@@ -156,6 +174,9 @@ assert(select(1, throw(noLimit)) == true, "one-per-area OFF disables catch block
 fire("battle.ended")
 assert(core.setRule("encounter_limit", true))
 assert(core.setRule("failed_encounter", true))
+-- Re-lock with no Balls must not re-open previously consumed route slots.
+assert(values.gen3_classic_v1.captureUnlocked == true)
+
 assert(core.setRule("nickname_rule", false) == false,
     "unimplemented CORE rule must be read-only")
 assert(core.setRule("pc_survivors_allowed", true) == false,
