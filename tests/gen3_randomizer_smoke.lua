@@ -92,6 +92,75 @@ for _,spec in ipairs(sources) do
         function()return true end)==nil,
         "a fully banned scripted pool must fail open")
 end
+-- Item randomisation uses only safe, buyable items from the loaded
+-- native ROM pack. Important items/TMs/zero-price holes are excluded.
+local itemMeta={
+    [4]={id=4,name="Poke Ball",pocket="POKE_BALLS",price=200},
+    [13]={id=13,name="Potion",pocket="ITEMS",price=300},
+    [14]={id=14,name="Antidote",pocket="ITEMS",price=100},
+    [15]={id=15,name="Burn Heal",pocket="ITEMS",price=250},
+    [21]={id=21,name="Hyper Potion",pocket="ITEMS",price=1200},
+    [50]={id=50,name="Ether",pocket="ITEMS",price=600},
+    [139]={id=139,name="Oran Berry",pocket="BERRY_POUCH",price=200},
+    [261]={id=261,name="Itemfinder",pocket="KEY_ITEMS",price=500},
+    [289]={id=289,name="TM01",pocket="TM_CASE",price=3000},
+    [1]={id=1,name="Master Ball",pocket="POKE_BALLS",price=0},
+    [70]={id=70,name="Story Relic",pocket="ITEMS",price=900,
+        importance=1},
+}
+local itemPack={}
+for id in pairs(itemMeta) do itemPack[id]=true end
+local ItemsData={
+    ensureLoaded=function()return itemPack end,
+    info=function(id)return itemMeta[id] end,
+}
+local safeItemRun={randomizer={random_field_items=true,
+    randomizer_seed=12345678}}
+local firstItem=R.item(safeItemRun,ItemsData,
+    "VISIBLE:FR_ROUTE_1:BALL_A:13",13,nil,"MAP:FR_ROUTE_1")
+assert(firstItem and firstItem~=13
+    and itemMeta[firstItem].pocket~="KEY_ITEMS"
+    and firstItem~=289 and firstItem~=70 and firstItem~=1)
+assert(R.item(safeItemRun,ItemsData,
+    "VISIBLE:FR_ROUTE_1:BALL_A:13",13,nil,"MAP:FR_ROUTE_1")==firstItem,
+    "pickup must keep its replacement")
+assert(R.locked(safeItemRun))
+assert(not R.set(safeItemRun,"random_field_item_balance",1))
+local itemSaveReplay={randomizer={random_field_items=true,
+    randomizer_seed=12345678,
+    fieldItemAssignments=safeItemRun.randomizer.fieldItemAssignments}}
+assert(R.item(itemSaveReplay,ItemsData,
+    "VISIBLE:FR_ROUTE_1:BALL_A:13",13,nil,"MAP:FR_ROUTE_1")==firstItem,
+    "item identity must persist across save/load")
+local itemFreshReplay={randomizer={random_field_items=true,
+    randomizer_seed=12345678}}
+assert(R.item(itemFreshReplay,ItemsData,
+    "VISIBLE:FR_ROUTE_1:BALL_A:13",13,nil,"MAP:FR_ROUTE_1")==firstItem,
+    "fixed seed should reproduce pickup independently")
+for _,id in ipairs({1,261,289,70,9999}) do
+    assert(R.item({randomizer={random_field_items=true,
+        randomizer_seed=42}},ItemsData,"STORY:"..id,id,nil,
+        "MAP:FR_ROUTE_1")==nil,
+        "protected and unsupported originals must stay native")
+end
+assert(R.item({randomizer={random_field_items=false,
+    randomizer_seed=42}},ItemsData,"ID",13,nil,"MAP:FR_ROUTE_1")==nil)
+local similar={randomizer={random_field_items=true,
+    random_field_item_balance=1,randomizer_seed=314159}}
+local similarResult=R.item(similar,ItemsData,"PICKUP",13,nil,
+    "MAP:FR_ROUTE_1")
+assert(similarResult and math.abs(itemMeta[similarResult].price-300)<=100,
+    "SIM VALUE must prefer approximately similar-price items")
+local uniqueItems={randomizer={random_field_items=true,
+    random_field_item_repetition=1,randomizer_seed=775533}}
+local uniqueA=R.item(uniqueItems,ItemsData,"BALL_A",13,nil,"MAP:ROUTE")
+local uniqueB=R.item(uniqueItems,ItemsData,"HIDDEN_B",13,nil,"MAP:ROUTE")
+assert(uniqueA and uniqueB and uniqueA~=uniqueB,
+    "UNIQUE AREA must avoid duplicates across visible and hidden")
+assert(R.item(uniqueItems,ItemsData,"BALL_A",13,nil,"MAP:ROUTE")==uniqueA)
+local otherMap=R.item(uniqueItems,ItemsData,"BALL_A",13,nil,"MAP:NEXT")
+assert(otherMap and uniqueItems.randomizer.fieldItemAssignments["MAP:NEXT"],
+    "area variety must remain scoped per map")
 -- Candidate exclusion is deterministic and does not disturb existing
 -- mappings when Trainer Variety is OFF.
 local distinct = {randomizer={
@@ -295,6 +364,19 @@ assert(R.rivalStarter(evoRun,EvoP,"rse",bases,1)==nil,
     "trio must never leak between game families")
 -- Runtime hook integration: compose downstream rules, retain levels/metadata.
 package.loaded["src.core.game3.pokemon"] = P
+package.loaded["src.core.game3.items_data"] = ItemsData
+local fieldReceipts={}
+local FakeField={
+    pickUpHiddenItem=function(g,hidden)
+        fieldReceipts[#fieldReceipts+1]={method="pickup",record=hidden}
+        return true
+    end,
+    digUpUnderfootItem=function(g,hidden)
+        fieldReceipts[#fieldReceipts+1]={method="underfoot",record=hidden}
+        return true
+    end,
+}
+package.loaded["src.core.game3.field"]=FakeField
 local starterView={species={1,2,3}}
 local starterChooser={
     manifest=function() return starterView end,
@@ -329,6 +411,7 @@ assert(api.set("random_starter", true))
 assert(api.set("random_static_pokemon", true))
 assert(api.set("random_gift_pokemon", true))
 assert(api.set("random_egg_gifts", true))
+assert(api.set("random_field_items", true))
 assert(api.set("random_encounter_tables", true))
 assert(api.set("random_encounter_repetition", 1))
 assert(api.set("random_trainers", true))
@@ -446,6 +529,59 @@ game.session.map="FR_POKEMON_TOWER_6F"
 hooks["script.command"](nativeScript,{}, "setwildbattle",originalStatic)
 assert(seenScript==originalStatic,"Tower ghost must remain native")
 game.session.map="FR_ROUTE_1"
+-- Visible item-ball awards route via STD_FIND_ITEM / callstd 1.
+-- Native slot is VAR_0x8000; do not mutate the opcode or unrelated
+-- scripted NPC gifts using STD_OBTAIN_ITEM / callstd 0.
+local oldItemFlags=package.loaded["src.core.game3.scripting.flags"]
+local oldItemSpace=package.loaded["src.core.game3.scripting.space"]
+local itemStore={vars={[0x8000]=13}}
+package.loaded["src.core.game3.scripting.flags"]={
+    getVar=function(store,ctx,id)return store.vars[id] end,
+    setVar=function(store,ctx,id,value)store.vars[id]=value end,
+}
+package.loaded["src.core.game3.scripting.space"]={store=itemStore}
+local ballScript={op="callstd",[1]=1}
+local ballContext={runner={_scriptKey="Route1_Ball_1",ctx={}}}
+hooks["script.command"](nativeScript,ballContext,"callstd",ballScript)
+local ballResult=itemStore.vars[0x8000]
+assert(ballResult and ballResult~=13 and seenScript==ballScript,
+    "item-ball must replace the native award var before the callstd")
+itemStore.vars[0x8000]=13
+hooks["script.command"](nativeScript,ballContext,"callstd",ballScript)
+assert(itemStore.vars[0x8000]==ballResult,
+    "item ball species-independent source should replay")
+itemStore.vars[0x8000]=261
+hooks["script.command"](nativeScript,ballContext,"callstd",ballScript)
+assert(itemStore.vars[0x8000]==261,
+    "key item ball must never be randomised")
+itemStore.vars[0x8000]=289
+hooks["script.command"](nativeScript,ballContext,"callstd",ballScript)
+assert(itemStore.vars[0x8000]==289,
+    "TM/HM pickups must remain progression-safe")
+itemStore.vars[0x8000]=13
+hooks["script.command"](nativeScript,ballContext,"callstd",{op="callstd",[1]=0})
+assert(itemStore.vars[0x8000]==13,
+    "scripted NPC item gift is not a field pickup")
+package.loaded["src.core.game3.scripting.flags"]=oldItemFlags
+package.loaded["src.core.game3.scripting.space"]=oldItemSpace
+-- Hidden pickups in both FRLG and RSE must pass a COPY to native field
+-- handling; it still owns message display, quantity and flag changes.
+local hidden={item=13,x=4,y=7,flag=888,quantity=2}
+assert(FakeField.pickUpHiddenItem(game,hidden))
+assert(#fieldReceipts==1
+    and fieldReceipts[1].record~=hidden
+    and fieldReceipts[1].record.item~=13
+    and fieldReceipts[1].record.flag==888
+    and fieldReceipts[1].record.quantity==2 and hidden.item==13,
+    "hidden item must preserve native flag/quantity and source record")
+local hiddenResult=fieldReceipts[1].record.item
+assert(FakeField.digUpUnderfootItem(game,hidden))
+assert(fieldReceipts[2].record.item==hiddenResult,
+    "underfoot Itemfinder pickup must use same persistent assignment")
+local keyHidden={item=261,x=9,y=9,flag=1005}
+assert(FakeField.pickUpHiddenItem(game,keyHidden))
+assert(fieldReceipts[3].record==keyHidden,
+    "hidden key item must pass unchanged to native")
 local count=0
 local wild={species="ALPHA",speciesId=1,level=7,item="BERRY"}
 local ctx={mapId="FR_ROUTE_1",terrain="grass"}
@@ -583,7 +719,10 @@ assert(model.title=="RANDOMIZER"
     and model.rows[6]=="RANDOM STATIC: ON"
     and model.rows[7]=="RANDOM GIFTS: ON"
     and model.rows[8]=="RANDOM EGGS: ON"
-    and model.rows[12]=="WILD VARIETY: UNIQUE AREA",
+    and model.rows[9]=="RANDOM FIELD ITEMS: ON"
+    and model.rows[10]=="ITEM BALANCE: CHAOS"
+    and model.rows[11]=="ITEM VARIETY: NORMAL"
+    and model.rows[15]=="WILD VARIETY: UNIQUE AREA",
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do
