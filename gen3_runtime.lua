@@ -680,9 +680,10 @@ return function(mod)
                         local delayedYawn=sleep and source==target
                             and type(target)=="table"
                             and target._nuzYawnSource~=nil
-                            and type(opts)=="table"
-                            and opts.ignoreSafeguard==true
-                            and opts.turns==nil
+                            and (type(opts)~="table" or opts.turns==nil)
+                            -- Rest specifies a turn count. The deferred
+                            -- Yawn path may omit its optional opts table in
+                            -- compatible adapters, so don't require one.
                         local actualSource=delayedYawn
                             and target._nuzYawnSource or source
                         local saved=loadState()
