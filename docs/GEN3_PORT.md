@@ -20,6 +20,11 @@ No Static Encounters (scripted wild Ball captures) and
 No Fishing (native rod use blocked before the minigame).
 Its other entries and the other eight groups remain [Soon].
 See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
+**BATTLE CLAUSES** now exposes Flinch, Trap, No Setup Moves, Evasion
+Clause, Accuracy Drops and Other Stat Drops as six working effect-level
+restrictions (see [Battle Clauses](GEN3_BATTLE_CLAUSES.md)).
+OHKO Clause remains [Soon], and the other seven advanced categories
+remain [Soon].
 The unimplemented WORLD and UI planning categories have been removed
 from Gen 3's catalog/menu only; Gen 1/2 are unchanged.
 
