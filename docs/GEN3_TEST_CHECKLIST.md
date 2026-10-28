@@ -37,12 +37,17 @@ See [GEN3_NUZ_DEV.md](GEN3_NUZ_DEV.md) for the complete menu and safety notes.
 - [ ] **M03 — Partial/placeholder labels.** Inspect Whiteout Ends Run, Nickname, First Rival Mercy and PC Survivors. **Expected:** Whiteout, Nickname, First Rival Mercy and PC Survivors are all **[WIP]** and toggleable; the three new rules require actual gameplay certification.
 - [ ] **M04 — Navigation.** Scroll through CORE, back to NUZ RULES, open some other categories, then back to NUZ MENU and the game. **Expected:** Scrolling, cursor, A/B and reopening all work; no clipped/unreadable menu entries or stuck overlays.
 - [ ] **M05 — Master toggle.** Switch NUZLOCKE OFF → ON → OFF → ON. **Expected:** Label changes immediately; rule values in other rows do not reset.
+- [ ] **M06 — Compact PLAYSTYLES.** Open NUZ RULES → PLAYSTYLES. **Expected:** Exactly four rows: SHINY NUZ toggle, its DETAILS directly below, HARDCORE toggle, its DETAILS directly below. No stray rule-description lines.
+- [ ] **M07 — Details and return.** Open both DETAILS screens, scroll their explanations and press B. **Expected:** Complete rules are visible in the correct details screen and the selector returns to the same row. Each toggle changes only its corresponding playstyle.
 - [ ] **M06 — Save persistence.** Enable Nuzlocke, change one rule, save **in game**, restart and reopen the menu. **Expected:** Master switch and saved rule values persist.
 
 ## A2. New CORE clauses (disposable saves; WIP)
 
 - [ ] **N01 — Catch naming.** With Nickname Rule ON, catch a wild Pokémon. **Expected:** The game opens native naming directly; declining is not offered.
-- [ ] **N02 — Reject default.** Submit an empty name or exact species name. **Expected:** Native naming reopens; a custom name finishes normally.
+- [ ] **N02 — Reject default.** Submit an empty name, whitespace-only name, cancelled name or exact species name. **Expected:** Native naming reopens; the Pokémon is not accepted unnamed. A custom name finishes normally.
+- [ ] **N02a — Switch off enforcement.** Turn NICKNAME OFF and catch another wild Pokémon. **Expected:** The native Yes/No choice is offered again, and No is accepted.
+- [ ] **N02b — Repeat after load.** Save/reload and catch another Pokémon with the rule ON. **Expected:** No Yes/No bypass after reopening the game.
+- [ ] **N02c — Untamed compatibility.** Catch a wandering overworld Pokémon with NICKNAME ON. **Expected:** It uses the same mandatory naming flow.
 - [ ] **N03 — Gift/trade/Egg.** Acquire each without a naming prompt, then open NUZ MENU → NICKNAME TASKS. **Expected:** Unnamed acquisitions appear, including those in a PC box. Rename them and confirm they disappear.
 - [ ] **N04 — Persist.** Save and reload after naming a Pokémon and after leaving one name pending. **Expected:** Correct nicknames and pending entries remain consistent.
 - [ ] **R01 — First rival, Kanto.** In a NEW FireRed or LeafGreen run, enable mercy before the Oak Lab rival battle and let your starter faint. **Expected:** No death/graveyard entry and no Nuzlocke failure; the native story proceeds.
