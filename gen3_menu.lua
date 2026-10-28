@@ -951,7 +951,7 @@ return function(mod, api)
                 "ACCURACY: NO ACC DROPS",
                 "OTHER: NO OTHER DROPS",
                 "DAMAGE STILL APPLIES",
-                "OHKO CLAUSE: [SOON]",
+                "OHKO: ON BLOCKS BOTH SIDES",
                 "ITEM/ABILITY STAT FX",
                 "NOT BLOCKED BY SCOPE",
             })
