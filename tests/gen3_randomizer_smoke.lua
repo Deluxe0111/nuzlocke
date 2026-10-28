@@ -19,6 +19,8 @@ assert(R.get(saved, "random_encounter_tables") == false)
 assert(R.get(saved, "random_trainers") == false)
 assert(R.get(saved, "randomizer_seed") == 0)
 assert(R.get(saved, "random_trainer_diversity") == 0)
+assert(R.get(saved, "random_starter") == false)
+assert(R.get(saved, "random_starter_balance") == 0)
 assert(R.get(saved, "random_encounter_repetition") == 0)
 assert(R.set(saved, "randomizer_seed", 12345678))
 assert(R.set(saved, "random_encounter_tables", true))
@@ -39,6 +41,7 @@ assert(not R.set(saved, "randomizer_seed", 999),
     "fixed randomiser settings cannot change after species results exist")
 assert(not R.set(saved, "random_trainers", false))
 assert(not R.set(saved, "random_trainer_diversity", 1))
+assert(not R.set(saved, "random_starter", true))
 assert(not R.set(saved, "random_encounter_repetition", 1))
 local recovered = {randomizer = {
     randomizer_seed = 12345678, random_encounter_tables=true,
@@ -121,6 +124,31 @@ local normal2=R.replace(normal,P,"ENCOUNTERS","same legacy key",1,
     nil,nil,nil,"STEP:SMALL:grass","1")
 assert(normal1==normal2 and normal.randomizer.encounterAssignments==nil,
     "NORMAL mode must be byte-for-byte equivalent and save no mappings")
+-- Atomic starter trio: same seed/ROM yields same three unique species,
+-- irrespective of wild/trainer stream history, and survives save/load.
+local starterSave = {randomizer={randomizer_seed=17171717,
+    random_starter=true}}
+local trio = R.starters(starterSave,P,"frlg",{1,2,3})
+assert(trio and #trio==3 and trio[1]~=trio[2]
+    and trio[2]~=trio[3] and trio[1]~=trio[3],
+    "starter randomiser must produce a distinct three-choice trio")
+assert(R.locked(starterSave))
+assert(not R.set(starterSave,"random_starter_balance",1))
+local prior = {trio[1],trio[2],trio[3]}
+assert(R.starters(starterSave,P,"frlg",{1,2,3})[2] == prior[2])
+local starterReplay = {randomizer={randomizer_seed=17171717,
+    random_starter=true}}
+local replayTrio=R.starters(starterReplay,P,"frlg",{1,2,3})
+for i=1,3 do assert(replayTrio[i]==prior[i]) end
+assert(R.starters(starterSave,P,"rse",{1,2,3})==nil,
+    "a starter trio must not leak across game families")
+local starterBlocked={randomizer={randomizer_seed=17,
+    random_starter=true}}
+assert(not R.starters(starterBlocked,P,"frlg",{1,2,3},nil,
+    function(n) return n~=6 and n~=5 end),
+    "missing a third safe starter must fail open as one trio")
+assert(not R.locked(starterBlocked) and
+    starterBlocked.randomizer.starterOptions==nil)
 local empty = {randomizer={ randomizer_seed=99,
     random_encounter_tables=true }}
 assert(not R.replace(empty, P, "ENCOUNTERS", "route", 511),
@@ -169,6 +197,18 @@ assert(R.replace(banSave,P,"ENCOUNTERS","depleted",1,nil,
 
 -- Runtime hook integration: compose downstream rules, retain levels/metadata.
 package.loaded["src.core.game3.pokemon"] = P
+local starterView={species={1,2,3}}
+local starterChooser={
+    manifest=function() return starterView end,
+    species=function(man,sel) return (man or starterView).species[sel+1] end,
+}
+package.loaded["src.ui.game3.rse.starter_choose"]=starterChooser
+local starterQuery={
+    BY_NAME={GetStarterSpecies=function()
+        return false, 1
+    end}
+}
+package.loaded["src.core.game3.scripting.natives_queries"]=starterQuery
 local handlers, hooks, saves = {}, {}, {}
 local game = {generation=3, session={map="FR_ROUTE_1",
     version="firered",party={{species=1,hp=14,personality=4}},flags={}}}
@@ -187,10 +227,39 @@ local mod = {game=game,exports={},
 assert(loadfile("gen3_runtime.lua")()(mod) == nil)
 local api=mod.exports.gen3_randomizer
 assert(api.set("randomizer_seed", 12345678))
+assert(api.set("random_starter", true))
 assert(api.set("random_encounter_tables", true))
 assert(api.set("random_encounter_repetition", 1))
 assert(api.set("random_trainers", true))
 assert(api.set("random_trainer_diversity", 1))
+-- RSE UI and native gift must call the same resolver.
+game.session.version="emerald"
+local rseStarter=starterChooser.species(nil,0)
+assert(rseStarter and rseStarter~=1
+    and starterChooser.species(nil,0)==rseStarter)
+assert(starterChooser.species(nil,1)~=rseStarter)
+local rseOpts=saves.gen3_classic_v1.randomizer.starterOptions
+assert(rseOpts[1]==rseStarter
+    and starterChooser.species(nil,2)==rseOpts[3])
+-- Native FireRed selection passes through the GetStarterSpecies special,
+-- and the normal before_give event selects the same persistent result.
+-- New disposable state for a separate game's starter trio.
+saves.gen3_classic_v1.randomizer.starterOptions=nil
+saves.gen3_classic_v1.randomizer.starterSource=nil
+saves.gen3_classic_v1.randomizer.used=false
+game.session.version="firered"
+game.session.map="FR_PALLET_TOWN_PROFESSOR_OAKS_LAB"
+local _,frlgStarter=starterQuery.BY_NAME.GetStarterSpecies({})
+assert(frlgStarter and frlgStarter~=1)
+local gift={speciesId=1,species="ALPHA",level=5}
+handlers["pokemon.before_give"](gift)
+assert(gift.species==frlgStarter,
+    "Kanto starter chooser and acquired Pokemon must agree")
+game.session.map="FR_ROUTE_1"
+local ordinaryGift={speciesId=1,species="ALPHA",level=5}
+handlers["pokemon.before_give"](ordinaryGift)
+assert(ordinaryGift.species=="ALPHA",
+    "other maps must not randomise gifted Pokemon")
 local count=0
 local wild={species="ALPHA",speciesId=1,level=7,item="BERRY"}
 local ctx={mapId="FR_ROUTE_1",terrain="grass"}
@@ -200,6 +269,12 @@ assert(first.speciesId ~= 1 and first.level == 7 and first.item=="BERRY")
 assert(wild.speciesId == 1, "native encounter object must not mutate")
 assert(hooks["encounter.species"](downstream,wild,ctx).speciesId == first.speciesId)
 assert(count==2,"compose downstream provider exactly once")
+-- Opening rival uses the paired randomised starter when the trainer
+-- source is a known first-rival single species.
+local rivalOut=hooks["trainer.party"](function(_,_,p) return p end,
+    "RIVAL",326,{{species=1,level=5}})
+assert(rivalOut[1].speciesId==frlgStarter,
+    "first rival must use the persistent random starter map")
 local wildAltLevel=hooks["encounter.species"](downstream,
     {species="ALPHA",speciesId=1,level=18,item="BERRY"},ctx)
 assert(wildAltLevel.speciesId==first.speciesId,
@@ -317,7 +392,9 @@ assert(model.title=="RANDOMIZER"
     and model.rows[1]:find("PRESET",1,true)
     and model.rows[2]=="RANDOM WILD: ON"
     and model.rows[3]=="RANDOM TRAINERS: ON"
-    and model.rows[5]=="WILD VARIETY: UNIQUE AREA",
+    and model.rows[4]=="RANDOM STARTERS: ON"
+    and model.rows[5]=="STARTER BALANCE: CHAOS"
+    and model.rows[7]=="WILD VARIETY: UNIQUE AREA",
     "Randomiser menu must expose working settings")
 local soon=false
 for _,label in ipairs(model.rows) do

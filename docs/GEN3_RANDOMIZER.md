@@ -1,11 +1,12 @@
 # Gen 3 Randomiser — v3.0.0-BETA
 
 The native Gen 3 Nuzlocke menu now exposes a deterministic species
-randomiser for **wild step encounters, fishing, and trainer parties**.
+randomiser for **starter choices, wild step encounters, fishing,
+and trainer parties**.
 It does **not** require Nuzlocke Enabled to be ON.
 
 All other Randomizer settings in the legacy catalogue are marked **[Soon]**.
-They are not silently enabled: starter choices, static/gift/roaming Pokémon,
+They are not silently enabled: other static/gift/roaming Pokémon,
 items, learnsets, TM moves, shops, evolution targets and other systems
 remain native until their own implementations are verified.
 
@@ -18,6 +19,8 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Preset | CUSTOM / CHAOS / BALANCED | CUSTOM |
 | Random Wild | OFF / ON | OFF |
 | Random Trainers | OFF / ON | OFF |
+| Random Starters | OFF / ON | OFF |
+| Starter Balance | CHAOS / SIM BST (when Starters ON) | CHAOS |
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
 | Trainer Balance | CHAOS / SIM BST (when Trainers ON) | CHAOS |
@@ -37,6 +40,24 @@ AUTO seed is resolved at its first successful randomisation and persisted
 inside the Gen 3 save, so restarting/reloading continues the same mapping.
 A fixed seed 1–99999999 reproduces mappings across equivalent versions of
 the ROM species registry and equivalent randomiser settings.
+
+**Random Starters** rolls three distinct eligible species using the same
+run seed and installed Gen 3 species pool, with optional SIM BST balance.
+In Ruby/Sapphire/Emerald the starter bag reads the replacement directly:
+label, portrait, cry and the Pokémon added to the party all use the same
+selection. In FireRed/LeafGreen the scripted Oak-lab starter resolver and
+the subsequent native `pokemon.before_give` event use the same persisted
+three choices. Native starter selection indices and VAR_STARTER_MON remain
+unchanged for progression.
+
+The opening one-Pokémon rival battle also uses the corresponding replacement
+when its native starter species can be identified, regardless of the general
+Random Trainers toggle. Later evolved rival teams are **not yet remapped**,
+and the feature does not change gift Pokémon, other scripted wilds or roamers.
+All three selections are allocated together and saved, rather than rerolled
+on screen navigation. A missing/unsafe candidate leaves the original starter
+trio unchanged. As with other randomiser options, the first successful
+generation locks configuration. Enable this on a fresh new-game setup.
 
 **Wild Variety: UNIQUE AREA** allocates different replacements for different
 native species within the same **map and encounter method** where possible.
@@ -113,8 +134,8 @@ on source key, original Pokémon, settings, seed, algorithm, and ROM data.
   rewrite the same sources until their precedence is tested.
 - Randomised trainer teams keep their authored moves and items; abilities
   and stat creation stay under the engine's native construction.
-- Randomisation of scripted wilds, static legendaries, gifts, starter
-  selection and rival-starter lineage requires further native integration.
+- Randomisation of scripted wilds, static legendaries, ordinary gifts
+  and later evolved rival-starter lineage requires further native integration.
 - There is currently no safe mid-run configuration reset/migration.
 - This is an experimental native-Gen 3 feature. Gen 1/2 paths are unchanged.
 
@@ -196,6 +217,19 @@ Check Untamed's ordinary chain shinies still behave normally.
 
 ## ROM regression checklist (back-up/disposable save)
 
+- [ ] **S01:** Start a *fresh* FRLG save with Random Starters ON.
+      Oak's lab selection and the acquired starter must be the same
+      replacement (including correct species, stats and starting moves).
+- [ ] **S02:** On a fresh Ruby, Sapphire and Emerald save, the three
+      bag labels, portraits, cries and actual starter must match.
+      Reject a starter choice and reselect: it must not reroll.
+- [ ] **S03:** Verify the first single-Pokémon rival battle uses the
+      appropriate random starter, even with Random Trainers OFF.
+      Later rival evolutions are still native pending lineage support.
+- [ ] **S04:** Repeat with fixed seed, with STARTER BALANCE SIM BST,
+      and with an empty/restricted pool. Other gifts must be unchanged.
+- [ ] **S05:** With Random Starters OFF, verify all native starting
+      Pokémon and opening rival teams remain unchanged.
 - [ ] **R01:** With Nuzlocke OFF but Random Wild ON and seed 12345678,
       encounter a wild Pokémon. Verify a safe replacement with original
       encounter level, ball/catch handling and item metadata.

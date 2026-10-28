@@ -7,6 +7,8 @@ return function()
     local definitions = {
         random_encounter_tables = { kind="boolean", default=false },
         random_trainers = { kind="boolean", default=false },
+        random_starter = { kind="boolean", default=false },
+        random_starter_balance = { kind="number", default=0, min=0, max=1 },
         randomizer_seed = { kind="number", default=0, min=0, max=MAX_SEED },
         random_encounter_balance = { kind="number", default=0, min=0, max=1 },
         -- Preserve a distinct replacement per native wild source within
@@ -53,6 +55,8 @@ return function()
         -- Before the first generated result there are no authoritative
         -- assignments. Changing setup options must not retain stale slots.
         r.encounterAssignments = nil
+        r.starterOptions = nil
+        r.starterSource = nil
         if key == "randomizer_preset" then
             r.randomizer_preset = value
             if value ~= 0 then
@@ -168,6 +172,50 @@ return function()
         end
         return pool
     end
+    -- Roll three distinct starter choices as a single transaction. Native
+    -- ROM starter indices remain untouched, preserving story/rival variables.
+    -- The result is saved and shared by the chooser, gift and first rival.
+    function M.starters(s, Pokemon, source, originals, entropy, denyNational)
+        local r = state(s)
+        if not r.random_starter or type(source) ~= "string"
+            or (source ~= "frlg" and source ~= "rse")
+            or type(originals) ~= "table" or #originals ~= 3 then
+            return nil
+        end
+        if type(r.starterOptions) == "table" then
+            if r.starterSource ~= source or #r.starterOptions ~= 3 then
+                return nil
+            end
+            local choices = {}
+            for i = 1, 3 do
+                local id = tonumber(r.starterOptions[i])
+                if not id or not eligiblePokemon(Pokemon, id) then return nil end
+                choices[i] = id
+            end
+            return choices
+        end
+        local chosen, used = {}, {}
+        local seed = M.seed(s, entropy)
+        if seed == 0 then return nil end
+        for i = 1, 3 do
+            local original = originals[i]
+            -- No partial trio: a missing legal choice leaves all three
+            -- native rather than displaying a replacement we cannot give.
+            local legal = candidates(Pokemon, original,
+                r.random_species_generation, r.random_starter_balance,
+                denyNational, used)
+            if not legal or #legal == 0 then return nil end
+            local index = 1 + M.hash(M.algorithm, seed, "STARTERS",
+                source, i, original) % #legal
+            chosen[i] = legal[index].id
+            used[chosen[i]] = true
+        end
+        r.starterOptions = chosen
+        r.starterSource = source
+        r.used = true
+        return { chosen[1], chosen[2], chosen[3] }
+    end
+
     function M.replace(s, Pokemon, source, sourceId, original, entropy,
         denyNational, excluded, wildScope, wildSlot)
         local r = state(s)

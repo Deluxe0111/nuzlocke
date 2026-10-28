@@ -194,6 +194,138 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         return result, name
     end
 
+    -- The RSE bag chooser reads StarterChoose.species() for its label,
+    -- portrait, cry AND FieldRse.giveStarter(). Override that resolver,
+    -- not the ROM starter manifest, to keep its three options consistent.
+    -- FRLG instead asks GetStarterSpecies before its scripted givemon.
+    local nativeRseStarterSpecies
+    local function starterChoices(source, originals)
+        local saved = loadState()
+        if not Randomizer.get(saved, "random_starter") then return nil end
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return nil end
+        local already = Randomizer.locked(saved)
+        local choices = Randomizer.starters(saved, Pokemon, source,
+            originals, function() return math.random(1, 99999999) end,
+            function(national)
+                return Core.active(saved)
+                    and CatchRules.isBannedNational(saved, national)
+            end)
+        if choices then
+            if not already then
+                Notices.add(saved, "RANDOMIZER_LOCK",
+                    "Starter choices fixed for this run; randomiser locked.")
+            end
+            writeState(saved)
+        end
+        return choices
+    end
+    local FRLG_STARTERS = { 1, 7, 4 } -- Bulbasaur, Squirtle, Charmander
+    local function isOakLab()
+        local native = session()
+        local map = tostring(native and native.map or ""):upper()
+        return map:find("OAK", 1, true) ~= nil
+            and map:find("LAB", 1, true) ~= nil
+    end
+    local function installStarterResolvers()
+        local okR, Chooser = pcall(require, "src.ui.game3.rse.starter_choose")
+        if okR and type(Chooser) == "table"
+            and type(Chooser.species) == "function"
+            and Chooser.__nuzGen3StarterOwner ~= mod then
+            local original = Chooser.species
+            nativeRseStarterSpecies = original
+            Chooser.species = function(man, selection)
+                local base = original(man, selection)
+                if base == nil then return base end
+                local manifest = man or (type(Chooser.manifest) == "function"
+                    and Chooser.manifest())
+                local list = manifest and manifest.species
+                if type(list) ~= "table" or #list ~= 3 then return base end
+                local choices = starterChoices("rse", list)
+                local index = tonumber(selection)
+                return choices and index and choices[index + 1] or base
+            end
+            Chooser.__nuzGen3StarterOwner = mod
+        end
+        local okF, Queries = pcall(require,
+            "src.core.game3.scripting.natives_queries")
+        local byName = okF and type(Queries) == "table"
+            and Queries.BY_NAME or nil
+        if type(byName) == "table"
+            and type(byName.GetStarterSpecies) == "function"
+            and Queries.__nuzGen3StarterOwner ~= mod then
+            local original = byName.GetStarterSpecies
+            byName.GetStarterSpecies = function(ctx, ...)
+                local status, species = original(ctx, ...)
+                if not isOakLab() then return status, species end
+                local choices = starterChoices("frlg", FRLG_STARTERS)
+                if choices then
+                    for i, base in ipairs(FRLG_STARTERS) do
+                        if species == base then return status, choices[i] end
+                    end
+                end
+                return status, species
+            end
+            Queries.__nuzGen3StarterOwner = mod
+        end
+    end
+    installStarterResolvers()
+    -- FRLG's givemon script is the acquisition boundary; only the three
+    -- Oak-lab starter species are eligible. Every other gift stays native.
+    mod.events:on("pokemon.before_give", function(gift)
+        if type(gift) ~= "table" or not isOakLab() then return end
+        local native = session()
+        if type(native) ~= "table" or #(native.party or {}) ~= 0 then return end
+        local source = tonumber(gift.speciesId)
+        local choices = starterChoices("frlg", FRLG_STARTERS)
+        if not choices then return end
+        for i, original in ipairs(FRLG_STARTERS) do
+            if source == original then
+                gift.species = choices[i] -- native before_give accepts IDs
+                return
+            end
+        end
+    end)
+
+    local FIRST_RIVALS_FRLG = { [326]=true, [327]=true, [328]=true }
+    local FIRST_RIVALS_RSE = {
+        [520]=true, [523]=true, [526]=true,
+        [529]=true, [532]=true, [535]=true,
+    }
+    local function firstRivalStarter(trainerId, sourceSpecies)
+        local native = session()
+        local edition = tostring(native and
+            (native.version or native.edition or native.gameId) or ""):lower()
+        local isFrlg = edition == "firered" or edition == "leafgreen"
+        local isRse = edition == "ruby" or edition == "sapphire"
+            or edition == "emerald"
+        local id = tonumber(trainerId)
+        if not id or not ((isFrlg and FIRST_RIVALS_FRLG[id])
+            or (isRse and FIRST_RIVALS_RSE[id])) then return nil end
+        local saved = loadState()
+        local rng = saved.randomizer
+        if type(rng) ~= "table" or not rng.random_starter
+            or type(rng.starterOptions) ~= "table" then return nil end
+        local source = isFrlg and "frlg" or "rse"
+        if rng.starterSource ~= source then return nil end
+        local originals = isFrlg and FRLG_STARTERS or nil
+        if isRse then
+            local ok, Chooser = pcall(require,
+                "src.ui.game3.rse.starter_choose")
+            local manifest = ok and type(Chooser) == "table"
+                and type(Chooser.manifest) == "function"
+                and Chooser.manifest() or nil
+            originals = manifest and manifest.species
+        end
+        if type(originals) ~= "table" then return nil end
+        for i, original in ipairs(originals) do
+            if tonumber(sourceSpecies) == tonumber(original) then
+                return rng.starterOptions[i]
+            end
+        end
+        return nil
+    end
+
     mod.hooks:wrap("encounter.species", function(next, encounter, ctx)
         local base = next(encounter, ctx)
         if type(base) ~= "table" or not ctx
@@ -331,6 +463,10 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
         local result, changed = {}, false
         local unique = Randomizer.get(loadState(), "random_trainer_diversity") == 1
+        -- Only the first one-Pokemon rival battle uses a native starter
+        -- substitution. Later evolved teams need explicit lineage handling.
+        local firstRival = #original == 1 and firstRivalStarter(trainerId,
+            original[1] and (original[1].speciesId or original[1].species))
         local selected = {}
         for i, member in ipairs(original) do
             local newMember = {}
@@ -339,8 +475,20 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 .. tostring(trainerId) .. ":" .. tostring(i)
                 .. ":" .. tostring(member.speciesId or member.species or "")
             local sourceSpecies = member.speciesId or member.species
-            local id, name = randomSpecies("TRAINERS", key, sourceSpecies,
-                unique and selected or nil)
+            local id, name
+            if i == 1 and firstRival then
+                id = firstRival
+                local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+                if ok then
+                    local good, label = pcall(Pokemon.keyName, id)
+                    if good then name = label end
+                end
+                if not name then id = nil end
+            end
+            if not id then
+                id, name = randomSpecies("TRAINERS", key, sourceSpecies,
+                    unique and selected or nil)
+            end
             if not id and unique then
                 -- A tiny filtered pool may lack an unused candidate. Keep
                 -- native randomisation rather than deleting a team member.

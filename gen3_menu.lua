@@ -633,6 +633,11 @@ return function(mod, api)
             "CUSTOM", "CHAOS", "BALANCED" })
         toggle("random_encounter_tables", "RANDOM WILD")
         toggle("random_trainers", "RANDOM TRAINERS")
+        toggle("random_starter", "RANDOM STARTERS")
+        if config.get("random_starter") then
+            cycle("random_starter_balance", "STARTER BALANCE",
+                { "CHAOS", "SIM BST" })
+        end
         if config.get("random_encounter_tables") then
             cycle("random_encounter_balance", "WILD BALANCE",
                 { "CHAOS", "SIM BST" })
@@ -646,7 +651,8 @@ return function(mod, api)
                 { "NORMAL", "UNIQUE TEAM" })
         end
         if config.get("random_encounter_tables")
-            or config.get("random_trainers") then
+            or config.get("random_trainers")
+            or config.get("random_starter") then
             cycle("random_species_generation", "SPECIES POOL",
                 { "ALL", "KANTO", "JOHTO", "HOENN" })
         end
@@ -669,6 +675,7 @@ return function(mod, api)
                     random_species_generation=true,
                     random_trainer_diversity=true,
                     random_encounter_repetition=true,
+                    random_starter=true, random_starter_balance=true,
                 }
                 for _, def in ipairs(cat.rules) do
                     local key, label = def[1], def[2]
