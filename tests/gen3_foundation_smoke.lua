@@ -95,8 +95,15 @@ local function openMenu()
     local model = mod.exports.gen3_menu.model()
     assert(model.title == "NUZ MENU", "menu opens home")
     assert(model.rows[1] == "NUZ RULES", "implemented rules have no WIP label")
-    assert(model.rows[3] == "NUZ STATUS", "functional status unflagged")
-    assert(model.rows[5] == "[Soon] ALMANAC", "absent feature marked Soon")
+    assert(model.rows[3] == "RUN JOURNAL",
+        "run recap and messages share one clear destination")
+    assert(model.rows[5] == "[Soon] MOD COMPAT",
+        "unimplemented Mod Compat remains a separate placeholder")
+    for _,label in ipairs(model.rows) do
+        assert(label~="NUZ NOTICES" and not label:find("ALMANAC",1,true)
+            and label~="NUZ STATUS",
+            "old duplicate navigation rows must be removed")
+    end
 end
 local function toggle(expectBefore, expectAfter)
     openMenu()
@@ -178,17 +185,28 @@ assert(nativeBattleMessages[#nativeBattleMessages]:find("encounter already used"
     "blocked Poke Ball explanation should appear in native battle text")
 fire("battle.ended")
 openMenu()
-assert(mod.exports.gen3_menu.model().rows[10] == "NUZ NOTICES")
-for _ = 1, 9 do press("down") end
-press("a") -- NUZ NOTICES
-assert(mod.exports.gen3_menu.model().title == "NUZ NOTICES")
-assert(mod.exports.gen3_menu.model().rows[1] == "CATCH_DENIED",
-    "latest rule outcome available in history")
+press("down");press("down");press("a") -- RUN JOURNAL
+local journal=mod.exports.gen3_menu.model()
+assert(journal.title=="RUN JOURNAL"
+    and journal.rows[1]=="RUN: ACTIVE"
+    and journal.rows[3]=="AREAS USED: 1"
+    and journal.rows[4]=="AREA CATCHES: 1"
+    and journal.rows[5]=="FALLEN: 0",
+    "journal should present live run stats from existing records")
+for _=1,6 do press("down") end
+assert(mod.exports.gen3_menu.model().rows[7]:find("EVENT HISTORY:",1,true))
 press("a")
-assert(mod.exports.gen3_menu.model().title == "NUZ NOTICE")
-assert(#mod.exports.gen3_menu.model().rows > 1,
+assert(mod.exports.gen3_menu.model().title=="EVENT HISTORY")
+assert(mod.exports.gen3_menu.model().rows[1]=="CATCH DENIED",
+    "existing saved notices are accessible with readable labels")
+press("a")
+assert(mod.exports.gen3_menu.model().title=="JOURNAL ENTRY")
+assert(#mod.exports.gen3_menu.model().rows>1,
     "long player-facing reason must wrap over multiple rows")
-press("b"); press("b"); press("b")
+press("b");press("b")
+assert(mod.exports.gen3_menu.model().title=="RUN JOURNAL",
+    "back returns to journal, not a second message-history root")
+press("b");press("b")
 game.session.map = "FR_ROUTE_2"
 fire("map.entered", { mapId = "FR_ROUTE_2" })
 local newAreaBattle = {}
