@@ -52,6 +52,14 @@ package.loaded["src.import.gba.map_sections_extract"]={
         name=map=="FR_ROUTE_1" and "ROUTE 1" or tostring(map),
     } end,
 }
+local nativeRods,nativeFishingRolls=0,0
+local nativeField={
+    startFishing=function() nativeRods=nativeRods+1;return true end,
+    tryFishingEncounter=function()
+        nativeFishingRolls=nativeFishingRolls+1;return true
+    end,
+}
+package.loaded["src.core.game3.field"]=nativeField
 local g={generation=3,session={version="firered",map="FR_ROUTE_1",
     party={{species=25,personality=10,level=9,hp=35}},flags={}}}
 local stack={}
@@ -94,7 +102,8 @@ local function battle(species, shiny, options)
     options=options or {}
     local mon={species=species or 16,isShiny=shiny==true,
         personality=shiny and 77 or 1}
-    local b={enemy={mon=mon}}
+    local b={enemy={mon=mon},wildScripted=options.wildScripted,
+        legendary=options.legendary,roamer=options.roamer}
     ev("battle.started",{battle=b,kind="wild",speciesId=species or 16})
     return b,mon
 end
@@ -261,7 +270,56 @@ assert(caught and nativeCalls==1,
 ev("battle.ended",{battle=validBattle,result="run"})
 assert(catch.setRule("ban_pseudos",false))
 assert(catch.setRule("maximum_bst",0))
+-- Native field rods are guarded before they can open their fishing task.
+assert(catch.setRule("no_fishing",true))
+map("FR_TEST_FISHING")
+assert(nativeField.startFishing(0)==false and nativeRods==0,
+    "No Fishing must refuse rod use before the native animation starts")
+assert(nativeField.tryFishingEncounter(0)==false and nativeFishingRolls==0,
+    "a direct fishing roll cannot bypass the field rod restriction")
+assert(mod.exports.gen3_notices.history()[#mod.exports.gen3_notices.history()].code
+    =="NO_FISHING","fishing refusal must be visible in Nuzlocke notices")
+assert(catch.setRule("no_fishing",false))
+assert(nativeField.startFishing(0)==true and nativeRods==1)
+assert(nativeField.tryFishingEncounter(0)==true and nativeFishingRolls==1)
+
+-- Native static encounters are identified from battle-state flags, not
+-- from species alone (a randomised normal wild can roll the same species).
+assert(catch.setRule("no_static_encounters",true))
+map("FR_TEST_STATIC_BANS")
+local staticBattle,staticMon=battle(25,false,{wildScripted=true})
+caught,shakes,nativeCalls=ball(staticBattle,staticMon)
+assert(not caught and shakes==0 and nativeCalls==0,
+    "scripted wild Pokemon cannot be captured")
+local staticArea=values.gen3_classic_v1.areas.FR_TEST_STATIC_BANS
+assert(not staticArea or not staticArea.spent,
+    "disallowed static wild must not consume the route encounter")
+assert(battleText[#battleText]:find("No Static",1,true),
+    "native static capture rejection must explain why")
+ev("battle.ended",{battle=staticBattle,result="run"})
+local ordinaryBattle,ordinaryMon=battle(25,false)
+caught,shakes,nativeCalls=ball(ordinaryBattle,ordinaryMon)
+assert(caught and nativeCalls==1,
+    "No Static must not block ordinary wild Pokemon")
+ev("battle.ended",{battle=ordinaryBattle,result="run"})
+map("FR_TEST_LEGENDARY_STATIC")
+local legendaryBattle,legendaryMon=battle(25,false,{legendary=true})
+caught,shakes,nativeCalls=ball(legendaryBattle,legendaryMon)
+assert(not caught and nativeCalls==0,
+    "native static legendary flag must block capture")
+ev("battle.ended",{battle=legendaryBattle,result="run"})
+map("FR_TEST_ROAMER_EXEMPT")
+local roamerBattle,roamerMon=battle(25,false,{legendary=true,roamer=true})
+caught,shakes,nativeCalls=ball(roamerBattle,roamerMon)
+assert(caught and nativeCalls==1,
+    "roaming wilds are not classified as fixed static encounters")
+ev("battle.ended",{battle=roamerBattle,result="run"})
+assert(catch.setRule("no_static_encounters",false))
+assert(catch.setRule("no_fishing",true))
 assert(core.setRule("nuzlocke_enabled",false))
+assert(nativeField.startFishing(0)==true and nativeRods==2,
+    "master OFF must restore native rod use")
+assert(catch.setRule("no_fishing",false))
 assert(styles.setRule("shiny_nuzlocke",true),
     "restore initial playstyle state for existing menu regression")
 
@@ -354,8 +412,10 @@ for i, name in ipairs(expectedAdvanced) do
         assert(child.rows[3]=="No Legendaries: OFF"
             and child.rows[4]=="No Mythicals: OFF"
             and child.rows[5]=="No Pseudos: OFF"
+            and child.rows[6]=="No Static Enc: OFF"
+            and child.rows[7]=="No Fishing: OFF"
             and child.rows[12]=="Maximum BST: OFF",
-            "four native catch rules must have working switches")
+            "six native catch rules must have working switches")
         -- Check live toggle without altering the unsupported first row.
         press("down");press("down");press("a")
         assert(mod.exports.gen3_menu.model().rows[3]=="No Legendaries: ON"
