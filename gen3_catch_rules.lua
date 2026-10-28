@@ -26,6 +26,12 @@ return function()
           default = 0, kind = "slot" },
         { key = "maximum_bst", label = "Maximum BST",
           default = 0, kind = "cycle" },
+        { key = "pkmn_ban", label = "PKMN BAN",
+          default = 0, kind = "picker" },
+        { key = "colorlocke_mode", label = "Colorlocke",
+          default = 0, kind = "color_mode" },
+        { key = "colorlocke_color", label = "Color",
+          default = 1, kind = "color" },
         { key = "alphabetlocke_mode", label = "Alphabetlocke",
           default = 0, kind = "alphabet_mode" },
         { key = "alphabetlocke_letter", label = "Letter",
@@ -35,6 +41,23 @@ return function()
     }
     -- 0 = unlimited. Explicit presets keep the 240x160 menu compact.
     local BST_LIMITS = { 0, 300, 350, 400, 450, 500, 550, 600, 650, 700 }
+    -- Canonical Gen 1-3 National Dex species colors; source:
+    -- PokeAPI species color IDs (1 BLACK, 2 BLUE, 3 BROWN, 4 GRAY,
+    -- 5 GREEN, 6 PINK, 7 PURPLE, 8 RED, 9 WHITE, A YELLOW).
+    -- These are species identity colors, NOT drawable/shiny palettes.
+    local CANONICAL_COLORS=table.concat({
+        "5558882225593AA333733377AAAA222777663A6677228887733AAA2333322233",
+        "344455522333AA66443339977777774AA88886A333367744623228837658A833",
+        "822732A862233712AA22376555AAA22233338858722A66995596A522356527AA",
+        "8227116412A47A746748A2133883364887411224839736A866A3254598555588",
+        "8222443989A75555333229A99922353934A3622A3246771444285AAA47557822",
+        "2A83173355552291A84288317544364511115292442222264629222232482285",
+        "A8",
+    })
+    local COLOR_NAMES={"BLACK","BLUE","BROWN","GRAY","GREEN",
+        "PINK","PURPLE","RED","WHITE","YELLOW"}
+    local COLOR_IDS={}
+    for i,name in ipairs(COLOR_NAMES) do COLOR_IDS[name]=i end
     local byKey = {}
     for _, rule in ipairs(RULES) do byKey[rule.key] = rule end
     local function asState(s)
@@ -49,20 +72,55 @@ return function()
         end
         return copy
     end
+    local function banSet(s)
+        local rules=asState(s)
+        if type(rules.bannedNational)~="table" then
+            rules.bannedNational={}
+        end
+        return rules.bannedNational
+    end
+    function M.banCount(s)
+        local count=0
+        for i=1,386 do
+            if banSet(s)[tostring(i)]==true then count=count+1 end
+        end
+        return count
+    end
+    function M.isBannedNational(s,nat)
+        local n=tonumber(nat)
+        return n and n==math.floor(n) and n>=1 and n<=386
+            and banSet(s)[tostring(n)]==true or false
+    end
+    function M.toggleNational(s,nat)
+        local n=tonumber(nat)
+        if type(s)~="table" then return false,"invalid_state" end
+        if s.failed then return false,"run_failed" end
+        if not n or n~=math.floor(n) or n<1 or n>386 then
+            return false,"invalid_national_dex"
+        end
+        local bans=banSet(s)
+        local key=tostring(n)
+        if bans[key]==true then bans[key]=nil else bans[key]=true end
+        return true
+    end
     function M.get(s, key)
         local d = byKey[key]
         if not d then return nil end
         local rules = asState(s)
         local v = rules[key]
+        if d.kind=="picker" then return M.banCount(s) end
         if d.kind == "toggle" then
             if type(v)=="boolean" then return v end
             return d.default
-        elseif d.kind == "alphabet_mode" then
+        elseif d.kind == "alphabet_mode" or d.kind=="color_mode" then
             return type(v)=="number" and v==math.floor(v)
                 and v>=0 and v<=2 and v or d.default
         elseif d.kind == "letter" then
             return type(v)=="number" and v==math.floor(v)
                 and v>=1 and v<=26 and v or d.default
+        elseif d.kind == "color" then
+            return type(v)=="number" and v==math.floor(v)
+                and v>=1 and v<=10 and v or d.default
         elseif d.kind == "slot" then
             return (v==0 or v==1) and v or d.default
         end
@@ -76,14 +134,18 @@ return function()
         if not d then return false, "not_implemented" end
         if type(s)~="table" then return false,"invalid_state" end
         if s.failed then return false, "run_failed" end
+        if d.kind=="picker" then return false,"use_species_picker" end
         if d.kind == "toggle" then
             if type(value) ~= "boolean" then return false, "boolean_required" end
-        elseif d.kind == "alphabet_mode" then
+        elseif d.kind == "alphabet_mode" or d.kind=="color_mode" then
             if type(value)~="number" or value~=math.floor(value)
                 or value<0 or value>2 then return false,"invalid_mode" end
         elseif d.kind == "letter" then
             if type(value)~="number" or value~=math.floor(value)
                 or value<1 or value>26 then return false,"invalid_letter" end
+        elseif d.kind=="color" then
+            if type(value)~="number" or value~=math.floor(value)
+                or value<1 or value>10 then return false,"invalid_color" end
         elseif d.kind == "slot" then
             if value~=0 and value~=1 then return false,"invalid_slot" end
         else
@@ -96,8 +158,9 @@ return function()
         local rules=asState(s)
         rules[key] = value
         if key=="alphabetlocke_mode" then
-            -- A new mode selection starts its own randomly chosen letter.
             rules.alphabetlocke_random_letter=nil
+        elseif key=="colorlocke_mode" then
+            rules.colorlocke_random_color=nil
         end
         return true
     end
@@ -107,8 +170,11 @@ return function()
         local current=M.get(s,key)
         if d.kind=="toggle" then return not current end
         if d.kind=="cycle" then return M.nextBst(current) end
-        if d.kind=="alphabet_mode" then return (current+1)%3 end
+        if d.kind=="alphabet_mode" or d.kind=="color_mode" then
+            return (current+1)%3
+        end
         if d.kind=="letter" then return (current%26)+1 end
+        if d.kind=="color" then return (current%10)+1 end
         if d.kind=="slot" then return 1-current end
         return nil
     end
@@ -118,6 +184,17 @@ return function()
         local v=M.get(s,key)
         if d.kind=="toggle" then return v and "ON" or "OFF" end
         if d.kind=="cycle" then return v==0 and "OFF" or tostring(v) end
+        if d.kind=="picker" then return tostring(v).." BANNED" end
+        if d.kind=="color" then return COLOR_NAMES[v] end
+        if d.kind=="color_mode" then
+            if v==1 then
+                local chosen=asState(s).colorlocke_random_color
+                if type(chosen)=="number" and COLOR_NAMES[chosen] then
+                    return "RND:"..COLOR_NAMES[chosen]
+                end
+            end
+            return ({"OFF","RANDOM","CHOOSE"})[v+1]
+        end
         if d.kind=="alphabet_mode" then
             if v==1 then
                 local chosen=asState(s).alphabetlocke_random_letter
@@ -314,6 +391,63 @@ return function()
         if type(v)=="number" and v>=1 and v<=26 then return v end
         return nil
     end
+    local function colorId(species,pokemon)
+        local id=resolvedId(species,pokemon)
+        if not id then return nil end
+        -- Valid mod-provided color metadata takes priority if explicitly
+        -- present. Other custom species fail open, never infer sprite color.
+        if pokemon and type(pokemon.speciesMeta)=="function" then
+            local ok,meta=pcall(pokemon.speciesMeta,id)
+            if ok and type(meta)=="table" then
+                if type(meta.color)=="string" then
+                    local chosen=COLOR_IDS[meta.color:upper()]
+                    if chosen then return chosen end
+                end
+                if type(meta.bodyColor)=="number"
+                    and meta.bodyColor>=0 and meta.bodyColor<=9 then
+                    local native={8,2,10,5,1,3,7,4,9,6}
+                    return native[meta.bodyColor+1]
+                end
+            end
+        end
+        local nat=nationalId(id,pokemon)
+        if not nat or nat<1 or nat>386 then return nil end
+        local c=CANONICAL_COLORS:sub(nat,nat)
+        return c=="A" and 10 or tonumber(c)
+    end
+    M.colorId=colorId
+    function M.prepareColor(s,pokemon,seed)
+        if M.get(s,"colorlocke_mode")~=1 then return false end
+        local rules=asState(s)
+        if type(rules.colorlocke_random_color)=="number"
+            and COLOR_NAMES[rules.colorlocke_random_color] then
+            return false
+        end
+        if not pokemon or type(pokemon.speciesFromNational)~="function"
+            then return false end
+        local seen,colors={},{}
+        for nat=1,386 do
+            local ok,id=pcall(pokemon.speciesFromNational,nat)
+            local c=ok and colorId(id,pokemon) or nil
+            if c and not seen[c] then seen[c]=true end
+        end
+        for i=1,10 do if seen[i] then colors[#colors+1]=i end end
+        if #colors==0 then return false end
+        local fingerprint=tostring(seed or "GEN3")
+        local hash=5381
+        for i=1,#fingerprint do
+            hash=(hash*33+fingerprint:byte(i))%2147483647
+        end
+        rules.colorlocke_random_color=colors[hash%#colors+1]
+        return true
+    end
+    function M.selectedColor(s,pokemon,seed)
+        local mode=M.get(s,"colorlocke_mode")
+        if mode==0 then return nil end
+        if mode==2 then return M.get(s,"colorlocke_color") end
+        M.prepareColor(s,pokemon,seed)
+        return asState(s).colorlocke_random_color
+    end
     function M.isGlitch(species,pokemon)
         local id=resolvedId(species,pokemon)
         -- The catch-rate hook may lack a species ID even for a valid wild.
@@ -345,6 +479,10 @@ return function()
         local id=resolvedId(species,pokemon)
         local national=nationalId(id,pokemon)
         if national then
+            if M.isBannedNational(s,national) then
+                return false,"PKMN BAN: species #"
+                    ..string.format("%03d",national).." is banned."
+            end
             if M.get(s,"ban_legendaries") and LEGENDARIES[national] then
                 return false, "No Legendaries: this Pokemon cannot be caught."
             end
@@ -353,6 +491,18 @@ return function()
             end
             if M.get(s,"ban_pseudos") and PSEUDOS[national] then
                 return false, "No Pseudos: this evolution family is banned."
+            end
+        end
+        if M.get(s,"colorlocke_mode")~=0 then
+            local required=M.selectedColor(s,pokemon,seed)
+            if not required then
+                return false,"Colorlocke: cannot select a valid color."
+            end
+            local actual=colorId(species,pokemon)
+            -- Non-native/provider species without color metadata fail open.
+            if actual and actual~=required then
+                return false,"Colorlocke: only "
+                    ..COLOR_NAMES[required].." Pokemon can be caught."
             end
         end
         local letter=M.selectedLetter(s,pokemon,seed)
