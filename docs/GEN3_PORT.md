@@ -78,9 +78,12 @@ state (outcome, playstyle, spent areas, area catches, deaths, shiny
 exceptions), opens the existing encounter/graveyard records and gives
 access to EVENT HISTORY with the latest 100 rule messages. Historical
 messages remain in the original `gen3_classic_v1.notices` save field;
-no save migration or duplicate data store is created. **MOD COMPAT**
-is still a separate [Soon] placeholder for selecting safe external
-mod ownership in the future.
+no save migration or duplicate data store is created. **MOD SUPPORT**
+is an active, read-only diagnostic screen for live Untamed detection,
+shiny-rate ownership and possible external randomiser overlap. Gen 3
+already composes its supported hooks automatically; unlike Gen 1/2,
+it does not implement per-capability ownership overrides, and a
+detected mod is not proof of combined-ROM compatibility.
 
 Feature availability and runtime certification are separate:
 a working toggle is not proof that every edition and edge case is tested.
