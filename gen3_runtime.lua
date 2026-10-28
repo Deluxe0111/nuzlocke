@@ -844,7 +844,8 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                     "src.core.game3.scripting.flags")
                 local Space=package.loaded["src.core.game3.scripting.space"]
                 if okF and Hardcore.gymLocked(saved,Core,from,
-                    Flags,Space and Space.store) then
+                    Flags,Space and Space.store,
+                    RunParty.get(saved,"gym_team_size")) then
                     notify("GYM_LOCK_IN",
                         "Gym Lock-In: defeat the Gym Leader before leaving.",
                         false)
