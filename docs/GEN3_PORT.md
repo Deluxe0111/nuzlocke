@@ -41,10 +41,10 @@ Advanced's wandering wild Pokémon use normal Nuzlocke catch/area
 logic without a separate switch. Six other advanced groups remain
 placeholders.
 See [Advanced Rules](GEN3_ADVANCED_RULES.md) for enforcement and tests.
-**BATTLE CLAUSES** now exposes Flinch, Trap, No Setup Moves, Evasion
-Clause, Accuracy Drops and Other Stat Drops as six working effect-level
-restrictions (see [Battle Clauses](GEN3_BATTLE_CLAUSES.md)).
-OHKO Clause remains [Soon].
+**BATTLE CLAUSES** implements OHKO Clause (ON/OFF for both sides)
+at the native OHKO accuracy boundary, as well as Flinch, Trap,
+No Setup Moves, Evasion Clause, Accuracy Drops and Other Stat Drops
+(see [Battle Clauses](GEN3_BATTLE_CLAUSES.md)).
 **STATUS BANS** adds eight working controls (No Status Moves bulk parent,
 six individual status scopes and a separate ON/OFF Sleep Clause). The
 Sleep Clause tracks inflicted sleep across switches within the battle;
