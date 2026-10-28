@@ -51,7 +51,26 @@ nativePrinter.tick = function()
     end
 end
 package.loaded["src.ui.game3.rs.field_auto_scroll_message"] = nativePrinter
-local kit = { printer = function(_,opts) return opts end }
+local kit = { printer = function(_,opts)
+    return {
+        speed = opts.speed, state = "char", active = true, pos = 1,
+        render = function(self)
+            if self.pos < 4 then
+                self.pos = self.pos + 1
+                return "print"
+            end
+            self.state = "pause"
+            self.paused = 30
+            return "repeat"
+        end,
+        run = function(self)
+            if self.state == "pause" then
+                self.paused = self.paused - 1
+                if self.paused == 0 then self.state = "char" end
+            end
+        end,
+    }
+end }
 package.loaded["src.ui.game3.rse.scene_kit"] = kit
 local intro = { new = function() return {textSpeed=4} end }
 package.loaded["src.ui.game3.new_game_scene"] = intro
@@ -123,8 +142,13 @@ local before=msg.skips
 msg.advance()
 msg.tick()
 assert(msg.skips>=before+2,"new field pages must reveal in one frame")
-assert(kit.printer("intro",{speed=4}).speed==0,
-    "RSE cutscene printer must receive instant speed")
+local cutscene = kit.printer("intro",{speed=4})
+assert(cutscene.speed==0 and cutscene.state=="pause"
+    and cutscene.pos==4 and cutscene.paused==30,
+    "RSE cutscene glyphs reveal instantly but explicit pause survives")
+cutscene:run({})
+assert(cutscene.paused==29,
+    "RSE cutscene pause must advance only on a native printer frame")
 assert(intro.new().textSpeed==0,
     "FRLG Professor Oak scene must use instant printer speed")
 local prepared={task=0,mode=2,printer="begin",index=1,delay=0}
