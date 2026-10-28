@@ -2,7 +2,9 @@
 
 This beta brings the Nuzlocke rule system to Generation 3 (FireRed, LeafGreen, Ruby, Sapphire and Emerald), while retaining the legacy Gen 1/2 runtime.
 
-**Included:** eight CORE rules, Gen 3 encounter clauses, level caps and EXP Edging, reproducible wild and trainer randomisation, persistent rule notices, Graveyard, Nickname Tasks and Nuz Dev tools.
+**Included:** eight CORE rules, Gen 3 encounter clauses, level caps and EXP Edging, reproducible wild and trainer randomisation, **Shiny Nuzlocke** playstyle, persistent rule notices, Graveyard, Nickname Tasks and Nuz Dev tools.
+
+**Shiny Nuzlocke:** A new PLAYSTYLES option allows catches only of shiny wild Pokémon. Non-shiny encounters leave the route open; the first eligible shiny follows One Per Area and Failed Encounters. Shiny Rate remains independently configurable.
 
 **Untamed Advanced integration:** When both compatible mods are installed, Random Wild changes the visibly wandering Pokémon as well as normal wild/fishing encounters. The roaming sprite, battle and capture agree. Encounter-chain popups display the Pokémon actually defeated; the original encounter slot is used internally only for the bonus spawn source.
 
