@@ -3799,6 +3799,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     -- UI bridge. Keep API 2 for the mature Gen 1/2 code and use the native
     -- Game 3 stack in a mod-local isolated menu module instead.
     local Dev = readModule("gen3_dev.lua")({
+        archive = Archive,
         getState = loadState, setState = writeState,
         getCurrentArea = areaNow, getSession = session,
         inBattle = function() return battleInProgress end,
