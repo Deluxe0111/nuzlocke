@@ -20,8 +20,8 @@ return function(mod, api)
     -- A catalog row is not evidence of Gen 3 runtime support.
     local CATALOG = {
     { title = "CORE", rules = {{ "nuzlocke_enabled", "Nuzlocke" }, { "permadeath", "Permadeath" }, { "first_rival_forgiveness", "First Rival Mercy" }, { "encounter_limit", "One Per Area" }, { "failed_encounter", "Failed Encounters" }, { "nickname_rule", "Nickname" } } },
-    { title = "PLAYSTYLES", rules = {{ "shiny_nuzlocke", "Shiny Nuzlocke" }} },
     { title = "CLAUSES", rules = {{ "dupes_mode", "Dupes Clause" }, { "shiny_clause", "Shiny Clause" }, { "shiny_rate_mode", "Shiny Rate" }, { "gen3_roamer_clause", "Roamer Clause" }, { "gen3_egg_encounter_mode", "Egg Encounter" }, { "route_forgiveness", "Route Forgiveness" } } },
+    { title = "PLAYSTYLES", rules = {{ "shiny_nuzlocke", "Shiny Nuzlocke" }} },
     { title = "HARDCORE", rules = {{ "no_escape", "No Escape" }, { "whiteout_clause", "Whiteout" }, { "gym_lock_in", "Gym Lock-In" }, { "dungeon_lock_in", "Dungeon Lock-In" }, { "no_held_items", "No Held Items" } } },
     { title = "GAME DIFFICULTY", rules = {{ "difficulty_profile", "Game Difficulty" } } },
     { title = "RUN / PARTY", rules = {{ "gym_team_size", "Gym Team Size" }, { "party_size_limit", "Party Size Limit" }, { "evolution_limit", "Evolution Limits" } } },
