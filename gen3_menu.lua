@@ -54,7 +54,7 @@ return function(mod, api)
     { title = "POKEMON STATS", rules = {{ "player_start_stat_exp", "Player Stat EXP" }, { "wild_start_stat_exp", "Wild Stat EXP" }, { "trainer_start_stat_exp", "Trainer Stat EXP" }, { "no_player_stat_exp_gain", "No Stat EXP Gain" }, { "perfect_player_ivs", "Perfect Player IVs" }, { "perfect_wild_ivs", "Perfect Wild IVs" }, { "perfect_trainer_ivs", "Perfect Trainer IVs" } } },
     { title = "AREA SPLITS", rules = {{ "route_2_split", "Route 2" }, { "route_10_split", "Route 10" }, { "route_20_split", "Route 20" }, { "mt_moon_splits", "Mt. Moon" }, { "safari_zone_splits", "Safari Clause" }, { "gold_time_split", "Time Split" }, { "gold_headbutt_split", "Headbutt Split" } } },
     { title = "RANDOMIZER", rules = {{ "randomizer_preset", "Rndm Preset" }, { "randomizer_seed", "Rndm Seed" }, { "random_starter", "Rndm Strtr" }, { "random_starter_style", "Strtr Style" }, { "random_starter_balance", "Strtr Balance" }, { "random_starter_trio_typing", "Trio Typing" }, { "random_starter_rerolls", "Starter Rerolls" }, { "random_encounter_tables", "Random Encounters" }, { "random_field_items", "Random Field Items" }, { "random_field_item_balance", "Field Item Balance" }, { "random_field_item_repetition", "Field Item Repeats" }, { "random_encounter_balance", "Encounter Balance" }, { "random_encounter_repetition", "Encounter Repeats" }, { "random_encounter_diversity_strength", "Diversity Strength" }, { "randomizer_info_policy", "Randomizer Info" }, { "random_species_generation", "Species Pool" }, { "random_learnsets", "Random Learnsets" }, { "random_trainers", "Random Trainers" }, { "random_evolutions", "Random Evolutions" }, { "random_evolution_balance", "Evolution Balance" }, { "random_shops", "Random Shops" }, { "random_shop_balance", "Shop Balance" }, { "random_tms", "Random TMs" }, { "random_tm_compatibility", "TM Compatibility" }, { "random_tm_locations", "Random TM Locations" }, { "random_gift_items", "Random Gift Items" }, { "random_trainer_balance", "Trainer Balance" }, { "random_trainer_diversity", "Trainer Diversity" }, { "random_trainer_theme", "Trainer Theme" }, { "random_learnset_generation", "Learnset Gen" }, { "random_learnset_stab", "Learnset STAB" } } },
-    { title = "QOL", rules = {{ "progression_pc_catches", "PC-Only Catches" }, { "instant_text", "Instant Text" }, { "skip_cherrygrove_tour", "Skip Cherrygrove Tour" }, { "run_surf", "Run / Surf" }, { "unlimited_bag_space", "Unlimited Bag Space" }, { "trade_evolutions", "Trade Evolutions" }, { "system_clock_sync", "System Clock Sync" }, { "infinite_rare_candies", "Gym Guide Rare Candy" } } },
+    { title = "QOL", rules = {{ "instant_text", "Instant Text" }, { "run_surf", "Run / Surf" }, { "unlimited_bag_space", "Unlimited Bag Space" }, { "trade_evolutions", "Trade Evolutions" } } },
     { title = "QOL SETUP ONLY", rules = {{ "system_date_time", "System Date/Time" }, { "automatic_default_names", "Default Names" }, { "skip_opening_intro", "Skip Opening Intro" }, { "quick_nuzlocke_start", "Quick Nuzlocke Start" }, { "skip_catch_tutorial", "Skip Catch Demo" }, { "starting_pokeballs", "Starting Poke Balls" }, { "starting_rare_candies", "Starting Rare Candy" }, { "starting_money", "Starting Money" }, { "gold_starting_pokeballs", "Starting Poke Balls" }, { "gold_starting_rare_candies", "Starting Rare Candy" }, { "gold_starting_money", "Starting Money" }, { "pc_starting_heal_items", "Heal Loadout" }, { "pc_starting_vitamins", "PC Vitamins" } } },
     }
 
@@ -1267,8 +1267,6 @@ return function(mod, api)
         rows[#rows+1]=row("  DETAILS: QOL",nil,function()
             info("QOL HELP",{
                 "GEN 3 QOL",
-                "PC-ONLY CATCHES: WIP",
-                "ATOMIC STORAGE REQUIRED",
                 "INSTANT TEXT: FIELD",
                 "PAGE/CHOICE WAITS KEPT",
                 "RUN / SURF: OFF",
@@ -1284,8 +1282,6 @@ return function(mod, api)
                 "HELD ITEM STILL NEEDED",
                 "EVERSTONE RESPECTED",
                 "NO EVO RULE OVERRIDES",
-                "OTHER GEN1/2 OPTIONS",
-                "ARE NOT APPLICABLE",
                 "QOL WORKS WITH NUZ OFF",
             })
         end)
