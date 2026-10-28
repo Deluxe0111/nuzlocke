@@ -1476,6 +1476,13 @@ return function(mod)
         if alphabetSet or colorSet or typeSet then writeState(s) end
         local catchPermitted, bannedReason = CatchRules.check(s, species,
             okPokemon and Pokemon or nil, Core,catchSeed)
+        -- No Catching makes every wild ineligible, rather than letting
+        -- Failed Encounters spend a route that could never be caught.
+        local noCatchReason=BattleItemRules.catchDenial(s,Core,0)
+        if noCatchReason then
+            catchPermitted=false
+            bannedReason=noCatchReason
+        end
         local typePermitted,typeReason=Variants.check(s,species,
             okPokemon and Pokemon or nil,Core,catchSeed)
         if not typePermitted then
