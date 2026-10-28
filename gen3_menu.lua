@@ -117,6 +117,21 @@ return function(mod, api)
     end
 
     local function info(title, lines)
+        -- Lock denials are a deliberate, supported policy, never [Soon].
+        -- Most category setters pass their reason through this shared popup.
+        for _, message in ipairs(lines or {}) do
+            if message == "run_settings_locked" then
+                title = "SETTINGS LOCKED"
+                lines = {
+                    "LOCK FOR RUN IS ACTIVE",
+                    "RULES CANNOT BE CHANGED",
+                    "DURING THIS PLAYTHROUGH",
+                    "NEW GAME TO RECONFIGURE",
+                    "NO SETTINGS CHANGED",
+                }
+                break
+            end
+        end
         local rows = {}
         for _, label in ipairs(lines or {}) do
             rows[#rows + 1] = row(label, nil)
@@ -282,6 +297,8 @@ return function(mod, api)
                                 "DISABLE HARDCORE FIRST",
                                 "ORIGINAL RULE IS SAVED",
                             })
+                        elseif reason == "run_settings_locked" then
+                            info("SETTINGS LOCKED", { reason })
                         else
                             disabledFeature(label, key)
                         end
@@ -1826,18 +1843,18 @@ return function(mod, api)
 
     local function home()
         present("NUZ MENU", {
-            row("NUZ RULES", "wip", showRules),
-            row("ENC TRACKER", "wip", showTracker),
+            row("NUZ RULES", nil, showRules),
+            row("ENC TRACKER", nil, showTracker),
             row("NUZ STATUS", nil, showStatus),
-            row("GRAVEYARD", "wip", showGraveyard),
+            row("GRAVEYARD", nil, showGraveyard),
             row("ALMANAC", "soon", function()
                 disabledFeature("ALMANAC", "almanac")
             end),
             row("MOD COMPAT", "soon", function()
                 disabledFeature("MOD COMPAT", "compat")
             end),
-            row("NUZ DEV", "wip", showDevTools),
-            row("NICKNAME TASKS", "wip", showNicknameTasks),
+            row("NUZ DEV", nil, showDevTools),
+            row("NICKNAME TASKS", nil, showNicknameTasks),
             row("END RUN", "soon", function()
                 disabledFeature("END RUN", "end_run")
             end),
