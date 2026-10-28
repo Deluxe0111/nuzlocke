@@ -800,4 +800,24 @@ assert(tradedCalls==2
     and values.gen3_classic_v1.acquisitionHistory[
         #values.gen3_classic_v1.acquisitionHistory].slot=="BONUS")
 
+-- A scripted gift can be the FIRST eligible acquisition in RANDOM
+-- Alphabetlocke. Its chosen initial must be written into the save,
+-- not silently reselected when the first wild encounter later starts.
+local nativePokemon=package.loaded["src.core.game3.pokemon"]
+nativePokemon.speciesFromNational=function(nat)
+    return nat==25 and 25 or nil
+end
+nativePokemon.keyName=function(id)
+    return id==25 and "PIKACHU" or nil
+end
+assert(catchRules.setRule("alphabetlocke_mode",1))
+game.session.map="FR_ROUTE_24"
+fire("map.entered",{mapId="FR_ROUTE_24"})
+hooks["script.command"](nativeGift,c,"givemon",
+    {op="givemon",species=25,level=5})
+assert(values.gen3_classic_v1.catchRules.alphabetlocke_random_letter==16,
+    "first gift must persist its randomly chosen supported letter")
+assert(values.gen3_classic_v1.areas.FR_ROUTE_24.caught,
+    "allowed scripted gift commits its receipt map after selection")
+
 print("Gen3 experimental Nuzlocke smoke PASS")
