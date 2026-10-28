@@ -15,10 +15,10 @@ const checklist=read("docs/GEN3_TEST_CHECKLIST.md");
 check(manifest.version==="3.0.0-BETA","v3 manifest version drift");
 check(readme.includes("v3.0.0-BETA")&&notes.includes("v3.0.0-BETA")
   &&change.includes("## 3.0.0-BETA"),"v3 release identity must match");
-check(notes.indexOf("v3.0.0-BETA")<notes.indexOf("# Nuzlocke 2.9.72")
+check(notes.indexOf("v3.0.0-BETA")<notes.indexOf("# Nuzlocke 2.9.73")
   &&change.indexOf("## 3.0.0-BETA")<change.indexOf("## 2.9.72"),
   "v3 must be separate from preceding release notes");
-for(const old of ["2.9.72","2.9.71","2.9.70"]){
+for(const old of ["2.9.73","2.9.72","2.9.71","2.9.70"]){
   check(change.includes("## "+old),
       "historical changelog entry missing: "+old);
 }
