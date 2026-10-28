@@ -392,10 +392,32 @@ fire("battle.ended", { result = "lose" })
 assert(not values.gen3_classic_v1.failed,
     "whiteout OFF does not by itself end a surviving-party run")
 
--- Nuz Dev: a hidden, session-only key sequence with separate access
--- and mutation confirmations. No ordinary visible developer entry.
+-- Nuz Dev: SELECT held + A is the reliable native Input path
+-- (press edge rather than navigating the D-pad repeatedly). The
+-- eight-direction code is retained as an alternative. Neither may
+-- taint a run until an explicit activation confirmation.
+local function selectA()
+    assert(uiStack.top)
+    uiStack.top.module.handleInput({
+        isDown=function(_,key)return key=="select" end,
+        wasPressed=function(_,key)return key=="a" end,
+    })
+end
 openMenu()
 local taintedBefore=mod.exports.gen3_dev_info.status().tainted
+selectA()
+assert(mod.exports.gen3_menu.model().title=="DEV ACCESS"
+    and not mod.exports.gen3_dev_info.status().enabled
+    and mod.exports.gen3_dev_info.status().tainted==taintedBefore,
+    "SELECT+A on NUZ MENU must unlock access without modifying the run")
+press("down");press("a") -- Cancel
+assert(mod.exports.gen3_menu.model().title=="NUZ MENU")
+press("a") -- NUZ RULES
+selectA() -- SELECT+A may work as ordinary A but never unlock submenus
+assert(mod.exports.gen3_menu.model().title~="DEV ACCESS",
+    "SELECT+A must not open dev access on a submenu")
+press("b");press("b")
+assert(mod.exports.gen3_menu.model().title=="NUZ MENU")
 local sequence={"up","up","down","down","left","right","left","right"}
 for _,key in ipairs(sequence) do press(key) end
 assert(mod.exports.gen3_menu.model().title=="DEV ACCESS"
