@@ -518,7 +518,7 @@ local expectedMain={
     "CORE","CLAUSES","HARDCORE",
     "GAME DIFFICULTY","RUN / PARTY",
     "LEVELS","PLAYSTYLES","ADVANCED RULES",
-    "RANDOMIZER","QOL","[Soon] QOL SETUP ONLY",
+    "RANDOMIZER","QOL","QOL SETUP ONLY",
 }
 assert(mainRules.title=="NUZ RULES" and #mainRules.rows==#expectedMain)
 for i, label in ipairs(expectedMain) do
