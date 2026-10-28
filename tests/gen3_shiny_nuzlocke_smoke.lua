@@ -651,7 +651,7 @@ for i, name in ipairs(expectedAdvanced) do
             :find("[Soon] Time Split",1,true)
             and mod.exports.gen3_menu.model().rows[12]
             :find("[Soon] Headbutt",1,true))
-        press("down")
+        press("down");press("down")
         press("a")
         assert(mod.exports.gen3_menu.model().title=="AREA SPLITS HELP")
         press("b")
