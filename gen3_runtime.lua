@@ -2733,6 +2733,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 if not mon.nuzlockeDeathRecorded then
                     local entry = Display.memorial(mon, areaNow(),
                         "Fainted in battle")
+                    memorialShiny(mon,entry)
                     entry.archive, entry.archiveComplete = Archive.snapshot(mon)
                     s.graveyard[#s.graveyard + 1] = entry
                 end
@@ -2769,6 +2770,12 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
     end
 
+    local function memorialShiny(mon,entry)
+        local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
+        local flag=Results.shinyStatus(mon,ok and Pokemon or nil)
+        if flag~=nil then entry.isShiny=flag end
+    end
+
     local function recordBattleFaint(ev)
         if not Core.enforced(loadState(), "permadeath")
             or type(ev) ~= "table" then return end
@@ -2795,6 +2802,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         battler.mon.nuzlockeDead = true
         local s = loadState()
         local entry = Display.memorial(mon, areaNow(), "Fainted in battle")
+        memorialShiny(mon,entry)
         entry.archive = archived
         entry.archiveComplete = complete
         s.graveyard[#s.graveyard + 1] = entry

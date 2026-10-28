@@ -38,6 +38,10 @@ assert(failed.graveyard[1].shinyKnown==true
     and failed.graveyard[1].shiny==true,
     "archive isShiny flag must be kept, not lost as a missing shiny field")
 assert(Policy.shinyStatus({isShiny=false})==false)
+assert(Policy.shinyStatus({isShiny=true,shiny=false})==true)
+assert(Policy.shinyStatus({isShiny=true,
+    archive={species=4,personality=123,shiny=false}})==true,
+    "authoritative native isShiny should beat stale generic shiny fields")
 assert(Policy.shinyStatus({shiny=false})==false)
 assert(Policy.shinyStatus({species=4,personality=8})==nil,
     "without OT or an explicit flag shiny identity is unknown")

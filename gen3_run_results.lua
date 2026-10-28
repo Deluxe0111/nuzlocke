@@ -44,14 +44,12 @@ return function()
     function M.shinyStatus(mon,Pokemon)
         if type(mon)~="table" then return nil end
         local raw=type(mon.archive)=="table" and mon.archive or mon
-        for _,candidate in ipairs({raw,mon}) do
-            if type(candidate.isShiny)=="boolean" then
-                return candidate.isShiny
-            end
-            if type(candidate.shiny)=="boolean" then
-                return candidate.shiny
-            end
-        end
+        -- The native isShiny marker always wins over old generic
+        -- shiny flags, including if an archived battle copy differs.
+        if type(raw.isShiny)=="boolean" then return raw.isShiny end
+        if type(mon.isShiny)=="boolean" then return mon.isShiny end
+        if type(raw.shiny)=="boolean" then return raw.shiny end
+        if type(mon.shiny)=="boolean" then return mon.shiny end
         local pid=raw.personality or mon.personality
         local tid=raw.otId or raw.trainerId or mon.otId or mon.trainerId
         if pid==nil or tid==nil or type(Pokemon)~="table"
