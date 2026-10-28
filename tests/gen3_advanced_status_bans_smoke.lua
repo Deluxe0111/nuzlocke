@@ -23,10 +23,10 @@ assert(B.deny(s,"FREEZE","player",nil,Core))
 assert(not B.deny(s,"FREEZE","enemy",nil,Core))
 assert(not B.deny(s,"FLINCH","player",nil,Core),
     "No Status Moves parent is NOT an all-non-damaging-moves ban")
-local self={side="player"}, other={side="enemy"}
-assert(not B.deny(s,"SLEEP",self,self,Core),
+local ownMon={side="player"}, other={side="enemy"}
+assert(not B.deny(s,"SLEEP",ownMon,ownMon,Core),
     "self-induced Rest sleep is always allowed")
-assert(B.deny(s,"SLEEP",self,other,Core))
+assert(B.deny(s,"SLEEP",ownMon,other,Core))
 assert(B.set(s,"status_move_scope",2))
 assert(B.deny(s,"PSN","enemy",nil,Core))
 assert(not B.deny(s,"PSN","player",nil,Core))
