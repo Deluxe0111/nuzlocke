@@ -2,6 +2,21 @@
 
 **Version:** v3.0.0-BETA · **Menu:** Start → NUZ MENU → NUZ RULES → PLAYSTYLES
 
+The Playstyles menu contains only four rows, grouped into two adjacent
+toggle-and-details pairs:
+
+```text
+SHINY NUZ: ON/OFF
+  DETAILS: SHINY NUZ
+HARDCORE: ON/OFF
+  DETAILS: HARDCORE
+```
+
+Each DETAILS row opens a scrollable dedicated page containing the
+requirements, capture restrictions, exceptions, level/item limits
+and interoperability information for that playstyle. Press B to return
+to the same toggle/details position; the details pages are read-only.
+
 **SHINY NUZ** is an optional challenge variant. Default **OFF**. It is
 enforced only while **CORE → NUZLOCKE** is ON and the run is active.
 
