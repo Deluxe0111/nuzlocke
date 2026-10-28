@@ -1,7 +1,7 @@
 {
   "id": "nuzlocke",
   "name": "Nuzlocke",
-  "version": "2.9.72",
+  "version": "3.0.0-BETA",
   "api": 2,
   "entry": "entry.lua",
   "profile": "content",
@@ -20,6 +20,7 @@
     "gen1_modern_ui",
     "gen_2_randomizer_plus",
     "overworld_wild_spawns",
+    "untamed_advanced",
     "modern_party_ui",
     "delta_type",
     "dex_overflow",
@@ -57,7 +58,7 @@
     "HGSS_SPRITES"
   ],
   "conflicts": [],
-  "description": "Configurable Nuzlocke enforcement for Gen 1/2; experimental Gen 3 CORE and CLAUSES port with area restrictions, permadeath, Dupes and Shiny Catch exceptions.",
+  "description": "Configurable Nuzlocke challenge rules for Generations 1–3, with Gen 3 beta CORE, clauses, level caps, seeded randomiser and optional Untamed-Advanced overworld compatibility.",
   "github": "Deluxe0111/nuzlocke",
   "games": [
     "red",

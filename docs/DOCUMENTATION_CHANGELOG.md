@@ -1,3 +1,11 @@
+# 3.0.0-BETA
+
+- Replaced the historical 2.9.x README introduction with a concise Generation 1–3 v3 beta overview and linked the legacy guide/changelogs.
+- Reconciled Gen 3 implementation status, Randomiser, levels and player-feedback documentation; beta limitations remain explicit.
+- Added Untamed Advanced visible-wild compatibility to both projects' existing README structure and credited Deluxe0111 in Untamed's CREDITS.md.
+- Documented the randomised encounter-chain identity fix: public name uses the visible defeated species, internal repeated-spawn weighting uses the authored slot.
+- Updated packaging/release-version handling for the `3.0.0-BETA` manifest and `v3.0.0-BETA` prerelease tag.
+
 # 2.9.72
 
 - Documented Gen-II item-reference normalization, shop non-no-op selection, unified trainer tracing, and shiny private-image isolation.
