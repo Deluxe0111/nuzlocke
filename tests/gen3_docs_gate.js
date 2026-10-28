@@ -9,6 +9,7 @@ const readme=read("README.md");
 const change=read("CHANGELOG.md");
 const notes=read("RELEASE_NOTES.md");
 const credits=read("CREDITS.md");
+const card=read("mod.card");
 const matrix=read("docs/GEN3_FEATURE_MATRIX.md");
 const overview=read("docs/GEN3_PORT.md");
 const checklist=read("docs/GEN3_TEST_CHECKLIST.md");
@@ -23,7 +24,8 @@ for(const old of ["2.9.73","2.9.72","2.9.71","2.9.70"]){
       "historical changelog entry missing: "+old);
 }
 for(const contributor of ["bryanthaboi","Stone696","masterwebx","Deluxe0111"]){
-  check(credits.includes(contributor)&&readme.includes(contributor),
+  check(credits.includes(contributor)&&readme.includes(contributor)
+    &&card.includes(contributor),
       "missing contributor credit: "+contributor);
 }
 for(const group of ["Ported","Adapted","New v3"]){
@@ -32,6 +34,11 @@ for(const group of ["Ported","Adapted","New v3"]){
 check(readme.includes("FireRed")&&readme.includes("LeafGreen")
   &&readme.includes("Ruby")&&readme.includes("Sapphire")
   &&readme.includes("Emerald"),"incomplete Gen 3 edition declaration");
+check(card.includes('who = "Deluxe0111"')
+  &&card.includes('who = "Stone696"')
+  &&card.includes('who = "masterwebx"')
+  &&card.includes('who = "bryanthaboi"'),
+  "mod.card contributor metadata must preserve credits");
 check(overview.includes("RUN JOURNAL")&&overview.includes("MOD SUPPORT")
   &&checklist.includes("RUN JOURNAL"),"current navigation drift");
 check(!/^.*(?:six other advanced groups remain|three other advanced categories remain|PC Survivors Allowed is still \[Soon\]).*$/im.test(overview+"\n"+checklist),
