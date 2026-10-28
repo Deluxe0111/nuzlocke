@@ -1,49 +1,97 @@
-# Gen 3 port — experimental foundation
+# Generation 3 beta — implementation overview
 
-This branch does **not** port Nuzlocke's full Gen 1/2 feature set. It introduces a separate Gen 3 implementation, selected by `entry.lua`, while the established `main.lua` remains the entry for Red, Blue, Yellow, Gold, Silver and Crystal. See [DEVELOPER_GEN3.md](DEVELOPER_GEN3.md) for the Windows VS Code walkthrough and code map.
+**Release target:** Nuzlocke **v3.0.0-BETA** · **Mod API:** 2 · **Save namespace:** `gen3_classic_v1`.
 
-## Implemented
+Gen 3 has an isolated `gen3_runtime.lua` selected by `entry.lua` for **FireRed, LeafGreen, Ruby, Sapphire and Emerald**. **Red, Blue, Yellow, Gold, Silver and Crystal** continue using the existing Gen 1/2 `main.lua`, including their original compatibility and save history.
 
-- Open **NUZ MENU** from the in-game Start menu (mirrors the Gen 1/2 Nuzlocke top-level structure) and toggle **NUZLOCKE: OFF / ON** in **NUZ RULES → CORE**.
-- The Gen 3 menu includes 21 rule categories plus the approved eight-rule **CORE** menu. Other original rule entries are visible as [Soon] placeholders. Implemented features have no prefix; partial items show **[WIP]**. See [GEN3_CORE_SPEC.md](GEN3_CORE_SPEC.md) for the agreed behaviour and PC/whiteout precedence.
-- Nuzlocke, Permadeath, One Per Area and Failed Encounters are independent live CORE switches. Whiteout Ends Run has preliminary enforcement and remains **[WIP]**. Nickname, First Rival Mercy and PC Survivors Allowed remain **[Soon]** and cannot be changed.
-- The CLAUSES menu includes **Dupes**, **Shiny Catch Exception**, **Shiny Rate**, **Roamer Clause**, **Egg Encounter** and **Route Forgiveness** ([WIP], opt-in). Shiny Colours/Intro are not duplicated in Gen 3. Egg receipt/hatch tracking and missed-route token redemption are implemented; unsupported story-gift provenance, eligibility enforcement and Pokémon revival remain pending. See [GEN3_CLAUSES.md](GEN3_CLAUSES.md) and [GEN3_EGGS_FORGIVENESS.md](GEN3_EGGS_FORGIVENESS.md).
-- Track the first eligible wild battle on each **native map ID**. With Failed Encounters ON it consumes the slot immediately, even if the Pokémon flees or faints; with that setting OFF, only a successful eligible catch consumes the slot.
-- Reject subsequent catch rolls on the same map through Gen1Recomp's Gen 3 `catch.rate` hook (Balls are still consumed by the native action).
-- Record successful captures. As soon as the Gen 3 `battle.fainted` event fires for a player battler, irreversibly record death in the save-local graveyard and mark the battle-party Pokémon as dead. Compaction of the native party array still happens after `battle.ended`, when forced switching and battle writeback are finished.
-- Deny revival-item usage in the Gen 3 battle party UI and item execution transaction, while leaving other medicine paths unchanged.
-- Mark the run failed when the party becomes empty. Whiteout Ends Run can also fail the challenge immediately on a lost battle, even if boxed Pokémon remain; the safe PC-survivor recovery path is **not** implemented and cannot be enabled.
-- **NEW GAME** opens the native Nuzlocke setup before the intro on FRLG and RS/Emerald. Choose rules, lock them for the run, then Start or Cancel without modifying the prior save.
-- **Setup-only Gen 3 QoL** now includes Starting Money (preset values 0–999999), Starting Rare Candy (0–99 in native Player PC), Starting Poké Balls (0–99, deferred to native capture unlock and delivered into PC), PC Heal Kit (10 each of nine standard medicines) and PC Vitamins (10 each of six Gen 3 vitamins). These never backfill existing saves, change quest flags or bypass native item-use restrictions.
-- Starting Ball delivery checks the durable capture unlock as well as the current Bag. It retries on a later map entry/save load if PC space is unavailable. The first scripted wild battles still cannot consume an area before the native capture boundary.
-- Keep the master feature disabled by default and store settings, history and deaths under the backwards-compatible `gen3_classic_v1` key, separate from the Gen 1/2 save schema. Legacy captured/missed areas with no `spent` flag remain spent after upgrading.
+The definitive **ported / adapted / new** classification is the [Gen 3 feature matrix](GEN3_FEATURE_MATRIX.md). Only v3-specific features are claimed here; earlier releases and collaborators retain their historical credit in [CREDITS.md](../CREDITS.md).
 
-## Not yet implemented / known gaps
+## Starting a run
 
-- Most of the original mod's configuration, profiles, intro/story shortcuts, complete encounter-tracker UI, advanced death/forgiveness rules, randomiser, gift/statics and species clauses are not yet ported. These remain inert **[Soon]** rows. The limited **versioned** `mod.exports.gen3_core` rule API is now available.
-- First Rival Mercy and Nickname Requirement are approved but not active. The native whiteout / story-battle exceptions need runtime verification.
-- Gen 3's menu is implemented with its native 240x160 screen stack, rather than Gen 1/2's screens system. This keeps the fork's Mod API at version 2, but game testing is needed to confirm drawing and navigation for every GBA edition.
-- The tracker currently treats each native **map ID** as a separate catch area. Canonical Nuzlocke locations (for example different floors of one cave) need a region/section mapping.
-- Gen 3 does provide a player-side `battle.fainted` event; it now records death immediately. **The actual party entry stays visible as fainted until battle ends**, because removing it mid-battle can invalidate the engine's `partyIndex` references, especially in double battles. Special modes (scripted, link, multi, battle facilities) need separate certification.
-- Revival blocking currently covers native in-battle revival items; interactions with third-party item providers, scripted healing, and the battle restart/whiteout flow remain to be tested.
-- The graveyard contains metadata, not a PC-stored recoverable Pokémon. Retirement changes the native session party; back up saves before testing. `gen3_display.lua` now uses native Pokémon and map-section name resolvers and humanises older records on read without rewriting their saved IDs.
-- No game/ROM runtime certification yet. The mock test checks local hook and state logic only. FireRed, LeafGreen, Ruby, Sapphire and Emerald require independent boots/tests.
+- **NEW GAME** opens the native **NEW RUN SETUP** before the introduction. Configure the same CORE/CLAUSES/ADVANCED RULES/PLAYSTYLES controls used in-game, plus setup-only QOL resources. **LOCK FOR RUN** optionally prevents later rule changes.
+- The first encounter counts **only after catch access is unlocked**, rather than exhausting early routes before the player has Poké Balls. Setup-only Balls are deferred to PC storage until the native catch-unlock point. On an existing save, Nuzlocke is opt-in under **NUZ RULES → CORE**.
+- **NUZ RULES** presents CORE, CLAUSES, HARDCORE, GAME DIFFICULTY, RUN/PARTY, LEVELS, PLAYSTYLES, ADVANCED RULES, RANDOMIZER, QOL and QOL SETUP ONLY. The nine advanced categories are **Catch Rules, Battle Clauses, Status Bans, Variants, Battle Items, Field Items, Services & Economy, Pokémon Stats and Area Splits**. These categories now have implemented options; only individual explicitly unsupported rules are unavailable.
+- The menu uses a 240×160 GBA-native layout with paginated/scrollable rows. Player-visible locations and Pokémon use friendly display names rather than raw internal IDs where resolvable.
+- Gen 3 has no visible Nuz Dev home row. Hold **Select + A** on the NUZ MENU to unlock the developer-only screen; enabling edits flags the save. See [Nuz Dev](GEN3_NUZ_DEV.md).
 
-## Testing
+## Journal, compatibility and results
 
-Run from the repository root:
+- **RUN JOURNAL** consolidates the former Almanac/Status/Notices concepts: run overview, encounter and graveyard shortcuts and the latest 100 saved rule-event notices. It reuses the old notice data with no save migration.
+- **MOD SUPPORT** reports live detection of Untamed and external shiny/randomiser providers. It is intentionally read-only; compatibility checks do not grant ownership or certify third-party combinations.
+- **END RUN** provides an explicit finalisation flow, preserves native save handling and opens the final screen. Champion and loss have different continuation policies; party/graveyard/stats export supports shiny details. See [Run results](GEN3_RUN_RESULTS.md).
 
-```sh
-lua5.1 tests/gen3_foundation_smoke.lua
-lua5.1 tests/gen3_setup_qol_smoke.lua
-lua5.1 tests/gen3_title_setup_smoke.lua
-python3 tools/modkit.py gen3check /path/to/this/mod
-```
+**Implemented is not the same as ROM-certified.** Automated tests and menu controls do not guarantee parity across all five editions or external mods.
 
-The `modkit.py` command is part of **Gen1Recomp**, not this mod repository; the second command must be run in the engine checkout and pointed at the installed Nuzlocke mod folder.
+## What works now
 
-After that: import a legitimate Gen 3 ROM into Gen1Recomp, enable the Nuzlocke mod, start a **new** game, open NUZ MENU and switch NUZLOCKE ON under NUZ RULES -> CORE as early as possible, catch or miss a wild Pokémon, test repeated Balls in the same map, test a second map, and test fainting with a backed-up save. In a two-Pokémon trainer fight, faint one Pokémon and open the party/bag before ending the battle: it should be fainted, unusable, and revival items should fail. After the battle, the Pokémon should be removed and its graveyard record should appear once. Do **not** treat a passing mock test as runtime certification.
+| Feature | Behaviour and reference |
+| --- | --- |
+| **CORE** | Nuzlocke Enabled, Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run and PC Survivors Allowed. See [CORE specification](GEN3_CORE_SPEC.md). |
+| **CLAUSES** | Dupes, Shiny Catch Exception, Shiny Rate, Roamer Clause, Egg Encounter and Route Forgiveness. See [Clauses](GEN3_CLAUSES.md) and [Eggs and Forgiveness](GEN3_EGGS_FORGIVENESS.md). |
+| **PLAYSTYLES** | **Shiny Nuzlocke** restricts catches to shinies; **Hardcore Nuzlocke** forces strict encounter/death rules, SET style, no battle items except Balls, and Gym/League caps through Champion. Modes may combine. See [Playstyles](GEN3_PLAYSTYLES.md). |
+| **LEVELS** | Gym/Elite Four/Champion/Postgame cap scopes, native EXP clamping and optional EXP banking (EXP Edging). Native Rare Candy checks. See [LEVELS](GEN3_LEVELS.md). |
+| **RANDOMIZER** | Seeded starter, step/fishing, static, gift/Egg, trainer, field/gift items, shop, TM, move-learnset and evolution randomisation with supported presets, generation/pool limits and balancing. See [Randomiser](GEN3_RANDOMIZER.md). |
+| **Overworld wild compatibility** | Untamed-Advanced's generated wandering Pokémon use the same Random Wild setting/seed via `untamed.owe.species`, before the sprite and battle are constructed. |
+| **Player feedback** | Rule explanations during relevant native battles plus RUN JOURNAL (run recap, event history, encounter/graveyard links). See [Feedback](GEN3_FEEDBACK.md). |
+| **Player tools** | Native encounter tracker, graveyard, nickname tasks and hidden Nuz Dev test utilities (including safe full-archive restoration). See [Nuz Dev](GEN3_NUZ_DEV.md). |
 
-## Compatibility contract
+### Encounter and death handling
 
-The mod remains API 2 because the existing Gen 1/2 runtime is API 2. The manifest declares `gen3` so the engine may load it, while `entry.lua` dispatches to `gen3_runtime.lua` in Gen 3. This is intentionally a reduced experimental runtime, not an assertion that every Nuzlocke setting works on Gen 3.
+The first eligible wild encounter is recorded against its **resolved encounter area**. Native map IDs are used as the source identity, while [Area Splits](GEN3_AREA_SPLITS.md) can group or separate floors and sections depending on the configured policy.
+With Failed Encounters enabled, that attempt spends the area even if the
+Pokémon escapes or faints; when **Shiny Nuzlocke** is active, only an
+eligible *shiny* attempt can spend the area. When Failed Encounters is
+disabled, the first eligible successful
+catch closes the area. Dupes and Shiny eligibility are resolved before
+claiming the route. Native Balls still run through the normal catch
+transaction, which explains denial reasons.
+
+A player Pokémon that faints is recorded for Permadeath in the battle
+and moved to the save-local graveyard after the native battle completes.
+The mod does not delete the native save. Whiteout Ends Run takes priority
+over rescuing a living eligible PC survivor. Gifts/trades/hatched Pokémon
+without custom nicknames are listed under Nickname Tasks; some non-catch
+naming and battle-eligibility edge cases still require testing.
+
+### Random Wild + Untamed-Advanced
+
+Untamed's generated overworld encounters do not use Gen 3's regular
+`encounter.species` hook. The compatible Untamed branch exposes
+`untamed.owe.species`, which Nuzlocke supplies with a seed-stable
+replacement **before sprite rendering, cry, and the ensuing wild battle**.
+
+- The visible species is the one battled and caught.
+- Replacements use the same Random Wild settings and seeded candidate pool.
+- The chain popup tracks the **visible, defeated species** (e.g.,
+  Feraligatr instead of the original Rattata encounter slot). Untamed
+  privately retains the original slot for repeated-spawn odds.
+- Followers, roamers, outbreaks, Feebas specials and manually scripted
+  actors are excluded from this hook.
+- Untamed works without Nuzlocke; Nuzlocke's usual step encounters work
+  without Untamed. Both compatible builds are needed for the integration.
+
+[Untamed-Advanced](https://github.com/Deluxe0111/Untamed-Advanced) documents
+its own follower, overworld-wild and encounter-chain features and credits
+the Nuzlocke compatibility integration there.
+
+## Known beta boundaries
+
+- Gen 1/2-only features are not automatically offered in Gen 3; the feature matrix records the supported Gen 3 controls.
+- Area grouping and splits operate on the native map source and configured policy; unknown third-party map identities still need testing.
+- Field/story revival, non-catch nickname eligibility, unusual trainer
+  modes, special scripted losses, link/facility encounters and certain
+  item-provider overlaps still need native-ROM validation.
+- Randomiser seed/settings lock after first successful replacement to
+  prevent contradictory mappings on the same save.
+- Ordinary Route Forgiveness Pokémon revival remains unavailable. A complete snapshot may be restored only with the hidden, tainting Nuz Dev tool; old/incomplete memorials cannot be reconstituted. Back up saves before testing death/whiteout paths.
+
+## Testing and reference material
+
+Run the isolated Gen 3 Lua checks under `.github/workflows/gen3-smoke.yml`
+or follow [Gen 3 test checklist](GEN3_TEST_CHECKLIST.md). The
+[Randomiser checklist](GEN3_RANDOMIZER.md) includes an Untamed-specific
+visible-spawn, species-matching and chain test section.
+
+**Passing mocked tests does not guarantee real-ROM behaviour.** Test
+FireRed, LeafGreen, Ruby, Sapphire and Emerald separately on disposable
+saves, and retest combinations of installed mods.

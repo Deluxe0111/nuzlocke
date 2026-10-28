@@ -1,3 +1,51 @@
+## 3.0.0-BETA — Generation 3 compatibility and features
+
+**First Generation 3 beta release:** FireRed, LeafGreen, Ruby, Sapphire and Emerald. Adds a separate native Game3 implementation and `gen3_classic_v1` state while preserving the Gen 1/2 runtime, save schema, Mod API 2 and pre-3.0 release history.
+
+### Ported from Generation 1/2
+
+- CORE: Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run and PC Survivors.
+- CLAUSES: Dupes, Shiny Catch Exception/Rate, Roamer, Egg Encounter and Route Forgiveness token redemption.
+- LEVELS, HARDCORE, GAME DIFFICULTY and RUN/PARTY: cap scopes, EXP Edging, SET and other battle restrictions, party/evolution limits and difficulty settings.
+- ADVANCED RULES: species/capture bans, gifts/trades, Colorlocke/Alphabetlocke, Type Locke/Catch Draft, OHKO/Battle Clauses, Status Bans/Sleep Clause, Battle Items, Field Items, Services & Economy, Pokémon Stats and Gen 3 Area Splits.
+- QOL: Instant Text, Run/Surf, bag limits and trade-evolution options.
+- Seeded Randomiser: starter, wild, static, gift/Egg, trainer, field/gift-item, shop, TM, learnset and evolution pools with generation/BST/options as supported by Gen 3 hooks.
+
+### Adapted for native Gen 3
+
+- Implemented Game3 encounter/acquisition, battle, item/PP/TM, move, scripted gift/NPC trade, progression and PC-storage hooks, applying legality checks before native mutations where supported.
+- First encounters do not count until the player can obtain Pokémon; native Ball access establishes the durable catch-unlock boundary.
+- Native battle-copy writeback, graveyard archives and survivor rescue handle Permadeath and whiteout without deleting native game saves or patching the base engine.
+- Shiny integration retains Gen 3 individual identity, native PC/party mini-icons and ROM shiny portraits where supported; other verified shiny providers retain rate ownership.
+- GBA-native 240×160 menus use implemented-status controls, scoped descriptions and readable species/area names.
+
+### New v3 Gen 3 functionality
+
+- Shiny Nuzlocke and Hardcore Nuzlocke playstyles (may combine); NEW RUN SETUP and LOCK FOR RUN; native starting items and PC loadouts with deferred Balls.
+- Untamed-Advanced visible overworld spawn integration, preserving matching sprite/battle/capture species and respecting scripted special exclusions.
+- RUN JOURNAL merges status, Graveyard/Tracker shortcuts and retained rule-event history, replacing duplicate Almanac and NUZ NOTICES screens.
+- Native End Run/Champion/failure final-results experience and shareable full-team/graveyard/stats poster with shiny identification.
+- Read-only MOD SUPPORT replaces an unsafe/unimplemented manual Gen 3 compatibility ownership placeholder.
+- Hidden production Nuz Dev access (Select held + A) and audited full-archive Pokémon restoration for developer testing. It never unlocks a terminal run.
+- Removed the unimplemented Wonderlocke entry and the redundant Overworld Encounters toggle from the Gen 3 rules catalogue.
+- Added policy/native-smoke and menu regression coverage, with manual FireRed/LeafGreen/Ruby/Sapphire/Emerald checks maintained separately.
+
+### Scope, safety and authorship
+
+- Ordinary Route Forgiveness Pokémon revival is still not implemented; full-archive restoration is developer-only. Some non-catch nickname eligibility and third-party scripted gifts/trades still require further verification.
+- Passing automated tests is not proof of exact-ROM or third-party mod compatibility; v3 remains explicitly **BETA**.
+- Earlier Gen 1/2 contributors and the original Shiny Pokémon lineage retain credits: **bryanthaboi**, **Stone696**, **masterwebx**. **Deluxe0111** is credited for the Gen 3 port and new features. See [CREDITS.md](CREDITS.md).
+- For a feature-by-feature categorisation, see [Gen 3 feature matrix](docs/GEN3_FEATURE_MATRIX.md), [release notes](RELEASE_NOTES.md) and [manual test checklist](docs/GEN3_TEST_CHECKLIST.md).
+
+## 2.9.73 — Historical pre-v3 new-game setup update
+
+Published on **28 October 2026**, before the `v3.0.0-BETA` release. Recorded from the published v2.9.73 GitHub release; this is **not** a retroactive claim that the final Gen 3 beta or its later rules shipped in 2.9.73.
+
+- Extended the early Gen 3 new-game-only QoL setup and selection of native PC resources/loadouts, with updated preset labels.
+- Fixed deferred starting Poké Ball delivery after the native catch-unlock boundary, including when the player's current Ball inventory is empty.
+- Applied the setup resources to the native `save.created` event before the live `game.session` is attached.
+- Added isolated native PC storage and catching-unlock tests and documentation for edition-specific startup cases.
+
 ## 2.9.72
 
 - Normalizes Gen-II numeric item operands through the active item registry before Random Field Item classification, TM detection, persistence identity, and selection, then converts the chosen canonical item back to the native numeric index required by Gen-II pickup builders.
@@ -170,6 +218,7 @@
 - No gameplay feature, save-schema, public API, or Runtime PASS change.
 
 # Changelog
+- Expands Gen 3 **ADVANCED RULES → CATCH RULES** with Town Catches (native FR/RU/SA/EM settlement-map classification), Alphabetlocke OFF/RANDOM/CHOOSE with a persisted represented A–Z letter, and Allow Glitches (blocks malformed/unregistered wild species unless explicitly enabled). Adds menu selectors, encounter-source checks, ROM test cases and policy regression coverage.
 
 ## 2.9.57
 

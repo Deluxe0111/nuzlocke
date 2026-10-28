@@ -1,7 +1,7 @@
--- Lossless-ish Gen 3 Pokemon snapshots for future Route Forgiveness.
+-- Full Gen 3 Pokemon snapshots for diagnostics and developer-only recovery.
 -- Never manufacture a Pokemon from species/level memorial metadata.
--- Not a revival implementation: caller must validate archive completeness
--- and native destination capacity before a future recovery is enabled.
+-- The caller must validate archive completeness, individual uniqueness and
+-- destination capacity; ordinary Route Forgiveness revival is still disabled.
 return function()
     local M = { api = 1 }
     local FORBIDDEN = {

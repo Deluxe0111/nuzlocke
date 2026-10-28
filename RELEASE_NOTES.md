@@ -1,3 +1,56 @@
+# Nuzlocke v3.0.0-BETA — Generation 3 compatibility
+
+**First Generation 3 beta release.** Adds FireRed, LeafGreen, Ruby, Sapphire and Emerald support without replacing the existing Red/Blue/Yellow/Gold/Silver/Crystal runtime.
+
+**Installed version:** `3.0.0-BETA` · **Intended GitHub tag:** `v3.0.0-BETA` (tag/release publication is separate from this documentation update) · **Mod API:** 2 · **Gen 3 save key:** `gen3_classic_v1`.
+
+## Ported from the existing Nuzlocke feature set
+
+- **CORE:** Nuzlocke Enabled, Permadeath, One Encounter Per Area, Failed Encounters, Nickname Requirement, First Rival Mercy, Whiteout Ends Run and PC Survivors.
+- **CLAUSES:** Dupes, Shiny Catch Exception and Shiny Rate, Roamer slots, Egg Encounter provenance and Route Forgiveness tokens/route reopening.
+- **Levels, Hardcore, Game Difficulty and Run/Party:** level caps, EXP Edging, battle restrictions, team limits, evolution limits and trainer difficulty options.
+- **Advanced Catch and Variants:** legendary/mythical/pseudo/BST/individual species bans, fishing and static restrictions, optional gifts/trades with AREA/BONUS accounting, Colorlocke, Alphabetlocke, Type Locke and Catch Draft.
+- **Battle and status rules:** OHKO Clause; Flinch/Trap/Setup/Evasion/Accuracy/Stat-drop restrictions; individual status bans and Sleep Clause.
+- **Other advanced rules:** battle and field items, Ball Per Encounter, heal/PP/TM/Rare Candy restrictions, services/economy, Pokémon IV/EV policies and Kanto/Hoenn area splits.
+- **Quality of life:** Instant Text, Run/Surf, Unlimited Bag Space and trade-evolution options.
+
+## Adapted and substantially reworked for Gen 3
+
+- Independent Game3 `gen3_runtime.lua`, native event/action/battle integration and isolated persisted rule state; no Gen 1/2 save migration or upstream engine patch required for the port.
+- Enforces eligible encounter counting only **after native Ball/catching access is available**, rather than consuming opening routes during early story battles.
+- Checks supported scripted gifts, trades, party, item and battle actions at their Gen 3 native transaction boundaries. Handles Pokémon death snapshots and native battle writeback safely.
+- Rebuilds the seeded randomiser for Gen 3: starters, wild/overworld, static/gift/Egg Pokémon, trainers, items, shops, TM contents/locations/compatibility, learnsets and evolutions. Supports defined pool and balancing options.
+- Uses native Gen 3 shiny identity, ROM front sprites for relevant portraits/results and standard mini-icons in party/PC boxes.
+- Uses a GBA-native **240×160** menu with active-rule status, area names and readable Pokémon details.
+
+## New Gen 3 beta features and integrations
+
+- **Shiny Nuzlocke** and **Hardcore Nuzlocke** playstyles, independently toggleable and combinable.
+- **NEW RUN SETUP**, configurable starting resources and **LOCK FOR RUN**.
+- Optional **Untamed Advanced** visible-overworld Pokémon randomisation, sharing wild seed/settings and matching the shown sprite to the battle/capture; follower, roamer and scripted actor exclusions are preserved.
+- **RUN JOURNAL** merges current run summaries, encounters, Graveyard and up to 100 recent rule-event messages.
+- **End Run / results screen** records loss, forfeit or Champion completion, integrates native saving, and creates a shareable party/graveyard/statistics image with shiny details.
+- **MOD SUPPORT** provides read-only detection of supported external integrations and shiny-rate ownership, without untested override switches.
+- Hidden, audited **NUZ DEV** testing tools: encounter resets, report and verified full-archive Pokémon restoration; developer changes taint the test save.
+
+## Explicit exclusions / work still requiring testing
+
+- Gen 3 **Wonderlocke** was removed from the menu. Old **Almanac/NUZ NOTICES** entries are consolidated in **RUN JOURNAL**; old **MOD COMPAT** is replaced by the safe read-only **MOD SUPPORT** screen.
+- Ordinary **Route Forgiveness Pokémon revival** remains unimplemented (developer-only archive restore is not a regular gameplay clause).
+- Non-catch nickname restrictions, uncommon custom gifts/trades, and certain provider-specific boundaries need further work and game verification.
+- Automated Lua smoke/CI coverage does **not** certify real ROM playthroughs across all five editions or combined third-party mod stacks.
+- Existing Gen 1/2 rules, author credits and older version history are retained. Earlier release sections below remain historical and are not amended to claim later Gen 3 functionality.
+
+**Feature inventory:** [Gen 3 feature matrix](docs/GEN3_FEATURE_MATRIX.md) · **In-game tests:** [Gen 3 checklist](docs/GEN3_TEST_CHECKLIST.md) · **Credits:** [CREDITS.md](CREDITS.md).
+
+---
+
+# Nuzlocke 2.9.73 — Historical pre-v3 setup update
+
+**Published 28 October 2026.** This preceding 2.9.x release focused on early Generation 3 new-run resource setup: native PC starter supplies, deferred Poké Ball delivery after catch unlock, the `save.created` integration and supporting regression tests. It did **not** include the completed v3 menu, rules, results, journal or developer features described above.
+
+The original public release remains available as [v2.9.73](https://github.com/Deluxe0111/nuzlocke/releases/tag/v2.9.73). Older release sections below are unchanged.
+
 # Nuzlocke 2.9.72 — Randomizer tracing and shiny isolation
 
 2.9.72 is a focused runtime-repair/diagnostic build from exact sealed 2.9.71. It addresses the confirmed Gen-II numeric item-reference mismatch, removes legal Random Shop no-op selections, exposes the existing Random Trainer pipeline end-to-end, and prevents Nuzlocke shiny recoloring from mutating shared engine ImageData.

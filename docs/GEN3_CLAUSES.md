@@ -2,20 +2,19 @@
 
 The CLAUSES screen uses the original Gen 1/2 **option meanings** where safe,
 but is scoped to Generation 3. The original Johto **Bug Catching Contest**
-setting is intentionally omitted. Dupes and Shiny Catch Exceptions were
-confirmed in live FireRed testing; Roamer Clause is the next [WIP] implementation.
-Egg Encounter and Route Forgiveness are now partial [WIP] features; full gift provenance and Pokémon restoration remain pending.
+setting is intentionally omitted. Dupes and Shiny Catch Exceptions are
+implemented in Gen 3 and await full real-ROM certification. Roamer, Egg Encounter and Route Forgiveness route-token/redemption controls are also implemented; **ordinary Pokémon revival is not implemented**. Their native edition and external-provider edge cases still need testing.
 
 ## Implemented policy and status
 
 | Menu item | Modes / description | Status |
 | --- | --- | --- |
-| **DUPES CLAUSE** | `OFF`, `SPEC`, `FAM`, `SPLIT` | **[WIP]** (implemented in Lua; native evolution and edition tests needed) |
-| **SHINY CLAUSE** | `OFF`, `1`, `2`, `3`, `UNLIMITED` | **[WIP]** (implemented in Lua; in-game shiny validation needed) |
-| **SHINY RATE** | NATIVE / 1/4096 / 1/1024 / 1/512 / 1/100 / 1/10 / ALWAYS | **[WIP]** (Lua tested; gameplay certification pending) |
-| **ROAMER CLAUSE** | OFF / SLOT; roaming species get independent catch slots without spending grass routes | **[WIP]** (mock tests pass; native game unverified) |
-| **EGG ENCOUNTER** | OFF / RECEIVED / HATCHED / GIFT; bred Egg provenance and hatch-based area claims | **[WIP]** (full receipt/gift enforcement pending) |
-| **ROUTE FORGIVENESS** | OFF / EARN / START 1; badge-based tokens and missed-route reopening | **[WIP]** (Pokémon revival still [Soon]) |
+| **DUPES CLAUSE** | `OFF`, `SPEC`, `FAM`, `SPLIT` | Implemented (edition/evolution validation pending) |
+| **SHINY CLAUSE** | `OFF`, `1`, `2`, `3`, `UNLIMITED` | Implemented (native shiny validation pending) |
+| **SHINY RATE** | NATIVE / 1/4096 / 1/1024 / 1/512 / 1/100 / 1/10 / ALWAYS | Implemented (native rate/ownership validation pending) |
+| **ROAMER CLAUSE** | OFF / SLOT; roaming species get independent catch slots without spending grass routes | Implemented (native roamer validation pending) |
+| **EGG ENCOUNTER** | OFF / RECEIVED / HATCHED / GIFT; bred Egg provenance and hatch-based area claims | Implemented with provenance limitations |
+| **ROUTE FORGIVENESS** | OFF / EARN / START 1; badge-based tokens and missed-route reopening | Tokens/routes implemented; ordinary revival unavailable |
 
 FireRed, LeafGreen and Hoenn already have native shiny palettes and battle
 intro effects. **Shiny Colours and Shiny Intro are removed from the Gen 3
@@ -48,12 +47,7 @@ Evolution relationships are read from the native ROM-backed
 `Pokemon.evolutions()` graph. Internal species IDs are normalised through the
 engine's `Pokemon.speciesOf()` where available.
 
-**Known gaps:** Encounter qualification currently covers ordinary wild battles
-by native map ID, not canonical multi-floor areas, story gifts, trades or
-static encounters. ROM/provider transformations of the evolution graph need
-additional testing; if the evolution graph is unavailable, FAM/SPLIT fail open
-rather than blocking an unrelated Pokémon. That is why these modes remain
-[WIP], not certified Working.
+**Known gaps:** Capture legality now composes with supported story gifts, trades and static battles; encounter keys use the configured [Area Splits](GEN3_AREA_SPLITS.md) policy. ROM/provider transformations of the evolution graph still need testing; if the evolution graph is unavailable, FAM/SPLIT fail open rather than blocking an unrelated Pokémon. Implemented policy does not imply in-game certification.
 
 ## Shiny Catch Exception
 
@@ -78,7 +72,7 @@ The clause cannot bypass other mods' catch-rate denial or future absolute
 rules such as No Catching, species bans or Type Locke. The policy calls
 `next(...)` for permitted catches rather than forcing a capture.
 
-## Shiny Rate (new [WIP])
+## Shiny Rate (implemented; native verification pending)
 
 The setting controls **rarity, not Shiny Clause capture exceptions**.
 Enhanced rates are applied once when a newly generated wild or standard static
@@ -151,8 +145,8 @@ can themselves continue triggering Dupes Clause.
 - [ ] **CL11** — Save and reload after captures. Dupes history, selected
   modes and exceptional shiny usage should persist.
 - [ ] **CL12** — Confirm Shiny Rate cycles all seven modes, native shiny
-  palettes/intros remain intact, and Eggs/Forgiveness show [WIP] with unfinished paths clearly marked.
-  Roamer Clause is [WIP] and supports OFF/SLOT; see R01–R06 in the
+  palettes/intros remain intact; Egg/Route Forgiveness options are selectable, while the unsupported ordinary revival action remains [Soon].
+  Roamer Clause supports OFF/SLOT; see R01–R06 in the
   [next milestone notes](GEN3_CLAUSES_NEXT.md).
 - [ ] **CL13** — In NUZ DEV, confirm **RESET CLAUSE COUNTS** clears the
   shiny exception counter and capture log, but does not erase actual party/PC

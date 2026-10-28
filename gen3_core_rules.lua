@@ -8,10 +8,10 @@ return function()
         { key = "permadeath", label = "PERMADEATH", default = true, status = "working" },
         { key = "encounter_limit", label = "ONE PER AREA", default = true, status = "working" },
         { key = "failed_encounter", label = "FAILED ENCOUNTERS", default = true, status = "working" },
-        { key = "nickname_rule", label = "NICKNAME RULE", default = true, status = "soon" },
-        { key = "first_rival_forgiveness", label = "FIRST RIVAL MERCY", default = true, status = "soon" },
-        { key = "whiteout_ends_run", label = "WHITEOUT ENDS RUN", default = true, status = "wip" },
-        { key = "pc_survivors_allowed", label = "PC SURVIVORS", default = false, status = "soon" },
+        { key = "nickname_rule", label = "NICKNAME RULE", default = true, status = "working" },
+        { key = "first_rival_forgiveness", label = "FIRST RIVAL MERCY", default = true, status = "working" },
+        { key = "whiteout_ends_run", label = "WHITEOUT ENDS RUN", default = true, status = "working" },
+        { key = "pc_survivors_allowed", label = "PC SURVIVORS", default = false, status = "working" },
     }
     local byKey = {}
     for _, rule in ipairs(RULES) do byKey[rule.key] = rule end
@@ -33,8 +33,6 @@ return function()
         if type(s.areas) ~= "table" then s.areas = {} end
         if type(s.graveyard) ~= "table" then s.graveyard = {} end
         s.enabled = s.enabled == true
-        s.runSettingsLocked = s.runSettingsLocked == true
-        s.captureUnlocked = s.captureUnlocked == true
         s.failed = s.failed == true
         for _, rule in ipairs(RULES) do
             if rule.key ~= "nuzlocke_enabled" and
@@ -56,13 +54,21 @@ return function()
     -- Prevent third-party calls, or a future menu bug, from claiming support
     -- for features that cannot yet enforce their selected values.
     function M.set(s, key, value)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         local definition = byKey[key]
         if not definition then return false, "unknown_rule" end
         if definition.status == "soon" then return false, "not_implemented" end
         if type(value) ~= "boolean" then return false, "boolean_required" end
         s = M.normalise(s)
         if s.failed then return false, "run_failed" end
-        if s.runSettingsLocked and not s._setup then return false, "settings_locked" end
+        if key ~= "nuzlocke_enabled" and value == false
+            and type(s.playstyles) == "table"
+            and s.playstyles.hardcore_nuzlocke == true
+            and M.hardcoreForced(key) and M.active(s) then
+            return false, "hardcore_override"
+        end
         if key == "nuzlocke_enabled" then
             s.enabled = value
         else
@@ -76,8 +82,21 @@ return function()
             and not (s and s.failed == true)
     end
 
+    local HARDCORE_FORCED = {
+        permadeath = true, encounter_limit = true,
+        failed_encounter = true, whiteout_ends_run = true,
+    }
+    function M.hardcoreForced(key)
+        return HARDCORE_FORCED[key] == true
+    end
+    -- Hardcore is a temporary policy overlay; it NEVER writes into the
+    -- classic settings stored in s.rules. The master switch still governs.
     function M.enforced(s, key)
-        return M.active(s) and M.get(s, key) == true
+        if not M.active(s) then return false end
+        if type(s.playstyles) == "table"
+            and s.playstyles.hardcore_nuzlocke == true
+            and HARDCORE_FORCED[key] then return true end
+        return M.get(s, key) == true
     end
 
     -- Preserve slots consumed by earlier versions of this mod. A missing
@@ -95,11 +114,10 @@ return function()
 
     function M.shouldSpendOnStart(s)
         return M.enforced(s, "encounter_limit")
-            and M.get(s, "failed_encounter") == true
+            and M.enforced(s, "failed_encounter")
     end
 
-    -- A battle whiteout takes precedence over PC survivors. Future Gen 3 PC
-    -- recovery will implement pc_survivors_allowed; do not silently turn it on.
+    -- A battle whiteout takes precedence over eligible PC survivors.
     function M.failedWhiteout(s, battleResult)
         local lost = battleResult == "lose"
             or battleResult == "whiteout" or battleResult == "blackout"

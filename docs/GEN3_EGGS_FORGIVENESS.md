@@ -1,4 +1,4 @@
-# Gen 3 CLAUSES — Eggs and Route Forgiveness [WIP]
+# Gen 3 CLAUSES — Eggs and Route Forgiveness (implemented with limits)
 
 Implemented in `gen3_eggs.lua` and `gen3_forgiveness.lua`, both loaded
 only on Gen 3. This milestone uses native Gen 3 events and conservative
@@ -8,7 +8,7 @@ save-local rules; it does **not** modify the original Gen 1/2 code.
 
 The menu retains the approved options:
 
-| Mode | Current WIP behaviour |
+| Mode | Implemented behaviour and limitations |
 | --- | --- |
 | OFF | Normal breeding/hatching; no area slot is consumed |
 | RECEIVED | A bred Egg is tagged with its native map at creation. On hatch, it consumes the *receipt map's* free encounter slot |
@@ -28,8 +28,7 @@ then reads them when the hatch event arrives.
   It does not yet reserve the slot at actual receipt.
 - A hatchling from a spent route is marked
   `nuzEggProvenance="INELIGIBLE"` and logged; it is **not yet blocked from
-  being used in battle**. The feature is deliberately [WIP], not certified
-  fully enforced.
+  being used in battle**. The unresolved hatchling-use restriction remains a known beta limitation even though Egg tracking and slot-claim logic are implemented.
 - UNKNOWN provenance fails open and leaves the encountered route untouched.
   This prevents making up a receipt location for scripted gift Eggs.
 - Neither Eggs nor hatched Pokémon are deleted, recreated or forcibly
@@ -37,7 +36,7 @@ then reads them when the hatch event arrives.
 - Eggs only enter ordinary Dupes tracking after their species is known and
   they hatch; future acquisition registry work will unify the events.
 
-Hatches are listed in **CLAUSES → [WIP] EGG HISTORY**. This list is save-local
+Hatches are listed in **CLAUSES → EGG HISTORY**. This list is save-local
 metadata, not an invasive replacement for the native Pokémon summary.
 
 ## Route Forgiveness
@@ -62,7 +61,7 @@ on map entry or opening the NUZ MENU, not by polling the battle every frame.
 
 ### Redeem a token
 
-Navigate to **NUZ MENU → NUZ RULES → CLAUSES → [WIP] REDEEM TOKEN**.
+Navigate to **NUZ MENU → NUZ RULES → CLAUSES → REDEEM TOKEN**.
 You'll see the token balance and eligible routes. Select a route and
 confirm YES. A token can reopen **one failed/missed route** that
 has `spent=true, caught=false`. An area where you caught a Pokémon is not
@@ -72,7 +71,7 @@ or lost run cannot redeem forgiveness.
 Redemption requires the main Nuzlocke rule to be ON and changes only the Nuzlocke encounter record, not world progress,
 Pokédex entries, party, PC or inventory. For repeatable testing, **NUZ DEV → ADD TEST TOKEN** grants one token on a flagged disposable test save, behind a confirmation.
 
-**Pokémon revival remains [Soon]**, even for new deaths with archived
+**Ordinary Route Forgiveness Pokémon revival remains unavailable**, even for new deaths with archived
 full-individual data. A safe native party/PC transaction, destination
 capacity checks, half-HP heal and token rollback on failure are prerequisites.
 
