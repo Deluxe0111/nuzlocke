@@ -108,8 +108,11 @@ assert(chrome.__nuzVisualOwner==mod
 assert(corePokemon.monIcon({species=56,isShiny=true}).native==true
     and corePokemon.monIcon({species=56,isShiny=false}).native==true,
     "shiny and normal Pokemon must use the standard visible native icon")
--- OHKO Clause must block the real engine context's OHKO accuracy
--- entry without touching move effect/PP/damage, and only when enabled.
+-- The engine lazily installs native battle guards at save/map entry,
+-- not simply at mod registration (before the ROM battle is loaded).
+events["save.loaded"]()
+-- OHKO Clause must block the engine context's OHKO accuracy check
+-- without touching move effect/PP/damage, and only when enabled.
 local mkCtx=package.loaded["src.core.game3.battle.engine"].newContext
 assert(moveContextMT.accuracyCheck~=nativeAccuracy
     and moveContextMT.__nuzOHKOOwner==mod)
