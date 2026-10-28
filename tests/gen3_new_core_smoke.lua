@@ -80,6 +80,14 @@ local nativeUi = {
     askYesNo = function() originalAsks = originalAsks + 1 end
 }
 package.loaded["src.core.game3.battle.ui"] = nativeUi
+local originalChoices = 0
+local nativeChoice = {
+    yesNo = function(cb)
+        originalChoices = originalChoices + 1
+        if cb then cb(false) end
+    end,
+}
+package.loaded["src.ui.game3.choice"] = nativeChoice
 local nativeNaming = { opened = 0 }
 function nativeNaming.open(opts)
     nativeNaming.opened = nativeNaming.opened + 1
@@ -107,6 +115,18 @@ local mod = { game = game, exports = {},
 assert(loadfile("gen3_runtime.lua")()(mod) == nil)
 local fire = function(event, data) assert(events[event], event)(data) end
 assert(mod.exports.gen3_core.setRule("nuzlocke_enabled", true))
+local requiredHook = assert(hooks["battle.catch.nickname_required"])
+local function nativeMandatory(ctx)
+    return requiredHook(function() return false end,ctx)
+end
+assert(nativeMandatory({source="gen3",mon=mon(25,51,20,"")}),
+    "native post-catch hook must force a nickname")
+assert(not nativeMandatory({source="gen2"}),
+    "Gen 2 is unaffected by the Gen 3 nickname hook")
+assert(mod.exports.gen3_core.setRule("nickname_rule",false))
+assert(not nativeMandatory({source="gen3"}),
+    "disabling Nickname restores native optional capture names")
+assert(mod.exports.gen3_core.setRule("nickname_rule",true))
 
 local openingCopy = mon(25, 123, 0, "Spark")
 local opening = { earlyRival = true, trainerId = 326,
@@ -130,6 +150,15 @@ local responded = nil
 nativeUi.askYesNo("NAME?", function(v) responded = v end)
 assert(responded == true and originalAsks == 0,
     "catch must force native Naming even if the Yes/No UI was unavailable at battle start")
+local chosen
+nativeChoice.yesNo(function(v) chosen=v end)
+assert(chosen == true and originalChoices == 0,
+    "legacy native Choice must not deliver No during capture")
+engineBattle._phase = "command"
+nativeChoice.yesNo(function(v) chosen=v end)
+assert(chosen == false and originalChoices == 1,
+    "other native Yes/No choices remain unchanged")
+engineBattle._phase = "catch_nickname_prompt"
 local namedValue = nil
 nativeNaming.open({ template = "CAUGHT_MON", species = 25,
     onDone = function(v) namedValue = v end })
@@ -139,6 +168,39 @@ assert(nativeNaming.opened == 2 and namedValue == nil,
     "default species nickname reopens native naming")
 nativeNaming.last.onDone("Bolt")
 assert(namedValue == "Bolt", "custom nickname completes native flow")
+
+-- Simulate the native post-catch decision for a Pokémon whose destination
+-- is the PC: the engine hook must skip the old No-to-PC exit entirely,
+-- wait for a custom name, and then let the native completion proceed.
+local pcCaught = {species=25,nickname="PIKACHU"}
+local pcComplete,optionalPrompt = false,false
+local function decision(yes)
+    if not yes then
+        pcComplete = true -- native No would finish without a nickname
+        return
+    end
+    nativeNaming.open({template="CAUGHT_MON",species=25,
+        onDone=function(name)
+            pcCaught.nickname=name
+            pcComplete=true
+        end})
+end
+if nativeMandatory({source="gen3",mon=pcCaught,catch={location="pc"}}) then
+    decision(true)
+else
+    optionalPrompt=true
+    nativeUi.askYesNo("NAME?",decision)
+end
+assert(not optionalPrompt and not pcComplete,
+    "PC-bound catch must enter naming without optional No")
+nativeNaming.last.onDone("PIKACHU")
+assert(not pcComplete,"default species name must not finish PC catch")
+nativeNaming.last.onDone(nil)
+assert(not pcComplete,"cancelled nickname must not finish PC catch")
+nativeNaming.last.onDone("Sparky")
+assert(pcComplete and pcCaught.nickname=="Sparky",
+    "PC destination only finishes after a real nickname")
+
 
 -- The battle module can be imported as .init, with the plain path absent.
 -- Capture must still skip the YES/NO dialog entirely.
