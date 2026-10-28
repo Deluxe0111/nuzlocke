@@ -49,7 +49,7 @@ return function(mod, api)
     { title = "CATCH RULES", rules = {{ "town_catches", "Town Catches" }, { "ban_legendaries", "No Legendaries" }, { "ban_mythicals", "No Mythicals" }, { "ban_pseudos", "No Pseudos" }, { "no_static_encounters", "No Static Enc" }, { "no_fishing", "No Fishing" }, { "allow_gifts", "Gift Pokemon" }, { "gift_slot_policy", "Gift Slot Policy" }, { "allow_trades", "In-Game Trades" }, { "trade_slot_policy", "Trade Slot Policy" }, { "maximum_bst", "Maximum BST" }, { "pkmn_ban", "PKMN BAN" }, { "colorlocke_mode", "Colorlocke" }, { "colorlocke_color", "Color" }, { "alphabetlocke_mode", "Alphabetlocke" }, { "alphabetlocke_letter", "Letter" }, { "allow_glitch_pokemon", "Allow Glitches" } } },
     { title = "BATTLE CLAUSES", rules = {{ "ohko_clause", "OHKO Clause" }, { "flinch_clause_scope", "Flinch Clause" }, { "trap_clause_scope", "Trap Clause" }, { "setup_move_scope", "No Setup Moves" }, { "evasion_clause", "Evasion Clause" }, { "status_accuracy_scope", "Accuracy Drops" }, { "other_stat_drop_scope", "Other Stat Drops" } } },
     { title = "STATUS BANS", rules = {{ "status_move_scope", "No Status Moves" }, { "status_paralysis_scope", "Paralysis" }, { "status_confusion_scope", "Confusion" }, { "status_sleep_scope", "Sleep Ban" }, { "status_poison_scope", "Poison/Toxic" }, { "status_burn_scope", "Burn Ban" }, { "status_freeze_scope", "Freeze" }, { "sleep_clause", "Sleep Clause" } } },
-    { title = "VARIANTS", rules = {{ "type_lock_mode", "Type Locke" }, { "type_lock_draft", "Catch Draft" }, { "type_lock_primary", "Type 1" }, { "type_lock_secondary", "Type 2" }, { "type_lock_tertiary", "Type 3" }, { "type_lock_quaternary", "Type 4" }, { "type_lock_quinary", "Type 5" }, { "type_lock_senary", "Type 6" }, { "wonderlocke", "Wonderlocke WIP" } } },
+    { title = "VARIANTS", rules = {{ "type_lock_mode", "Type Locke" }, { "type_lock_draft", "Catch Draft" }, { "type_lock_primary", "Type 1" }, { "type_lock_secondary", "Type 2" }, { "type_lock_tertiary", "Type 3" }, { "type_lock_quaternary", "Type 4" }, { "type_lock_quinary", "Type 5" }, { "type_lock_senary", "Type 6" } } },
     { title = "BATTLE ITEMS", rules = {{ "no_healing_items", "No Healing Items" }, { "no_battle_items", "No X Items" }, { "no_catching", "No Catching" }, { "encounter_ball_limit", "Ball Per Enc." } } },
     { title = "FIELD ITEMS", rules = {{ "no_repels", "No Repels" }, { "no_escape_rope", "No Escape Rope" }, { "travel_restrictions", "Travel Restrictions" }, { "no_field_healing", "No Field Heal" }, { "no_pp_items", "No PP Items" }, { "no_tm_use", "No TMs" }, { "no_rare_candy_use", "No Rare Candy" } } },
     { title = "SERVICES & ECONOMY", rules = {{ "no_poke_center", "No Center Heal" }, { "no_mom_heal", "No Mom Heal" }, { "no_day_care", "No Day Care" }, { "shop_restrictions", "Shop Restrictions" }, { "no_gambling", "No Gambling" }, { "trainer_money_multiplier", "Trainer Money" } } },
@@ -1029,11 +1029,7 @@ return function(mod, api)
                   type_lock_quinary=5,type_lock_senary=6})[key])
             if lane and lane>mode then
                 -- Only show type selectors for active lanes.
-            elseif key=="wonderlocke" then
-                rows[#rows+1]=row(label,"soon",function()
-                    disabledFeature(label,key)
-                end)
-            elseif lane and drafting then
+                        elseif lane and drafting then
                 -- Catch Draft owns these slots: never let a manual click
                 -- overwrite types learned from successful wild catches.
                 rows[#rows+1]=row(label..": "
@@ -1102,7 +1098,6 @@ return function(mod, api)
                 "FIRST STARTER EXEMPT",
                 "UNLISTED TYPES: ALLOWED",
                 "CHANGING MODE RESETS DRAFT",
-                "WONDERLOCKE: [SOON]",
             })
         end)
         return rows
@@ -1940,24 +1935,68 @@ return function(mod, api)
         if line ~= "" then lines[#lines + 1] = line end
         return lines
     end
-    local function showNotices()
-        local function noticeRows()
-            local history = api.notices and api.notices() or {}
-            local rows = {}
-            for i = #history, math.max(1, #history - 29), -1 do
-                local event = history[i]
-                if type(event) == "table" then
-                    local text = tostring(event.text or "")
-                    local code = tostring(event.code or "NOTICE")
-                    rows[#rows + 1] = row(code, nil, function()
-                        info("NUZ NOTICE", noticeLines(text))
-                    end)
+    -- The historical Almanac was a proposed recap of run state; NUZ
+    -- NOTICES already owns the persistent rule-event log. RUN JOURNAL
+    -- combines those two ideas in one destination without duplicating
+    -- or migrating save records. Existing notices are still readable.
+    local function journalHistoryRows()
+        local history = api.notices and api.notices() or {}
+        local rows = {}
+        for i=#history, math.max(1,#history-99), -1 do
+            local event=history[i]
+            if type(event)=="table" then
+                local message=tostring(event.text or "")
+                local heading=tostring(event.code or "NOTICE"):gsub("_"," ")
+                rows[#rows+1]=row(heading,nil,function()
+                    local content={"EVENT: "..heading}
+                    for _,line in ipairs(noticeLines(message)) do
+                        content[#content+1]=line
+                    end
+                    info("JOURNAL ENTRY",content)
+                end)
+            end
+        end
+        if #rows==0 then rows[1]=row("NO EVENTS YET") end
+        return rows
+    end
+
+    local function showRunJournal()
+        local function journalRows()
+            local s=state()
+            local claimed,catches=0,0
+            for _,entry in pairs(s.areas or {}) do
+                if Core.areaSpent(entry) then claimed=claimed+1 end
+                if type(entry)=="table" and entry.caught then
+                    catches=catches+1
                 end
             end
-            if #rows == 0 then rows[1] = row("NO NOTICES YET") end
-            return rows
+            local history=api.notices and api.notices() or {}
+            local outcome=s.failed and "LOST" or
+                (s.finalResult and s.finalResult.outcome=="VICTORY"
+                    and "CHAMPION" or "ACTIVE")
+            local style=Playstyles.get(s,"hardcore_nuzlocke")
+                and (Playstyles.get(s,"shiny_nuzlocke")
+                    and "SHINY + HARD" or "HARDCORE")
+                or (Playstyles.get(s,"shiny_nuzlocke")
+                    and "SHINY NUZ" or "CLASSIC")
+            return {
+                row("RUN: "..outcome,nil,showStatus),
+                row("STYLE: "..style,nil,showStatus),
+                row("AREAS USED: "..claimed,nil,showTracker),
+                row("AREA CATCHES: "..catches,nil,showTracker),
+                row("FALLEN: "..#(s.graveyard or {}),nil,showGraveyard),
+                row("SHINY EXC: "..tostring(s.shinyExceptionsUsed or 0),
+                    nil,showStatus),
+                row("EVENT HISTORY: "..#history,nil,function()
+                    present("EVENT HISTORY",
+                        journalHistoryRows(),journalHistoryRows)
+                end),
+                row("RUN RULE DETAILS",nil,showStatus),
+                row("ENCOUNTER TRACKER",nil,showTracker),
+                row("GRAVEYARD",nil,showGraveyard),
+            }
         end
-        present("NUZ NOTICES", noticeRows(), noticeRows)
+        present("RUN JOURNAL",journalRows(),journalRows)
     end
 
     local function showEndRun()
@@ -1987,18 +2026,14 @@ return function(mod, api)
         present("NUZ MENU", {
             row("NUZ RULES", nil, showRules),
             row("ENC TRACKER", nil, showTracker),
-            row("NUZ STATUS", nil, showStatus),
+            row("RUN JOURNAL", nil, showRunJournal),
             row("GRAVEYARD", nil, showGraveyard),
-            row("ALMANAC", "soon", function()
-                disabledFeature("ALMANAC", "almanac")
-            end),
             row("MOD COMPAT", "soon", function()
                 disabledFeature("MOD COMPAT", "compat")
             end),
             row("NUZ DEV", nil, showDevTools),
             row("NICKNAME TASKS", nil, showNicknameTasks),
             row("END RUN", nil, showEndRun),
-            row("NUZ NOTICES", nil, showNotices),
         })
     end
 
