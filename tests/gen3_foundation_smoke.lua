@@ -715,8 +715,14 @@ local function nativeGift()
     return false
 end
 assert(catchRules.setRule("allow_gifts",false))
-assert(hooks["script.command"](nativeGift,c,"givemon",
-    {op="givemon",species=25,level=5})==false)
+-- The Gen1Recomp mod sandbox deliberately hides global package.
+local hostPackage=package
+package=nil
+local giftOK,giftResult=pcall(hooks["script.command"],nativeGift,c,
+    "givemon",{op="givemon",species=25,level=5})
+package=hostPackage
+assert(giftOK and giftResult==false,
+    "scripted Gift guard must run without package.loaded")
 assert(giftCalls==0 and vm.ctx.specialVars[0x800D]==2,
     "denied gift must not run the native opcode")
 assert(#game.session.party==1)
