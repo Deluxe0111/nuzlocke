@@ -1999,6 +1999,69 @@ return function(mod, api)
         present("RUN JOURNAL",journalRows(),journalRows)
     end
 
+    -- This is a diagnostic screen, not another source of rule settings.
+    -- Gen 3 composes native rules with provider hooks automatically; the
+    -- Gen 1/2 per-capability ownership preferences have no Gen 3 contract.
+    local function showModSupport()
+        local function supportRows()
+            local status=api.modSupport and api.modSupport() or {}
+            local untamed=tostring(status.untamed or "UNKNOWN")
+            local shiny=tostring(status.shiny or "UNKNOWN")
+            local random=tostring(status.otherRandomizer or "UNKNOWN")
+            return {
+                row("UNTAMED: "..untamed,nil,function()
+                    info("UNTAMED SUPPORT",{
+                        "DETECTION: "..untamed,
+                        "WANDERING WILD POKEMON",
+                        "SHARE NUZ CATCH RULES",
+                        "RANDOM WILD HOOKS APPLY",
+                        "WHEN PROVIDER IS PRESENT",
+                        "COMPATIBLE BUILD REQUIRED",
+                        "DETECTED IS NOT TESTED",
+                    })
+                end),
+                row("SHINY ODDS: "..shiny,nil,function()
+                    info("SHINY PROVIDER",{
+                        "OWNER: "..shiny,
+                        status.shinyOwner and
+                            ("MOD: "..tostring(status.shinyOwner):sub(1,20))
+                            or "NATIVE + NUZ ODDS",
+                        "EXTERNAL OWNER MUST",
+                        "EXPORT SHINY CAPABILITY",
+                        "NO DOUBLE SHINY ROLLS",
+                    })
+                end),
+                row("OTHER RNG: "..random,nil,function()
+                    info("RANDOMIZER SUPPORT",{
+                        "OTHER MOD: "..random,
+                        "NUZ RANDOMIZER: BUILT IN",
+                        status.wildRandom and
+                            "NUZ WILDS: ON" or "NUZ WILDS: OFF",
+                        status.trainerRandom and
+                            "NUZ TRAINERS: ON" or "NUZ TRAINERS: OFF",
+                        "OVERLAPPING RANDOMIZERS",
+                        "MAY REQUIRE MANUAL SETUP",
+                        "NO AUTOMATIC OWNERSHIP",
+                        "IS CLAIMED FOR GEN 3",
+                    })
+                end),
+                row("HOW SUPPORT WORKS",nil,function()
+                    info("MOD SUPPORT HELP",{
+                        "THIS SCREEN IS READ ONLY",
+                        "HOOKS APPLY AUTOMATICALLY",
+                        "NO MANUAL OWNER SWITCHES",
+                        "NUZ KEEPS CATCH RULES",
+                        "MOD FIND IS LIVE ONLY",
+                        "DETECTION IS NOT PROOF",
+                        "OF GAMEPLAY CERTIFICATION",
+                        "TEST COMBINED MODS",
+                    })
+                end),
+            }
+        end
+        present("MOD SUPPORT",supportRows(),supportRows)
+    end
+
     local function showEndRun()
         if api.openResults and type(state().finalResult)=="table" then
             return api.openResults()
@@ -2028,9 +2091,7 @@ return function(mod, api)
             row("ENC TRACKER", nil, showTracker),
             row("RUN JOURNAL", nil, showRunJournal),
             row("GRAVEYARD", nil, showGraveyard),
-            row("MOD COMPAT", "soon", function()
-                disabledFeature("MOD COMPAT", "compat")
-            end),
+            row("MOD SUPPORT", nil, showModSupport),
             row("NUZ DEV", nil, showDevTools),
             row("NICKNAME TASKS", nil, showNicknameTasks),
             row("END RUN", nil, showEndRun),
