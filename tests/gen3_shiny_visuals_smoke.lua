@@ -1,5 +1,5 @@
--- Use the actual ROM cache path, not a stub that returns the normal
--- Pokemon.frontPic. Gen3's tiny icons have only a standard palette.
+-- Read true shiny ROM art for portraits and results; keep mini-icons native.
+-- A standard Gen 3 icon must never be replaced by a scaled front sprite.
 local Visual=assert(loadfile("gen3_shiny_visuals.lua"))()()
 local rgba=string.rep(string.char(20,220,35,255),4096)
 local fetched={}
@@ -16,7 +16,7 @@ package.loaded["src.core.game3.dataset"]={
 package.loaded["src.core.game3.cache_paths"]={
     CACHE_ROOT="data/generated/gba",
 }
-local generated,icons,draws,diamonds=0,0,0,0
+local generated,draws,diamonds=0,0,0
 local createdImages,drawn={},{};
 local gfx={
     newImage=function(data)
@@ -28,15 +28,8 @@ local gfx={
         createdImages[#createdImages+1]=image
         return image
     end,
-    newCanvas=function(w,h)
-        assert(w==32 and h==64)
-        icons=icons+1
-        return {canvas=true}
-    end,
-    newQuad=function(x,y,w,h,iw,ih)
-        assert(w==32 and h==32 and iw==32 and ih==64)
-        return {x=x,y=y}
-    end,
+    newCanvas=function()error("mini-icon canvas must never be created")end,
+    newQuad=function()error("mini-icon quads must never be created")end,
     push=function()end,pop=function()end,setCanvas=function()end,
     clear=function()end,setColor=function()end,
     draw=function(img,...)
@@ -82,17 +75,13 @@ assert(#fetched==1 and fetched[1]=="data/generated/gba/pokemon/front_shiny/56.rg
 assert(native==0,"shiny artwork should come from actual ROM RGBA")
 assert(Visual.front(Pokemon,shiny)==pic and generated==1,
     "decoded shiny palette texture must be cached per ROM/species")
-local mini=assert(Visual.icon(Pokemon,shiny))
-assert(mini.w==32 and mini.h==32 and mini.frames==2
-    and mini.quads[0].y==0 and mini.quads[1].y==32
-    and icons==1 and draws==2)
-assert(Visual.icon(Pokemon,shiny)==mini and icons==1)
-assert(Visual.icon(Pokemon,regular)==nil)
+assert(Visual.icon==nil,
+    "there must be no custom shiny mini-icon renderer")
+assert(Pokemon.monIcon(shiny).vanilla and Pokemon.monIcon(regular).vanilla
+    and normal==2, "native icons remain valid for shiny and normal Pokemon")
 assert(Visual.drawPcPortrait(Pokemon,shiny)==true)
-assert(drawn[#drawn]==pic.image and diamonds==1,
+assert(draws==1 and drawn[#drawn]==pic.image and diamonds==1,
     "native PC preview must redraw exact shiny ROM palette image")
--- The normal mono palette is NEVER used to build shiny art.
-assert(normal==0)
 local source= {species=56,shinyKnown=true,shiny=true,personality=15}
 assert(Visual.isShiny(Pokemon,source)==true)
 assert(Visual.front(Pokemon,source)==pic)
@@ -105,7 +94,7 @@ assert(fallback.image.nativeFallback==true and native==1)
 local knownNormal={species=56,shinyKnown=true,shiny=false,isShiny=true}
 assert(Visual.isShiny(Pokemon,knownNormal)==false)
 assert(Visual.front(Pokemon,knownNormal)==nil)
--- Dataset switch must invalidate the shiny image/icon cache.
+-- Dataset switch must invalidate the shiny front image cache.
 local newStore={read=function()return rgba end}
 package.loaded["src.core.game3.dataset"].cache=function()return newStore end
 assert(Visual.front(Pokemon,shiny).image~=pic.image
@@ -115,4 +104,4 @@ Pokemon._front={} -- engine's Pokemon.install() on a new ROM
 assert(Visual.front(Pokemon,shiny).image~=previous.image
     and generated==3,"shared Dataset cache must also detect ROM reload")
 love=oldLove
-print("Gen 3 shiny ROM artwork and PC/icon visuals: PASS")
+print("Gen 3 shiny ROM artwork and PC portrait/native icons: PASS")
