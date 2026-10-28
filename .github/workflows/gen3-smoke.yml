@@ -36,6 +36,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Lua 5.1
         run: sudo apt-get update && sudo apt-get install -y lua5.1
+      - name: Compile-check startup integration on Lua 5.1
+        run: |
+          luac5.1 -p main.lua
+          luac5.1 -p title_setup_compat.lua
+          luac5.1 -p gen3_runtime.lua
+          luac5.1 -p gen3_title_setup.lua
+          luac5.1 -p gen3_menu.lua
       - name: Run isolated Gen 3 hook/state smoke
         run: lua5.1 tests/gen3_foundation_smoke.lua
       - name: Test Gen 3 native title setup confirmation and cancellation
