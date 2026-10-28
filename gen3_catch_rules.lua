@@ -137,8 +137,10 @@ return function()
     }
     function M.isTownMap(mapId)
         if type(mapId)~="string" then return false end
-        if not (mapId:match("^FR_") or mapId:match("^RS_")
-            or mapId:match("^EM_")) then return false end
+        if not (mapId:match("^FR_") or mapId:match("^RU_")
+            or mapId:match("^SA_") or mapId:match("^EM_")) then
+            return false
+        end
         if mapId:match("_[A-Z0-9_]+_TOWN$")
             or mapId:match("_[A-Z0-9_]+_CITY$") then return true end
         local island=mapId:match("^FR_([A-Z]+)_ISLAND$")
