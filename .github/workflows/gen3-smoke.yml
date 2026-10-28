@@ -27,6 +27,8 @@ on:
       - 'gen3_area_splits.lua'
       - 'gen3_run_party.lua'
       - 'gen3_difficulty.lua'
+      - 'gen3_hardcore_rules.lua'
+      - 'tests/gen3_hardcore_rules_smoke.lua'
       - 'tests/gen3_difficulty_smoke.lua'
       - 'tests/gen3_run_party_smoke.lua'
       - 'tests/gen3_area_splits_smoke.lua'
@@ -102,6 +104,8 @@ jobs:
         run: lua5.1 tests/gen3_run_party_smoke.lua
       - name: Run Game Difficulty trainer AI and stat profiles smoke
         run: lua5.1 tests/gen3_difficulty_smoke.lua
+      - name: Run Hardcore native battle, gym, dungeon and whiteout smoke
+        run: lua5.1 tests/gen3_hardcore_rules_smoke.lua
       - name: Run Advanced Battle Clauses policy smoke
         run: lua5.1 tests/gen3_advanced_battle_clauses_smoke.lua
       - name: Run Advanced Status Bans parent and per-side scope smoke
