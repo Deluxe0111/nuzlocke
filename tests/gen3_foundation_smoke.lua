@@ -359,9 +359,9 @@ assert(not values.gen3_classic_v1.failed,
 
 -- Nuz Dev: explicit opt-in, per-area editing, confirmations and audit.
 openMenu()
-for _ = 1, 6 do press("down") end
-assert(mod.exports.gen3_menu.model().rows[7] == "NUZ DEV",
-    "developer menu should appear as a distinct, labelled tool")
+for _ = 1, 5 do press("down") end
+assert(mod.exports.gen3_menu.model().rows[6] == "NUZ DEV",
+    "developer menu should remain a distinct tool after journal consolidation")
 press("a")
 assert(mod.exports.gen3_menu.model().title == "NUZ DEV")
 assert(mod.exports.gen3_menu.model().rows[1] == "ENABLE DEV MODE")
