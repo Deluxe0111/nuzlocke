@@ -87,6 +87,7 @@ package.loaded["src.core.game3.pokemon"]={
     name=function(id)return tostring(id) end,
 }
 local session={version="firered",map="FR_ROUTE_1",
+    bag={pockets={POKE_BALLS={{id=4,qty=5}}}},
     party={{species=25,hp=20,level=5,personality=123}},flags={}}
 local game={generation=3,session=session}
 local mod={game=game,exports={},
