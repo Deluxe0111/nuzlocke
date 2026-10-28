@@ -8,10 +8,10 @@ return function()
         { key = "permadeath", label = "PERMADEATH", default = true, status = "working" },
         { key = "encounter_limit", label = "ONE PER AREA", default = true, status = "working" },
         { key = "failed_encounter", label = "FAILED ENCOUNTERS", default = true, status = "working" },
-        { key = "nickname_rule", label = "NICKNAME RULE", default = true, status = "wip" },
-        { key = "first_rival_forgiveness", label = "FIRST RIVAL MERCY", default = true, status = "wip" },
-        { key = "whiteout_ends_run", label = "WHITEOUT ENDS RUN", default = true, status = "wip" },
-        { key = "pc_survivors_allowed", label = "PC SURVIVORS", default = false, status = "wip" },
+        { key = "nickname_rule", label = "NICKNAME RULE", default = true, status = "working" },
+        { key = "first_rival_forgiveness", label = "FIRST RIVAL MERCY", default = true, status = "working" },
+        { key = "whiteout_ends_run", label = "WHITEOUT ENDS RUN", default = true, status = "working" },
+        { key = "pc_survivors_allowed", label = "PC SURVIVORS", default = false, status = "working" },
     }
     local byKey = {}
     for _, rule in ipairs(RULES) do byKey[rule.key] = rule end
