@@ -41,6 +41,9 @@ return function()
         return d.default
     end
     function M.set(s,key,v)
+        if type(s) == "table" and s.runSettingsLocked == true and s._setup ~= true then
+            return false, "run_settings_locked"
+        end
         local d=byKey[key]
         if not d then return false,"unknown_rule" end
         if type(s)~="table" then return false,"invalid_state" end
