@@ -21,6 +21,8 @@ on:
       - 'gen3_catch_rules.lua'
       - 'gen3_variants.lua'
       - 'gen3_battle_items.lua'
+      - 'gen3_field_items.lua'
+      - 'tests/gen3_field_items_smoke.lua'
       - 'tests/gen3_battle_items_smoke.lua'
       - 'tests/gen3_variants_smoke.lua'
       - 'gen3_battle_clauses.lua'
@@ -78,6 +80,8 @@ jobs:
         run: lua5.1 tests/gen3_variants_smoke.lua
       - name: Run Advanced Battle Items native transaction policy smoke
         run: lua5.1 tests/gen3_battle_items_smoke.lua
+      - name: Run Advanced Field Items policy smoke
+        run: lua5.1 tests/gen3_field_items_smoke.lua
       - name: Run Advanced Battle Clauses policy smoke
         run: lua5.1 tests/gen3_advanced_battle_clauses_smoke.lua
       - name: Run Advanced Status Bans parent and per-side scope smoke
