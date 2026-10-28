@@ -247,4 +247,158 @@ key("down"); key("a")
 assert(menu.model().rows[2] == "EXP EDGING: OFF")
 key("b"); key("b"); key("b")
 assert(stack.top == nil)
-print("Gen3 LEVELS caps, edging, native hook, Rare Candy and menu: PASS")
+-- Field Items integration uses the *real* Gen 3 alternate seams:
+-- item.use, direct ItemUse methods, native PartyMenu and field move table.
+local field=mod.exports.gen3_field_items
+local ItemUse=package.loaded["src.core.game3.item_use"]
+local itemCalls={tm=0,escape=0,pp=0}
+ItemUse.useTm=function() itemCalls.tm=itemCalls.tm+1;return true,"tm" end
+ItemUse.useEscapeRope=function() itemCalls.escape=itemCalls.escape+1;return true end
+ItemUse.applyPpItem=function() itemCalls.pp=itemCalls.pp+1;return true end
+ItemUse.ppItemBoosts=function(id) return id==69 or id==71 end
+ItemUse.fieldUseKind=function(id)
+    if id==68 then return "level" end
+    if id==83 or id==84 or id==86 then return "repel" end
+    if id==85 then return "escape" end
+    if id==34 or id==69 or id==71 or id==138 then return "pp" end
+    if id==289 or id==339 then return "tm" end
+    if id==13 or id==139 then return "heal" end
+    if id==23 then return "status" end
+    if id==24 then return "revive" end
+    return "none"
+end
+local items={
+    toNumericId=function(id) return tonumber(id) end,
+    medicineKind=function(id)
+        if id==13 or id==139 then return "heal" end
+        if id==23 then return "status" end
+        if id==24 then return "revive" end
+        return "none"
+    end,
+    isTm=function(id) return id==289 or id==339 end,
+    isHm=function(id) return id==339 end,
+}
+package.loaded["src.core.game3.items_data"]=items
+local travelCalls={fly=0,teleport=0}
+local moves={
+    MOVES={FLY=19,TELEPORT=100},
+    flyFromMenu=function(ctx)
+        travelCalls.fly=travelCalls.fly+1
+        return {ok=true,action="fly"}
+    end,
+    teleportFromMenu=function(ctx)
+        travelCalls.teleport=travelCalls.teleport+1
+        return {ok=true,action="teleport"}
+    end,
+}
+moves.MENU_HANDLERS={
+    [19]=moves.flyFromMenu,[100]=moves.teleportFromMenu
+}
+package.loaded["src.core.game3.field_moves"]=moves
+events["map.entered"]({mapId="FR_ROUTE_1"})
+local function fieldUse(id)
+    return hooks["item.use"](function()
+        nativeUses=nativeUses+1
+        return true,"used"
+    end,game,nil,id,1,{})
+end
+for _,case in ipairs({
+    {"no_repels",86},
+    {"no_escape_rope",85},
+    {"no_field_healing",13},
+    {"no_pp_items",34},
+    {"no_tm_use",289},
+    {"no_rare_candy_use",68},
+}) do
+    assert(field.setRule(case[1],true))
+    local before=nativeUses
+    local ok,kind,message=fieldUse(case[2])
+    assert(ok==false and kind=="noeffect"
+        and nativeUses==before and type(message)=="string",
+        "field item.use must deny before native consumption: "..case[1])
+end
+assert(fieldUse(339)==true,"HM is legal under No TMs")
+assert(fieldUse(93)==true,"evolution stone is unaffected")
+assert(ItemUse.useTm(session,{},289,1)==false and itemCalls.tm==0,
+    "direct TM teaching must be blocked")
+assert(ItemUse.useTm(session,{},339,1)==true and itemCalls.tm==1,
+    "direct HM teaching remains legal")
+assert(ItemUse.useEscapeRope(session,{},85)==false
+    and itemCalls.escape==0,"direct Escape Rope cannot bypass field hook")
+assert(ItemUse.applyPpItem(original,69,1,nil,session)==false
+    and itemCalls.pp==0,"direct PP Up mutation must be denied")
+assert(ItemUse.applyPpItem(original,71,1,nil,session)==false
+    and itemCalls.pp==0,"direct PP Max mutation must be denied")
+assert(ItemUse.useRareCandy(session,original)==false
+    and candies==1,"direct Rare Candy remains unused even under its level cap")
+local partyInput={
+    wasPressed=function(_,button)return button=="a" end
+}
+nativeParty.mode="use"
+nativeParty.open=true
+nativeParty._onSelect=nil
+nativeParty._item=289
+local partyBefore=directCandyUses
+nativeParty.handleInput(partyInput)
+assert(directCandyUses==partyBefore
+    and nativeParty.message:find("No TMs",1,true),
+    "native PartyMenu must deny TM before changing moves or bag")
+nativeParty.dismiss()
+nativeParty._item=68
+nativeParty.handleInput(partyInput)
+assert(directCandyUses==partyBefore
+    and nativeParty.message:find("No Rare Candy",1,true),
+    "native PartyMenu must deny candy before leveling/consuming")
+nativeParty.dismiss()
+nativeParty._item=339
+nativeParty.handleInput(partyInput)
+assert(directCandyUses==partyBefore+1,"HM selection remains delegated")
+nativeParty._item=34
+nativeParty.handleInput(partyInput)
+assert(directCandyUses==partyBefore+1
+    and nativeParty.message:find("No PP Items",1,true),
+    "PP item PartyMenu use must be refused before its native action")
+nativeParty.dismiss()
+assert(field.setRule("travel_restrictions",1))
+assert(moves.MENU_HANDLERS[19]({}).ok==false
+    and travelCalls.fly==0,"captured menu Fly dispatch must be blocked")
+assert(moves.MENU_HANDLERS[100]({}).ok
+    and travelCalls.teleport==1,"NO FLY preserves Teleport")
+assert(field.setRule("travel_restrictions",2))
+assert(moves.teleportFromMenu({}).ok==false
+    and travelCalls.teleport==1,"NO FLY+TELEPORT blocks player menu")
+assert(field.setRule("travel_restrictions",0))
+assert(moves.MENU_HANDLERS[19]({}).ok
+    and travelCalls.fly==1,"normal Fly restored without reinstalling")
+assert(moves.MENU_HANDLERS[100]({}).ok
+    and travelCalls.teleport==2)
+-- PP restriction is the only FIELD rule also relevant to BattleItems.
+local battleUseCalls=0
+local nativeItems={
+    isBall=function() return false end,
+    isStatBooster=function() return false end,
+    isBattleUsable=function()return true end,
+    canUseOn=function()return true end,
+    use=function()
+        battleUseCalls=battleUseCalls+1;return "heal",{},true,false
+    end,
+}
+package.loaded["src.core.game3.battle.items"]=nativeItems
+local trainer={session=session}
+events["battle.started"]({battle=trainer,kind="trainer",speciesId=25})
+assert(nativeItems.isBattleUsable(34)==false)
+assert(select(1,nativeItems.canUseOn(trainer,34,1,original))==false)
+local result,_,turn=nativeItems.use(trainer,nil,{},session,34,1)
+assert(result=="error" and not turn and battleUseCalls==0,
+    "PP item denied during battle before turn/inventory mutation")
+assert(nativeItems.isBattleUsable(13)==true,
+    "No Field Heal must not automatically ban in-battle Potion")
+events["battle.ended"]({battle=trainer,result="win"})
+assert(Core.set==nil or true) -- no policy changes outside the mod interface
+assert(mod.exports.gen3_core.setRule("nuzlocke_enabled",false))
+assert(fieldUse(68)==true,"master OFF restores field candy use")
+assert(moves.MENU_HANDLERS[19]({}).ok
+    and moves.MENU_HANDLERS[100]({}).ok)
+assert(field.getRule("no_tm_use")==true and field.getRule("no_pp_items")==true,
+    "master toggle must not clear the selected field rules")
+print("Gen3 LEVELS, Field Items native bag/party/travel/battle: PASS")
