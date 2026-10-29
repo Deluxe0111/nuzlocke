@@ -22,7 +22,7 @@ Settings are saved and retained when the master switch is temporarily OFF.
 | **Gift Slot Policy** | AREA | AREA makes successful optional gifts consume the encounter slot on the receipt map when One Per Area is enabled. BONUS records the gift without spending that slot. |
 | **In-Game Trades** | ON | OFF rejects native NPC in-game trades at the requested-species preview, before the player gives up their Pokémon. This does not block linked player trades. |
 | **Trade Slot Policy** | AREA | AREA makes successful NPC exchanges consume the encounter slot on their map when One Per Area is enabled. BONUS records the exchange without using the ordinary slot. |
-| **PKMN BAN** | 0 BANNED | Opens a 20-species-per-page National Dex picker (#001–#386). Select any species to toggle its individual ban. Uses National Dex rather than internal Hoenn species IDs. Applies to wild catches, optional gifts, NPC trades, and the Nuzlocke randomiser's wild/trainer replacement pools. The mandatory first starter is exempt. |
+| **PKMN BAN** | 0 BANNED | Opens a 20-species-per-page National Dex picker (#001–#386 vanilla, up to #1025 with National Dex). Select any species to toggle its individual ban. Uses National Dex rather than internal Hoenn species IDs. Applies to wild catches, optional gifts, NPC trades, and the Nuzlocke randomiser's wild/trainer replacement pools. The mandatory first starter is exempt. |
 | **Colorlocke** | OFF | OFF / RANDOM / CHOOSE. Restricts new acquisitions to the canonical species colour; RANDOM picks one available colour deterministically and persists it for the run. CHOOSE uses the Colour selector. Unknown custom species with no colour metadata are allowed rather than guessing a sprite colour. |
 | **Color** | BLACK | CHOOSE-only selector cycling BLACK, BLUE, BROWN, GRAY, GREEN, PINK, PURPLE, RED, WHITE and YELLOW. Based on canonical species identity, not shiny/sprite palettes. |
 | **Alphabetlocke** | OFF | OFF / RANDOM / CHOOSE. Restricts new wild catches by the first letter of the species' canonical ROM identity (not nickname or translated text). RANDOM chooses an available initial deterministically for the save and stores it; CHOOSE uses the Letter selector. |
@@ -66,7 +66,8 @@ the catch is denied rather than silently bypassing a hard maximum.
 - Town Catches is checked before an encounter can claim a route's first
   attempt, and rechecked at the Poké Ball transaction. Town catches are
   therefore ineligible while OFF, including with Failed Encounters ON.
-- **PKMN BAN** operates on the 386 original National Dex numbers, stores
+- **PKMN BAN** operates on National Dex numbers 1–1025 (picker stops at 386
+  if the expanded provider is absent), stores
   only selected entries under `catchRules.bannedNational`, and checks the
   actual battled/received species' `Pokemon.national()` identity.
   The in-game picker is paged in groups of 20 with previous/next controls.
@@ -84,7 +85,7 @@ the catch is denied rather than silently bypassing a hard maximum.
   `catchRules.colorlocke_random_color`, and displays it as RND:COLOUR
   after resolution; switching modes resets the random selection.
 - RANDOM Alphabetlocke chooses from initials represented in the active
-  native National Dex registry (1–386) and persists the chosen letter in
+  installed National Dex registry (1–1025 when available) and persists the chosen letter in
   `statusBans`-independent `catchRules.alphabetlocke_random_letter`.
   Changing Alphabetlocke mode resets that stored choice. The selector
   is visible in the menu after resolution as `RND:X`.
@@ -204,3 +205,22 @@ All nine Advanced Rules categories now have functioning Gen 3 controls. Their im
 
 The automated smoke suite is not a substitute for exact-edition ROM
 testing in FireRed, LeafGreen, Ruby, Sapphire and Emerald.
+
+## Expanded National Dex integration (development branch)
+
+With `national_dex_gen3` API v2 installed, the randomiser includes
+registered Gen 4–9 base species up to #1025 and optionally all 128 forms.
+All replacements still pass the same eligibility, BST, generation and
+individual ban checks. New legendary and mythical species use the provider's
+`listSpecies()` classification; pseudo-legendary restrictions cover their
+known later-generation evolution families.
+
+The **PKMN BAN** picker extends to #1025 when National Dex is registered.
+Unsupported species/form entries are not fabricated. Existing used saves
+keep their legacy randomisation roster to preserve seed/replacement identity.
+See [Randomiser](GEN3_RANDOMIZER.md) for the mode controls and safety policy.
+
+Colorlocke's hard-coded fallback colour table still covers the original
+386 species; newer species require native colour metadata. This feature
+does not claim to supply new sprite artwork or resolve Modern Spawns'
+encounter-provider priority by itself.
