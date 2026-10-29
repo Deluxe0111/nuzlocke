@@ -135,6 +135,11 @@ assert(mod.exports.gen3_menu.model().title=="MOD SUPPORT")
 assert(mod.exports.gen3_menu.model().rows[1]=="UNTAMED: UNKNOWN"
     and mod.exports.gen3_menu.model().rows[2]=="SHINY ODDS: NUZLOCKE"
     and mod.exports.gen3_menu.model().rows[3]=="OTHER RNG: UNKNOWN")
+assert(mod.exports.gen3_menu.model().rows[4]=="NAT DEX: UNKNOWN"
+    and mod.exports.gen3_menu.model().rows[5]=="G9 SPRITES: UNKNOWN"
+    and mod.exports.gen3_menu.model().rows[6]=="MOD SPAWNS: UNKNOWN"
+    and mod.exports.gen3_menu.model().rows[7]=="HD SPRITES: UNKNOWN",
+    "missing mod discovery must not be labelled as tested or absent")
 press("a")
 assert(mod.exports.gen3_menu.model().title=="UNTAMED SUPPORT")
 press("b");press("b");press("b")
@@ -156,7 +161,17 @@ assert(mod.exports.gen3_menu.model().rows[1]=="UNTAMED: DETECTED"
     and mod.exports.gen3_menu.model().rows[2]=="SHINY ODDS: EXTERNAL"
     and mod.exports.gen3_menu.model().rows[3]=="OTHER RNG: DETECTED",
     "the support screen must re-evaluate live mod providers")
-press("b");press("b")
+assert(mod.exports.gen3_menu.model().rows[4]=="NAT DEX: NOT FOUND"
+    and mod.exports.gen3_menu.model().rows[5]=="G9 SPRITES: NOT FOUND"
+    and mod.exports.gen3_menu.model().rows[6]=="MOD SPAWNS: NOT FOUND"
+    and mod.exports.gen3_menu.model().rows[7]=="HD SPRITES: NOT FOUND")
+for _=1,3 do press("down") end
+press("a")
+assert(mod.exports.gen3_menu.model().title=="NAT DEX SUPPORT")
+assert(mod.exports.gen3_menu.model().rows[1]=="DETECTION: NOT FOUND"
+    and mod.exports.gen3_menu.model().rows[2]=="PUBLIC API: N/A"
+    and mod.exports.gen3_menu.model().rows[4]=="COMBINED TEST: NOT VERIFIED")
+press("b");press("b");press("b")
 mod.find=nil
 -- A pre-Poké Ball scripted battle cannot claim Route 1, including with
 -- Failed Encounters ON. Native PC Balls do not count as carried Balls.
