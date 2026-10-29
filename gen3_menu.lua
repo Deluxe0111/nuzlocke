@@ -670,9 +670,33 @@ return function(mod, api)
             cycle("random_starter_trio_typing", "TRIO TYPING",
                 { "ANY", "DISTINCT" })
             cycle("random_starter_rerolls", "STARTER REROLLS",
-                { "ONE", "THREE", "FIVE" })
+                { "OFF", "1", "3", "5", "UNLIMITED" })
             cycle("random_starter_balance", "STARTER BALANCE",
                 { "CHAOS", "SIM BST" })
+            if type(config.starterRerollStatus) == "function" then
+                local st = config.starterRerollStatus()
+                if st.limit ~= 0 then
+                    local remaining = st.remaining == -1
+                        and "UNLIMITED" or tostring(st.remaining)
+                    rows[#rows + 1] = row("REROLLS LEFT: " .. remaining)
+                    rows[#rows + 1] = row("REROLL STARTERS NOW", nil,
+                        function()
+                            local trio, reason = config.rerollStarters()
+                            if not trio then
+                                info("STARTER REROLL", {
+                                    tostring(reason or "Unavailable") })
+                                return
+                            end
+                            current().rows = randomRows()
+                            info("NEW STARTER TRIO", {
+                                "1: " .. Display.speciesName({species=trio[1]}),
+                                "2: " .. Display.speciesName({species=trio[2]}),
+                                "3: " .. Display.speciesName({species=trio[3]}),
+                                "CHANGES SAVED FOR RIVAL",
+                            })
+                        end)
+                end
+            end
         end
         toggle("random_static_pokemon", "RANDOM STATIC")
         toggle("random_gift_pokemon", "RANDOM GIFTS")
