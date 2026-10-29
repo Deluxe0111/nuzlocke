@@ -36,7 +36,7 @@ return function()
             local ok,name=pcall(display.pokemonName,mon)
             if ok and type(name)=="string" and name~="" then return name end
         end
-        return mon.nickname or mon.name or speciesLabel(mon)
+        return mon.name or mon.nickname or speciesLabel(mon)
     end
     local function formatMon(mon)
         return text(pokemonLabel(mon)).." Lv"..text(mon.level)
