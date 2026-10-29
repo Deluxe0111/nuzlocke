@@ -11,7 +11,7 @@ return function()
         random_starter_balance = { kind="number", default=0, min=0, max=1 },
         random_starter_style = { kind="number", default=0, min=0, max=2 },
         random_starter_trio_typing = { kind="number", default=0, min=0, max=1 },
-        random_starter_rerolls = { kind="number", default=0, min=0, max=2 },
+        random_starter_rerolls = { kind="number", default=0, min=0, max=4 },
         -- Script-created wild and player gifts are distinct from wild
         -- encounters, general trainers and starter selection.
         random_static_pokemon = { kind="boolean", default=false },
@@ -111,6 +111,9 @@ return function()
         r.giftItemAssignments = nil
         r.starterOptions = nil
         r.starterSource = nil
+        r.starterRerollVersion = nil
+        r.starterRerollsUsed = nil
+        r.starterRollIndex = nil
         if key == "randomizer_preset" then
             r.randomizer_preset = value
             if value ~= 0 then
@@ -333,9 +336,52 @@ return function()
         if style==1 then return not targets[id] and #rows>0 end
         return targets[id] and #rows==0
     end
-    -- Roll three distinct starter choices as a single transaction. Native
-    -- ROM starter indices remain untouched, preserving story/rival variables.
-    -- The result is saved and shared by the chooser, gift and first rival.
+    -- A reroll is a new, deterministic trio, not an automatic BST contest.
+    -- Use an isolated salt so replaying a saved seed never consumes world RNG.
+    local function starterTrial(r, Pokemon, source, originals, seed, salt,
+            denyNational)
+        local trial, used, types = {}, {}, {}
+        local targets = r.random_starter_style ~= 0
+            and nativeEvolutionGraph(Pokemon, r) or {}
+        for i = 1, 3 do
+            local original = originals[i]
+            local legal = candidates(Pokemon, original,
+                r.random_species_generation, r.random_starter_balance,
+                denyNational, used, r)
+            local filtered = {}
+            for _, entry in ipairs(legal or {}) do
+                local t = primaryType(Pokemon, entry.id)
+                if starterAllowed(Pokemon, entry.id,
+                    r.random_starter_style, targets)
+                    and (r.random_starter_trio_typing ~= 1
+                        or (t ~= nil and not types[t])) then
+                    filtered[#filtered + 1] = entry
+                end
+            end
+            if #filtered == 0 then return nil end
+            local index = 1 + M.hash(M.algorithm, seed, "STARTERS",
+                source, i, original, salt) % #filtered
+            trial[i] = filtered[index].id
+            used[trial[i]] = true
+            local t = primaryType(Pokemon, trial[i])
+            if t ~= nil then types[t] = true end
+        end
+        return trial
+    end
+
+    local STARTER_REROLL_LIMITS = { 0, 1, 3, 5, -1 }
+    function M.starterRerollStatus(s)
+        local r = state(s)
+        local limit = STARTER_REROLL_LIMITS[r.random_starter_rerolls + 1] or 0
+        local used = tonumber(r.starterRerollsUsed) or 0
+        local remaining = limit == -1 and -1 or math.max(0, limit - used)
+        return { limit = limit, used = used, remaining = remaining,
+            ready = r.random_starter and type(r.starterOptions) == "table"
+                and r.starterRerollVersion == 2 }
+    end
+
+    -- Native starter indices remain unchanged. The exact trio is shared by
+    -- the selection UI, the scripted gift and all later rival evolutions.
     function M.starters(s, Pokemon, source, originals, entropy, denyNational)
         local r = state(s)
         if not r.random_starter or type(source) ~= "string"
@@ -355,56 +401,53 @@ return function()
             end
             return choices
         end
-        local seed=M.seed(s,entropy)
-        if seed==0 then return nil end
-        local targets=r.random_starter_style~=0
-            and nativeEvolutionGraph(Pokemon,r) or {}
-        local attempts=({1,3,5})[r.random_starter_rerolls+1] or 1
-        local chosen,bestSpread
-        for attempt=1,attempts do
-            local trial,used,types={}, {}, {}
-            local valid=true
-            for i=1,3 do
-                local original=originals[i]
-                local legal=candidates(Pokemon,original,
-                    r.random_species_generation,r.random_starter_balance,
-                    denyNational,used,r)
-                local filtered={}
-                for _,entry in ipairs(legal or {}) do
-                    local t=primaryType(Pokemon,entry.id)
-                    if starterAllowed(Pokemon,entry.id,
-                        r.random_starter_style,targets)
-                        and (r.random_starter_trio_typing~=1
-                            or (t~=nil and not types[t])) then
-                        filtered[#filtered+1]=entry
-                    end
-                end
-                if #filtered==0 then valid=false;break end
-                local index=1+M.hash(M.algorithm,seed,"STARTERS",
-                    source,i,original,attempt)%#filtered
-                trial[i]=filtered[index].id
-                used[trial[i]]=true
-                local t=primaryType(Pokemon,trial[i])
-                if t~=nil then types[t]=true end
-            end
-            if valid then
-                local bsts={}
-                for i=1,3 do
-                    local v=eligiblePokemon(Pokemon,trial[i])
-                    bsts[i]=v and v.bst or 0
-                end
-                table.sort(bsts)
-                local spread=bsts[3]-bsts[1]
-                if not chosen or spread<bestSpread then
-                    chosen,bestSpread=trial,spread
-                end
-            end
-        end
+        local seed = M.seed(s, entropy)
+        if seed == 0 then return nil end
+        local chosen = starterTrial(r, Pokemon, source, originals, seed, 1,
+            denyNational)
         if not chosen then return nil end
         r.starterOptions = chosen
         r.starterSource = source
+        r.starterRollIndex = 1
+        r.starterRerollsUsed = 0
+        r.starterRerollVersion = 2
         r.used = true
         return { chosen[1], chosen[2], chosen[3] }
+    end
+
+    -- A separate action, callable ONLY while native starter selection is
+    -- still open. Unlike configuration changes, it is permitted after the
+    -- seed is locked, but never alters the rest of the randomiser mappings.
+    -- Old beta saves have no version marker and cannot acquire rerolls.
+    function M.rerollStarters(s, Pokemon, source, originals, denyNational)
+        local r = state(s)
+        if not r.random_starter or r.starterRerollVersion ~= 2
+            or type(r.starterOptions) ~= "table"
+            or #r.starterOptions ~= 3 or r.starterSource ~= source
+            or type(originals) ~= "table" or #originals ~= 3 then
+            return nil, "starter_choices_not_ready"
+        end
+        local status = M.starterRerollStatus(s)
+        if status.remaining == 0 then return nil, "no_rerolls_left" end
+        local seed = M.seed(s)
+        if seed == 0 then return nil, "seed_not_ready" end
+        local previous = r.starterOptions
+        local starting = tonumber(r.starterRollIndex) or 1
+        -- Tiny, restricted rosters can yield the same trio repeatedly.
+        -- Do not charge a reroll if no different valid trio can be found.
+        for attempt = starting + 1, starting + 16 do
+            local chosen = starterTrial(r, Pokemon, source, originals,
+                seed, attempt, denyNational)
+            if chosen and (chosen[1] ~= previous[1]
+                or chosen[2] ~= previous[2]
+                or chosen[3] ~= previous[3]) then
+                r.starterOptions = chosen
+                r.starterRollIndex = attempt
+                r.starterRerollsUsed = status.used + 1
+                return { chosen[1], chosen[2], chosen[3] }
+            end
+        end
+        return nil, "no_alternative_trio"
     end
 
     -- Read the actual ROM evolution graph. Do not infer an evolution by

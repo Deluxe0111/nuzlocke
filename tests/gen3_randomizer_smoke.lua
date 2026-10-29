@@ -492,6 +492,39 @@ assert(R.locked(starterSave))
 assert(not R.set(starterSave,"random_starter_balance",1))
 local prior = {trio[1],trio[2],trio[3]}
 assert(R.starters(starterSave,P,"frlg",{1,2,3})[2] == prior[2])
+assert(R.starterRerollStatus(starterSave).remaining==0)
+assert(not R.rerollStarters(starterSave,P,"frlg",{1,2,3}),
+    "default OFF must not allow a manual reroll")
+local rerollSave={randomizer={randomizer_seed=17171717,
+    random_starter=true,random_starter_rerolls=2}}
+local originalTrio=assert(R.starters(rerollSave,P,"frlg",{1,2,3}))
+local seenTrio=table.concat(originalTrio,",")
+for n=1,3 do
+    local changed=assert(R.rerollStarters(rerollSave,P,"frlg",{1,2,3}))
+    local signature=table.concat(changed,",")
+    assert(signature~=seenTrio,"manual reroll must replace all three choices")
+    seenTrio=signature
+    assert(R.starterRerollStatus(rerollSave).remaining==3-n)
+    assert(R.starters(rerollSave,P,"frlg",{1,2,3})[1]==changed[1],
+        "returning to starter selection must not reroll again")
+end
+assert(not R.rerollStarters(rerollSave,P,"frlg",{1,2,3}),
+    "manual reroll quota cannot be exceeded")
+assert(not R.set(rerollSave,"random_starter_rerolls",4),
+    "rerolls may not change the run configuration after generation")
+local legacyStarter={randomizer={random_starter=true,
+    random_starter_rerolls=2,starterSource="frlg",
+    starterOptions={1,2,3},used=true,randomizer_seed=17171717}}
+assert(not R.rerollStarters(legacyStarter,P,"frlg",{1,2,3}),
+    "existing beta starter trios must be preserved")
+local unlimitedStarter={randomizer={randomizer_seed=17171717,
+    random_starter=true,random_starter_rerolls=4}}
+assert(R.starters(unlimitedStarter,P,"rse",{1,2,3}))
+assert(R.starterRerollStatus(unlimitedStarter).remaining==-1)
+for n=1,7 do
+    assert(R.rerollStarters(unlimitedStarter,P,"rse",{1,2,3}))
+end
+assert(R.starterRerollStatus(unlimitedStarter).used==7)
 local starterReplay = {randomizer={randomizer_seed=17171717,
     random_starter=true}}
 local replayTrio=R.starters(starterReplay,P,"frlg",{1,2,3})
@@ -648,6 +681,8 @@ local starterView={species={1,2,3}}
 local starterChooser={
     manifest=function() return starterView end,
     species=function(man,sel) return (man or starterView).species[sel+1] end,
+    frame=function() return "native_frame" end,
+    draw=function() return "native_draw" end,
 }
 package.loaded["src.ui.game3.rse.starter_choose"]=starterChooser
 local starterQuery={
@@ -675,6 +710,7 @@ assert(loadfile("gen3_runtime.lua")()(mod) == nil)
 local api=mod.exports.gen3_randomizer
 assert(api.set("randomizer_seed", 12345678))
 assert(api.set("random_starter", true))
+assert(api.set("random_starter_rerolls", 1))
 assert(api.set("random_static_pokemon", true))
 assert(api.set("random_gift_pokemon", true))
 assert(api.set("random_egg_gifts", true))
@@ -766,6 +802,22 @@ assert(starterChooser.species(nil,1)~=rseStarter)
 local rseOpts=saves.gen3_classic_v1.randomizer.starterOptions
 assert(rseOpts[1]==rseStarter
     and starterChooser.species(nil,2)==rseOpts[3])
+local savedRseParty=game.session.party
+game.session.party={}
+local screen={state="input",man=starterView,
+    _clearLabel=function(self) self.cleared=true end,
+    _createLabel=function(self) self.updated=true end}
+assert(starterChooser.frame(screen,{new={select=true}})=="native_frame")
+assert(screen.cleared and screen.updated)
+local afterReroll=saves.gen3_classic_v1.randomizer.starterOptions
+assert(saves.gen3_classic_v1.randomizer.starterRerollsUsed==1)
+assert(starterChooser.species(nil,0)==afterReroll[1])
+assert(afterReroll[1]~=rseOpts[1] or afterReroll[2]~=rseOpts[2]
+    or afterReroll[3]~=rseOpts[3])
+starterChooser.frame(screen,{new={select=true}})
+assert(saves.gen3_classic_v1.randomizer.starterRerollsUsed==1,
+    "RSE SELECT must stop when rerolls run out")
+game.session.party=savedRseParty
 -- Native FireRed selection sets Oak's temporary starter variables
 -- before showmonpic and givemon; test that earliest safe boundary.
 -- New disposable state for a separate game's starter trio.
@@ -1101,8 +1153,9 @@ end
 for _,expected in ipairs({
     "RANDOM WILD: ON","RANDOM TRAINERS: ON",
     "RANDOM STARTERS: ON","STARTER STYLE: ANY",
-    "TRIO TYPING: ANY","STARTER REROLLS: ONE",
-    "STARTER BALANCE: CHAOS","RANDOM STATIC: ON",
+    "TRIO TYPING: ANY","STARTER REROLLS: 1",
+    "STARTER BALANCE: CHAOS","REROLLS LEFT: 1",
+    "REROLL STARTERS NOW","RANDOM STATIC: ON",
     "RANDOM GIFTS: ON","RANDOM EGGS: ON",
     "RANDOM FIELD ITEMS: ON","RANDOM SHOPS: ON",
     "RANDOM TMS: ON","RANDOM TM LOCATIONS: ON",
