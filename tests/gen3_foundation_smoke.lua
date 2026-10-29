@@ -170,7 +170,8 @@ press("a")
 assert(mod.exports.gen3_menu.model().title=="NAT DEX SUPPORT")
 assert(mod.exports.gen3_menu.model().rows[1]=="DETECTION: NOT FOUND"
     and mod.exports.gen3_menu.model().rows[2]=="PUBLIC API: N/A"
-    and mod.exports.gen3_menu.model().rows[4]=="COMBINED TEST: NOT VERIFIED")
+    and mod.exports.gen3_menu.model().rows[4]=="COMBINED TEST: NOT"
+    and mod.exports.gen3_menu.model().rows[5]=="VERIFIED")
 press("b");press("b");press("b")
 mod.find=nil
 -- A pre-Poké Ball scripted battle cannot claim Route 1, including with
