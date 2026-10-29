@@ -143,20 +143,20 @@ return function()
         -- The base-ROM extracted RGBA is only useful for base species.
         -- Extended slots and variant artwork belong to the active sprite
         -- provider (e.g. G9), which also supplies proper shiny sheets.
-        if pic then
-            -- A legacy record was already rendered by the native resolver.
-        elseif id>440 then
-            pic=native(id,mon.form)
-            if not pic then pic=romShiny() end
-        else
-            pic=romShiny()
-            if not pic then
-                local resolved,form=id,mon.form
-                if form==nil and type(Pokemon.picSpecies)=="function" then
-                    local good,r,f=pcall(Pokemon.picSpecies,id,personality)
-                    if good and tonumber(r) then resolved=r; form=f end
+        if not pic then
+            if id>440 then
+                pic=native(id,mon.form)
+                if not pic then pic=romShiny() end
+            else
+                pic=romShiny()
+                if not pic then
+                    local resolved,form=id,mon.form
+                    if form==nil and type(Pokemon.picSpecies)=="function" then
+                        local good,r,f=pcall(Pokemon.picSpecies,id,personality)
+                        if good and tonumber(r) then resolved=r; form=f end
+                    end
+                    pic=native(resolved,form)
                 end
-                pic=native(resolved,form)
             end
         end
         if not pic and type(Pokemon.monFrontPic)=="function" then
