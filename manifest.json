@@ -1,7 +1,7 @@
 {
   "id": "nuzlocke",
   "name": "Nuzlocke",
-  "version": "3.0.2-beta",
+  "version": "3.0.3-beta",
   "api": 2,
   "entry": "entry.lua",
   "profile": "content",
