@@ -81,45 +81,63 @@ return function()
     -- Optional native sprite; the share card is still useful if the ROM
     -- assets are not yet available (e.g. isolated test environment).
     local function drawSprite(g,mon,x,y)
+        -- Use the actual saved species slot. National Dex stores regional and
+        -- other alternate forms in independent slots; remapping to the base
+        -- Pokedex number gives the wrong creature.
         local id=tonumber(mon.species)
         if not id then return end
         local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
         if not ok or type(Pokemon)~="table" then return end
         local personality=tonumber(mon.personality) or 0
-        local source={species=id,personality=personality,
-            level=mon.level,otId=mon.otId,otSecretId=mon.otSecretId}
+        local source={
+            species=id,personality=personality,level=mon.level,
+            speciesNumbering=mon.speciesNumbering,
+            otId=mon.otId,otSecretId=mon.otSecretId,
+            form=mon.form,formId=mon.formId,
+        }
         local known=mon.shinyKnown==true
         if known then source.isShiny=mon.shiny==true end
-        local good,pic=false,nil
+        local pic=nil
+        local function valid(candidate)
+            return type(candidate)=="table" and candidate.image~=nil
+        end
+        local function native(species,form)
+            if type(Pokemon.frontPic)~="function" then return nil end
+            local good,candidate=pcall(Pokemon.frontPic,species,form,
+                known and (mon.shiny==true) or false,personality,"hof",source)
+            return good and valid(candidate) and candidate or nil
+        end
         local visual=opts and opts.shinyVisuals
-        if known and mon.shiny==true and visual
-            and type(visual.front)=="function" then
-            local okCustom,custom=pcall(visual.front,Pokemon,source)
-            if okCustom and custom and custom.image then
-                pic=custom
-                good=true
+        local function romShiny()
+            if not (known and mon.shiny==true and visual
+                and type(visual.front)=="function") then return nil end
+            local good,candidate=pcall(visual.front,Pokemon,source)
+            return good and valid(candidate) and candidate or nil
+        end
+        -- The base-ROM extracted RGBA is only useful for base species.
+        -- Extended slots and variant artwork belong to the active sprite
+        -- provider (e.g. G9), which also supplies proper shiny sheets.
+        if id>440 then
+            pic=native(id,mon.form)
+            if not pic then pic=romShiny() end
+        else
+            pic=romShiny()
+            if not pic then
+                local resolved,form=id,mon.form
+                if form==nil and type(Pokemon.picSpecies)=="function" then
+                    local good,r,f=pcall(Pokemon.picSpecies,id,personality)
+                    if good and tonumber(r) then resolved=r; form=f end
+                end
+                pic=native(resolved,form)
             end
         end
-        if not pic and known and type(Pokemon.frontPic)=="function" then
-            -- Gen 3's frontPic has a direct shiny palette/asset selector.
-            -- A result card carries a frozen shiny flag, not a complete
-            -- native Pokemon. Calling monFrontPic(source) can re-resolve
-            -- its temporary personality/OT values and choose the NORMAL
-            -- palette despite the correct label. Pass the saved shiny
-            -- state straight to the native artwork loader instead.
-            local species=id
-            if type(Pokemon.picSpecies)=="function" then
-                local resolved,form=Pokemon.picSpecies(id,personality)
-                if resolved then species=resolved end
-            end
-            good,pic=pcall(Pokemon.frontPic,species,nil,
-                mon.shiny==true,personality)
-        elseif not pic and type(Pokemon.monFrontPic)=="function" then
-            -- Legacy/unknown shiny state still follows native behaviour.
-            good,pic=pcall(Pokemon.monFrontPic,source,nil,"hof")
+        if not pic and type(Pokemon.monFrontPic)=="function" then
+            local good,candidate=pcall(Pokemon.monFrontPic,source,nil,"hof")
+            if good and valid(candidate) then pic=candidate end
         end
-        if good and type(pic)=="table" and pic.image then
+        if pic then
             local w,h=tonumber(pic.w) or 64,tonumber(pic.h) or 64
+            if w<=0 or h<=0 then return end
             local scale=math.min(90/w,90/h)
             g.setColor(1,1,1,1)
             g.draw(pic.image,x+(90-w*scale)/2,y,0,scale,scale)
