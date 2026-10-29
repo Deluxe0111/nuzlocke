@@ -512,6 +512,30 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         end
         return choices
     end
+    -- Manual rerolls are deliberately outside the config lock. Once the
+    -- starter has joined the party, the action is unavailable.
+    local function manualStarterReroll(source, originals)
+        local native = session()
+        if type(native) ~= "table" or type(native.party) ~= "table"
+            or #native.party > 0 then return nil, "starter_already_received" end
+        if type(originals) ~= "table" or #originals ~= 3 then
+            return nil, "starter_manifest_unavailable" end
+        -- Allow the player to reroll from the Nuz menu before viewing the
+        -- first trio (Oak's scripted choice opens the same saved selections).
+        if not starterChoices(source, originals) then
+            return nil, "starter_choices_unavailable" end
+        local saved = loadState()
+        local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+        if not ok then return nil, "pokemon_data_unavailable" end
+        local trio, why = Randomizer.rerollStarters(saved, Pokemon, source,
+            originals, function(national)
+                return Core.active(saved)
+                    and CatchRules.isBannedNational(saved, national)
+            end)
+        if trio then writeState(saved) end
+        return trio, why
+    end
+
     local FRLG_STARTERS = { 1, 7, 4 } -- Bulbasaur, Squirtle, Charmander
     local function isOakLab()
         local native = session()
@@ -536,6 +560,49 @@ local Difficulty = readModule("gen3_difficulty.lua")()
                 local choices = starterChoices("rse", list)
                 local index = tonumber(selection)
                 return choices and index and choices[index + 1] or base
+            end
+            -- RSE bag is its own fullscreen native UI; SELECT rerolls in
+            -- the selection state, and refreshes the label immediately.
+            if type(Chooser.frame) == "function" then
+                local frame = Chooser.frame
+                Chooser.frame = function(screen, inp, ...)
+                    if screen and screen.state == "input" and inp
+                        and inp.new and inp.new.select then
+                        local trio = manualStarterReroll("rse",
+                            screen.man and screen.man.species)
+                        if trio then
+                            if type(screen._clearLabel) == "function" then
+                                screen:_clearLabel()
+                            end
+                            if type(screen._createLabel) == "function" then
+                                screen:_createLabel()
+                            end
+                        end
+                    end
+                    return frame(screen, inp, ...)
+                end
+            end
+            if type(Chooser.draw) == "function" then
+                local draw = Chooser.draw
+                Chooser.draw = function(screen, ...)
+                    local result = draw(screen, ...)
+                    if screen and screen.state == "input"
+                        and Randomizer.get(loadState(), "random_starter") then
+                        local st = Randomizer.starterRerollStatus(loadState())
+                        if st.limit ~= 0 then
+                            local okFont, Font = pcall(require,
+                                "src.ui.game3.frlg_font")
+                            if okFont and type(Font.draw) == "function" then
+                                local left = st.remaining == -1
+                                    and "INF" or tostring(st.remaining)
+                                pcall(Font.draw,
+                                    "SELECT: REROLL ("..left..")", 8, 144,
+                                    {font="narrow"})
+                            end
+                        end
+                    end
+                    return result
+                end
             end
             Chooser.__nuzGen3StarterOwner = mod
         end
@@ -3854,6 +3921,27 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end,
             locked = function()
                 return Randomizer.locked(loadState())
+            end,
+            starterRerollStatus = function()
+                return Randomizer.starterRerollStatus(loadState())
+            end,
+            rerollStarters = function()
+                local native = session()
+                if not native then return nil, "game_not_ready" end
+                local edition = tostring(native.version or native.edition
+                    or native.gameId or ""):lower()
+                if edition:find("fire",1,true)
+                    or edition:find("leaf",1,true) then
+                    if not isOakLab() then
+                        return nil, "reroll_in_oak_lab_only" end
+                    return manualStarterReroll("frlg", FRLG_STARTERS)
+                end
+                local ok, Chooser = pcall(require,
+                    "src.ui.game3.rse.starter_choose")
+                local man = ok and type(Chooser.manifest) == "function"
+                    and Chooser.manifest() or nil
+                if not man then return nil, "starter_manifest_unavailable" end
+                return manualStarterReroll("rse", man.species)
             end,
             rosterInfo = function()
                 local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
