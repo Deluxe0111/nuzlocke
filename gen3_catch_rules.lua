@@ -507,7 +507,10 @@ return function()
         end
         if meta and (meta.isGlitch or meta.glitch) then return true end
         local nat=nationalId(id,pokemon)
-        if nat and nat>=1 and nat<=MAX_NATIONAL
+        -- Keep vanilla behaviour: the ROM may expose valid Gen 1-3
+        -- species without all metadata during a scripted check.
+        if nat and nat>=1 and nat<=386 then return false end
+        if nat and nat>386 and nat<=MAX_NATIONAL
             and canonicalName(id,pokemon)
             and pokemon and type(pokemon.stats)=="function" then
             local ok,stats=pcall(pokemon.stats,id)
