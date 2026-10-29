@@ -109,6 +109,21 @@ Nothing is uploaded to an external site. If an extremely large
 graveyard would exceed the current GPU's maximum texture size, the
 export reports a clear error rather than silently truncating deaths.
 
+### Expanded species and alternate-form names
+
+When National Dex Gen 3 is installed, Nuzlocke uses the mod's public
+`listSpecies` / `listForms` metadata to resolve the exact saved species
+slot. The Graveyard, encounter tracker and final-results details/PNG show
+labels such as **Hisuian Zorua**, **Galarian Darmanitan (Standard)** or
+**Rotom (Heat)** instead of silently reverting to the base species name.
+Nicknames remain unchanged and Nuzlocke never rewrites species IDs.
+
+New memorial records preserve their resolved species label as a fallback.
+Older graveyards and final results are resolved at display time when the
+provider is present, without modifying the completed run. With the provider
+disabled or missing, previously stored labels and standard ROM-backed names
+continue to work.
+
 ### Shiny artwork
 
 Gen 3 has no dedicated shiny mini-icon sprites. **Both shiny and
