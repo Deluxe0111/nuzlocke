@@ -27,6 +27,86 @@ return function()
         return value
     end
 
+    -- National Dex registers alternate forms in independent species slots.
+    -- Resolve only display metadata through its optional public API; the
+    -- saved slot remains authoritative for rules, sprites and provenance.
+    local speciesProvider
+    local cachedProvider, formsBySlot, speciesBySlot = nil, {}, {}
+
+    function M.setSpeciesProvider(getter)
+        speciesProvider = type(getter) == "function" and getter or nil
+        cachedProvider, formsBySlot, speciesBySlot = nil, {}, {}
+    end
+
+    local function providerMetadata(mon)
+        if type(mon) ~= "table" or not speciesProvider then return nil end
+        local slot = tonumber(mon.species or mon.speciesId
+            or (type(mon.archive) == "table"
+                and (mon.archive.species or mon.archive.speciesId)))
+        if not slot then return nil end
+        local ok, provider = pcall(speciesProvider)
+        if not ok or type(provider) ~= "table" then return nil end
+        if provider ~= cachedProvider then
+            local byForm, bySpecies = {}, {}
+            if type(provider.listForms) == "function" then
+                local good, forms = pcall(provider.listForms)
+                if good and type(forms) == "table" then
+                    for _, entry in ipairs(forms) do
+                        if type(entry) == "table" and tonumber(entry.slot) then
+                            byForm[tonumber(entry.slot)] = entry
+                        end
+                    end
+                end
+            end
+            if type(provider.listSpecies) == "function" then
+                local good, species = pcall(provider.listSpecies)
+                if good and type(species) == "table" then
+                    for _, entry in ipairs(species) do
+                        if type(entry) == "table" and tonumber(entry.slot) then
+                            bySpecies[tonumber(entry.slot)] = entry
+                        end
+                    end
+                end
+            end
+            cachedProvider, formsBySlot, speciesBySlot =
+                provider, byForm, bySpecies
+        end
+        return formsBySlot[slot], speciesBySlot[slot]
+    end
+
+    local REGION = {
+        ALOLA = "Alolan", GALAR = "Galarian",
+        HISUI = "Hisuian", PALDEA = "Paldean",
+    }
+    local function providerName(mon)
+        local form, species = providerMetadata(mon)
+        if form then
+            local base = displayCase(form.name or form.baseSpecies)
+                or "Unknown Pokémon"
+            local descriptor = form.form
+            if not nonblank(descriptor) then
+                return base
+            end
+            local region, rest = descriptor:match("^([A-Z]+)_(.+)$")
+            if not region then region = descriptor end
+            local prefix = REGION[region]
+            if prefix then
+                local name = prefix .. " " .. base
+                if nonblank(rest) then
+                    name = name .. " (" ..
+                        (formatProper(rest:gsub("_", " ")) or rest) .. ")"
+                end
+                return name
+            end
+            return base .. " (" ..
+                (formatProper(descriptor:gsub("_", " ")) or descriptor) .. ")"
+        end
+        if species and nonblank(species.name) then
+            return displayCase(species.name)
+        end
+        return nil
+    end
+
     local function safeNativeName(Pokemon, mon)
         if not Pokemon then return nil end
         if type(Pokemon.speciesOf) == "function"
@@ -52,6 +132,10 @@ return function()
 
     function M.speciesName(mon)
         if type(mon) ~= "table" then return "Unknown Pokémon" end
+        -- A slot-specific provider label outranks an old save's generic
+        -- speciesName (e.g. "ZOROARK" saved for Hisuian Zoroark).
+        local modded = providerName(mon)
+        if modded then return modded end
         local stored = mon.speciesName
         if nonblank(stored) then return displayCase(stored) end
         local raw = mon.species or mon.speciesId
@@ -68,8 +152,27 @@ return function()
     function M.pokemonName(mon)
         if type(mon) ~= "table" then return "Unknown Pokémon" end
         if nonblank(mon.nickname) then return mon.nickname end
-        if nonblank(mon.name) then return mon.name end
-        return M.speciesName(mon)
+        local archived = type(mon.archive) == "table" and mon.archive or nil
+        if archived and nonblank(archived.nickname) then
+            return archived.nickname
+        end
+        local species = M.speciesName(mon)
+        if nonblank(mon.name) then
+            -- An older memorial might have stored the base species as its
+            -- name rather than the form-specific label. Keep genuinely
+            -- different names (including old nickname-only records).
+            local form = providerMetadata(mon)
+            local base = form and displayCase(form.name or form.baseSpecies)
+            local oldSpecies = mon.speciesName
+            local name = mon.name
+            if (base and name:upper() == base:upper())
+                or (nonblank(oldSpecies)
+                    and name:upper() == oldSpecies:upper()) then
+                return species
+            end
+            return name
+        end
+        return species
     end
 
     -- Display only: does not merge two maps into one encounter area.
@@ -108,6 +211,8 @@ return function()
         return {
             species = mon.species or mon.speciesId,
             speciesNumbering = mon.speciesNumbering,
+            form = mon.form,
+            formId = mon.formId,
             speciesName = M.speciesName(mon),
             nickname = nick,
             name = M.pokemonName(mon),
@@ -158,10 +263,10 @@ return function()
             end
         end
         local species = (found and M.speciesName(found))
-            or (nonblank(entry.caughtSpeciesName)
-                and displayCase(entry.caughtSpeciesName))
-            or (speciesId ~= nil
-                and M.speciesName({species = speciesId}))
+            or (speciesId ~= nil and M.speciesName({
+                species = speciesId,
+                speciesName = entry.caughtSpeciesName,
+            }))
             or "Unknown Pokémon"
         local nickname = found and found.nickname or entry.caughtNickname
         if not nonblank(nickname) then nickname = nil end
