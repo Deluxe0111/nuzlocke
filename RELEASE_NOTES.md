@@ -1,3 +1,45 @@
+# Nuzlocke v3.0.2-beta — Expanded Pokémon & Better Memories
+
+**More Pokémon to encounter, more forms to recognise, and better ways to remember your run.**
+
+This update builds on the Generation 3 beta in FireRed, LeafGreen, Ruby, Sapphire and Emerald, without replacing the established Gen 1/2 features. It is an **unofficial community fork** maintained for the Gen 3 port by **Deluxe0111**, with the inherited work credited to its original contributors.
+
+## What's new since 3.0.1-beta
+
+### Expanded National Dex randomisation
+- **Optional National Dex Gen 3 API v2 integration** extends the Gen 3 randomiser's registered species pool to 1,025 National Dex Pokémon. Players can include newer generations and opt into supported alternate forms, while leaving the vanilla pool untouched when the provider is absent.
+- Species bans and supported catch-rule classifications recognise registered Gen 4–9 Pokémon, including individual species through #1025, instead of assuming the original 386-only cartridge.
+- Randomiser seeds and old-save behaviour stay independent of optional providers; enabling a larger pool is a deliberate configuration choice.
+
+### Correct party and memorial artwork
+- The **End Run shareable poster** resolves expanded Pokémon from their actual engine species slot and uses compatible artwork-provider hooks for normal/shiny pictures where available.
+- The **Graveyard, encounter tracker, final party and results artwork** now resolve supported regional and alternate-form names (including older saved records), rather than displaying generic base-species names or internal IDs where provider metadata is available.
+- Nicknames and existing save identities are preserved; unavailable art and unknown legacy shiny state degrade safely rather than fabricating a form or shiny appearance.
+
+### Clearer companion Mod Support
+- **MOD SUPPORT** now lists Untamed Advanced, National Dex Gen 3, G9 Battle Sprites, Modern Spawns and Gen 3 HD Sprites, plus existing shiny/randomiser diagnostics.
+- Diagnostics distinguish *detected*, *API ready*, *inactive* and *not verified*. Untamed's hook-based integration is detection-only. Finding an installed mod is **not** a claim that the six-mod combination has passed real-game tests.
+- No new mandatory dependencies, species-slot rewrites, rule-ownership overrides or save migrations are introduced by this diagnostic work.
+
+## Install / update
+
+1. Download **`nuzlocke-3.0.2-beta.zip`** from this release.
+2. In Gen1Recomp, choose **MODS → Import mod .zip**, install and enable Nuzlocke.
+3. If using National Dex Gen 3 and companion sprite/spawn mods, confirm each is enabled; expanded randomiser forms are opt-in in Nuzlocke's randomiser settings.
+4. **Back up your save**, especially for Permadeath, End Run and randomiser experimentation.
+
+**Games:** Red, Blue, Yellow; Gold, Silver, Crystal; and **FireRed, LeafGreen, Ruby, Sapphire, Emerald (beta)**. **Mod API:** 2. **Game engine range:** `>=0.2.24 <2.0.0`. **Gen 3 save namespace:** `gen3_classic_v1`.
+
+## Known beta limitations
+
+The Gen 3 regression and packaging tests cover the changes, but **all five ROM editions and the combined six-mod stack still require hands-on validation**. Third-party spawn ownership and rendered sprites are provider-dependent. Some non-catch nickname restrictions, unusual scripted gifts/trades and ordinary Route Forgiveness revival remain incomplete or unverified. The expanded National Dex, G9 sprites, Modern Spawns and HD sprite integrations are **optional**; Mega Evolution and Gigantamax battle mechanics are **not** part of Nuzlocke 3.0.2.
+
+**Credits:** [bryanthaboi](https://github.com/bryanthaboi) created the original Nuzlocke mod; [Stone696](https://github.com/Stone696) continued its Gen 1/2 development; [masterwebx](https://github.com/masterwebx) authored the original Shiny Pokémon mod; [Deluxe0111](https://github.com/Deluxe0111) developed this fork's Gen 3 port and integrations.
+
+[Source and credits](https://github.com/Deluxe0111/nuzlocke) · [Gen 3 feature inventory](docs/GEN3_FEATURE_MATRIX.md) · [In-game test checklist](docs/GEN3_TEST_CHECKLIST.md)
+
+---
+
 # Nuzlocke v3.0.1-beta — A New Generation of Challenges
 
 **Kanto and Hoenn are ready for a different kind of journey.**
