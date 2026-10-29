@@ -1,23 +1,23 @@
-# Nuzlocke v3.0.2-beta
+# Nuzlocke v3.0.3-beta
 
 Configurable Pokémon challenge rules for [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp), with a new **Generation 3 beta port** and the established Generation 1/2 mod preserved.
 
 **Supported games:** Red, Blue, Yellow · Gold, Silver, Crystal · **FireRed, LeafGreen, Ruby, Sapphire, Emerald (Gen 3 beta)**.
 
-**Installed version:** `3.0.2-beta` · **Mod API:** 2 · **Gen 3 save namespace:** `gen3_classic_v1`.
+**Installed version:** `3.0.3-beta` · **Mod API:** 2 · **Gen 3 save namespace:** `gen3_classic_v1`.
 
 > **Beta:** automated smoke tests cover many rules and native hook contracts. All five Gen 3 ROM editions and third-party mod combinations still need manual validation. Back up saves, particularly before Permadeath, End Run and randomiser testing.
 
-> **v3.0.2-beta:** National Dex Gen 3 expanded-roster randomisation, alternate-form and shiny-result artwork repairs, and clearer companion Mod Support diagnostics. See [release notes](RELEASE_NOTES.md) for changes since v3.0.1-beta.
+> **v3.0.3-beta:** Player-controlled starter rerolls (OFF / 1 / 3 / 5 / UNLIMITED), saved reroll counts, matching rival starters and improved guidance for optional Untamed Advanced / Modern Spawns compatibility. See [release notes](RELEASE_NOTES.md) for changes since v3.0.2-beta.
 
 ## Getting started
 
 1. Install Gen1Recomp with your own supported game files and install Nuzlocke from the mod manager.
 2. Start a **new Generation 3 game** to configure rules in **NEW RUN SETUP** (including optional **LOCK FOR RUN**), or open **Start → NUZ MENU → NUZ RULES → CORE** in-game.
 3. Enable **Nuzlocke Enabled**; the rule is opt-in. Randomiser and selected QoL features can operate independently of the Nuzlocke challenge switch.
-4. Set the **randomiser seed and options before the first randomised result**; settings lock when mappings have begun. For gameplay testing, use a disposable save.
+4. Set the **randomiser seed and options before the first randomised result**; settings lock when mappings have begun. If configured beforehand, **starter rerolls** are still allowed at the starter-choice screen (RSE: **Select**) or in Oak's lab (FRLG: **RANDOMIZER → REROLL STARTERS NOW**). For gameplay testing, use a disposable save.
 
-## What's in v3.0.2-beta?
+## What's in v3.0.3-beta?
 
 | Category | Features |
 | --- | --- |
@@ -25,7 +25,7 @@ Configurable Pokémon challenge rules for [Gen1Recomp](https://github.com/bryant
 | **PLAYSTYLES** | **Shiny Nuzlocke**, **Hardcore Nuzlocke**, or both together |
 | **LEVELS, HARDCORE & DIFFICULTY** | Gym/League/Postgame level caps, EXP Edging, SET battle restrictions, optional hardship rules and difficulty profiles |
 | **ADVANCED RULES** | Catch bans and gifted/traded Pokémon; OHKO/Battle Clauses; Status Bans/Sleep Clause; Type Locke/Catch Draft; battle/field items; services and economy; Pokémon stats; Kanto/Hoenn area splits |
-| **RANDOMIZER** | Seeded Gen 3 starter, wild, trainer, static/gift/Egg, items/shops/TM, learnset and evolution randomisation; optional National Dex Gen 3 API-v2 species pool up to #1025, opt-in alternate forms, generation and BST filters |
+| **RANDOMIZER** | Seeded Gen 3 starter, wild, trainer, static/gift/Egg, items/shops/TM, learnset and evolution randomisation; optional National Dex Gen 3 API-v2 species pool up to #1025, opt-in alternate forms, generation and BST filters; manual 0/1/3/5/unlimited starter rerolls with saved counters |
 | **QOL & SETUP** | Instant Text, Run/Surf, bag and trade-evolution options; new-game starting resources, native catching unlock and settings lock |
 | **RUN JOURNAL & RESULTS** | Encounter tracking, Graveyard, regional/form-aware names, readable event history, End Run, Champion/failed-run results and shareable single-image memorial/team poster with extended/shiny artwork where a supported provider exists |
 | **MOD SUPPORT & NUZ DEV** | Live read-only diagnostics for Untamed Advanced, National Dex Gen 3, G9 Battle Sprites, Modern Spawns, Gen 3 HD Sprites and existing shiny/randomiser providers; hidden developer testing tools |
@@ -36,7 +36,7 @@ For a detailed **ported vs adapted vs new** breakdown, see the **[Gen 3 feature 
 
 When a compatible [Untamed Advanced](https://github.com/Deluxe0111/Untamed-Advanced) build is installed, Nuzlocke's **Random Wild** option also randomises eligible visible wandering wild Pokémon **before** their sprite and battle are built. This shares seed, candidate pool and species legality with ordinary wild encounters, so the Pokémon shown, battled and caught agrees. Story actors, special roamers, followers and scripted exclusions remain governed by their respective mods.
 
-Untamed is an **optional** companion. The Nuzlocke **MOD SUPPORT** screen reports detected integrations but does not automatically certify them or take control of another mod's renderer.
+Untamed is an **optional** companion. Newer Untamed Advanced builds separately integrate Modern Spawns' COMPLETE/RANDOM per-spawn species draws; **that functionality ships in Untamed Advanced, not in the Nuzlocke ZIP**. With Nuzlocke RANDOM WILD enabled, the Nuzlocke hook can further replace Untamed's selected species. The combined stack still needs in-game verification. The Nuzlocke **MOD SUPPORT** screen reports detected integrations but does not automatically certify them or take control of another mod's renderer.
 
 ### Important boundaries
 
