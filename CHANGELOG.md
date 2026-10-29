@@ -1,3 +1,13 @@
+## 3.0.2-beta — Expanded National Dex, form-aware results and Mod Support
+
+- Optional National Dex Gen 3 API-v2 roster expands supported Gen 3 randomisation from the original 386 Pokémon to registered base species through #1025, with generation filters, opt-in alternate forms, and deterministic seed behaviour.
+- Advanced individual-species bans and supported extended-species classification follow the installed National Dex provider while preserving vanilla run compatibility when it is absent.
+- End Run artwork, shiny sprites, party and memorial snapshots resolve provider artwork using the saved extended engine species identity and preserve safe native fallbacks for older/unknown shiny records.
+- Graveyard, encounter tracker and final results display supported National Dex and regional-form names, including existing archive records, without rewriting saved species identities or nicknames.
+- Mod Support now distinguishes installed companion mods, public API readiness, optional active status and **not-verified** combined runtime for Untamed Advanced, National Dex Gen 3, G9 Battle Sprites, Modern Spawns and Gen 3 HD Sprites.
+- Added Lua regression coverage for expanded rosters, form-name resolution, results-artwork selection and safe read-only Mod Support detection. Documentation and manual multi-mod testing checklist updated.
+- No new mandatory dependencies, save schema, public Mod API or Mega/Gigantamax mechanics. Manual Gen 3 ROM and six-mod combined validation remain required.
+
 ## 3.0.1-beta — Gen 3 beta release polish and clean player distribution
 
 - Refined the Generation 3-facing README, player description, release notes and credit attribution. The existing v3.0.0-BETA feature implementation and historical 2.9.x entries are retained below.
