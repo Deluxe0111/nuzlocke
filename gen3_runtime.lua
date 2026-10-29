@@ -49,12 +49,14 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     -- Optional National Dex API v2: enumerate only registered base species
     -- and forms, never assume a numeric engine-slot ceiling. Re-evaluate
     -- after save changes so absent / late providers fail back to vanilla.
-    Randomizer.setSpeciesProvider(function()
+    local function nationalDexProvider()
         if type(mod.find) ~= "function" then return nil end
         local ok, dex = pcall(mod.find, mod, "national_dex_gen3")
         if not ok or type(dex) ~= "table" then return nil end
         return dex.exports
-    end)
+    end
+    Randomizer.setSpeciesProvider(nationalDexProvider)
+    CatchRules.setSpeciesProvider(nationalDexProvider)
     local currentArea
     local activeBattle
     local pendingRoamer
