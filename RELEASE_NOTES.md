@@ -1,3 +1,43 @@
+# Nuzlocke v3.0.3-beta — Your Starter, Your Choice
+
+**Reroll the starters you see, not just an invisible balancing calculation.**
+
+This patch improves the Generation 3 randomiser in FireRed, LeafGreen, Ruby, Sapphire and Emerald. It continues the unofficial Nuzlocke fork's beta while preserving the original Gen 1/2 content and the expanded species/artwork features introduced in 3.0.2-beta.
+
+## What's new since 3.0.2-beta
+
+### Manual starter rerolls
+- **Starter Rerolls now means what it says:** configure **OFF / 1 / 3 / 5 / UNLIMITED** in **NUZ MENU → NUZ RULES → RANDOMIZER** before the randomiser locks. This replaces the previous automatic best-of-three/five trio selection. **Starter Balance: CHAOS / SIM BST** remains independent.
+- **Ruby/Sapphire/Emerald:** press **SELECT** on the starter-bag selection screen to reroll the whole trio; the remaining allowance is displayed on the bag.
+- **FireRed/LeafGreen:** before taking your starter, use **RANDOMIZER → REROLL STARTERS NOW** from the Nuzlocke menu in Oak's lab. The new three choices appear by name.
+- New trios are generated deterministically from the existing run seed, with distinct eligible species and the configured style, type, balance, generation and National Dex filters. The number of rerolls spent and the currently displayed trio are saved. Revisiting the starter screen or reloading does not grant free rerolls.
+- **Rival continuity:** Oak/Brendan/May's compatible starter lineage continues to use the saved choice. Failed attempts to generate a genuinely different trio do not cost a reroll, and old beta saves with already-generated starter choices are left intact. After receiving a starter, rerolls stop.
+- Existing randomiser seed and other category settings remain locked after the first randomised result; only an already-configured starter reroll action is permitted at the starter selection stage.
+
+### Untamed Advanced and Modern Spawns
+- The separate [Untamed Advanced](https://github.com/Deluxe0111/Untamed-Advanced) mod now supports per-visible-spawn species draws through Modern Spawns' COMPLETE/RANDOM pools (see its [integration PR](https://github.com/Deluxe0111/Untamed-Advanced/pull/3)). That **is not bundled with this Nuzlocke ZIP**; update the companion mod separately.
+- Nuzlocke's optional **Random Wild** integration still randomises eligible ordinary Untamed overworld species after Untamed's own source selection. When both randomisers are active, Nuzlocke may choose a different final species. Cross-mod ownership, expanded artwork and load-order behaviour require real-game validation.
+- There are **no new required mods, engine patches, Mod API revisions or saved-run migrations** in this Nuzlocke patch.
+
+## Install / update
+
+1. Download **`nuzlocke-3.0.3-beta.zip`** from the GitHub release.
+2. In Gen1Recomp select **MODS → Import mod .zip**, then enable the updated Nuzlocke.
+3. Back up your save. For manual starter-reroll testing, start a disposable **new Gen 3 run** with Random Starters enabled and set the reroll allowance before viewing the starter choices.
+4. If testing the expanded overworld combination, update **Untamed Advanced** independently and select **COMPLETE** in Modern Spawns; the six-mod stack has not yet been fully certified.
+
+**Supported games:** Red, Blue, Yellow; Gold, Silver, Crystal; and **FireRed, LeafGreen, Ruby, Sapphire, Emerald (beta)**. **Mod API:** 2. **Game engine range:** `>=0.2.24 <2.0.0`. **Gen 3 save namespace:** `gen3_classic_v1`.
+
+## Known beta limitations
+
+The current code has automated regression coverage, but all five Gen 3 ROM editions, live scripted starter-selection UI and all combinations of Untamed Advanced / Modern Spawns / National Dex / sprite providers require hands-on playtesting. Some non-catch nickname restrictions and uncommon gifts/trades remain incomplete or unverified. Ordinary Route Forgiveness does not revive Pokémon; the dev-only full-archive restore is not a normal gameplay feature. No Mega Evolution or Gigantamax battle mechanics are added by this release.
+
+**Credits:** [bryanthaboi](https://github.com/bryanthaboi) created the original Nuzlocke mod; [Stone696](https://github.com/Stone696) continued its Gen 1/2 work; [masterwebx](https://github.com/masterwebx) authored the original Shiny Pokémon mod; [Deluxe0111](https://github.com/Deluxe0111) developed this fork's Gen 3 port and integrations.
+
+[Source and credits](https://github.com/Deluxe0111/nuzlocke) · [Gen 3 feature inventory](docs/GEN3_FEATURE_MATRIX.md) · [In-game test checklist](docs/GEN3_TEST_CHECKLIST.md)
+
+---
+
 # Nuzlocke v3.0.2-beta — Expanded Pokémon & Better Memories
 
 **More Pokémon to encounter, more forms to recognise, and better ways to remember your run.**

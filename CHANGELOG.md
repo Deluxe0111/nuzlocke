@@ -1,3 +1,13 @@
+## 3.0.3-beta — Manual starter rerolls and companion integration guidance
+
+- Starter Rerolls is now a player-driven allowance: **OFF / 1 / 3 / 5 / UNLIMITED** replaces the old automatic best-of-three/five starter balancing selection. Starter Balance **CHAOS / SIM BST** remains a separate setting.
+- In Ruby/Sapphire/Emerald, press **SELECT** while viewing the starter bag to generate a new legal trio. In FireRed/LeafGreen, use **NUZ RULES → RANDOMIZER → REROLL STARTERS NOW** while in Oak's lab before accepting a starter.
+- Each reroll preserves the configured seed and other randomised mappings; the resulting three distinct species and reroll usage are saved. Reroll counts cannot be exhausted by backing out of the selection screen or reloading a save.
+- Rivals continue to follow the currently selected starter slot and native evolutionary progression. Legacy beta starter trios are preserved rather than silently regenerated; unavailable new alternatives do not consume the allowance.
+- Documented the **separate Untamed Advanced integration** with Modern Spawns' COMPLETE/RANDOM per-visible-spawn pools. This lives in the companion Untamed Advanced mod; no new runtime dependency or cross-mod certification is claimed in the Nuzlocke release.
+- Added manual-reroll regression coverage. Combined provider/load-order behaviour and all five Gen 3 ROM editions remain subject to manual testing.
+- Gen 1/2 gameplay, Gen 3 save namespace `gen3_classic_v1`, and Mod API 2 remain unchanged.
+
 ## 3.0.2-beta — Expanded National Dex, form-aware results and Mod Support
 
 - Optional National Dex Gen 3 API-v2 roster expands supported Gen 3 randomisation from the original 386 Pokémon to registered base species through #1025, with generation filters, opt-in alternate forms, and deterministic seed behaviour.
