@@ -133,10 +133,19 @@ return function()
             local good,candidate=pcall(visual.front,Pokemon,source)
             return good and valid(candidate) and candidate or nil
         end
+        -- Legacy records without a trustworthy shiny flag must let the
+        -- engine resolve the Pokemon's real OT/personality (and any form).
+        -- Never silently label an unknown as a confirmed normal sprite.
+        if not known and type(Pokemon.monFrontPic)=="function" then
+            local good,candidate=pcall(Pokemon.monFrontPic,source,nil,"hof")
+            if good and valid(candidate) then pic=candidate end
+        end
         -- The base-ROM extracted RGBA is only useful for base species.
         -- Extended slots and variant artwork belong to the active sprite
         -- provider (e.g. G9), which also supplies proper shiny sheets.
-        if id>440 then
+        if pic then
+            -- A legacy record was already rendered by the native resolver.
+        elseif id>440 then
             pic=native(id,mon.form)
             if not pic then pic=romShiny() end
         else
