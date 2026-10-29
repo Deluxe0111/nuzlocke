@@ -40,7 +40,7 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Starter Balance | CHAOS / SIM BST (when Starters ON) | CHAOS |
 | Starter Style | ANY / BASE FORMS / FINAL FORMS | ANY |
 | Trio Typing | ANY / DISTINCT (primary types) | ANY |
-| Starter Rerolls | ONE / THREE / FIVE | ONE |
+| Starter Rerolls | OFF / 1 / 3 / 5 / UNLIMITED | OFF |
 | Wild Diversity | SPECIES / PRIMARY TYPE / BOTH TYPES (UNIQUE AREA only) | SPECIES |
 | Trainer Theme | ANY TYPE / LEAD TYPE | ANY TYPE |
 | Random Learnsets | OFF / ON | OFF |
@@ -182,10 +182,23 @@ with no further native evolutions). Filtered pools must contain three
 distinct legal starters; otherwise the chooser leaves the original trio
 unchanged instead of giving invalid species. **Trio Typing: DISTINCT**
 requires three different primary Pokémon types; if there is insufficient
-room the whole selection fails open. **Starter Rerolls: THREE/FIVE**
-generates that many deterministic candidate trios and selects the one
-with the narrowest base-stat-total spread. Rerolls never spin the world
-RNG beyond resolving an AUTO seed, or generate different trios on reload.
+room the whole selection fails open. **Starter Rerolls** are now manual, with OFF / 1 / 3 / 5 / UNLIMITED
+available in the Randomizer menu. The previously implemented automatic
+best-of-three/best-of-five BST selection has been removed. Each player-triggered
+reroll replaces the complete trio with three new, distinct legal species.
+The seed remains fixed; a separate saved roll index and rerolls-used counter
+make the resulting trio persistent, including after a reload. A failed attempt
+to find a different legal trio does not consume a reroll.
+
+In **Ruby/Sapphire/Emerald**, press **SELECT** while on the starter-bag
+selection screen to reroll; the on-screen counter displays rerolls left.
+In **FireRed/LeafGreen**, use **Start → NUZ MENU → NUZ RULES → RANDOMIZER →
+REROLL STARTERS NOW** in Oak's lab, before taking a starter. This also shows
+the new trio by name. A starter already received in the party blocks rerolls.
+The rival still follows the currently saved matching starter/evolution line.
+Already-generated starter trios in older beta saves are preserved, not retroactively
+rerolled. Rerolls are the one permitted action after the first-result config
+lock, and do not unlock unrelated randomiser settings.
 
 **Wild Diversity** is meaningful only with Wild Variety: UNIQUE AREA.
 The existing SPECIES policy avoids duplicate replacements per map and
