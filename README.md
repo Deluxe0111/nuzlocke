@@ -1,14 +1,14 @@
-# Nuzlocke v3.0.1-beta
+# Nuzlocke v3.0.2-beta
 
 Configurable Pokémon challenge rules for [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp), with a new **Generation 3 beta port** and the established Generation 1/2 mod preserved.
 
 **Supported games:** Red, Blue, Yellow · Gold, Silver, Crystal · **FireRed, LeafGreen, Ruby, Sapphire, Emerald (Gen 3 beta)**.
 
-**Installed version:** `3.0.1-beta` · **Mod API:** 2 · **Gen 3 save namespace:** `gen3_classic_v1`.
+**Installed version:** `3.0.2-beta` · **Mod API:** 2 · **Gen 3 save namespace:** `gen3_classic_v1`.
 
 > **Beta:** automated smoke tests cover many rules and native hook contracts. All five Gen 3 ROM editions and third-party mod combinations still need manual validation. Back up saves, particularly before Permadeath, End Run and randomiser testing.
 
-> **v3.0.1-beta:** New release with a slimmer player ZIP, polished Gen 3 menus and curated release information. See the [release notes](RELEASE_NOTES.md) for the full description and differences from v3.0.0-BETA.
+> **v3.0.2-beta:** National Dex Gen 3 expanded-roster randomisation, alternate-form and shiny-result artwork repairs, and clearer companion Mod Support diagnostics. See [release notes](RELEASE_NOTES.md) for changes since v3.0.1-beta.
 
 ## Getting started
 
@@ -17,7 +17,7 @@ Configurable Pokémon challenge rules for [Gen1Recomp](https://github.com/bryant
 3. Enable **Nuzlocke Enabled**; the rule is opt-in. Randomiser and selected QoL features can operate independently of the Nuzlocke challenge switch.
 4. Set the **randomiser seed and options before the first randomised result**; settings lock when mappings have begun. For gameplay testing, use a disposable save.
 
-## What's in v3.0.1-beta?
+## What's in v3.0.2-beta?
 
 | Category | Features |
 | --- | --- |
@@ -25,10 +25,10 @@ Configurable Pokémon challenge rules for [Gen1Recomp](https://github.com/bryant
 | **PLAYSTYLES** | **Shiny Nuzlocke**, **Hardcore Nuzlocke**, or both together |
 | **LEVELS, HARDCORE & DIFFICULTY** | Gym/League/Postgame level caps, EXP Edging, SET battle restrictions, optional hardship rules and difficulty profiles |
 | **ADVANCED RULES** | Catch bans and gifted/traded Pokémon; OHKO/Battle Clauses; Status Bans/Sleep Clause; Type Locke/Catch Draft; battle/field items; services and economy; Pokémon stats; Kanto/Hoenn area splits |
-| **RANDOMIZER** | Seeded Gen 3 starter, wild, trainer, static/gift/Egg, items/shops/TM, learnset and evolution randomisation, generation/BST filters and related settings |
+| **RANDOMIZER** | Seeded Gen 3 starter, wild, trainer, static/gift/Egg, items/shops/TM, learnset and evolution randomisation; optional National Dex Gen 3 API-v2 species pool up to #1025, opt-in alternate forms, generation and BST filters |
 | **QOL & SETUP** | Instant Text, Run/Surf, bag and trade-evolution options; new-game starting resources, native catching unlock and settings lock |
-| **RUN JOURNAL & RESULTS** | Encounter tracking, Graveyard, readable event history, run statistics, End Run, Champion/failed-run results, shareable single-image memorial/team poster |
-| **MOD SUPPORT & NUZ DEV** | Live read-only compatibility diagnostics; hidden developer testing tools with audited encounter edits and full-archive restore |
+| **RUN JOURNAL & RESULTS** | Encounter tracking, Graveyard, regional/form-aware names, readable event history, End Run, Champion/failed-run results and shareable single-image memorial/team poster with extended/shiny artwork where a supported provider exists |
+| **MOD SUPPORT & NUZ DEV** | Live read-only diagnostics for Untamed Advanced, National Dex Gen 3, G9 Battle Sprites, Modern Spawns, Gen 3 HD Sprites and existing shiny/randomiser providers; hidden developer testing tools |
 
 For a detailed **ported vs adapted vs new** breakdown, see the **[Gen 3 feature matrix](docs/GEN3_FEATURE_MATRIX.md)**. This matrix is the current v3 feature inventory rather than the historically evolving notes from early beta development.
 
