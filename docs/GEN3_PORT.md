@@ -17,7 +17,7 @@ The definitive **ported / adapted / new** classification is the [Gen 3 feature m
 ## Journal, compatibility and results
 
 - **RUN JOURNAL** consolidates the former Almanac/Status/Notices concepts: run overview, encounter and graveyard shortcuts and the latest 100 saved rule-event notices. It reuses the old notice data with no save migration.
-- **MOD SUPPORT** reports live detection of Untamed and external shiny/randomiser providers. It is intentionally read-only; compatibility checks do not grant ownership or certify third-party combinations.
+- **MOD SUPPORT** reports live detection for **Untamed Advanced, National Dex Gen 3, G9 Battle Sprites, Modern Spawns and Gen 3 HD Sprites**, alongside external shiny/randomiser providers. Where a companion publishes a public API, the menu checks that the expected functions exist and reads its active/inactive status when safely available. Untamed's hook-based integration can only be detected, not verified through a public API. **DETECTED**, **API READY**, **INACTIVE** and **NOT VERIFIED** remain distinct: none certifies the combined game/mod stack. The screen is read-only and does not take over gameplay ownership.
 - **END RUN** provides an explicit finalisation flow, preserves native save handling and opens the final screen. Champion and loss have different continuation policies; party/graveyard/stats export supports shiny details. See [Run results](GEN3_RUN_RESULTS.md).
 
 **Implemented is not the same as ROM-certified.** Automated tests and menu controls do not guarantee parity across all five editions or external mods.
