@@ -19,13 +19,32 @@ return function()
         return mode=="party" and (result.party or {})
             or (result.graveyard or {})
     end
+    -- Resolve late-bound display labels for older terminal saves too.
+    -- A save made before National Dex integration may retain only the base
+    -- species name; never rewrite the frozen result or nickname.
+    local function speciesLabel(mon)
+        local display=opts and opts.display
+        if display and type(display.speciesName)=="function" then
+            local ok,name=pcall(display.speciesName,mon)
+            if ok and type(name)=="string" and name~="" then return name end
+        end
+        return mon.speciesName or "Unknown Pokémon"
+    end
+    local function pokemonLabel(mon)
+        local display=opts and opts.display
+        if display and type(display.pokemonName)=="function" then
+            local ok,name=pcall(display.pokemonName,mon)
+            if ok and type(name)=="string" and name~="" then return name end
+        end
+        return mon.nickname or mon.name or speciesLabel(mon)
+    end
     local function formatMon(mon)
-        return text(mon.name).." Lv"..text(mon.level)
+        return text(pokemonLabel(mon)).." Lv"..text(mon.level)
     end
     local function detail(mon)
         local rows={
-            row("NAME: "..text(mon.name)),
-            row("SPECIES: "..text(mon.speciesName)),
+            row("NAME: "..text(pokemonLabel(mon))),
+            row("SPECIES: "..text(speciesLabel(mon))),
             row("LEVEL: "..text(mon.level)),
             row("SHINY: "..(mon.shinyKnown==true
                 and (mon.shiny==true and "YES" or "NO") or "UNKNOWN")),
@@ -238,9 +257,9 @@ return function()
                 color(dead and {.72,.30,.39} or {.18,.68,.49})
                 g.rectangle("fill",x,y,5,CARD_H)
                 drawSprite(g,mon,x+13,y+20)
-                write(body,mon.name or mon.speciesName or "Pokemon",
+                write(body,pokemonLabel(mon),
                     x+110,y+15,soft,240)
-                write(small,mon.speciesName or "Unknown",
+                write(small,speciesLabel(mon),
                     x+110,y+43,muted,238)
                 write(small,"LEVEL "..text(mon.level),x+110,y+65,muted)
                 -- Label every card explicitly. Gold indicates shiny;
