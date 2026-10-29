@@ -2089,16 +2089,52 @@ return function(mod, api)
             local untamed=tostring(status.untamed or "UNKNOWN")
             local shiny=tostring(status.shiny or "UNKNOWN")
             local random=tostring(status.otherRandomizer or "UNKNOWN")
+            local integrations=type(status.integrations)=="table"
+                and status.integrations or {}
+            local function integration(key)
+                local entry=integrations[key]
+                if type(entry)~="table" then
+                    return {detection="UNKNOWN",api="UNKNOWN",
+                        active="UNKNOWN",tested="NOT VERIFIED"}
+                end
+                return entry
+            end
+            local function label(entry)
+                if entry.detection~="DETECTED" then
+                    return tostring(entry.detection or "UNKNOWN")
+                end
+                if entry.api=="READY" then
+                    return entry.active=="INACTIVE" and "INACTIVE"
+                        or "API READY"
+                end
+                return "DETECTED"
+            end
+            local function companion(key,title,description)
+                local entry=integration(key)
+                return row(title..": "..label(entry),nil,function()
+                    local lines={
+                        "DETECTION: "..tostring(entry.detection),
+                        "PUBLIC API: "..tostring(entry.api),
+                        "RUN STATE: "..tostring(entry.active),
+                        "COMBINED TEST: "..tostring(entry.tested),
+                    }
+                    for _,message in ipairs(description) do
+                        lines[#lines+1]=message
+                    end
+                    info(title.." SUPPORT",lines)
+                end)
+            end
             return {
                 row("UNTAMED: "..untamed,nil,function()
+                    local entry=integration("untamed")
                     info("UNTAMED SUPPORT",{
                         "DETECTION: "..untamed,
+                        "HOOK: "..tostring(entry.hook or "UNKNOWN"),
                         "WANDERING WILD POKEMON",
                         "SHARE NUZ CATCH RULES",
-                        "RANDOM WILD HOOKS APPLY",
-                        "WHEN PROVIDER IS PRESENT",
-                        "COMPATIBLE BUILD REQUIRED",
-                        "DETECTED IS NOT TESTED",
+                        "RANDOM WILD / SHINY HOOKS",
+                        "NO EXPORTED API PROBE",
+                        "COMBINED TEST: NOT VERIFIED",
                     })
                 end),
                 row("SHINY ODDS: "..shiny,nil,function()
@@ -2126,15 +2162,36 @@ return function(mod, api)
                         "IS CLAIMED FOR GEN 3",
                     })
                 end),
+                companion("nationalDex","NAT DEX",{
+                    "EXPANDED SPECIES & FORMS",
+                    "ROSTER / NAMES / RULES",
+                    "NO SPECIES ID REWRITES",
+                }),
+                companion("battleSprites","G9 SPRITES",{
+                    "NORMAL / SHINY / FORMS",
+                    "NATIVE SPRITE API HOOKS",
+                    "API READY IS NOT TESTED",
+                }),
+                companion("modernSpawns","MOD SPAWNS",{
+                    "WILD ENCOUNTER TABLES",
+                    "MOD SPAWNS OWNS TABLES",
+                    "OVERLAP NEEDS GAME TEST",
+                }),
+                companion("hdSprites","HD SPRITES",{
+                    "HI-RES PRESENTATION",
+                    "NO NUZ RULE OWNERSHIP",
+                    "API READY IS NOT TESTED",
+                }),
                 row("HOW SUPPORT WORKS",nil,function()
                     info("MOD SUPPORT HELP",{
                         "THIS SCREEN IS READ ONLY",
-                        "HOOKS APPLY AUTOMATICALLY",
+                        "DETECTED: MOD FOUND",
+                        "API READY: FUNCTIONS EXIST",
+                        "INACTIVE: PROVIDER OFF",
+                        "NOT VERIFIED: GAME TEST",
+                        "UNTAMED HOOK UNPROVEN",
                         "NO MANUAL OWNER SWITCHES",
                         "NUZ KEEPS CATCH RULES",
-                        "MOD FIND IS LIVE ONLY",
-                        "DETECTION IS NOT PROOF",
-                        "OF GAMEPLAY CERTIFICATION",
                         "TEST COMBINED MODS",
                     })
                 end),
