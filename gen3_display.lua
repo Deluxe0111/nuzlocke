@@ -267,6 +267,8 @@ return function()
                 species = speciesId,
                 speciesName = entry.caughtSpeciesName,
             }))
+            or (nonblank(entry.caughtSpeciesName)
+                and displayCase(entry.caughtSpeciesName))
             or "Unknown Pokémon"
         local nickname = found and found.nickname or entry.caughtNickname
         if not nonblank(nickname) then nickname = nil end
