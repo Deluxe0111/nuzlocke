@@ -107,7 +107,13 @@ return function()
         local flag=M.shinyStatus(mon,Pokemon)
         local info={
             species=num(raw.species or raw.speciesId or mon.species or mon.speciesId),
-            speciesNumbering=raw.speciesNumbering,
+            speciesNumbering=raw.speciesNumbering or mon.speciesNumbering,
+            -- Preserve the native form selector for sprites which use one
+            -- species slot with multiple visual states (e.g. Castform).
+            -- National Dex alternate forms already have their own species
+            -- slots, which must never be collapsed to a base Dex number.
+            form=raw.form or mon.form,
+            formId=raw.formId or mon.formId,
             name=Display.pokemonName(mon),
             speciesName=Display.speciesName(mon),
             nickname=mon.nickname or raw.nickname,

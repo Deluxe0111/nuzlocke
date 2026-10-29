@@ -290,5 +290,36 @@ press("b")
 assert(selectPrefix("CONTINUE ADVENTURE"))
 assert(not View.isOpen() and game.quit==true,
     "victory continue must close the result overlay without quitting")
+-- Expanded National Dex and regional form slots must reach the active
+-- picture provider unchanged, including their saved shiny identity.
+local expanded={species=1094,speciesName="Zorua (Hisui)",
+    nickname="Ghost",personality=42,level=30,isShiny=true,form=0}
+local fallen={species=1095,speciesName="Zoroark (Hisui)",
+    nickname="Shade",personality=43,level=31,isShiny=false,form=0}
+local extSaved={enabled=true,graveyard={{archive=fallen,
+    species=1095,nickname="Shade",level=31,cause="Critical hit"}}}
+local extSession={name="TEST",party={expanded},version="emerald"}
+local extResult=assert(Policy.finish(extSaved,extSession,Display,
+    "VICTORY","Champion defeated",8))
+assert(extResult.party[1].species==1094 and extResult.party[1].form==0
+    and extResult.graveyard[1].species==1095
+    and extResult.graveyard[1].form==0
+    and extResult.party[1].shiny==true)
+local requested={}
+package.loaded["src.core.game3.pokemon"].frontPic=function(slot,form,shiny,pid)
+    requested[#requested+1]={slot,form,shiny,pid}
+    return {image={expanded=true},w=64,h=64}
+end
+local wrongProvider={front=function()
+    error("ROM shiny extractor must not override expanded species art")
+end}
+assert(View.open(game,extResult,{shinyVisuals=wrongProvider}))
+assert(selectPrefix("SHARE COMPLETE RUN PNG"))
+assert(#requested==2)
+assert(requested[1][1]==1094 and requested[1][2]==0
+    and requested[1][3]==true and requested[1][4]==42)
+assert(requested[2][1]==1095 and requested[2][2]==0
+    and requested[2][3]==false and requested[2][4]==43)
+View.close()
 love=loveBefore
 print("Gen 3 run results policy, failure lock, victory and PNG: PASS")
