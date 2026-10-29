@@ -1123,7 +1123,7 @@ for _,category in ipairs(cat) do
         end
     end
 end
-assert(#catalogKeys==36,"all 36 catalogue options remain available")
+assert(#catalogKeys==38,"all 38 catalogue options remain available")
 for _,key in ipairs(catalogKeys) do
     assert(api.get(key)~=nil,
         "randomiser catalogue contains inactive setting "..key)
