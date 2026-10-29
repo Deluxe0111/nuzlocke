@@ -222,7 +222,7 @@ local savedBan={catchRules=s.catchRules}
 assert(Rules.isBannedNational(savedBan,252),"ban list persists in save")
 assert(not Rules.toggleNational(s,0) and not Rules.toggleNational(s,1026))
 assert(Rules.toggleNational(s,387),"Gen 4 individual species must be bannable")
-assert(Rules.isBannedNational(s,387) and Rules.banCount(s)==1)
+assert(Rules.isBannedNational(s,387) and Rules.banCount(s)==2)
 assert(Rules.toggleNational(s,387))
 assert(not Rules.set(s,"pkmn_ban",1),"picker is not a boolean toggle")
 assert(Rules.toggleNational(s,252))
