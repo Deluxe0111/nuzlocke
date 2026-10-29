@@ -57,6 +57,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     end
     Randomizer.setSpeciesProvider(nationalDexProvider)
     CatchRules.setSpeciesProvider(nationalDexProvider)
+    Display.setSpeciesProvider(nationalDexProvider)
     local currentArea
     local activeBattle
     local pendingRoamer
@@ -161,6 +162,7 @@ local Difficulty = readModule("gen3_difficulty.lua")()
         local running=game()
         local ok,opened=pcall(ResultsScreen.open,running,record,{
             shinyVisuals=ShinyVisuals,
+            display=Display,
             onQuit=function()
                 if running and type(running.returnToTitle)=="function" then
                     ResultsScreen.close()
