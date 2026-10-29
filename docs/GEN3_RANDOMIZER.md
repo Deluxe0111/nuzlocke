@@ -1,4 +1,4 @@
-# Gen 3 Randomiser — v3.0.0-BETA
+# Gen 3 Randomiser — expanded National Dex branch
 
 The native Gen 3 Nuzlocke menu now exposes a deterministic species
 randomiser for **starter choices, static encounters, scripted gifts,
@@ -7,7 +7,7 @@ TM moves and TM compatibility, wild step encounters, fishing and
 trainer parties**.
 It does **not** require Nuzlocke Enabled to be ON.
 
-All 36 entries in the legacy Randomiser catalogue now have implemented
+The legacy randomiser catalogue and two new National Dex roster settings now have implemented
 controls. Options default to native behaviour until enabled. These are
 native runtime substitutions, not edits to the extracted ROM, and are
 designed for FireRed/LeafGreen and Ruby/Sapphire/Emerald. In-game
@@ -54,11 +54,55 @@ Start > NUZ MENU > NUZ RULES > RANDOMIZER
 | Wild Balance | CHAOS / SIM BST (when Wild ON) | CHAOS |
 | Wild Variety | NORMAL / UNIQUE AREA (when Wild ON) | NORMAL |
 | Trainer Balance | CHAOS / SIM BST (when Trainers ON) | CHAOS |
-| Species Pool | ALL / KANTO / JOHTO / HOENN | ALL |
+| Species Pool | ALL / KANTO / JOHTO / HOENN / SINNOH / UNOVA / KALOS / ALOLA / GALAR / PALDEA | ALL |
+| Roster | GEN 1-3 / NATIONAL DEX | NATIONAL DEX on new saves (falls back to classic without provider) |
+| Alt Forms | OFF / ON (when National Dex selected) | OFF |
+| Eligible / New Species / Alt Forms | Read-only counts from installed registry | Depends on installed mods |
 | Trainer Variety | NORMAL / UNIQUE TEAM | NORMAL |
 | Seed | 8-digit FIXED or AUTO (00000000) | AUTO |
 | Run Seed | Effective fixed/resolved seed (read-only) | NOT ROLLED |
 | Config | EDITABLE / LOCKED | EDITABLE |
+
+## National Dex Gen 3 roster support (optional)
+
+When [National Dex Gen 3](https://github.com/poooooby/national_dex_gen3)
+is installed, the randomiser reads its **public API v2** `listSpecies()` and
+`listForms()`. It validates each registered **native engine slot** using the
+engine's canonical name, National number and six base stats. It never
+assumes engine slot = National number, and never guesses a maximum slot.
+
+- **NATIONAL DEX** combines the game's normal roster with up to **639 newly
+  registered base Pokémon** (#387–1025), yielding up to **1,025 base species**
+  when all are present. Without that provider the original Gen 1-3 pool
+  continues safely; unrelated mods are not assumed to implement the same API.
+- **ALT FORMS** is deliberately opt-in: up to **128 registered alternate
+  forms** can enter the pool separately by their internal engine slot, while
+  still keeping their base species' National number for category bans.
+  Unregistered forms, empty placeholders and invalid stats are excluded.
+- **SPECIES POOL** can restrict replacements to the actual National Dex
+  generation 1–9. Evolution randomisation, starter options, gifts, wilds,
+  trainers and static encounters use the same validated candidate pool.
+- **ELIGIBLE / NEW SPECIES / ALT FORMS** show the current installed roster
+  after validation; they are not a promise that a species without a proper
+  engine registration can appear.
+- **Existing randomised saves** created before these settings existed
+  remain pinned to the classic roster. The new settings are locked once
+  the first randomised result has been generated, just like the seed.
+  Don't uninstall National Dex halfway through an expanded run.
+
+**Modern Spawns** independently changes wild encounter tables and can
+put National Dex Pokémon into the world even when Nuzlocke Random Wild
+is OFF. When Nuzlocke Random Wild is ON, the two mods may both modify
+the same `encounter.species` hook; this branch does **not** yet establish
+a universal load-order-independent priority protocol between them.
+For isolated testing, disable Modern Spawns or keep its encounter mode
+fixed and compare the displayed/battled/caught species. The existing
+Untamed Advanced overworld hook is still a distinct source and uses the
+same Nuzlocke randomiser seed/pool when enabled.
+
+The Gen 3 beta does not gain full Gen 4–9 battle-move or TM randomisation
+automatically: those filters still use their existing native Gen 3 move
+boundaries. Extra Pokémon in the species pool do not imply extra moves.
 
 **CHAOS preset** enables both randomisers, all species and no BST band.
 **BALANCED preset** enables both, all species and the similar-BST candidate
