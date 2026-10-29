@@ -46,6 +46,17 @@ local Difficulty = readModule("gen3_difficulty.lua")()
     local Levels = readModule("gen3_levels.lua")()
     local Notices = readModule("gen3_notices.lua")()
     local Randomizer = readModule("gen3_randomizer.lua")()
+    -- Optional National Dex API v2: enumerate only registered base species
+    -- and forms, never assume a numeric engine-slot ceiling. Re-evaluate
+    -- after save changes so absent / late providers fail back to vanilla.
+    local function nationalDexProvider()
+        if type(mod.find) ~= "function" then return nil end
+        local ok, dex = pcall(mod.find, mod, "national_dex_gen3")
+        if not ok or type(dex) ~= "table" then return nil end
+        return dex.exports
+    end
+    Randomizer.setSpeciesProvider(nationalDexProvider)
+    CatchRules.setSpeciesProvider(nationalDexProvider)
     local currentArea
     local activeBattle
     local pendingRoamer
@@ -3841,6 +3852,11 @@ local Difficulty = readModule("gen3_difficulty.lua")()
             end,
             locked = function()
                 return Randomizer.locked(loadState())
+            end,
+            rosterInfo = function()
+                local ok, Pokemon = pcall(require, "src.core.game3.pokemon")
+                if not ok then return {total=0,extended=0,forms=0,provider=false} end
+                return Randomizer.rosterInfo(loadState(), Pokemon)
             end,
         },
 

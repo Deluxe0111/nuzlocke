@@ -35,7 +35,11 @@ return function()
         random_encounter_diversity_strength = { kind="number", default=0, min=0, max=2 },
         randomizer_info_policy = { kind="number", default=0, min=0, max=1 },
         random_trainer_balance = { kind="number", default=0, min=0, max=1 },
-        random_species_generation = { kind="number", default=0, min=0, max=3 },
+        random_species_generation = { kind="number", default=0, min=0, max=9 },
+        -- Default to the installed National Dex on NEW runs, but leave all
+        -- previously used runs on their historical <=386 candidate roster.
+        random_species_roster = { kind="number", default=1, min=0, max=1 },
+        random_species_forms = { kind="boolean", default=false },
         random_trainer_diversity = { kind="number", default=0, min=0, max=1 },
         random_trainer_theme = { kind="number", default=0, min=0, max=1 },
         random_learnsets = { kind="boolean", default=false },
@@ -47,15 +51,27 @@ return function()
         random_gift_items = { kind="boolean", default=false },
         randomizer_preset = { kind="number", default=0, min=0, max=2 },
     }
-    local cachedPool, cachedOwner
+    local cachedPool, cachedOwner, cachedRoster, cachedFormMode, cachedProvider
+    local dexProvider
+    function M.setSpeciesProvider(provider)
+        dexProvider = type(provider)=="function" and provider or nil
+        M.clearCache()
+    end
     local cachedItemPool, cachedItemPack, cachedItemOwner
     function M.clearCache()
-        cachedPool, cachedOwner = nil, nil
+        cachedPool, cachedOwner, cachedRoster, cachedFormMode,
+            cachedProvider = nil, nil, nil, nil, nil
         cachedItemPool, cachedItemPack, cachedItemOwner = nil, nil, nil
     end
     local function state(s)
         if type(s.randomizer) ~= "table" then s.randomizer = {} end
         local r = s.randomizer
+        -- Save compatibility: beta runs that have already randomised have
+        -- never stored a roster choice. Pin them to their original pool,
+        -- even if the National Dex mod is installed later.
+        if r.random_species_roster == nil and r.used == true then
+            r.random_species_roster = 0
+        end
         for key, def in pairs(definitions) do
             local v = r[key]
             if type(v) ~= def.kind
@@ -136,16 +152,17 @@ return function()
         return r.runSeed
     end
     local function eligiblePokemon(Pokemon, sp)
+        sp=tonumber(sp)
+        if not sp or sp~=math.floor(sp) or sp<1 then return nil end
         local ok1, nat = pcall(Pokemon.national, sp)
-        if not ok1 or type(nat) ~= "number" or nat < 1 or nat > 386 then
+        if not ok1 or type(nat) ~= "number" or nat < 1
+            or nat > 1025 or nat ~= math.floor(nat) then
             return nil
         end
         local ok2, stats = pcall(Pokemon.stats, sp)
         local ok3, key = pcall(Pokemon.keyName, sp)
         if not ok2 or not ok3 or type(stats) ~= "table"
             or type(key) ~= "string" or key == "" then return nil end
-        -- Game3's Pokemon.stats is a NAMED stat object, not the Gen1/2
-        -- numeric array. Support both for safe registry adapters.
         local keys = {"hp", "atk", "def", "spe", "spa", "spd"}
         local bst = 0
         for i, name in ipairs(keys) do
@@ -155,29 +172,105 @@ return function()
         end
         return { id = sp, national = nat, bst = bst, key = key }
     end
-    function M.pool(Pokemon)
-        if Pokemon == cachedOwner and cachedPool then return cachedPool end
+    local function liveDex()
+        if type(dexProvider) ~= "function" then return nil end
+        local ok, provider = pcall(dexProvider)
+        if not ok or type(provider) ~= "table"
+            or (tonumber(provider.apiVersion) or 0)<2
+            or type(provider.listSpecies)~="function"
+            or type(provider.listForms)~="function" then
+            return nil
+        end
+        return provider
+    end
+    -- Only the provider's public registry enumerates Gen 4-9 species and
+    -- forms. Never scan an arbitrary internal-slot upper bound: gaps and
+    -- unrelated form numbers may otherwise appear as valid replacements.
+    function M.pool(Pokemon, r)
         if type(Pokemon) ~= "table"
             or type(Pokemon.national) ~= "function"
             or type(Pokemon.stats) ~= "function"
             or type(Pokemon.keyName) ~= "function" then return {} end
-        local pool = {}
-        for sp = 1, 512 do
+        local useDex = type(r)=="table"
+            and r.random_species_roster==1
+        local provider = useDex and liveDex() or nil
+        local formMode = provider and r.random_species_forms==true or false
+        if Pokemon == cachedOwner and cachedPool
+            and cachedRoster == (provider~=nil)
+            and cachedFormMode == formMode
+            and cachedProvider == provider then return cachedPool end
+        local pool, seen = {}, {}
+        local function include(sp, isForm)
             local entry = eligiblePokemon(Pokemon, sp)
-            if entry then pool[#pool + 1] = entry end
+            if entry and not seen[entry.id] then
+                entry.form=isForm==true
+                pool[#pool+1]=entry
+                seen[entry.id]=true
+            end
         end
-        -- If species assets weren't available yet, retry the next time.
-        if #pool > 0 then cachedPool, cachedOwner = pool, Pokemon end
+        -- Preserve the exact legacy species order for games without
+        -- National Dex, including previous runs locked to that pool.
+        for sp=1,512 do
+            local entry=eligiblePokemon(Pokemon,sp)
+            if entry and entry.national<=386 then include(sp,false) end
+        end
+        if provider then
+            local ok, bases = pcall(provider.listSpecies)
+            if ok and type(bases)=="table" then
+                for _, record in ipairs(bases) do
+                    if type(record)=="table"
+                        and tonumber(record.dex)
+                        and tonumber(record.dex)>386 then
+                        include(record.slot,false)
+                    end
+                end
+            end
+            if formMode then
+                local okForms, forms=pcall(provider.listForms)
+                if okForms and type(forms)=="table" then
+                    for _, record in ipairs(forms) do
+                        if type(record)=="table"
+                            and tonumber(record.baseDex) then
+                            include(record.slot,true)
+                        end
+                    end
+                end
+            end
+        end
+        -- Vanilla order is unchanged because appended IDs are above 512.
+        -- The sort also makes plugin-provided enumeration deterministic.
+        table.sort(pool,function(a,b) return a.id<b.id end)
+        if #pool>0 then
+            cachedPool,cachedOwner,cachedRoster,cachedFormMode,
+                cachedProvider=pool,Pokemon,provider~=nil,formMode,provider
+        end
         return pool
     end
+    function M.rosterInfo(s, Pokemon)
+        local r=state(s)
+        local pool=M.pool(Pokemon,r)
+        local extended,forms=0,0
+        for _,entry in ipairs(pool) do
+            if entry.national>386 then extended=extended+1 end
+            if entry.form then forms=forms+1 end
+        end
+        return { total=#pool, extended=extended, forms=forms,
+            provider=r.random_species_roster==1 and liveDex()~=nil or false }
+    end
     local function generation(n)
-        if n >= 1 and n <= 151 then return 1 end
-        if n >= 152 and n <= 251 then return 2 end
-        if n >= 252 and n <= 386 then return 3 end
+        if n>=1 and n<=151 then return 1 end
+        if n<=251 then return 2 end
+        if n<=386 then return 3 end
+        if n<=493 then return 4 end
+        if n<=649 then return 5 end
+        if n<=721 then return 6 end
+        if n<=809 then return 7 end
+        if n<=905 then return 8 end
+        if n<=1025 then return 9 end
         return nil
     end
-    local function candidates(Pokemon, original, poolMode, balance, denyNational, excluded)
-        local all = M.pool(Pokemon)
+    local function candidates(Pokemon, original, poolMode, balance, denyNational, excluded, r)
+        local all = M.pool(Pokemon,r)
         local originalId = tonumber(original)
         if not originalId and type(original) == "string"
             and type(Pokemon.speciesFromName) == "function" then
@@ -216,11 +309,11 @@ return function()
         if not ok or type(types)~="table" then return nil end
         return tonumber(types[1])
     end
-    local function nativeEvolutionGraph(Pokemon)
+    local function nativeEvolutionGraph(Pokemon,r)
         local targets={}
         local resolver=Pokemon.__nuzNativeEvolutions or Pokemon.evolutions
         if type(resolver)~="function" then return targets end
-        for _,entry in ipairs(M.pool(Pokemon)) do
+        for _,entry in ipairs(M.pool(Pokemon,r)) do
             local ok,rows=pcall(resolver,entry.id)
             if ok and type(rows)=="table" then
                 for _,row in ipairs(rows) do
@@ -265,7 +358,7 @@ return function()
         local seed=M.seed(s,entropy)
         if seed==0 then return nil end
         local targets=r.random_starter_style~=0
-            and nativeEvolutionGraph(Pokemon) or {}
+            and nativeEvolutionGraph(Pokemon,r) or {}
         local attempts=({1,3,5})[r.random_starter_rerolls+1] or 1
         local chosen,bestSpread
         for attempt=1,attempts do
@@ -275,7 +368,7 @@ return function()
                 local original=originals[i]
                 local legal=candidates(Pokemon,original,
                     r.random_species_generation,r.random_starter_balance,
-                    denyNational,used)
+                    denyNational,used,r)
                 local filtered={}
                 for _,entry in ipairs(legal or {}) do
                     local t=primaryType(Pokemon,entry.id)
@@ -739,7 +832,7 @@ return function()
             or type(rows)~="table" or #rows==0 then return nil end
         local seed=M.seed(s,entropy)
         if seed==0 then return nil end
-        local all=M.pool(Pokemon)
+        local all=M.pool(Pokemon,r)
         local out,changed={},false
         for i,e in ipairs(rows) do
             if type(e)~="table" then return nil end
@@ -904,7 +997,7 @@ return function()
                 and r.random_gift_balance
             or r.random_trainer_balance
         local legal = candidates(Pokemon, original,
-            r.random_species_generation, balance,denyNational,excluded)
+            r.random_species_generation, balance,denyNational,excluded,r)
         if not legal or #legal == 0 then return nil end
         if source=="TRAINERS" and r.random_trainer_theme==1
             and themeType~=nil then
@@ -954,7 +1047,7 @@ return function()
             -- remaining legal choices. If exhausted, reuse the native
             -- candidate pool, never an invalid/glitch species.
             local fresh = candidates(Pokemon, original,
-                r.random_species_generation, balance, denyNational, taken)
+                r.random_species_generation, balance, denyNational, taken,r)
             if fresh and #fresh > 0 then legal = fresh end
         end
         if unique and r.random_encounter_diversity_strength>0

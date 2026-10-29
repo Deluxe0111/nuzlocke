@@ -12,7 +12,7 @@ This is the canonical release-facing distinction between **ported**, **adapted/m
 | Clauses | Dupes SPEC/FAM/SPLIT, Shiny catch exceptions, Shiny Rate, independent Roamer slots, Egg Encounter provenance, Route Forgiveness tokens and missed-route reopening |
 | Levels and difficulty | Gym/Elite Four/Champion/Postgame level-cap scope, EXP Edging/EXP bank, Game Difficulty presets, Hardcore battle restrictions |
 | Run / party | Team and party size restrictions, evolution limits, run progression controls |
-| Catch rules | Species restrictions (Legendary, Mythical, Pseudo, BST, individual National Dex bans), No Static, No Fishing, Town Catches, optional gifts/trades and encounter-slot policies, Colorlocke/Alphabetlocke, Allow Glitches |
+| Catch rules | Species restrictions (Legendary, Mythical, Pseudo, BST, individual National Dex bans up to #1025 when registered), No Static, No Fishing, Town Catches, optional gifts/trades and encounter-slot policies, Colorlocke/Alphabetlocke, Allow Glitches |
 | Battle and status | OHKO, Flinch, Trap, setup, evasion, accuracy/stat-drop clauses; No Status Moves, Paralysis, Confusion, Sleep, Poison, Burn, Freeze and Sleep Clause |
 | Variants | Type Locke (one to six type lanes), saved random type selection, Catch Draft |
 | Items and services | Battle items, Ball limits, field items, TMs/HMs distinction, travel restrictions, Pokémon Centre/Mom/Day Care, shops/gambling, trainer money |
@@ -28,7 +28,7 @@ This is the canonical release-facing distinction between **ported**, **adapted/m
 | Catching and acquisition | First encounters begin counting only after catching becomes possible; optional gift and NPC trade operations are checked before the native mutation; catch/area rules apply to visible Untamed wilds |
 | Battle and permadeath | Uses Gen 3 battle copies, writeback and native item/move interception; OHKO fails at the native accuracy seam, and revival items cannot bypass permadeath |
 | Shiny | Gen 3 shiny odds and shiny identity integrate with native Pokémon data, ROM front sprites and the existing mini-icons; compatible external shiny provider gets rate ownership |
-| Randomiser | Seeded mappings for Gen 3 starters, ordinary/static/gift/egg encounters, trainers, items, shops, TMs, learnsets and evolutions; supported balancing/pool controls and source-specific exceptions |
+| Randomiser | Seeded mappings for Gen 3 starters, ordinary/static/gift/egg encounters, trainers, items, shops, TMs, learnsets and evolutions; optional API-v2 National Dex roster up to 1,025 bases + 128 opt-in forms; Gen 1-9 pool filters, BST balance and source exceptions |
 | Route identity | Gen 3-specific Kanto/Hoenn area grouping and optional area splits replace the initial map-only approximation |
 | Interface | 240×160 GBA menu, rule descriptions, per-page scrolling, readable species/route names and new-game setup integration |
 
@@ -47,6 +47,8 @@ This is the canonical release-facing distinction between **ported**, **adapted/m
 | Hidden Nuz Dev tools | Session-only access, audited test-save state edits, encounter resets and guarded full-archive graveyard restoration |
 
 ## Current limitations / certification tasks
+
+- **In-development National Dex roster:** full randomiser species coverage depends on the installed `national_dex_gen3` API v2. Alternate forms are opt-in; no provider means the vanilla roster. Separate Modern Spawns encounter ownership, expanded sprite rendering and colour metadata still require real six-mod validation.
 
 - Manual ROM validation remains required across **all five Gen 3 editions**, including failed runs, Champion continuation, artwork export, native move/item edge cases and option combinations.
 - Gift/trade/Egg Pokémon with pending required nicknames are recorded in **Nickname Tasks**; battle-use denial for every non-catch acquisition path is not yet guaranteed.

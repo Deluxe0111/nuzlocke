@@ -3,6 +3,36 @@
 -- This policy only allows/denies the existing catch.rate transaction.
 return function()
     local M = { api = 1, schema = 1 }
+    local MAX_NATIONAL=1025
+    local dexProvider, flaggedSource, flaggedSpecies
+    function M.setSpeciesProvider(provider)
+        dexProvider=type(provider)=="function" and provider or nil
+        flaggedSource,flaggedSpecies=nil,nil
+    end
+    local function providerFlags(national)
+        if type(dexProvider)~="function" then return nil end
+        local ok,api=pcall(dexProvider)
+        if not ok or type(api)~="table"
+            or type(api.listSpecies)~="function"
+            or (tonumber(api.apiVersion) or 0)<2 then return nil end
+        if flaggedSource~=api then
+            flaggedSource,flaggedSpecies=api,{}
+            local listed,rows=pcall(api.listSpecies)
+            if listed and type(rows)=="table" then
+                for _,entry in ipairs(rows) do
+                    if type(entry)=="table" then
+                        local dex=tonumber(entry.dex)
+                        if dex and dex==math.floor(dex)
+                            and dex>=1 and dex<=MAX_NATIONAL then
+                            flaggedSpecies[dex]={legendary=entry.legendary==true,
+                                mythical=entry.mythical==true}
+                        end
+                    end
+                end
+            end
+        end
+        return flaggedSpecies and flaggedSpecies[national]
+    end
     local RULES = {
         { key = "town_catches", label = "Town Catches",
           default = false, kind = "toggle" },
@@ -81,14 +111,14 @@ return function()
     end
     function M.banCount(s)
         local count=0
-        for i=1,386 do
+        for i=1,MAX_NATIONAL do
             if banSet(s)[tostring(i)]==true then count=count+1 end
         end
         return count
     end
     function M.isBannedNational(s,nat)
         local n=tonumber(nat)
-        return n and n==math.floor(n) and n>=1 and n<=386
+        return n and n==math.floor(n) and n>=1 and n<=MAX_NATIONAL
             and banSet(s)[tostring(n)]==true or false
     end
     function M.toggleNational(s,nat)
@@ -98,7 +128,7 @@ return function()
         local n=tonumber(nat)
         if type(s)~="table" then return false,"invalid_state" end
         if s.failed then return false,"run_failed" end
-        if not n or n~=math.floor(n) or n<1 or n>386 then
+        if not n or n~=math.floor(n) or n<1 or n>MAX_NATIONAL then
             return false,"invalid_national_dex"
         end
         local bans=banSet(s)
@@ -332,6 +362,13 @@ return function()
         [246]=true,[247]=true,[248]=true,
         [371]=true,[372]=true,[373]=true,
         [374]=true,[375]=true,[376]=true,
+        -- Full pseudo-legendary lines introduced after Hoenn.
+        [443]=true,[444]=true,[445]=true, -- Gible
+        [633]=true,[634]=true,[635]=true, -- Deino
+        [704]=true,[705]=true,[706]=true, -- Goomy
+        [782]=true,[783]=true,[784]=true, -- Jangmo-o
+        [885]=true,[886]=true,[887]=true, -- Dreepy
+        [996]=true,[997]=true,[998]=true, -- Frigibax
     }
     local function resolvedId(species,pokemon)
         local id=tonumber(species)
@@ -370,7 +407,7 @@ return function()
         if not pokemon or type(pokemon.speciesFromNational)~="function"
             or type(pokemon.keyName)~="function" then return false end
         local present,choices={},{}
-        for nat=1,386 do
+        for nat=1,MAX_NATIONAL do
             local ok,id=pcall(pokemon.speciesFromNational,nat)
             if ok and tonumber(id) then
                 local name=canonicalName(tonumber(id),pokemon)
@@ -432,7 +469,7 @@ return function()
         if not pokemon or type(pokemon.speciesFromNational)~="function"
             then return false end
         local seen,colors={},{}
-        for nat=1,386 do
+        for nat=1,MAX_NATIONAL do
             local ok,id=pcall(pokemon.speciesFromNational,nat)
             local c=ok and colorId(id,pokemon) or nil
             if c and not seen[c] then seen[c]=true end
@@ -470,8 +507,16 @@ return function()
         end
         if meta and (meta.isGlitch or meta.glitch) then return true end
         local nat=nationalId(id,pokemon)
+        -- Keep vanilla behaviour: the ROM may expose valid Gen 1-3
+        -- species without all metadata during a scripted check.
         if nat and nat>=1 and nat<=386 then return false end
-        -- Allow valid extended species from other providers.
+        if nat and nat>386 and nat<=MAX_NATIONAL
+            and canonicalName(id,pokemon)
+            and pokemon and type(pokemon.stats)=="function" then
+            local ok,stats=pcall(pokemon.stats,id)
+            if ok and type(stats)=="table" then return false end
+        end
+        -- Allow other verified custom species from third-party providers.
         if meta and canonicalName(id,pokemon) then return false end
         return true
     end
@@ -489,10 +534,13 @@ return function()
                 return false,"PKMN BAN: species #"
                     ..string.format("%03d",national).." is banned."
             end
-            if M.get(s,"ban_legendaries") and LEGENDARIES[national] then
+            local flags=providerFlags(national)
+            if M.get(s,"ban_legendaries")
+                and (LEGENDARIES[national] or flags and flags.legendary) then
                 return false, "No Legendaries: this Pokemon cannot be caught."
             end
-            if M.get(s,"ban_mythicals") and MYTHICALS[national] then
+            if M.get(s,"ban_mythicals")
+                and (MYTHICALS[national] or flags and flags.mythical) then
                 return false, "No Mythicals: this Pokemon cannot be caught."
             end
             if M.get(s,"ban_pseudos") and PSEUDOS[national] then
