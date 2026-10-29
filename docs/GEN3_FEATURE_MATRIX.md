@@ -43,7 +43,7 @@ This is the canonical release-facing distinction between **ported**, **adapted/m
 | Untamed Advanced collaboration | Seed-consistent randomisation of visibly wandering wild Pokémon before spawning, so overworld sprites, fights and catches agree |
 | Run Journal | One live run overview with area, death and catch summaries, encounter/graveyard shortcuts and retained event history |
 | End Run/results | Terminal loss/forfeit/Champion outcomes, native save integration and shareable single-image party/graveyard/statistics poster with shiny artwork where available |
-| Mod Support | Read-only integration diagnostics; no unsafe manual compatibility ownership overrides |
+| Mod Support | Read-only live detection of Untamed Advanced, National Dex Gen 3, G9 Battle Sprites, Modern Spawns and Gen 3 HD Sprites, with public API readiness and active-status diagnostics where exposed; no unsafe ownership overrides or automatic combined-runtime certification |
 | Hidden Nuz Dev tools | Session-only access, audited test-save state edits, encounter resets and guarded full-archive graveyard restoration |
 
 ## Current limitations / certification tasks
