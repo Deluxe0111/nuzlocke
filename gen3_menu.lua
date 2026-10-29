@@ -827,12 +827,19 @@ return function(mod, api)
     local function showPkmnBan()
         local currentPage=1
         local PER_PAGE=20
-        local MAX_PAGE=math.ceil(386/PER_PAGE)
+        local okDex,Pokemon=pcall(require,"src.core.game3.pokemon")
+        local maxDex=386
+        if okDex and type(Pokemon)=="table"
+            and type(Pokemon.speciesFromNational)=="function" then
+            local ok,found=pcall(Pokemon.speciesFromNational,1025)
+            if ok and tonumber(found) then maxDex=1025 end
+        end
+        local MAX_PAGE=math.ceil(maxDex/PER_PAGE)
         local function buildRows()
             local saved=state()
             local rows={}
             rows[#rows+1]=row("BANNED: "..CatchRules.banCount(saved)
-                .." / 386",nil)
+                .." / "..maxDex,nil)
             rows[#rows+1]=row("< PREV PAGE",nil,function()
                 currentPage=math.max(1,currentPage-1)
                 local p=current()
@@ -850,7 +857,7 @@ return function(mod, api)
             end)
             local ok,Pokemon=pcall(require,"src.core.game3.pokemon")
             for nat=(currentPage-1)*PER_PAGE+1,
-                math.min(386,currentPage*PER_PAGE) do
+                math.min(maxDex,currentPage*PER_PAGE) do
                 local speciesName="UNKNOWN"
                 if ok and type(Pokemon)=="table"
                     and type(Pokemon.speciesFromNational)=="function"
